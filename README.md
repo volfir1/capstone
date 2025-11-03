@@ -1,40 +1,62 @@
-<!-- Todos -->
+# JUSTREACH: Accessible Legal Services Network for Rural Filipino Communities
 
+## Overview
+JUSTREACH is a capstone project that aims to make legal services more accessible to people in rural areas of the Philippines. It provides a web and mobile platform where users can access legal information, fill out multilingual legal forms, and connect with Public Attorney’s Office (PAO) lawyers or other legal volunteers.
 
-1.	Multilingual Legal Access – Supports multiple languages such as English, Filipino, and major regional languages. The platform will provide legal forms and guidance that are simple and easy to understand, accommodating users with varying levels of education.
-2.	Remote Consultation – Enables scheduled and on-demand video conferencing with lawyers, and attorneys.
+This project supports **SDG 16: Peace, Justice, and Strong Institutions**, by helping promote equal access to justice for all.
 
-3. Username should be unique and shall add validation to it
+---
 
-4. persisstence when app existed it should stay to the same page holding the toekn unless logged out 
+## Problem Statement
+Many Filipinos living in rural areas have limited access to legal services due to distance, lack of resources, and language barriers. JUSTREACH addresses this problem by providing an online and offline platform that helps users understand and manage legal concerns in their own language.
 
-replace logos
+---
 
-android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png (192x192)
-android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png (144x144)
-android/app/src/main/res/mipmap-xhdpi/ic_launcher.png (96x96)
-android/app/src/main/res/mipmap-hdpi/ic_launcher.png (72x72)
-android/app/src/main/res/mipmap-mdpi/ic_launcher.png (48x48)
+## Purpose and Objectives
+The purpose of JUSTREACH is to bridge the justice gap in rural Filipino communities through digital means.
 
-COLORS
-Top circle: #C4AB7D (warm beige/tan)
-Second circle: #6B6B5A (muted olive green/gray)
-Third circle: #8B4513 (rich cognac brown/burnt sienna)
-Fourth circle: #2C2C2C (deep charcoal black)
-Bottom circle: #E8E3D5 (soft cream/off-white)
+### Objectives:
+- To connect users with lawyers and legal professionals.
+- To provide multilingual legal forms and AI-assisted guidance.
+- To support offline access for areas with weak internet connection.
+- To allow document digitization and case tracking.
 
+---
 
+## Key Features
+- User registration and login (Firebase authentication)
+- Multilingual legal form access
+- AI/ML-based legal guidance
+- PAO and lawyer integration
+- Offline functionality
+- Document digitization
+- Real-time case tracking (web and mobile)
 
+---
 
-Recommendations for Immediate Implementation:
-Session Timeout - Prevents unauthorized access if user leaves device unattended
-Rate Limiting on Login - Prevents brute force attacks
-Security Headers - Protects against common web vulnerabilities
+## Technologies Used
+- **Frontend:** React.js (Web), React Native (Mobile)
+- **Backend:** Firebase (Authentication & Firestore Database)
+- **UI Tools:** Tailwind CSS, Mantine
+- **AI/ML:** Legal language assistance and translation
 
-Security vulnerabiliites:
-However, you're missing:
+---
 
-❌ Inactivity timeout
-❌ Automatic logout after idle period
-❌ Session expiration warnings
-❌ Activity tracking
+## Team Contributions
+- **Frontend Development:** Web and mobile interfaces  
+- **Authentication:** Login and register for both platforms (via Firebase)  
+- **Landing Page:** Web landing and user access interface  
+
+---
+
+## Conclusion
+JUSTREACH serves as a bridge between rural citizens and legal aid providers by combining technology, accessibility, and social impact. It helps empower communities by giving them a way to understand and access justice anytime, anywhere.
+
+---
+
+## Recommendation
+Future versions of the system may include:
+- Video consultations with lawyers
+- Expanded local language support
+- Integration with government legal databases
+- AI chat for faster legal query responses
