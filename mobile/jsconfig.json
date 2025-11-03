@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "noEmit": true,
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "jsx": "react-native",
+    "paths": {
+      "*": ["./src/*"],
+      "@components/*": ["./src/components/*"],
+      "@styles/*": ["./src/asssets/styles/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@assets/*": ["./src/assets/*"],
+      "@app/*": ["./src/app/*"],
+      "tests/*": ["./tests/*"],
+      "@firebaseApp/*": ["./src/firebaseApp/*"]
+    }
+  },
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist", ".expo"]
+}

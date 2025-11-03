@@ -1,0 +1,155 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
+import "@mantine/core/styles.css";
+import { createTheme, MantineProvider } from "@mantine/core";
+import AuthProvider, { useAuth } from "../context/authContext";
+import { Outlet } from "react-router";
+import { Layout } from "../components/layout/Layout";
+import { lazy, Suspense } from "react";
+import { Loaders } from "../components/ui/Loader";
+
+const Signup = lazy(() => import("./pages/auth/Signup/Signup"));
+const Login = lazy(() => import("./pages/auth/Login/Login"));
+const Home = lazy(() => import("./pages/user/Home"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
+const PageNotFound = lazy(() => import("./pages/other/PageNotFound"));
+const UserManagement = lazy(() => import("@admin/userManagement"))
+const LandingPage = lazy(()=> import("./pages/LandingPage"))
+const AboutPage = lazy(()=> import('./pages/About'))
+const FeaturesPage = lazy(()=> import('./pages/Features'))
+const HowItWorks = lazy(()=> import('./pages/How')) 
+
+const theme = createTheme({
+  fontFamily: "Montserrat, sans-serif",
+});
+
+function ProtectedRoute({ children, adminOnly = false }) {
+  const { userLoggedIn, userData, loading } = useAuth();
+
+  console.log('ProtectedRoute render:', { loading, userLoggedIn, hasUserData: !!userData, adminOnly });
+
+  if (loading) {
+    console.log('ProtectedRoute: Showing loader - loading is true');
+    return <Loaders height={window.innerHeight} />;
+  }
+  
+  if (!userLoggedIn) {
+    console.log('ProtectedRoute: Redirecting to login - not logged in');
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (!userData) {
+    console.log('ProtectedRoute: Showing loader - userData is null');
+    return <Loaders height={window.innerHeight} />;
+  }
+  
+  if (!userData?.isVerified) {
+    console.log('ProtectedRoute: Redirecting to login - not verified');
+    return <Navigate to="/login" replace />;
+  }
+
+  if (adminOnly && userData?.role !== "admin") {
+    console.log('ProtectedRoute: Redirecting to /user/home - not admin');
+    return <Navigate to="/user/home" replace />;
+  }
+
+  if (!adminOnly && userData?.role === "admin") {
+    console.log('ProtectedRoute: Redirecting to /admin - is admin');
+    return <Navigate to="/admin" replace />;
+  }
+
+  console.log('ProtectedRoute: Rendering children');
+  return children;
+}
+
+function AppRoutes() {
+  const { userLoggedIn, userData, loading } = useAuth();
+
+  console.log('AppRoutes render:', { loading, userLoggedIn, hasUserData: !!userData, pathname: window.location.pathname });
+
+  if (loading) {
+    console.log('AppRoutes: Showing loader');
+    return <Loaders height={window.innerHeight} />;
+  }
+
+  console.log('AppRoutes: Rendering routes');
+
+  return (
+    <Suspense fallback={<Loaders height={window.innerHeight} />}>
+      <Routes>
+        {/* Redirect logged-in users away from auth pages */}
+        <Route 
+          path="/login" 
+          element={
+            userLoggedIn && userData?.isVerified ? (
+              <Navigate to={userData.role === "admin" ? "/admin" : "/user/home"} replace />
+            ) : (
+              <Login />
+            )
+          } 
+        />
+        <Route 
+          path="/signup" 
+          element={
+            userLoggedIn && userData?.isVerified ? (
+              <Navigate to={userData.role === "admin" ? "/admin" : "/user/home"} replace />
+            ) : (
+              <Signup />
+            )
+          } 
+        />
+
+        {/* User */}
+        <Route
+          path="/user"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Outlet />
+              </Layout>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="home" replace />} />
+          <Route path="home" element={<Home />} />
+        </Route>
+
+        {/* Admin */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute adminOnly>
+              <Layout>
+                <Outlet />
+              </Layout>
+            </ProtectedRoute> 
+          }
+        >
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<UserManagement />} />
+        </Route>
+        
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/features" element={<FeaturesPage />} />
+        <Route path="/how" element={<HowItWorks/>} />
+        <Route path="*" element={<PageNotFound />} />
+      </Routes>
+    </Suspense>
+  );
+}
+
+function App() {
+  return (
+    <MantineProvider theme={theme}>
+      <AuthProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </AuthProvider>
+    </MantineProvider>
+  );
+}
+
+export default App;

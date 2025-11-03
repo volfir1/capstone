@@ -1,0 +1,6 @@
+export { default as HeroSection } from './Hero.jsx'
+export { default as MainStepSection } from './MainSteps.jsx'
+export { default as DetailedWorkflow } from './Workflow.jsx'
+export { default as OfflineFeature } from './OfflineFeature.jsx'
+export { default as UserTypes } from './UserTypes.jsx'
+export { default as CTA } from './CTA.jsx'

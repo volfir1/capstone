@@ -1,0 +1,6 @@
+export { default as CTA } from './CTA'
+export { default as Hero } from './Hero'
+export { default as InstitutionSection } from './InstitutionSection'
+export { default as MissionVision } from './MissionVission'
+export { default as ProjectBackground } from './ProjectBackground'
+export { default as TeamSection } from './TeamSection'

@@ -1,0 +1,7 @@
+export { default as CoreFeatures } from './CoreFeatures'
+export { default as CTA } from './CTA'
+export { default as HeroSection } from './Hero'
+export { default as IntegratedSection } from './IntegrationSection'
+export { default as SecurityFeatures } from './SecurityFeatures'
+export { default as TechnicalFeatures } from './TechnicalFeatures'
+export { default as WorkFlowSection } from './WorkflowSection'

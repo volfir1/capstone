@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "JustReach",
+    "slug": "JustReach",
+    "scheme": "justreach",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./src/asssets/images/logo.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./src/asssets/images/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./src/asssets/images/logo.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./src/asssets/images/logo.png"
+    }
+  }
+}

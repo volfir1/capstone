@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@features/*": ["features/*"],
+      "@admin/*": ["app/pages/admin/*"],
+      "@assets/*": ["assets/*"],
+      "@components/*": ["components/*"],
+      "@baseUrl/*": ["utils/*"],
+      "@context/*": ["context/*"],
+      "@utils/*": ["utils/*"],
+      "@config/*": ["config/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}
