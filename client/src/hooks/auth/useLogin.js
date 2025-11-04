@@ -1,13 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
-import { useForm } from "react-hook-form"; // ← React Hook Form imported HERE
+import { useForm } from "react-hook-form";
 import { useAuth } from "@/context/authContext";
+import NProgress from 'nprogress';
+import 'nprogress/nprogress.css';
 import {
   doSigninWithEmailAndPassword,
   doSignInWithGoogle,
   doSignOut,
 } from "@/firebase/auth";
-import { successNotif, failNotif, verificationNotif } from "@utils/notification";
+import {
+  successNotif,
+  failNotif,
+  verificationNotif,
+  welcomeNotif,
+} from "@utils/notification";
 
 export const useLogin = () => {
   const { userLoggedIn, userData } = useAuth();
@@ -15,13 +22,12 @@ export const useLogin = () => {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [hasNavigated, setHasNavigated] = useState(false);
-
-  // React Hook Form setup
+  const notificationShown = useRef(false); // Add this ref
+  
   const {
     register,
     handleSubmit,
     formState: { errors },
-    reset,
   } = useForm({
     mode: "onBlur",
     defaultValues: {
@@ -32,80 +38,104 @@ export const useLogin = () => {
 
   // Handle navigation after successful login
   useEffect(() => {
-    // Only navigate if we haven't navigated yet and user is logged in with data
+    console.log('useEffect triggered:', { userLoggedIn, hasUserData: !!userData, hasNavigated });
+    
     if (userLoggedIn && userData && !hasNavigated) {
+      console.log('Inside navigation logic');
+      
       if (!userData.isVerified) {
+        console.log('User not verified');
         verificationNotif();
         doSignOut();
         setIsSigningIn(false);
         setHasNavigated(false);
+        notificationShown.current = false;
         return;
       }
-      
-      successNotif();
-      setHasNavigated(true); // Mark that we've handled this login
-      
-      // Navigate based on role
-      if (userData.role === "admin") {
-        navigate("/admin", { replace: true });
-      } else {
-        navigate("/user/home", { replace: true });
+
+      // Only show notification once
+      if (!notificationShown.current) {
+        console.log('Starting 3 second delay...');
+        successNotif();
+        notificationShown.current = true; // Mark as shown
       }
       
-      setIsSigningIn(false);
+      setHasNavigated(true);
+      
+      // Start the progress bar
+      NProgress.start();
+      NProgress.set(0.3);
+
+      const timer = setTimeout(() => {
+        console.log('3 seconds passed, navigating now...');
+        NProgress.set(0.7);
+        welcomeNotif(userData.firstName);
+
+        if (userData.role === "admin") {
+          console.log('Navigating to /admin');
+          navigate("/admin", { replace: true });
+        } else {
+          console.log('Navigating to /user/home');
+          navigate("/user/home", { replace: true });
+        }
+
+        NProgress.done();
+        setIsSigningIn(false);
+        notificationShown.current = false; // Reset for next login
+      }, 3000);
+
+      return () => {
+        console.log('Cleanup: clearing timer');
+        clearTimeout(timer);
+        NProgress.done();
+      };
     }
-  }, [userLoggedIn, userData, navigate, hasNavigated]);
+  }, [userLoggedIn, userData, navigate]);
 
   // Email/Password Sign In
   const handleEmailSignIn = async (data) => {
-    if (!isSigningIn) {
-      setIsSigningIn(true);
-      setErrorMessage("");
-      setHasNavigated(false); // Reset navigation flag for new login attempt
-      
-      try {
-        await doSigninWithEmailAndPassword(data.email, data.password);
-        // Note: Navigation is handled by the useEffect above
-      } catch (error) {
-        setErrorMessage(error.message);
-        setIsSigningIn(false);
-        failNotif();
-      }
+    if (isSigningIn) return;
+
+    setIsSigningIn(true);
+    setErrorMessage("");
+    setHasNavigated(false);
+    notificationShown.current = false; // Reset on new login attempt
+
+    try {
+      await doSigninWithEmailAndPassword(data.email, data.password);
+    } catch (error) {
+      setErrorMessage(error.message);
+      setIsSigningIn(false);
+      failNotif();
     }
   };
 
   // Google Sign In
   const handleGoogleSignIn = async (e) => {
     e.preventDefault();
-    if (!isSigningIn) {
-      setIsSigningIn(true);
-      setErrorMessage("");
-      setHasNavigated(false); // Reset navigation flag for new login attempt
-      
-      try {
-        const result = await doSignInWithGoogle();
-        console.log("Google sign-in successful:", result.user.email);
-        // Note: Navigation is handled by the useEffect above
-      } catch (err) {
-        console.error("Google sign-in error:", err);
-        setErrorMessage(err.message);
-        setIsSigningIn(false);
-        failNotif();
-      }
+    if (isSigningIn) return;
+
+    setIsSigningIn(true);
+    setErrorMessage("");
+    setHasNavigated(false);
+    notificationShown.current = false; // Reset on new login attempt
+
+    try {
+      await doSignInWithGoogle();
+    } catch (err) {
+      console.error("Google sign-in error:", err);
+      setErrorMessage(err.message);
+      setIsSigningIn(false);
+      failNotif();
     }
   };
 
   return {
-    // React Hook Form methods
     register,
     handleSubmit,
     errors,
-    
-    // Custom state
     isSigningIn,
     errorMessage,
-    
-    // Custom handlers
     handleEmailSignIn,
     handleGoogleSignIn,
   };

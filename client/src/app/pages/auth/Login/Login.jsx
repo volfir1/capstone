@@ -2,19 +2,23 @@ import { Grid, Paper, Box } from "@mantine/core";
 import { Toaster } from "react-hot-toast";
 import { LoginHero } from "./hero";
 import { LoginForm } from "@/components/forms/LoginForm";
-import { useLogin } from "@/hooks/auth/useLogin"; // ← Hook imported HERE
+import { useLogin } from "@/hooks/auth/useLogin"; 
+
 
 export default function Login() {
   // Call the hook HERE in the page component
   const {
-    register,        // ← From React Hook Form
-    handleSubmit,    // ← From React Hook Form
-    errors,          // ← From React Hook Form
+    register,       
+    handleSubmit,    
+    errors,          
     isSigningIn,
     errorMessage,
+
     handleEmailSignIn,
     handleGoogleSignIn,
   } = useLogin();
+
+
 
   return (
     <Box h="100vh" style={{ overflow: "hidden" }}>
@@ -36,13 +40,13 @@ export default function Login() {
           >
             {/* Pass React Hook Form props to LoginForm */}
             <LoginForm
-              register={register}           // ← React Hook Form
-              handleSubmit={handleSubmit}   // ← React Hook Form
-              errors={errors}               // ← React Hook Form
+              register={register}         
+              handleSubmit={handleSubmit}   
+              errors={errors}             
               isSigningIn={isSigningIn}
               errorMessage={errorMessage}
-              onSubmit={handleEmailSignIn}  // ← Custom handler
-              onGoogleSignIn={handleGoogleSignIn} // ← Custom handler
+              onSubmit={handleEmailSignIn}  
+              onGoogleSignIn={handleGoogleSignIn}
             />
           </Paper>
         </Grid.Col>

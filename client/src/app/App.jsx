@@ -77,27 +77,8 @@ function AppRoutes() {
   return (
     <Suspense fallback={<Loaders height={window.innerHeight} />}>
       <Routes>
-        {/* Redirect logged-in users away from auth pages */}
-        <Route 
-          path="/login" 
-          element={
-            userLoggedIn && userData?.isVerified ? (
-              <Navigate to={userData.role === "admin" ? "/admin" : "/user/home"} replace />
-            ) : (
-              <Login />
-            )
-          } 
-        />
-        <Route 
-          path="/signup" 
-          element={
-            userLoggedIn && userData?.isVerified ? (
-              <Navigate to={userData.role === "admin" ? "/admin" : "/user/home"} replace />
-            ) : (
-              <Signup />
-            )
-          } 
-        />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
 
         {/* User */}
         <Route
