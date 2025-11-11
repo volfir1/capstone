@@ -2,6 +2,7 @@ import express from "express"
 import mongoose from 'mongoose'
 import userRoutes from './routes/userRoutes.js'
 import authRoutes from './routes/authRoutes.js'
+import caseRoutes from './routes/caseRoutes.js'
 import dotenv from 'dotenv'
 import cors from "cors"
 import helmet from 'helmet'
@@ -50,6 +51,7 @@ app.use(cors(corsOptions))
 // Routes
 app.use('/api/users', userRoutes)
 app.use('/api/auth', authRoutes)
+app.use('/api/cases', caseRoutes)
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URL)

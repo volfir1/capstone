@@ -26,10 +26,17 @@ export const useAttorneyLogin = () => {
   // Handle navigation when attorney data is loaded
   useEffect(() => {
     if (attorneyData && !hasNavigated.current) {
-      console.log("Attorney data loaded, navigating to attorney dashboard");
+      console.log("Attorney data loaded, checking role for navigation");
       hasNavigated.current = true;
-      // TODO: Create attorney dashboard route
-      router.replace("/attorney/dashboard");
+      
+      // Navigate based on role
+      if (attorneyData.role === "admin") {
+        console.log("Admin role detected, navigating to admin dashboard");
+        router.replace("/admin/dashboard");
+      } else {
+        console.log("Attorney role detected, navigating to attorney dashboard");
+        router.replace("/attorney/dashboard");
+      }
     }
   }, [attorneyData]);
 

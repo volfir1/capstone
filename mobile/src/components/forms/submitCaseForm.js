@@ -12,13 +12,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import styles from 'asssets/styles/components/caseFormStyles';
 import { CASE_TYPES } from 'utils/caseTypes';
+import { useSubmitCase } from 'hooks/useSubmitCase';
 
 export default function SubmitCaseForm({ visible, onClose, onSubmit }) {
   const [caseTitle, setCaseTitle] = useState('');
   const [caseType, setCaseType] = useState('');
   const [shortDescription, setShortDescription] = useState('');
   const [detailedDescription, setDetailedDescription] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const { isSubmitting, submitCase } = useSubmitCase();
 
   const handleSubmit = async () => {
     // Validation
@@ -39,37 +41,38 @@ export default function SubmitCaseForm({ visible, onClose, onSubmit }) {
       return;
     }
 
-    setIsSubmitting(true);
-
     try {
       const caseData = {
         title: caseTitle,
         type: caseType,
         shortDescription: shortDescription,
         detailedDescription: detailedDescription,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
       };
 
-      // Call the onSubmit callback passed from parent
-      await onSubmit(caseData);
+      // Submit case to backend
+      const result = await submitCase(caseData);
 
-      // Reset form
-      setCaseTitle('');
-      setCaseType('');
-      setShortDescription('');
-      setDetailedDescription('');
-      
-      Alert.alert(
-        'Case Submitted Successfully',
-        'Your case has been submitted. Please wait while we assign an attorney to your case.',
-        [{ text: 'OK', onPress: onClose }]
-      );
+      if (result.success) {
+        // Reset form
+        setCaseTitle('');
+        setCaseType('');
+        setShortDescription('');
+        setDetailedDescription('');
+        
+        Alert.alert(
+          'Case Submitted Successfully',
+          `Your case (${result.data.caseNumber}) has been submitted. An attorney will be assigned to your case soon.`,
+          [{ text: 'OK', onPress: () => {
+            if (onSubmit) onSubmit(result.data);
+            onClose();
+          }}]
+        );
+      } else {
+        Alert.alert('Submission Failed', result.message || 'An error occurred. Please try again.');
+      }
     } catch (error) {
       Alert.alert('Submission Failed', 'An error occurred. Please try again.');
       console.error('Submit case error:', error);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

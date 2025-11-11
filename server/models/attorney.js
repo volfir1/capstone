@@ -13,7 +13,7 @@ const attorneySchema = new mongoose.Schema({
   // Professional Information
   role: { 
     type: String, 
-    enum: ["attorney", "pao_lawyer", "legal_volunteer"], 
+    enum: ["admin", "attorney", "pao_lawyer", "legal_volunteer"], 
     default: "attorney" 
   },
   
