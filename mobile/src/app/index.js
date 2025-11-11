@@ -42,6 +42,12 @@ export default function LandingPage() {
         </View>
         
         <View style={styles.headerRight}>
+          <Link href="/auth/attorneyLogin" asChild>
+            <TouchableOpacity style={styles.attorneySignInButton}>
+              <Ionicons name="briefcase-outline" size={16} color="#C4AB7D" />
+              <Text style={styles.attorneySignInButtonText}>Attorney Login</Text>
+            </TouchableOpacity>
+          </Link>
           <Link href="/auth" asChild>
             <TouchableOpacity style={styles.signInButton}>
               <Text style={styles.signInButtonText}>Sign In</Text>

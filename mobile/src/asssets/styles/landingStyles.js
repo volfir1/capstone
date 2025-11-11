@@ -47,6 +47,23 @@ const landingStyles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+  },
+  attorneySignInButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: PRIMARY_GOLD,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  attorneySignInButtonText: {
+    color: PRIMARY_GOLD,
+    fontSize: 13,
+    fontWeight: '600',
   },
   signInButton: {
     backgroundColor: PRIMARY_BROWN,

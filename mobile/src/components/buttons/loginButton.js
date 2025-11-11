@@ -41,6 +41,16 @@ export const SocialLoginButtons = ({ onGoogleSignIn, loading }) => {
           </Link>
         </TouchableOpacity>
       </View>
+
+      {/* Attorney Sign Up Link */}
+      <View style={loginStyles.signupContainer}>
+        <Text style={loginStyles.signupText}>Are you an attorney? </Text>
+        <TouchableOpacity>
+          <Link href="/auth/attorneySignup" style={loginStyles.signupLink}>
+            Sign up as an Attorney
+          </Link>
+        </TouchableOpacity>
+      </View>
     </>
   );
 };
