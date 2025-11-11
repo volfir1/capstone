@@ -1,4 +1,11 @@
 import { StyleSheet, Dimensions } from "react-native";
+import {
+  PRIMARY_GOLD,
+  PRIMARY_BROWN,
+  MUTED_OLIVE,
+  THEMED_LIGHT_BG,
+  CHARCOAL,
+} from "utils/constants";
 
 const { height } = Dimensions.get("window");
 
@@ -16,7 +23,7 @@ const loginStyles = StyleSheet.create({
   },
   imagePlaceholder: {
     flex: 1,
-    backgroundColor: "#7E30E1",
+    backgroundColor: PRIMARY_BROWN,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -36,7 +43,7 @@ const loginStyles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(126, 48, 225, 0.8)",
+    backgroundColor: "rgba(139, 69, 19, 0.85)", // PRIMARY_BROWN with opacity
     justifyContent: "center",
     paddingHorizontal: 32,
   },
@@ -48,7 +55,7 @@ const loginStyles = StyleSheet.create({
   },
   heroSubtitle: {
     fontSize: 16,
-    color: "#ffffff",
+    color: THEMED_LIGHT_BG,
     lineHeight: 24,
   },
   formSection: {
@@ -60,12 +67,12 @@ const loginStyles = StyleSheet.create({
   brandText: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#E26EE5",
+    color: PRIMARY_GOLD,
     textAlign: "right",
     marginBottom: 32,
   },
   brandAccent: {
-    color: "#7E30E1",
+    color: PRIMARY_BROWN,
   },
   titleContainer: {
     marginBottom: 32,
@@ -73,12 +80,12 @@ const loginStyles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "600",
-    color: "#1e293b",
+    color: CHARCOAL,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
-    color: "#64748b",
+    color: MUTED_OLIVE,
   },
   inputContainer: {
     marginBottom: 20,
@@ -86,26 +93,32 @@ const loginStyles = StyleSheet.create({
   inputLabel: {
     fontSize: 15,
     fontWeight: "500",
-    color: "#1e293b",
+    color: CHARCOAL,
     marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "#e2e8f0",
+    borderColor: "#D4C5A9",
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     backgroundColor: "#ffffff",
+    height: 50, // Added fixed height
+  },
+  inputWrapperFocused: {
+    borderColor: PRIMARY_GOLD,
   },
   icon: {
     marginRight: 12,
+    color: MUTED_OLIVE,
   },
-  input: {
-    flex: 1,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: "#1e293b",
+    input: {
+    flex: 1, // This makes input take available space
+    paddingVertical: 12,
+    fontSize: 14,
+    color: CHARCOAL,
+    height: "100%", // Added to ensure full height
   },
   forgotPassword: {
     alignSelf: "flex-end",
@@ -113,16 +126,24 @@ const loginStyles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: "#7E30E1",
+    color: PRIMARY_BROWN,
     fontWeight: "500",
   },
   loginButton: {
     flexDirection: "row",
-    backgroundColor: "#7E30E1",
+    backgroundColor: PRIMARY_BROWN,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: PRIMARY_BROWN,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -143,25 +164,26 @@ const loginStyles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: "#D4C5A9",
   },
   dividerText: {
     marginHorizontal: 16,
     fontSize: 14,
-    color: "#64748b",
+    color: MUTED_OLIVE,
   },
   googleButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#e2e8f0",
+    borderColor: "#D4C5A9",
     paddingVertical: 16,
     borderRadius: 12,
+    backgroundColor: "#ffffff",
   },
   googleButtonText: {
     fontSize: 16,
-    color: "#1e293b",
+    color: CHARCOAL,
     fontWeight: "500",
   },
   signupContainer: {
@@ -171,11 +193,11 @@ const loginStyles = StyleSheet.create({
   },
   signupText: {
     fontSize: 14,
-    color: "#64748b",
+    color: MUTED_OLIVE,
   },
   signupLink: {
     fontSize: 14,
-    color: "#7E30E1",
+    color: PRIMARY_BROWN,
     fontWeight: "600",
   },
   errorText: {

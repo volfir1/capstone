@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { useForm } from "react-hook-form"; // ← React Hook Form imported HERE
+import { useForm } from "react-hook-form";
 import { useAuth } from "@/context/authContext";
+import toast from "react-hot-toast";
 import {
   doCreateUserWithEmailAndPassword,
   doSignInWithGoogle,
   doSendEmailVerification,
   doSignOut,
 } from "@/firebase/auth";
-import { registerUser } from "@/features/auth/register";
-import toast from "react-hot-toast";
+import { registerUser } from "@features/auth/register";
 
 export const useSignup = () => {
   const { userLoggedIn } = useAuth();
@@ -19,15 +19,15 @@ export const useSignup = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // React Hook Form setup - THIS IS THE KEY PART
+  // React Hook Form setup
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
     reset,
-    trigger,
-    getValues,
+    watch,
+    trigger,      // ← Add this
+    getValues,    // ← Add this
   } = useForm({
     mode: "onBlur",
     defaultValues: {
@@ -44,37 +44,51 @@ export const useSignup = () => {
   const password = watch("password");
 
   // Email/Password Registration
-  const handleEmailSignup = async (data) => {
-    if (!isRegistering) {
-      setIsRegistering(true);
-      setErrorMessage("");
+const handleEmailSignup = async (data) => {
+  if (!isRegistering) {
+    setIsRegistering(true);
+    setErrorMessage("");
+    
+    try {
+      console.log("Form data received:", data);
       
-      try {
-        console.log("Step 1: Creating Firebase user");
-        await doCreateUserWithEmailAndPassword(data.email, data.password);
-        
-        console.log("Step 2: Sending verification email");
-        await doSendEmailVerification();
-        
-        console.log("Step 3: Registering user");
-        await registerUser(
-          data.firstName,
-          data.lastName,
-          data.username || data.email
-        );
+      console.log("Step 1: Creating Firebase user");
+      await doCreateUserWithEmailAndPassword(data.email, data.password);
+      
+      console.log("Step 2: Sending verification email");
+      await doSendEmailVerification();
+      
+      // ← Add 1-2 second delay to ensure Firebase user is fully created
+      console.log("Step 3: Waiting for Firebase to sync...");
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      console.log("Step 4: Registering user in backend");
+      console.log("Calling registerUser with:", {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        username: data.username || null
+      });
+      
+      await registerUser(
+        data.firstName,
+        data.lastName,
+        data.email,
+        data.username || null
+      );
 
-        await doSignOut();
-        toast.success("Account created! Please verify your email before signing in.");
-        reset();
-        navigate("/login");
-      } catch (error) {
-        console.error("Registration error:", error);
-        setErrorMessage(error.message);
-        setIsRegistering(false);
-        toast.error("Registration failed!");
-      }
+      await doSignOut();
+      toast.success("Account created! Please verify your email before signing in.");
+      reset();
+      navigate("/login");
+    } catch (error) {
+      console.error("Registration error:", error);
+      setErrorMessage(error.message);
+      setIsRegistering(false);
+      toast.error("Registration failed!");
     }
-  };
+  }
+};
 
   // Google Sign Up
   const handleGoogleSignup = async (e) => {
@@ -90,9 +104,13 @@ export const useSignup = () => {
         const nameParts = displayName.split(" ");
         const googleFirstName = nameParts[0] || "";
         const googleLastName = nameParts.slice(1).join(" ") || "";
-        const googleUsername = user.email;
 
-        await registerUser(googleFirstName, googleLastName, googleUsername);
+        await registerUser(
+          googleFirstName, 
+          googleLastName, 
+          user.email,
+          null
+        );
         
         toast.success("Account created successfully!");
         reset();
@@ -106,21 +124,20 @@ export const useSignup = () => {
     }
   };
 
-  // RETURN React Hook Form methods + custom handlers
   return {
     // React Hook Form methods
     register,
     handleSubmit,
     errors,
-    password,
-    trigger,
-    getValues,
-    
+    trigger,      // ← Export this
+    getValues,    // ← Export this
+    password,     // ← Export this for password matching
+
     // Custom state
     isRegistering,
     errorMessage,
     userLoggedIn,
-    
+
     // Custom handlers
     handleEmailSignup,
     handleGoogleSignup,

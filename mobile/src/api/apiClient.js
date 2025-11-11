@@ -1,30 +1,18 @@
 import axios from 'axios';
 import { getAuth } from 'firebase/auth';
-import Constants from 'expo-constants';
+import getEnv from './environment';
 
-// Get the API URL based on environment
-function getBaseUrl() {
-  // For development, use your machine's IP
-  const debuggerHost = Constants.expoConfig?.debuggerHost?.split(':')[0];
-  
-  if (debuggerHost) {
-    // Use the debugger host IP (your machine's IP)
-    return `http://${debuggerHost}:5000/api`;
-  }
-  
-  // Fallback - replace with your actual machine IP
-  return 'http://192.168.1.2:5000/api'; // ✅ Added :5000 port!
-}
+// Get environment-specific configuration
+const { apiUrl, environment } = getEnv();
 
-// Add debug logging
-const baseUrl = getBaseUrl();
-console.log('API Base URL:', baseUrl);
+console.log(` Environment: ${environment}`);
+console.log(` API Base URL: ${apiUrl}`);
 
 const apiClient = axios.create({
-  baseURL: baseUrl, 
+  baseURL: apiUrl,
+  timeout: 10000,
 });
 
-// Interceptor stays the same...
 apiClient.interceptors.request.use(
   async (config) => {
     const auth = getAuth();
@@ -35,7 +23,7 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    console.log('Making request to:', config.baseURL + config.url); // Debug log
+    console.log('Making request to:', config.baseURL + config.url);
     return config;
   },
   (error) => {

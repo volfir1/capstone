@@ -13,7 +13,7 @@ import {
   IconSearch,
 } from "@tabler/icons-react";
 import lawImage from "../../../assets/images/law.jpg";
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL } from "@utils/constants";
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE,  CHARCOAL } from "@utils/constants";
 
 export default function PageNotFound() {
   const handleGoBack = () => {

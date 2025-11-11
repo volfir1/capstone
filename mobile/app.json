@@ -7,6 +7,10 @@
     "orientation": "portrait",
     "icon": "./src/asssets/images/logo.png",
     "userInterfaceStyle": "light",
+    "plugins": [
+      "@react-native-google-signin/google-signin",
+      "expo-secure-store"
+    ],
     "splash": {
       "image": "./src/asssets/images/logo.png",
       "resizeMode": "contain",
@@ -19,10 +23,17 @@
       "adaptiveIcon": {
         "foregroundImage": "./src/asssets/images/logo.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "justreach.app",
+      "googleServicesFile": "./config/google-services.json"
     },
     "web": {
       "favicon": "./src/asssets/images/logo.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9de6ac8a-971f-477c-bef5-24ab507e6ece"
+      }
     }
   }
 }

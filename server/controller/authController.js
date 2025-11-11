@@ -1,44 +1,93 @@
 import User from "../models/user.js";
 import admin from "firebase-admin";
 
+const getFirebaseUserWithRetry = async (
+  email,
+  maxRetries = 3,
+  delayMs = 1000
+) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      console.log(`Attempt ${i + 1} to fetch Firebase user for ${email}`);
+      const firebaseUser = await admin.auth().getUserByEmail(email);
+      console.log("Firebase UID fetched:", firebaseUser.uid);
+      return firebaseUser;
+    } catch (error) {
+      if (i === maxRetries - 1) {
+        // Last attempt failed
+        throw error;
+      }
+      console.log(`Firebase user not found, retrying in ${delayMs}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      delayMs *= 2; // Exponential backoff
+    }
+  }
+};
+
 export const register = async (req, res) => {
   try {
-    const { idToken, firstName, lastName, username, email, isVerified, role } = req.body;
-    
-    // Log what server receives
-    console.log('Server received:', { firstName, lastName, username });
-    
+    const { idToken, firstName, lastName, username, email, isVerified, role } =
+      req.body;
+
+    console.log("Server received:", { firstName, lastName, username, email });
+
     let userEmail, firebaseUid;
     let userVerified = false;
-    
+    let isGoogleSignIn = false;
+
     // verify firebase token
     if (idToken) {
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       userEmail = decodedToken.email;
       firebaseUid = decodedToken.uid;
-      userVerified = decodedToken.email_verified || false;
+   
+      const firebaseUser = await admin.auth().getUser(firebaseUid);
+      isGoogleSignIn = firebaseUser.providerData.some(
+        (provider) => provider.providerId === "google.com"
+      );
+
+      if (isGoogleSignIn) {
+        userVerified = decodedToken.email_verified || false;
+      } else {
+      
+        userVerified = decodedToken.email_verified || false;
+      }
     } else {
+   
       if (!email) {
         return res.status(400).json({
           success: false,
-          message: "Email is required when no idToken Provided",
+          message: "Email is required when no idToken provided",
         });
       }
       userEmail = email;
-      firebaseUid = "test-uid-" + Date.now();
-      userVerified = isVerified || false;
+
+    
+      try {
+        const firebaseUser = await getFirebaseUserWithRetry(email);
+        firebaseUid = firebaseUser.uid;
+      
+        userVerified = false;
+      } catch (error) {
+        console.error("Firebase lookup error after retries:", error);
+        return res.status(400).json({
+          success: false,
+          message:
+            "Firebase user not found. Please ensure Firebase account is created first.",
+        });
+      }
     }
 
-    // DON'T use defaults - use the actual passed values
-    let finalFirstName = firstName;     // ✅ No fallback to "Google"
-    let finalLastName = lastName;       // ✅ No fallback to "User"
+    // Use the actual passed values
+    let finalFirstName = firstName;
+    let finalLastName = lastName;
     let finalUsername = username || userEmail;
 
     // Validate required fields
-    if (!userEmail || !finalFirstName || !finalLastName || !finalUsername) {
+    if (!userEmail || !finalFirstName || !finalLastName) {
       return res.status(400).json({
-        success: false, 
-        message: "Missing required fields: firstName, lastName, username"
+        success: false,
+        message: "Missing required fields: firstName, lastName, email",
       });
     }
 
@@ -48,27 +97,39 @@ export const register = async (req, res) => {
       if (!validRoles.includes(role)) {
         return res.status(400).json({
           success: false,
-          message: "invalid role. must be user or admin only",
+          message: "Invalid role. Must be 'user' or 'admin' only",
         });
       }
       userRole = role;
     }
 
+    // Check if user already exists
     const existingUser = await User.findOne({
-      $or: [{ email: userEmail }, { username: finalUsername }],
+      $or: [{ email: userEmail }, { firebaseUid }],
     });
 
     if (existingUser) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "User already exist" 
+      return res.status(400).json({
+        success: false,
+        message: "User already exists",
       });
+    }
+
+    // Check if username is taken (only if it's different from email)
+    if (finalUsername !== userEmail) {
+      const usernameExists = await User.findOne({ username: finalUsername });
+      if (usernameExists) {
+        return res.status(400).json({
+          success: false,
+          message: "Username already taken",
+        });
+      }
     }
 
     const user = await User.create({
       email: userEmail,
-      firstName: finalFirstName,   // Will be "Lester" not "Google"
-      lastName: finalLastName,     // Will be "Sible" not "User"
+      firstName: finalFirstName,
+      lastName: finalLastName,
       username: finalUsername,
       firebaseUid,
       isVerified: userVerified,
@@ -85,82 +146,82 @@ export const register = async (req, res) => {
         username: user.username,
         role: user.role,
         isVerified: user.isVerified,
-        createdAt: user.createdAt
+        createdAt: user.createdAt,
       },
-      message: "User registered successfully"
+      message: "User registered successfully",
     });
-    
   } catch (error) {
+    console.error("Registration error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 // Check if email already exists
 export const checkEmailExists = async (req, res) => {
-    try {
-        const { email } = req.body;
+  try {
+    const { email } = req.body;
 
-        if (!email) {
-            return res.status(400).json({
-                success: false,
-                message: 'Email is required'
-            });
-        }
-
-        const existingUser = await User.findOne({ email });
-
-        if (existingUser) {
-            return res.status(200).json({
-                success: true,
-                exists: true,
-                message: 'Email is already registered'
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            exists: false,
-            message: 'Email is available'
-        });
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
     }
+
+    const existingUser = await User.findOne({ email });
+
+    res.status(200).json({
+      success: true,
+      exists: !!existingUser,
+      message: existingUser
+        ? "Email is already registered"
+        : "Email is available",
+    });
+  } catch (error) {
+    console.error("Check email error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
-// server/controller/userController.js
+// Verify user email status
 export const verifyUser = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization
+  try {
+    const authHeader = req.headers.authorization;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({success: false, message: 'No token provided'})
-        }
-
-        const idToken = authHeader.split(' ')[1]
-        const decodedToken = await admin.auth().verifyIdToken(idToken)
-
-        const firebaseVerified = decodedToken.email_verified || false
-
-        const user = await User.findOneAndUpdate(
-            { firebaseUid: decodedToken.uid },
-            { isVerified: firebaseVerified },
-            { new: true }
-        )
-
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found'})
-        }
-
-        res.json({
-            success: true,
-            message: `Verification status updated to ${firebaseVerified}`,
-            data: {
-                isVerified: user.isVerified
-            }
-        })
-
-    } catch (error) {
-        res.status(500).json({success: false, message: error.message})
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "No token provided",
+      });
     }
-}
+
+    const idToken = authHeader.split(" ")[1];
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+    const firebaseVerified = decodedToken.email_verified || false;
+
+    const user = await User.findOneAndUpdate(
+      { firebaseUid: decodedToken.uid },
+      { isVerified: firebaseVerified },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Verification status updated to ${firebaseVerified}`,
+      data: {
+        isVerified: user.isVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Verify user error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

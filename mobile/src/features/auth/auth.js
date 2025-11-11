@@ -1,5 +1,5 @@
 import { getAuth } from 'firebase/auth';
-import apiClient from '../../api/apiClient';
+import apiClient from 'api/apiClient';
 
 export const verifyUser = async () => {
   try {
@@ -19,3 +19,4 @@ export const verifyUser = async () => {
     throw error;
   }
 };
+

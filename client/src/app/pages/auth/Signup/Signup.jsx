@@ -1,20 +1,19 @@
-import { Grid, Paper, Box } from "@mantine/core";
+import { Box, Grid, Paper } from "@mantine/core";
 import { Toaster } from "react-hot-toast";
-import { SignupHero } from "./hero";
 import { SignupForm } from "@/components/forms/SignupForm";
-import { useSignup } from "@/hooks/auth/useSignup"; // ← Hook imported HERE in the PAGE
+import { SignupHero } from "./Hero";
+import { useSignup } from "@/hooks/auth/useSignup";
 
 export default function Signup() {
-  // Call the hook HERE in the page component
   const {
-    register,        // ← From React Hook Form
-    handleSubmit,    // ← From React Hook Form
-    errors,          // ← From React Hook Form
-    password,        // ← From React Hook Form watch()
-    trigger,         // ← From React Hook Form
-    getValues,       // ← From React Hook Form
+    register,
+    handleSubmit,
+    errors,
+    password,
     isRegistering,
     errorMessage,
+    trigger,       
+    getValues,     
     handleEmailSignup,
     handleGoogleSignup,
   } = useSignup();
@@ -22,11 +21,10 @@ export default function Signup() {
   return (
     <Box h="100vh" style={{ overflow: "hidden" }}>
       <Toaster />
-
+      
       <Grid h="100%" gutter={0}>
         <SignupHero />
-
-        {/* Right Side - Register Form */}
+        
         <Grid.Col span={6}>
           <Paper
             h="100vh"
@@ -35,21 +33,19 @@ export default function Signup() {
               alignItems: "center",
               justifyContent: "center",
               position: "relative",
-              padding: "1rem",
             }}
           >
-            {/* Pass React Hook Form props to SignupForm */}
             <SignupForm
-              register={register}           // ← React Hook Form
-              handleSubmit={handleSubmit}   // ← React Hook Form
-              errors={errors}               // ← React Hook Form
-              password={password}           // ← React Hook Form watch
-              trigger={trigger}             // ← React Hook Form
-              getValues={getValues}         // ← React Hook Form
+              register={register}
+              handleSubmit={handleSubmit}
+              errors={errors}
+              password={password}
               isRegistering={isRegistering}
               errorMessage={errorMessage}
-              onSubmit={handleEmailSignup}  // ← Custom handler
-              onGoogleSignup={handleGoogleSignup} // ← Custom handler
+              onSubmit={handleEmailSignup}
+              onGoogleSignup={handleGoogleSignup}
+              trigger={trigger}        // ← Pass this
+              getValues={getValues}    // ← Pass this
             />
           </Paper>
         </Grid.Col>

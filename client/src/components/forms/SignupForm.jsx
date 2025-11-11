@@ -29,7 +29,7 @@ import { Loaders } from "../ui/Loader";
 import { checkEmailExists } from "@/features/auth/auth";
 import toast from "react-hot-toast";
 
-// NO HOOK IMPORT HERE - only receives props
+
 export const SignupForm = ({
   register,
   handleSubmit,

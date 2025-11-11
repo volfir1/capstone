@@ -1,7 +1,7 @@
 import { getAuth, getIdToken } from 'firebase/auth';
 import apiClient from '../../api/apiClient';
 
-export const registerUser = async (firstName, lastName, username) => {
+export const registerUser = async (firstName, lastName, email, username) => {
   try {
     console.log("registering...");
     
@@ -19,7 +19,8 @@ export const registerUser = async (firstName, lastName, username) => {
     const payload = {
       idToken,
       firstName: firstName,
-      lastName: lastName,  
+      lastName: lastName,
+      email: email,
       username: username
     };
     
