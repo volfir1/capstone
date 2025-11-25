@@ -6,7 +6,8 @@ import {
   getAllCases, 
   getAllAttorneys, 
   assignAttorney,
-  getDashboardStats 
+  getDashboardStats,
+  getAttorneyCases
 } from "../controller/caseController.js";
 
 const router = express.Router();
@@ -16,6 +17,9 @@ router.post("/submit", submitCase);
 
 // Get all cases for logged-in user
 router.get("/user-cases", getUserCases);
+
+// Get all cases for logged-in attorney
+router.get("/attorney-cases", getAttorneyCases);
 
 // Get a specific case by ID
 router.get("/:caseId", getCaseById);

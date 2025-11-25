@@ -18,11 +18,29 @@ const AttorneyDashboard = () => {
   const router = useRouter();
   const { logout } = useAuth();
   const [chatList, setChatList] = useState([]);
+  const [assignedCases, setAssignedCases] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [casesLoading, setCasesLoading] = useState(false);
 
   useEffect(() => {
     fetchChatList();
+    fetchAssignedCases();
   }, []);
+
+  const fetchAssignedCases = async () => {
+    try {
+      setCasesLoading(true);
+      const response = await apiClient.get('/cases/attorney-cases');
+      
+      if (response.data.success) {
+        setAssignedCases(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching assigned cases:', error);
+    } finally {
+      setCasesLoading(false);
+    }
+  };
 
   const fetchChatList = async () => {
     try {
@@ -87,15 +105,59 @@ const AttorneyDashboard = () => {
         {/* Clients Section */}
         <View style={styles.content}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your Clients</Text>
-            <TouchableOpacity onPress={fetchChatList} disabled={loading}>
+            <Text style={styles.sectionTitle}>Your Assigned Cases</Text>
+            <TouchableOpacity onPress={() => { fetchChatList(); fetchAssignedCases(); }} disabled={loading || casesLoading}>
               <Ionicons
                 name="refresh"
                 size={20}
                 color="#8B6F47"
-                style={loading && styles.rotating}
+                style={(loading || casesLoading) && styles.rotating}
               />
             </TouchableOpacity>
+          </View>
+
+          {casesLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#8B6F47" />
+            </View>
+          ) : assignedCases.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="folder-open-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>No cases assigned yet</Text>
+              <Text style={styles.emptySubtext}>
+                Cases will appear here when they are assigned to you
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.casesList}>
+              {assignedCases.map((caseItem) => (
+                <TouchableOpacity
+                  key={caseItem._id}
+                  style={styles.caseCard}
+                  onPress={() => handleChatPress({ case: caseItem })}
+                >
+                  <View style={styles.caseHeader}>
+                    <Text style={styles.caseTitle}>{caseItem.caseTitle}</Text>
+                    <Text style={styles.caseNumber}>{caseItem.caseNumber}</Text>
+                  </View>
+                  <Text style={styles.caseType}>{caseItem.caseType}</Text>
+                  <Text style={styles.caseDescription} numberOfLines={2}>
+                    {caseItem.shortDescription}
+                  </Text>
+                  <View style={styles.clientInfoRow}>
+                    <Ionicons name="person-outline" size={16} color="#666" />
+                    <Text style={styles.clientNameSmall}>
+                      {caseItem.userId.firstName} {caseItem.userId.lastName}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Clients Chat Section */}
+          <View style={styles.sectionHeader} style={{ marginTop: 20 }}>
+            <Text style={styles.sectionTitle}>Active Chats</Text>
           </View>
 
           {loading ? (
@@ -104,10 +166,10 @@ const AttorneyDashboard = () => {
             </View>
           ) : chatList.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>No clients assigned yet</Text>
+              <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>No active chats</Text>
               <Text style={styles.emptySubtext}>
-                Clients will appear here when cases are assigned to you
+                Start a conversation with your clients
               </Text>
             </View>
           ) : (
@@ -275,6 +337,59 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 40,
   },
+  casesList: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  caseCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#8B6F47',
+  },
+  caseHeader: {
+    marginBottom: 8,
+  },
+  caseTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2D2D2D',
+    marginBottom: 4,
+  },
+  caseNumber: {
+    fontSize: 12,
+    color: '#8B6F47',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  caseType: {
+    fontSize: 13,
+    color: '#666',
+    textTransform: 'capitalize',
+    marginBottom: 8,
+  },
+  caseDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  clientInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  clientNameSmall: {
+    fontSize: 14,
+    color: '#8B6F47',
+    fontWeight: '600',
+  },
   clientsList: {
     gap: 12,
   },
@@ -328,17 +443,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
-  },
-  caseTitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 2,
-  },
-  caseNumber: {
-    fontSize: 12,
-    color: '#8B6F47',
-    fontWeight: '600',
-    marginBottom: 4,
   },
   lastMessage: {
     fontSize: 13,

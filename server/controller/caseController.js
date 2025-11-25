@@ -272,3 +272,48 @@ export const getDashboardStats = async (req, res) => {
     });
   }
 };
+
+// Get all cases assigned to an attorney
+export const getAttorneyCases = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "No authentication token provided",
+      });
+    }
+
+    const idToken = authHeader.split(" ")[1];
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const attorneyEmail = decodedToken.email;
+
+    // Find attorney in MongoDB
+    const attorney = await Attorney.findOne({ email: attorneyEmail });
+
+    if (!attorney) {
+      return res.status(404).json({
+        success: false,
+        message: "Attorney not found",
+      });
+    }
+
+    // Get all cases assigned to this attorney
+    const cases = await Case.find({ attorneyId: attorney._id })
+      .populate("userId", "firstName lastName email")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: cases,
+      message: "Attorney cases retrieved successfully",
+    });
+  } catch (error) {
+    console.error("Get attorney cases error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to retrieve attorney cases",
+    });
+  }
+};

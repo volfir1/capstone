@@ -171,6 +171,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: -0.3,
   },
+  caseNumberText: {
+    fontSize: 13,
+    color: PRIMARY_BROWN,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
   detailsType: {
     fontSize: 14,
     color: PRIMARY_BROWN,
@@ -182,6 +188,26 @@ const styles = StyleSheet.create({
     color: MUTED_OLIVE,
     lineHeight: 22,
     marginBottom: 16,
+  },
+  detailedDescSection: {
+    backgroundColor: '#F9F8F5',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: PRIMARY_GOLD,
+  },
+  detailedDescLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: CHARCOAL,
+    marginBottom: 8,
+    letterSpacing: 0.2,
+  },
+  detailedDescText: {
+    fontSize: 14,
+    color: MUTED_OLIVE,
+    lineHeight: 21,
   },
   detailsInfoRow: {
     flexDirection: 'row',

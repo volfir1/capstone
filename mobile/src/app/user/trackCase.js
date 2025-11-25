@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import styles from 'asssets/styles/trackCasePageStyles';
 import { CASE_STATUS_STEPS } from 'utils/casStatusSteps';
 import { getCaseTypeLabel } from 'utils/caseTypes';
+import apiClient from '../../api/apiClient';
 
 export default function TrackCasePage() {
   const router = useRouter();
@@ -26,48 +27,28 @@ export default function TrackCasePage() {
   const loadCases = async () => {
     setIsLoading(true);
     try {
-      // TODO: Replace with actual API call
-      const mockCases = [
-        {
-          id: '1',
-          title: 'Property Dispute Case',
-          type: 'property',
-          status: 'in_review',
-          shortDescription: 'Dispute regarding property boundary lines',
-          createdAt: '2025-01-15T10:00:00Z',
-          assignedAttorney: null,
-          lastUpdated: '2025-01-16T14:30:00Z',
-        },
-        {
-          id: '2',
-          title: 'Labor Contract Issue',
-          type: 'labor',
-          status: 'attorney_assigned',
-          shortDescription: 'Unfair termination claim',
-          createdAt: '2025-01-10T09:00:00Z',
-          assignedAttorney: {
-            name: 'Atty. Maria Santos',
-            specialization: 'Labor Law',
-          },
-          lastUpdated: '2025-01-18T11:00:00Z',
-        },
-        {
-          id: '3',
-          title: 'Family Custody Matter',
-          type: 'family',
-          status: 'completed',
-          shortDescription: 'Child custody arrangement',
-          createdAt: '2024-12-20T08:00:00Z',
-          assignedAttorney: {
-            name: 'Atty. Juan Dela Cruz',
-            specialization: 'Family Law',
-          },
-          lastUpdated: '2025-01-15T16:00:00Z',
-          completedAt: '2025-01-15T16:00:00Z',
-        },
-      ];
+      const response = await apiClient.get('/cases/user-cases');
       
-      setCases(mockCases);
+      if (response.data.success) {
+        // Transform API data to match the component's expected format
+        const transformedCases = response.data.data.map(caseItem => ({
+          id: caseItem._id,
+          title: caseItem.caseTitle,
+          type: caseItem.caseType,
+          status: caseItem.attorneyId ? 'attorney_assigned' : 'pending',
+          shortDescription: caseItem.shortDescription,
+          createdAt: caseItem.createdAt,
+          assignedAttorney: caseItem.attorneyId ? {
+            name: `Atty. ${caseItem.attorneyId.firstName} ${caseItem.attorneyId.lastName}`,
+            specialization: caseItem.attorneyId.specializations?.[0] || 'General Law',
+          } : null,
+          lastUpdated: caseItem.updatedAt || caseItem.createdAt,
+          caseNumber: caseItem.caseNumber,
+          detailedDescription: caseItem.detailedDescription,
+        }));
+        
+        setCases(transformedCases);
+      }
     } catch (error) {
       console.error('Error loading cases:', error);
     } finally {
@@ -161,8 +142,20 @@ export default function TrackCasePage() {
 
         <View style={styles.detailsCard}>
           <Text style={styles.detailsTitle}>{selectedCase.title}</Text>
+          
+          {selectedCase.caseNumber && (
+            <Text style={styles.caseNumberText}>Case #{selectedCase.caseNumber}</Text>
+          )}
+          
           <Text style={styles.detailsType}>{getCaseTypeLabel(selectedCase.type)}</Text>
           <Text style={styles.detailsDescription}>{selectedCase.shortDescription}</Text>
+          
+          {selectedCase.detailedDescription && (
+            <View style={styles.detailedDescSection}>
+              <Text style={styles.detailedDescLabel}>Full Description:</Text>
+              <Text style={styles.detailedDescText}>{selectedCase.detailedDescription}</Text>
+            </View>
+          )}
           
           <View style={styles.detailsInfoRow}>
             <Ionicons name="calendar-outline" size={18} color="#6B6B5A" />

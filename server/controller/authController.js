@@ -81,14 +81,14 @@ export const register = async (req, res) => {
 
     // Use the actual passed values
     let finalFirstName = firstName;
-    let finalLastName = lastName;
+    let finalLastName = lastName || "N/A";  // Default to "N/A" if not provided
     let finalUsername = username || userEmail;
 
     // Validate required fields
-    if (!userEmail || !finalFirstName || !finalLastName) {
+    if (!userEmail || !finalFirstName) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields: firstName, lastName, email",
+        message: "Missing required fields: firstName, email",
       });
     }
 

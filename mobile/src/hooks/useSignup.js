@@ -115,7 +115,7 @@ export const useSignup = () => {
         const displayName = user.displayName || "";
         const nameParts = displayName.split(" ");
         const googleFirstName = nameParts[0] || "";
-        const googleLastName = nameParts.slice(1).join(" ") || "";
+        const googleLastName = nameParts.slice(1).join(" ") || "N/A";
 
         try {
           await registerUser(googleFirstName, googleLastName, user.email, null);

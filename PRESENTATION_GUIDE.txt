@@ -1,0 +1,708 @@
+================================================================================
+                    JUSTREACH - COMPREHENSIVE SYSTEM GUIDE
+                    Legal Case Management Mobile Application
+================================================================================
+
+TABLE OF CONTENTS:
+1. System Overview
+2. Technology Stack & Libraries
+3. Architecture & Project Structure
+4. Key Features & File Locations
+5. API Endpoints Reference
+6. Database Models
+7. Authentication Flow
+8. Demo Flow Guide
+9. Troubleshooting
+
+================================================================================
+1. SYSTEM OVERVIEW
+================================================================================
+
+JustReach is a mobile application that connects users with attorneys for legal
+case management. The system has three main user roles:
+
+- USERS: Submit legal cases, track case progress, chat with assigned attorneys
+- ATTORNEYS: View assigned cases, communicate with clients via chat
+- ADMINS: Manage attorney accounts, assign cases to attorneys, view statistics
+
+================================================================================
+2. TECHNOLOGY STACK & LIBRARIES
+================================================================================
+
+BACKEND (Node.js/Express):
+--------------------------
+├── express (v4.x)              - Web framework for REST API
+├── mongoose (v8.x)             - MongoDB object modeling
+├── firebase-admin (v12.x)      - Firebase authentication & user management
+├── cors                        - Cross-origin resource sharing
+├── dotenv                      - Environment variable management
+└── nodemon (dev)               - Auto-restart during development
+
+MOBILE APP (React Native/Expo):
+--------------------------------
+├── expo (v51.x)                - React Native framework
+├── expo-router (v3.x)          - File-based navigation
+├── react-native (v0.74.x)      - Mobile UI framework
+├── firebase (v10.x)            - Client-side authentication
+├── @react-native-google-signin - Google OAuth authentication
+├── axios (v1.x)                - HTTP client for API calls
+├── react-hook-form (v7.x)      - Form state management
+└── @expo/vector-icons          - Icon library
+
+WEB CLIENT (React + Vite):
+--------------------------
+├── react (v18.x)               - UI library
+├── react-router-dom (v6.x)     - Client-side routing
+├── vite (v5.x)                 - Build tool and dev server
+├── firebase (v10.x)            - Authentication
+└── axios                       - API communication
+
+DATABASE:
+---------
+└── MongoDB Atlas               - Cloud-hosted NoSQL database
+
+AUTHENTICATION:
+---------------
+└── Firebase Authentication     - Email/Password & Google Sign-In
+
+BUILD & DEPLOYMENT:
+-------------------
+├── EAS CLI (v16.28.0)          - Expo Application Services for APK builds
+└── Metro Bundler               - React Native JavaScript bundler
+
+================================================================================
+3. ARCHITECTURE & PROJECT STRUCTURE
+================================================================================
+
+ROOT STRUCTURE:
+---------------
+capstone/
+├── server/                     # Backend API (Node.js/Express)
+├── mobile/                     # Mobile app (React Native/Expo)
+├── client/                     # Web admin panel (React/Vite)
+├── CHECKLIST.md               # Development checklist
+└── README.md                  # Project documentation
+
+SERVER STRUCTURE (Backend):
+---------------------------
+server/
+├── server.js                  # Main entry point, Express setup
+├── package.json               # Dependencies
+├── .env                       # Environment variables (MongoDB, Firebase)
+│
+├── controller/                # Business logic
+│   ├── authController.js     # User/Attorney registration, login, activation
+│   ├── caseController.js     # Case submission, assignment, retrieval
+│   ├── chatController.js     # Chat messaging, message retrieval
+│   └── userController.js     # User profile management
+│
+├── models/                    # MongoDB schemas
+│   ├── user.js               # User model (clients)
+│   ├── attorney.js           # Attorney model (lawyers)
+│   ├── case.js               # Case model (legal cases)
+│   └── message.js            # Message model (chat messages)
+│
+└── routes/                    # API route definitions
+    ├── authRoutes.js         # /api/auth/* endpoints
+    ├── caseRoutes.js         # /api/cases/* endpoints
+    ├── chatRoutes.js         # /api/chat/* endpoints
+    └── userRoutes.js         # /api/user/* endpoints
+
+MOBILE STRUCTURE (React Native):
+---------------------------------
+mobile/
+├── app.json                   # Expo configuration
+├── eas.json                   # Build configuration
+├── package.json               # Dependencies
+├── .env                       # API URL configuration
+│
+├── src/
+│   ├── app/                   # Screen components (expo-router)
+│   │   ├── index.js          # Landing page
+│   │   ├── about.js          # About page
+│   │   │
+│   │   ├── auth/             # Authentication screens
+│   │   │   ├── index.js      # Login screen
+│   │   │   └── signup.js     # Signup screen
+│   │   │
+│   │   ├── user/             # User role screens
+│   │   │   ├── index.js      # User dashboard
+│   │   │   ├── trackCase.js  # Track case progress
+│   │   │   └── chat.js       # User-attorney chat
+│   │   │
+│   │   ├── attorney/         # Attorney role screens
+│   │   │   ├── dashboard.js  # Attorney dashboard (cases list)
+│   │   │   └── chat.js       # Attorney-user chat
+│   │   │
+│   │   └── admin/            # Admin role screens
+│   │       ├── dashboard.js  # Admin overview
+│   │       ├── manageCases.js         # Case assignment
+│   │       └── manageAttorneys.js     # Attorney activation
+│   │
+│   ├── components/           # Reusable UI components
+│   │   ├── forms/
+│   │   │   ├── LoginForm.jsx
+│   │   │   ├── SignupForm.jsx
+│   │   │   └── submitCaseForm.js     # Case submission modal
+│   │   ├── buttons/
+│   │   │   └── SocialLoginButton.jsx
+│   │   └── layout/
+│   │       └── Layout.jsx
+│   │
+│   ├── hooks/                # Custom React hooks
+│   │   ├── useLogin.js       # Login logic
+│   │   ├── useSignup.js      # Signup logic
+│   │   ├── useChat.js        # Chat functionality
+│   │   ├── useUserCases.js   # Fetch user cases
+│   │   ├── useSubmitCase.js  # Submit case logic
+│   │   └── useAssignedAttorney.js    # Get assigned attorney
+│   │
+│   ├── context/              # React Context (Global State)
+│   │   └── authContext.js    # Authentication state
+│   │
+│   ├── api/                  # API configuration
+│   │   ├── apiClient.js      # Axios instance with auth interceptor
+│   │   └── environment.js    # Environment-based API URLs
+│   │
+│   ├── firebaseApp/          # Firebase configuration
+│   │   ├── firebase.js       # Firebase initialization
+│   │   └── auth.js           # Authentication methods
+│   │
+│   ├── features/             # Feature-specific logic
+│   │   └── auth/
+│   │       └── register.js   # Backend registration API call
+│   │
+│   ├── utils/                # Utility functions
+│   │   ├── constants.js      # App-wide constants (colors, etc.)
+│   │   ├── caseTypes.js      # Legal case type definitions
+│   │   ├── casStatusSteps.js # Case progress steps
+│   │   └── formValidation.js # Validation rules
+│   │
+│   └── asssets/              # Static assets
+│       ├── images/           # App images and logos
+│       └── styles/           # StyleSheet files
+│           ├── userDashboardStyles.js
+│           └── trackCasePageStyles.js
+
+================================================================================
+4. KEY FEATURES & FILE LOCATIONS
+================================================================================
+
+AUTHENTICATION SYSTEM:
+----------------------
+What it does:
+- Email/Password registration and login
+- Google Sign-In integration
+- Firebase token-based authentication
+- Role-based access control (User, Attorney, Admin)
+
+Files to show:
+Backend:
+  - server/controller/authController.js (register, login, getAllAttorneys, activateAttorney)
+  - server/routes/authRoutes.js (POST /register, /login, GET /all-attorneys)
+
+Mobile:
+  - mobile/src/firebaseApp/auth.js (doSignInWithGoogle, doCreateUserWithEmailAndPassword)
+  - mobile/src/hooks/useLogin.js (handleEmailLogin, handleGoogleLogin)
+  - mobile/src/hooks/useSignup.js (handleEmailSignup, handleGoogleSignup)
+  - mobile/src/context/authContext.js (Global auth state management)
+  - mobile/src/app/auth/index.js (Login screen UI)
+  - mobile/src/app/auth/signup.js (Signup screen UI)
+
+Key Libraries:
+  - firebase (v10.x) - Client authentication
+  - firebase-admin (v12.x) - Server-side token verification
+  - @react-native-google-signin/google-signin - Google OAuth
+
+
+CASE SUBMISSION & MANAGEMENT:
+------------------------------
+What it does:
+- Users submit legal cases with details
+- Admins view all cases and assign to attorneys
+- Attorneys view their assigned cases
+- Case tracking with status updates
+
+Files to show:
+Backend:
+  - server/controller/caseController.js (submitCase, getUserCases, getAttorneyCases, assignAttorney)
+  - server/models/case.js (Case schema with auto-generated case numbers)
+  - server/routes/caseRoutes.js (POST /submit, GET /user-cases, /attorney-cases)
+
+Mobile:
+  - mobile/src/components/forms/submitCaseForm.js (Case submission modal)
+  - mobile/src/hooks/useSubmitCase.js (Submit case logic)
+  - mobile/src/hooks/useUserCases.js (Fetch user's cases)
+  - mobile/src/app/user/trackCase.js (Track case progress UI)
+  - mobile/src/app/attorney/dashboard.js (Attorney's assigned cases)
+  - mobile/src/app/admin/manageCases.js (Admin case assignment)
+
+Case Types:
+  - mobile/src/utils/caseTypes.js (Criminal, Civil, Family, Labor, etc.)
+
+Case Status Steps:
+  - mobile/src/utils/casStatusSteps.js (Pending → Assigned → In Progress → Completed)
+
+
+REAL-TIME CHAT SYSTEM:
+----------------------
+What it does:
+- Direct messaging between users and assigned attorneys
+- Message history and unread count
+- Real-time chat interface
+- Case-specific conversations
+
+Files to show:
+Backend:
+  - server/controller/chatController.js (sendMessage, getMessagesByCase, getChatList)
+  - server/models/message.js (Message schema with sender/case tracking)
+  - server/routes/chatRoutes.js (POST /send, GET /messages/:caseId)
+
+Mobile:
+  - mobile/src/hooks/useChat.js (useSendMessage, useCaseMessages, useMarkAsRead)
+  - mobile/src/app/user/chat.js (User chat interface)
+  - mobile/src/app/attorney/chat.js (Attorney chat interface)
+
+Key Features:
+  - Message persistence in MongoDB
+  - Unread message tracking
+  - Sender identification (user/attorney)
+  - Case-linked conversations
+
+
+ATTORNEY MANAGEMENT (ADMIN):
+-----------------------------
+What it does:
+- Admin views all registered attorneys
+- Account activation/verification
+- View attorney credentials (PRC, IBR numbers)
+- Attorney specialization tracking
+
+Files to show:
+Backend:
+  - server/controller/authController.js (getAllAttorneys, activateAttorney)
+  - server/models/attorney.js (Attorney schema with verification fields)
+
+Mobile:
+  - mobile/src/app/admin/manageAttorneys.js (Attorney list & activation UI)
+  - mobile/src/app/admin/dashboard.js (Admin dashboard with stats)
+
+
+USER DASHBOARD:
+---------------
+What it does:
+- View case statistics (pending, ongoing, completed)
+- Submit new cases
+- Track existing cases
+- Chat with assigned attorney
+- View attorney profile when assigned
+
+Files to show:
+Mobile:
+  - mobile/src/app/user/index.js (Main dashboard)
+  - mobile/src/hooks/useUserCases.js (Fetch cases and assigned attorney)
+  - mobile/src/asssets/styles/userDashboardStyles.js (Styling)
+
+
+ATTORNEY DASHBOARD:
+-------------------
+What it does:
+- View all assigned cases
+- See case details (title, type, description, client info)
+- Access active chats with clients
+- Refresh case list
+
+Files to show:
+Mobile:
+  - mobile/src/app/attorney/dashboard.js (Attorney main screen)
+  - Backend: server/controller/caseController.js (getAttorneyCases function)
+
+
+ADMIN DASHBOARD:
+----------------
+What it does:
+- View system statistics (total users, cases, attorneys)
+- Navigate to case management
+- Navigate to attorney management
+- Monitor unassigned cases
+
+Files to show:
+Mobile:
+  - mobile/src/app/admin/dashboard.js (Admin home screen)
+Backend:
+  - server/controller/caseController.js (getDashboardStats function)
+
+================================================================================
+5. API ENDPOINTS REFERENCE
+================================================================================
+
+BASE URL: http://192.168.100.94:5000/api
+
+AUTHENTICATION ENDPOINTS:
+-------------------------
+POST   /auth/register                # Register new user/attorney
+POST   /auth/login                   # Login (returns role for routing)
+GET    /auth/verify                  # Verify user email status
+POST   /auth/check-email             # Check if email exists
+GET    /auth/all-attorneys           # Get all attorneys (Admin)
+PUT    /auth/activate-attorney/:id   # Activate attorney account (Admin)
+
+CASE MANAGEMENT ENDPOINTS:
+--------------------------
+POST   /cases/submit                 # Submit new case (User)
+GET    /cases/user-cases             # Get logged-in user's cases
+GET    /cases/attorney-cases         # Get logged-in attorney's cases
+GET    /cases/:caseId                # Get specific case details
+GET    /cases/admin/all-cases        # Get all cases (Admin)
+GET    /cases/admin/stats            # Get dashboard statistics (Admin)
+GET    /cases/admin/attorneys        # Get active attorneys list (Admin)
+PUT    /cases/admin/assign/:caseId   # Assign attorney to case (Admin)
+
+CHAT ENDPOINTS:
+---------------
+POST   /chat/send                    # Send a message
+GET    /chat/messages/:caseId        # Get all messages for a case
+PUT    /chat/mark-read/:caseId       # Mark messages as read
+GET    /chat/list                    # Get chat list for attorney
+GET    /chat/assigned-attorney       # Get assigned attorney for user
+
+USER MANAGEMENT ENDPOINTS:
+--------------------------
+GET    /user/profile                 # Get user profile
+PUT    /user/profile                 # Update user profile
+
+================================================================================
+6. DATABASE MODELS (MongoDB Schemas)
+================================================================================
+
+USER MODEL (server/models/user.js):
+------------------------------------
+{
+  email: String (unique, required),
+  firstName: String (required),
+  lastName: String (required),
+  username: String (unique, required),
+  firebaseUid: String (unique, required),
+  isVerified: Boolean (default: false),
+  role: String (enum: 'user', 'admin'),
+  createdAt: Date,
+  updatedAt: Date
+}
+
+ATTORNEY MODEL (server/models/attorney.js):
+--------------------------------------------
+{
+  email: String (unique, required),
+  firstName: String (required),
+  lastName: String (required),
+  firebaseUid: String (unique, required),
+  phoneNumber: String,
+  prcNumber: String (required),
+  ibrNumber: String (required),
+  specializations: [String],
+  accountStatus: String (enum: 'pending', 'active', 'suspended'),
+  isVerified: Boolean (default: false),
+  role: String (default: 'attorney'),
+  createdAt: Date,
+  updatedAt: Date
+}
+
+CASE MODEL (server/models/case.js):
+------------------------------------
+{
+  caseNumber: String (auto-generated, e.g., "CASE-2025-0001"),
+  userId: ObjectId (ref: 'User', required),
+  attorneyId: ObjectId (ref: 'Attorney', nullable),
+  caseTitle: String (required),
+  caseType: String (required),
+  shortDescription: String (required),
+  detailedDescription: String (required),
+  createdAt: Date,
+  updatedAt: Date
+}
+
+MESSAGE MODEL (server/models/message.js):
+------------------------------------------
+{
+  caseId: ObjectId (ref: 'Case', required),
+  senderId: ObjectId (required),
+  senderModel: String (enum: 'User', 'Attorney', required),
+  message: String (required),
+  isRead: Boolean (default: false),
+  createdAt: Date
+}
+
+================================================================================
+7. AUTHENTICATION FLOW
+================================================================================
+
+USER/ATTORNEY REGISTRATION:
+---------------------------
+1. User fills signup form (mobile/src/app/auth/signup.js)
+2. Frontend calls Firebase Authentication
+   - Email/Password: doCreateUserWithEmailAndPassword()
+   - Google: doSignInWithGoogle()
+3. Firebase returns user object with UID and idToken
+4. Frontend calls backend API: POST /auth/register
+   - Sends: idToken, firstName, lastName, email, username
+5. Backend verifies idToken with Firebase Admin SDK
+6. Backend creates MongoDB record (User or Attorney)
+7. For email signup: Verification email sent
+8. For Google signup: Auto-verified
+9. User logged out and redirected to login
+
+LOGIN FLOW:
+-----------
+1. User enters credentials (mobile/src/app/auth/index.js)
+2. Frontend calls Firebase Authentication
+   - Email/Password: doSigninWithEmailAndPassword()
+   - Google: doSignInWithGoogle()
+3. Firebase returns authenticated user
+4. Frontend calls backend: POST /auth/login
+   - Sends: email
+5. Backend checks MongoDB for user/attorney
+6. Backend returns user data with role
+7. Frontend routes based on role:
+   - User → /user (User Dashboard)
+   - Attorney → /attorney/dashboard (Attorney Dashboard)
+   - Admin → /admin/dashboard (Admin Dashboard)
+8. Auth context updated with user info
+
+PROTECTED API CALLS:
+--------------------
+1. User makes API request
+2. API client interceptor (mobile/src/api/apiClient.js):
+   - Gets current Firebase user
+   - Retrieves fresh idToken
+   - Adds to Authorization header: "Bearer <token>"
+3. Backend middleware verifies token
+4. Request processed if valid
+
+================================================================================
+8. DEMO FLOW GUIDE
+================================================================================
+
+SCENARIO 1: USER SUBMITS A CASE
+--------------------------------
+1. Open User Dashboard: mobile/src/app/user/index.js
+   - Show case statistics
+   - Point out "Submit a Case" button
+
+2. Click Submit Case
+   - Modal opens: mobile/src/components/forms/submitCaseForm.js
+   - Fill form: Title, Type (dropdown), Short & Detailed Description
+   - Submit button calls: mobile/src/hooks/useSubmitCase.js
+
+3. Backend Processing:
+   - Show: server/controller/caseController.js → submitCase()
+   - MongoDB insert: server/models/case.js
+   - Auto-generates case number (CASE-2025-XXXX)
+
+4. Result:
+   - Case appears in "Track Case" page
+   - Shows as "Pending" (no attorney assigned yet)
+
+
+SCENARIO 2: ADMIN ASSIGNS ATTORNEY
+-----------------------------------
+1. Admin Dashboard: mobile/src/app/admin/dashboard.js
+   - Show statistics cards
+   - Click "Manage Cases"
+
+2. Manage Cases Screen: mobile/src/app/admin/manageCases.js
+   - List of all cases
+   - Show unassigned cases
+   - Click "Assign Attorney" button
+
+3. Attorney Selection:
+   - Dropdown shows active attorneys
+   - Select attorney
+   - Confirm assignment
+
+4. Backend Processing:
+   - Show: server/controller/caseController.js → assignAttorney()
+   - Updates case.attorneyId field
+
+5. Result:
+   - Case status changes to "Attorney Assigned"
+   - Appears in attorney's dashboard
+   - User can now chat with attorney
+
+
+SCENARIO 3: USER-ATTORNEY CHAT
+-------------------------------
+1. User Side (mobile/src/app/user/chat.js):
+   - Click "Chat with Attorney" button
+   - Shows assigned attorney info
+   - Send message
+
+2. Message Sending:
+   - Hook: mobile/src/hooks/useChat.js → useSendMessage
+   - Backend: server/controller/chatController.js → sendMessage()
+   - Stored in MongoDB: server/models/message.js
+
+3. Attorney Side (mobile/src/app/attorney/dashboard.js):
+   - Shows "Active Chats" section
+   - Unread badge appears
+   - Click to open chat: mobile/src/app/attorney/chat.js
+
+4. Real-time Updates:
+   - Messages fetched via GET /chat/messages/:caseId
+   - Mark as read: PUT /chat/mark-read/:caseId
+
+
+SCENARIO 4: ATTORNEY ACCOUNT ACTIVATION
+----------------------------------------
+1. Attorney Signs Up (mobile/src/app/auth/signup.js - Attorney tab):
+   - Fills extended form (PRC, IBR, specializations)
+   - Account created with status: "pending"
+
+2. Admin Activation (mobile/src/app/admin/manageAttorneys.js):
+   - Admin views all attorneys
+   - Pending accounts shown with badge
+   - Click "Activate Account"
+   - Confirmation dialog
+
+3. Backend Processing:
+   - Show: server/controller/authController.js → activateAttorney()
+   - Updates: accountStatus = "active", isVerified = true
+
+4. Result:
+   - Attorney can now log in
+   - Appears in case assignment dropdown
+
+================================================================================
+9. TROUBLESHOOTING & COMMON ISSUES
+================================================================================
+
+ISSUE: "Network Error" or "Connection Refused"
+SOLUTION:
+- Check if backend server is running: cd server && node server.js
+- Verify mobile .env file has correct IP: EXPO_PUBLIC_API_BASE_URL=http://192.168.100.94:5000/api
+- Ensure mobile and computer are on same WiFi network
+
+ISSUE: "Firebase Auth Error" or "Google Sign-In Failed"
+SOLUTION:
+- Check Firebase config in mobile/src/firebaseApp/firebase.js
+- Verify google-services.json exists in mobile/android/app/
+- For APK builds, ensure SHA-1 certificate is registered in Firebase Console
+
+ISSUE: "User Not Found" after Firebase login
+SOLUTION:
+- User exists in Firebase but not MongoDB
+- Check backend registration endpoint
+- Verify idToken is being sent correctly
+
+ISSUE: Chat messages not appearing
+SOLUTION:
+- Check if case has assigned attorney (required for chat)
+- Verify caseId is being passed to chat screen
+- Check backend chat controller for errors
+
+ISSUE: Cases not showing in Track Case
+SOLUTION:
+- Verify user is logged in (Firebase + Backend)
+- Check API endpoint: GET /cases/user-cases
+- Ensure apiClient has valid auth token
+
+ISSUE: APK build fails
+SOLUTION:
+- Update EAS CLI: npm install -g eas-cli
+- Verify Expo account: npx eas whoami
+- Check eas.json build profiles
+
+================================================================================
+ENVIRONMENT SETUP COMMANDS
+================================================================================
+
+BACKEND:
+--------
+cd server
+npm install
+# Create .env file with MongoDB URI and Firebase credentials
+node server.js
+
+MOBILE:
+-------
+cd mobile
+npm install
+# Create .env file with API URL
+npm start
+
+WEB CLIENT:
+-----------
+cd client
+npm install
+npm run dev
+
+BUILD APK:
+----------
+cd mobile
+npx eas build -p android --profile preview
+
+================================================================================
+IMPORTANT NOTES FOR PRESENTATION
+================================================================================
+
+1. DEMO PREPARATION:
+   - Have 3 test accounts ready: User, Attorney, Admin
+   - Pre-submit 2-3 sample cases
+   - Ensure backend server is running and accessible
+   - Test Google Sign-In beforehand
+
+2. CODE WALKTHROUGH STRATEGY:
+   - Start with architecture diagram (show structure above)
+   - Demonstrate one complete flow (e.g., case submission)
+   - Show corresponding frontend and backend code
+   - Explain data flow: Mobile → API → MongoDB → API → Mobile
+
+3. HIGHLIGHT SECURITY FEATURES:
+   - Firebase token-based authentication
+   - Role-based access control
+   - API endpoint protection
+   - Secure password handling (Firebase handles hashing)
+
+4. SCALABILITY POINTS:
+   - MongoDB for horizontal scaling
+   - Stateless REST API design
+   - Cloud-hosted services (Firebase, MongoDB Atlas)
+   - Mobile-first responsive design
+
+5. FUTURE ENHANCEMENTS TO MENTION:
+   - Push notifications for new messages
+   - File upload for case documents
+   - Video call integration
+   - Payment processing
+   - Advanced case status tracking
+
+================================================================================
+KEY FILES QUICK REFERENCE
+================================================================================
+
+MOST IMPORTANT FILES TO SHOW:
+1. server/server.js                        - Backend entry point
+2. server/controller/chatController.js     - Chat system logic
+3. mobile/src/context/authContext.js       - Global auth state
+4. mobile/src/app/user/index.js            - User dashboard
+5. mobile/src/app/attorney/dashboard.js    - Attorney dashboard
+6. mobile/src/app/admin/dashboard.js       - Admin dashboard
+7. mobile/src/hooks/useChat.js             - Chat functionality
+8. server/models/case.js                   - Case data structure
+9. mobile/src/api/apiClient.js             - API configuration
+
+CONFIGURATION FILES:
+1. server/.env                             - Backend config (MongoDB, Firebase)
+2. mobile/.env                             - Mobile config (API URL)
+3. mobile/app.json                         - Expo configuration
+4. mobile/eas.json                         - Build configuration
+5. server/package.json                     - Backend dependencies
+6. mobile/package.json                     - Mobile dependencies
+
+================================================================================
+END OF GUIDE
+================================================================================
+
+This guide should provide comprehensive coverage for your presentation.
+Good luck with your defense!
+
+Last Updated: November 26, 2025
