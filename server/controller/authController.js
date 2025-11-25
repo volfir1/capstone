@@ -373,6 +373,66 @@ export const registerAttorney = async (req, res) => {
   }
 };
 
+// Get all attorneys (Admin)
+export const getAllAttorneys = async (req, res) => {
+  try {
+    const attorneys = await Attorney.find()
+      .select('-__v')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: attorneys,
+      message: "Attorneys retrieved successfully",
+    });
+  } catch (error) {
+    console.error("Get all attorneys error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to retrieve attorneys",
+    });
+  }
+};
+
+// Activate attorney account (Admin)
+export const activateAttorney = async (req, res) => {
+  try {
+    const { attorneyId } = req.params;
+
+    const attorney = await Attorney.findById(attorneyId);
+    
+    if (!attorney) {
+      return res.status(404).json({
+        success: false,
+        message: "Attorney not found",
+      });
+    }
+
+    if (attorney.accountStatus === 'active') {
+      return res.status(400).json({
+        success: false,
+        message: "Attorney account is already active",
+      });
+    }
+
+    attorney.accountStatus = 'active';
+    attorney.isVerified = true;
+    await attorney.save();
+
+    res.status(200).json({
+      success: true,
+      data: attorney,
+      message: "Attorney account activated successfully",
+    });
+  } catch (error) {
+    console.error("Activate attorney error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to activate attorney account",
+    });
+  }
+};
+
 // Verify Attorney Login (checks MongoDB verification)
 export const verifyAttorney = async (req, res) => {
   try {

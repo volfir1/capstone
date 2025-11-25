@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import userRoutes from './routes/userRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import caseRoutes from './routes/caseRoutes.js'
+import chatRoutes from './routes/chatRoutes.js'
 import dotenv from 'dotenv'
 import cors from "cors"
 import helmet from 'helmet'
@@ -52,6 +53,7 @@ app.use(cors(corsOptions))
 app.use('/api/users', userRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/cases', caseRoutes)
+app.use('/api/chat', chatRoutes)
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URL)
@@ -69,6 +71,9 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at port ${PORT}`)
+    console.log(`Local: http://localhost:${PORT}`)
+    console.log(`Network: Use your WiFi IP address (check ipconfig)`)
+    console.log(`Access from phone: http://192.168.100.94:${PORT}`)
 })

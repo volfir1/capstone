@@ -1,5 +1,4 @@
-// CaseStatusScreen.js (index.js)
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Text,
   View,
@@ -7,6 +6,7 @@ import {
   Alert,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,14 +15,15 @@ import { useAuth } from "context/authContext";
 import styles from "asssets/styles/userDashboardStyles";
 import { CHARCOAL } from "utils/constants";
 import SubmitCaseForm from "components/forms/submitCaseForm";
+import { useUserCases } from "../../hooks/useUserCases";
 
-export default function index() {
+export default function UserDashboard() {
   const router = useRouter();
   const { logout, user, isLoading } = useAuth();
-  const isAttorneyAssigned = false; // Toggle this to enable/disable chat button
+  const { cases, assignedCase, loading: casesLoading, refreshCases } = useUserCases();
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [submittedCases, setSubmittedCases] = useState([]);
-  const [isSubmittingCase, setIsSubmittingCase] = useState(false);
+
+  const assignedAttorney = assignedCase?.attorneyId;
 
   const handleLogout = async () => {
     try {
@@ -52,29 +53,28 @@ export default function index() {
   };
 
   const handleSubmitCase = async (caseData) => {
-    // Prototype: store locally and simulate network delay
-    try {
-      setIsSubmittingCase(true);
-      // simulate a short delay
-      await new Promise((resolve) => setTimeout(resolve, 600));
+    setIsModalVisible(false);
+    // Refresh cases after submission
+    setTimeout(() => {
+      refreshCases();
+    }, 1000);
+  };
 
-      const saved = { ...caseData, id: Date.now().toString() };
-      setSubmittedCases((s) => [saved, ...s]);
-
-      Alert.alert("Case Submitted", "Your case has been saved (prototype).");
-      setIsModalVisible(false);
-      return saved;
-    } catch (err) {
-      console.error("Submit case failed", err);
-      Alert.alert(
-        "Submission Failed",
-        "An error occurred while submitting your case."
-      );
-      throw err;
-    } finally {
-      setIsSubmittingCase(false);
+  const handleChatPress = () => {
+    if (assignedCase && assignedAttorney) {
+      router.push({
+        pathname: "/user/chat",
+        params: {
+          caseId: assignedCase._id,
+          attorneyName: `${assignedAttorney.firstName} ${assignedAttorney.lastName}`,
+        },
+      });
     }
   };
+
+  const pendingCases = cases.filter(c => !c.attorneyId).length;
+  const ongoingCases = cases.filter(c => c.attorneyId).length;
+  const completedCases = 0; // TODO: Add status field to case model
 
   return (
     <View style={styles.container}>
@@ -82,7 +82,6 @@ export default function index() {
       <View style={styles.customHeader}>
         <View style={styles.logoContainer}>
           <View style={styles.logoPlaceholder}>
-            {/* Replace this View with your <Image> component */}
             <Image
               source={require("../../asssets/images/logo.png")}
               style={styles.logoImage}
@@ -115,6 +114,41 @@ export default function index() {
           {user?.email && <Text style={styles.emailText}>{user.email}</Text>}
         </View>
 
+        {/* Attorney Profile Section - Only show if attorney is assigned */}
+        {casesLoading ? (
+          <View style={styles.loadingSection}>
+            <ActivityIndicator size="small" color="#8B6F47" />
+          </View>
+        ) : assignedAttorney ? (
+          <View style={styles.attorneySection}>
+            <Text style={styles.sectionHeader}>Your Assigned Attorney</Text>
+            <View style={styles.attorneyCard}>
+              <View style={styles.attorneyAvatar}>
+                <Ionicons name="person" size={32} color="#8B6F47" />
+              </View>
+              <View style={styles.attorneyInfo}>
+                <Text style={styles.attorneyName}>
+                  Atty. {assignedAttorney.firstName} {assignedAttorney.lastName}
+                </Text>
+                <Text style={styles.attorneyEmail}>{assignedAttorney.email}</Text>
+                {assignedAttorney.phoneNumber && (
+                  <Text style={styles.attorneyPhone}>
+                    📞 {assignedAttorney.phoneNumber}
+                  </Text>
+                )}
+                {assignedAttorney.specializations && assignedAttorney.specializations.length > 0 && (
+                  <Text style={styles.attorneySpec}>
+                    {assignedAttorney.specializations.join(", ")}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <Text style={styles.caseInfo}>
+              Case: {assignedCase.caseTitle} ({assignedCase.caseNumber})
+            </Text>
+          </View>
+        ) : null}
+
         {/* Case Overview Section */}
         <View style={styles.content}>
           <Text style={styles.sectionHeader}>Case Overview</Text>
@@ -122,17 +156,17 @@ export default function index() {
           {/* Status Cards */}
           <View style={styles.statusContainer}>
             <View style={styles.statusCard}>
-              <Text style={styles.statusNumber}>3</Text>
+              <Text style={styles.statusNumber}>{pendingCases}</Text>
               <Text style={styles.statusLabel}>Pending Cases</Text>
             </View>
 
             <View style={styles.statusCard}>
-              <Text style={styles.statusNumber}>2</Text>
+              <Text style={styles.statusNumber}>{ongoingCases}</Text>
               <Text style={styles.statusLabel}>Ongoing Cases</Text>
             </View>
 
             <View style={styles.statusCard}>
-              <Text style={styles.statusNumber}>5</Text>
+              <Text style={styles.statusNumber}>{completedCases}</Text>
               <Text style={styles.statusLabel}>Completed Cases</Text>
             </View>
           </View>
@@ -140,16 +174,10 @@ export default function index() {
           {/* Action Buttons */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                isSubmittingCase && styles.buttonDisabled,
-              ]}
+              style={styles.primaryButton}
               onPress={() => setIsModalVisible(true)}
-              disabled={isSubmittingCase}
             >
-              <Text style={styles.primaryButtonText}>
-                {isSubmittingCase ? "Submitting..." : "Submit a Case"}
-              </Text>
+              <Text style={styles.primaryButtonText}>Submit a Case</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -162,19 +190,20 @@ export default function index() {
             <TouchableOpacity
               style={[
                 styles.chatButton,
-                !isAttorneyAssigned && styles.chatButtonDisabled,
+                !assignedAttorney && styles.chatButtonDisabled,
               ]}
-              disabled={!isAttorneyAssigned}
+              onPress={handleChatPress}
+              disabled={!assignedAttorney}
             >
               <Text
                 style={[
                   styles.chatButtonText,
-                  !isAttorneyAssigned && styles.chatButtonTextDisabled,
+                  !assignedAttorney && styles.chatButtonTextDisabled,
                 ]}
               >
                 Chat with Attorney
               </Text>
-              {!isAttorneyAssigned && (
+              {!assignedAttorney && (
                 <Text style={styles.disabledNote}>
                   Available when attorney is assigned
                 </Text>

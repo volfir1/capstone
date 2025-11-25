@@ -54,7 +54,7 @@ const AdminDashboard = () => {
       icon: 'briefcase-outline',
       color: '#4682B4',
       bgColor: '#E8F4F8',
-      route: null, // Not clickable yet
+      route: '/admin/manageAttorneys', // Clickable - goes to manage attorneys
     },
     {
       id: 'unassigned',

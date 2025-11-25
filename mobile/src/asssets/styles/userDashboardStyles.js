@@ -223,6 +223,71 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontWeight: '500',
   },
+  loadingSection: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+  },
+  attorneySection: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+  },
+  attorneyCard: {
+    flexDirection: 'row',
+    backgroundColor: '#F5EFE7',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E8DCC8',
+  },
+  attorneyAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    borderWidth: 2,
+    borderColor: '#C5A572',
+  },
+  attorneyInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  attorneyName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: PRIMARY_BROWN,
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  attorneyEmail: {
+    fontSize: 13,
+    color: MUTED_OLIVE,
+    marginBottom: 2,
+  },
+  attorneyPhone: {
+    fontSize: 13,
+    color: MUTED_OLIVE,
+    marginBottom: 2,
+  },
+  attorneySpec: {
+    fontSize: 11,
+    color: '#8B6F47',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  caseInfo: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
 });
 
 export default styles;
