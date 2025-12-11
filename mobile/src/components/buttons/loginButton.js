@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
-import loginStyles from "../../asssets/styles/loginStyles";
+import loginStyles from "../../assets/styles/loginStyles";
 
 export const SocialLoginButtons = ({ onGoogleSignIn, loading }) => {
   return (

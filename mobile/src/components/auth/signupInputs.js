@@ -2,7 +2,7 @@ import React from "react";
 import { View } from "react-native";
 import { FormInput } from "../common/formInput";
 import validationRules from "@utils/formValidation";
-import signupStyles from "../../asssets/styles/signupStyles";
+import signupStyles from "../../assets/styles/signupStyles";
 
 export const NameInputs = ({ control, errors }) => {
   return (

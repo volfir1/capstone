@@ -5,7 +5,7 @@ import { NameInputs } from "./signupInputs";
 import { PasswordInputs } from "./passwordInput";
 import { FormInput } from "components/common/formInput";
 import validationRules from "@utils/formValidation";
-import signupStyles from "../../asssets/styles/signupStyles";
+import signupStyles from "../../assets/styles/signupStyles";
 
 export const SignupFormFields = ({
   control,

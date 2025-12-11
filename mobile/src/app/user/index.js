@@ -12,7 +12,7 @@ import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "context/authContext";
-import styles from "asssets/styles/userDashboardStyles";
+import styles from "@assets/styles/userDashboardStyles";
 import { CHARCOAL } from "utils/constants";
 import SubmitCaseForm from "components/forms/submitCaseForm";
 import { useUserCases } from "../../hooks/useUserCases";
@@ -83,7 +83,7 @@ export default function UserDashboard() {
         <View style={styles.logoContainer}>
           <View style={styles.logoPlaceholder}>
             <Image
-              source={require("../../asssets/images/logo.png")}
+              source={require("../../assets/images/logo.png")}
               style={styles.logoImage}
             />
           </View>

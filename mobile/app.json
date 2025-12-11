@@ -5,14 +5,14 @@
     "scheme": "justreach",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/asssets/images/logo.png",
+    "icon": "./src/assets/images/logo.png",
     "userInterfaceStyle": "light",
     "plugins": [
       "@react-native-google-signin/google-signin",
       "expo-secure-store"
     ],
     "splash": {
-      "image": "./src/asssets/images/logo.png",
+      "image": "./src/assets/images/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -21,14 +21,14 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./src/asssets/images/logo.png",
+        "foregroundImage": "./src/assets/images/logo.png",
         "backgroundColor": "#ffffff"
       },
       "package": "justreach.app",
       "googleServicesFile": "./config/google-services.json"
     },
     "web": {
-      "favicon": "./src/asssets/images/logo.png"
+      "favicon": "./src/assets/images/logo.png"
     },
     "extra": {
       "eas": {

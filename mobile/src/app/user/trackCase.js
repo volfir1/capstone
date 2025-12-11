@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import styles from 'asssets/styles/trackCasePageStyles';
+import styles from '@assets/styles/trackCasePageStyles';
 import { CASE_STATUS_STEPS } from 'utils/casStatusSteps';
 import { getCaseTypeLabel } from 'utils/caseTypes';
 import apiClient from '../../api/apiClient';

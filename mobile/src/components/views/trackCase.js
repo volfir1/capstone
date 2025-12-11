@@ -9,7 +9,7 @@ import {
   ActivityIndicator 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import styles from 'asssets/styles/components/trackCaseStyles';
+import styles from 'assets/styles/components/trackCaseStyles';
 import { CASE_STATUS_STEPS } from 'utils/casStatusSteps';
 import { getCaseTypeLabel } from 'utils/caseTypes';
 

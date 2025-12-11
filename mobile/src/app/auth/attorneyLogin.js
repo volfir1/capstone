@@ -12,7 +12,7 @@ import { Link } from "expo-router";
 import { Controller } from "react-hook-form";
 import { Ionicons } from "@expo/vector-icons";
 import { useAttorneyLogin } from "hooks/useAttorneyLogin";
-import loginStyles from "../../asssets/styles/loginStyles";
+import attorneyLoginStyles from "@assets/styles/attornyeLoginStyles";
 
 export default function AttorneyLogin() {
   const {
@@ -27,29 +27,29 @@ export default function AttorneyLogin() {
 
   return (
     <KeyboardAvoidingView
-      style={loginStyles.container}
+      style={attorneyLoginStyles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={loginStyles.scrollContent}
+        contentContainerStyle={attorneyLoginStyles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Section */}
-        <View style={loginStyles.heroSection}>
-          <View style={loginStyles.iconContainer}>
+        <View style={attorneyLoginStyles.heroSection}>
+          <View style={attorneyLoginStyles.iconContainer}>
             <Ionicons name="briefcase" size={48} color="#C4AB7D" />
           </View>
-          <Text style={loginStyles.welcomeText}>Attorney Portal</Text>
-          <Text style={loginStyles.subtitle}>
+          <Text style={attorneyLoginStyles.welcomeText}>Attorney Portal</Text>
+          <Text style={attorneyLoginStyles.subtitle}>
             Sign in to your attorney account
           </Text>
         </View>
 
         {/* Form Section */}
-        <View style={loginStyles.formSection}>
+        <View style={attorneyLoginStyles.formSection}>
           {/* Email Input */}
-          <View style={loginStyles.inputContainer}>
-            <Text style={loginStyles.label}>Email</Text>
+          <View style={attorneyLoginStyles.inputContainer}>
+            <Text style={attorneyLoginStyles.label}>Email</Text>
             <Controller
               control={control}
               name="email"
@@ -61,19 +61,20 @@ export default function AttorneyLogin() {
                 },
               }}
               render={({ field: { onChange, value } }) => (
-                <View style={loginStyles.inputWrapper}>
+                <View style={attorneyLoginStyles.inputWrapper}>
                   <Ionicons
                     name="mail-outline"
                     size={20}
                     color="#64748b"
-                    style={loginStyles.inputIcon}
+                    style={attorneyLoginStyles.inputIcon}
                   />
                   <TextInput
                     style={[
-                      loginStyles.input,
-                      errors.email && loginStyles.inputError,
+                      attorneyLoginStyles.input,
+                      errors.email && attorneyLoginStyles.inputError,
                     ]}
                     placeholder="Enter your email"
+                    placeholderTextColor="#9CA3AF"
                     value={value}
                     onChangeText={onChange}
                     keyboardType="email-address"
@@ -84,13 +85,15 @@ export default function AttorneyLogin() {
               )}
             />
             {errors.email && (
-              <Text style={loginStyles.errorText}>{errors.email.message}</Text>
+              <Text style={attorneyLoginStyles.errorText}>
+                {errors.email.message}
+              </Text>
             )}
           </View>
 
           {/* Password Input */}
-          <View style={loginStyles.inputContainer}>
-            <Text style={loginStyles.label}>Password</Text>
+          <View style={attorneyLoginStyles.inputContainer}>
+            <Text style={attorneyLoginStyles.label}>Password</Text>
             <Controller
               control={control}
               name="password"
@@ -102,19 +105,20 @@ export default function AttorneyLogin() {
                 },
               }}
               render={({ field: { onChange, value } }) => (
-                <View style={loginStyles.inputWrapper}>
+                <View style={attorneyLoginStyles.inputWrapper}>
                   <Ionicons
                     name="lock-closed-outline"
                     size={20}
                     color="#64748b"
-                    style={loginStyles.inputIcon}
+                    style={attorneyLoginStyles.inputIcon}
                   />
                   <TextInput
                     style={[
-                      loginStyles.input,
-                      errors.password && loginStyles.inputError,
+                      attorneyLoginStyles.input,
+                      errors.password && attorneyLoginStyles.inputError,
                     ]}
                     placeholder="Enter your password"
+                    placeholderTextColor="#9CA3AF"
                     value={value}
                     onChangeText={onChange}
                     secureTextEntry={!showPassword}
@@ -122,7 +126,7 @@ export default function AttorneyLogin() {
                   />
                   <TouchableOpacity
                     onPress={togglePasswordVisibility}
-                    style={loginStyles.eyeIcon}
+                    style={attorneyLoginStyles.eyeIcon}
                     disabled={loading}
                   >
                     <Ionicons
@@ -135,7 +139,7 @@ export default function AttorneyLogin() {
               )}
             />
             {errors.password && (
-              <Text style={loginStyles.errorText}>
+              <Text style={attorneyLoginStyles.errorText}>
                 {errors.password.message}
               </Text>
             )}
@@ -144,41 +148,41 @@ export default function AttorneyLogin() {
           {/* Login Button */}
           <TouchableOpacity
             style={[
-              loginStyles.loginButton,
-              loading && loginStyles.buttonDisabled,
+              attorneyLoginStyles.loginButton,
+              loading && attorneyLoginStyles.buttonDisabled,
             ]}
             onPress={handleSubmit(handleAttorneyLogin)}
             disabled={loading}
           >
-            <Text style={loginStyles.loginButtonText}>
+            <Text style={attorneyLoginStyles.loginButtonText}>
               {loading ? "Signing in..." : "Sign in as Attorney"}
             </Text>
           </TouchableOpacity>
 
           {/* Divider */}
-          <View style={loginStyles.dividerContainer}>
-            <View style={loginStyles.dividerLine} />
-            <Text style={loginStyles.dividerText}>or</Text>
-            <View style={loginStyles.dividerLine} />
+          <View style={attorneyLoginStyles.dividerContainer}>
+            <View style={attorneyLoginStyles.dividerLine} />
+            <Text style={attorneyLoginStyles.dividerText}>or</Text>
+            <View style={attorneyLoginStyles.dividerLine} />
           </View>
 
           {/* Sign Up Link */}
-          <View style={loginStyles.signupContainer}>
-            <Text style={loginStyles.signupText}>
+          <View style={attorneyLoginStyles.signupContainer}>
+            <Text style={attorneyLoginStyles.signupText}>
               Don't have an attorney account?{" "}
             </Text>
             <TouchableOpacity>
-              <Link href="/auth/attorneySignup" style={loginStyles.signupLink}>
+              <Link href="/auth/attorneySignup" style={attorneyLoginStyles.signupLink}>
                 Sign up
               </Link>
             </TouchableOpacity>
           </View>
 
           {/* Back to User Login */}
-          <View style={loginStyles.signupContainer}>
-            <Text style={loginStyles.signupText}>Not an attorney? </Text>
+          <View style={attorneyLoginStyles.signupContainer}>
+            <Text style={attorneyLoginStyles.signupText}>Not an attorney? </Text>
             <TouchableOpacity>
-              <Link href="/auth" style={loginStyles.signupLink}>
+              <Link href="/auth" style={attorneyLoginStyles.signupLink}>
                 User Login
               </Link>
             </TouchableOpacity>

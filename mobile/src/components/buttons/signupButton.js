@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
-import signupStyles from "../../asssets/styles/signupStyles";
+import signupStyles from "../../assets/styles/signupStyles";
 
 export const SocialSignupButtons = ({ onGoogleSignup, isRegistering }) => {
   return (

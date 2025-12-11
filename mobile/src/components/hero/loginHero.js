@@ -1,13 +1,13 @@
 import React from "react";
 import { View, Text, Image } from "react-native";
-import loginStyles from "../../asssets/styles/loginStyles";
+import loginStyles from "../../assets/styles/loginStyles";
 
 export const LoginHero = () => {
   return (
     <View style={loginStyles.heroSection}>
       <View style={loginStyles.imagePlaceholder}>
         <Image
-          source={require("../../asssets/images/law.png")}
+          source={require("../../assets/images/law.png")}
           style={loginStyles.heroImage}
         />
       </View>

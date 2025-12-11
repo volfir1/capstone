@@ -9,7 +9,7 @@ import { LoginHero } from "components/hero/loginHero";
 import { LoginFormFields } from "components/forms/loginFormFields";
 import { SocialLoginButtons } from "components/buttons/loginButton";
 import { useNativeLogin } from "hooks/useLogin";
-import loginStyles from "../../asssets/styles/loginStyles";
+import loginStyles from "@assets/styles/loginStyles";
 
 export default function Login() {
   const {

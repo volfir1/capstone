@@ -1,13 +1,13 @@
 import React from "react";
 import { View, Text, Image } from "react-native";
-import signupStyles from "../../asssets/styles/signupStyles";
+import signupStyles from "../../assets/styles/signupStyles";
 
 export const SignupHero = () => {
   return (
     <View style={signupStyles.heroSection}>
       <View style={signupStyles.imagePlaceholder}>
         <Image
-          source={require("../../asssets/images/law.png")}
+          source={require("../../assets/images/law.png")}
           style={signupStyles.heroImage}
         />
       </View>

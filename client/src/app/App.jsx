@@ -6,6 +6,7 @@ import { Outlet } from "react-router";
 import { Layout } from "../components/layout/Layout";
 import { lazy, Suspense } from "react";
 import { Loaders } from "../components/ui/Loader";
+import SubmitCase from "./pages/user/SubmitCase";
 
 const Signup = lazy(() => import("./pages/auth/Signup/Signup"));
 const Login = lazy(() => import("./pages/auth/Login/Login"));
@@ -18,6 +19,7 @@ const LandingPage = lazy(()=> import("./pages/LandingPage"))
 const AboutPage = lazy(()=> import('./pages/About'))
 const FeaturesPage = lazy(()=> import('./pages/Features'))
 const HowItWorks = lazy(()=> import('./pages/How')) 
+const UserForm = lazy(() => import('./pages/other/UserForm'))
 
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
@@ -79,7 +81,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-
+        <Route path="/formapp" element={<UserForm />} />
         {/* User */}
         <Route
           path="/user"
@@ -93,6 +95,7 @@ function AppRoutes() {
         >
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<Home />} />
+          <Route  path="submitcase" element={< SubmitCase/>}/>
         </Route>
 
         {/* Admin */}

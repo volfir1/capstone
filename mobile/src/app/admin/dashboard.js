@@ -74,7 +74,7 @@ const AdminDashboard = () => {
         <View style={styles.logoContainer}>
           <View style={styles.logoPlaceholder}>
             <Image
-              source={require('../../asssets/images/logo.png')}
+              source={require('../../assets/images/logo.png')}
               style={styles.logoImage}
             />
           </View>

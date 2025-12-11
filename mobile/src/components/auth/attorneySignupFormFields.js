@@ -1,15 +1,14 @@
-import React, { useState } from "react";
+import React, { memo } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
 } from "react-native";
 import { Controller } from "react-hook-form";
 import { Picker } from "@react-native-picker/picker";
 import { Ionicons } from "@expo/vector-icons";
-import attorneySignupStyles from "../../asssets/styles/attorneySignupStyles";
+import attorneySignupStyles from "@assets/styles/attorneySignupStyles";
 
 const SPECIALIZATIONS = [
   "Criminal Law",
@@ -42,7 +41,92 @@ const LANGUAGES = [
   "Other",
 ];
 
-const CONSULTATION_MODES = ["online", "in-person", "both"];
+const CONSULTATION_MODES = [
+  { value: "online", label: "Online Consultation" },
+  { value: "in-person", label: "In-Person Meeting" },
+  { value: "both", label: "Both Options" },
+];
+
+// Memoized input component
+const FormInput = memo(({ 
+  control, 
+  name, 
+  label, 
+  placeholder, 
+  error, 
+  required = false,
+  secureTextEntry = false,
+  keyboardType = "default",
+  autoCapitalize = "sentences",
+  rightIcon = null,
+  multiline = false,
+  numberOfLines = 1,
+  helperText = null,
+}) => (
+  <View style={attorneySignupStyles.inputContainer}>
+    <Text style={attorneySignupStyles.label}>
+      {label} {required && <Text style={attorneySignupStyles.requiredStar}>*</Text>}
+    </Text>
+    <View style={attorneySignupStyles.inputWrapper}>
+      <Controller
+        control={control}
+        name={name}
+        render={({ field: { onChange, value } }) => (
+          <TextInput
+            style={[
+              attorneySignupStyles.input,
+              error && attorneySignupStyles.inputError,
+              rightIcon && attorneySignupStyles.inputWithIcon,
+              multiline && attorneySignupStyles.textArea,
+            ]}
+            placeholder={placeholder}
+            placeholderTextColor="#9CA3AF"
+            value={value}
+            onChangeText={onChange}
+            secureTextEntry={secureTextEntry}
+            keyboardType={keyboardType}
+            autoCapitalize={autoCapitalize}
+            multiline={multiline}
+            numberOfLines={numberOfLines}
+            textAlignVertical={multiline ? "top" : "center"}
+          />
+        )}
+      />
+      {rightIcon}
+    </View>
+    {error && (
+      <Text style={attorneySignupStyles.errorText}>
+        {error.message}
+      </Text>
+    )}
+    {helperText && !error && (
+      <Text style={attorneySignupStyles.helperText}>
+        {helperText}
+      </Text>
+    )}
+  </View>
+));
+
+// Memoized checkbox item
+const CheckboxItem = memo(({ label, isChecked, onPress }) => (
+  <TouchableOpacity
+    style={attorneySignupStyles.multiSelectItem}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <View
+      style={[
+        attorneySignupStyles.checkbox,
+        isChecked && attorneySignupStyles.checkboxChecked,
+      ]}
+    >
+      {isChecked && (
+        <Ionicons name="checkmark" size={16} color="#fff" />
+      )}
+    </View>
+    <Text style={attorneySignupStyles.checkboxLabel}>{label}</Text>
+  </TouchableOpacity>
+));
 
 export const AttorneySignupFormFields = ({
   control,
@@ -53,7 +137,6 @@ export const AttorneySignupFormFields = ({
   showConfirmPassword,
   onTogglePassword,
   onToggleConfirmPassword,
-  watchPassword,
 }) => {
   return (
     <View>
@@ -62,240 +145,114 @@ export const AttorneySignupFormFields = ({
         Basic Information
       </Text>
 
-      <View style={attorneySignupStyles.inputContainer}>
-        <Text style={attorneySignupStyles.label}>
-          Email <Text style={attorneySignupStyles.requiredStar}>*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="email"
-          render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={[
-                attorneySignupStyles.input,
-                errors.email && attorneySignupStyles.inputError,
-              ]}
-              placeholder="Enter your email"
-              value={value}
-              onChangeText={onChange}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          )}
-        />
-        {errors.email && (
-          <Text style={attorneySignupStyles.errorText}>
-            {errors.email.message}
-          </Text>
-        )}
-      </View>
+      <FormInput
+        control={control}
+        name="email"
+        label="Email Address"
+        placeholder="your.email@example.com"
+        error={errors.email}
+        required
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
 
-      <View style={attorneySignupStyles.inputContainer}>
-        <Text style={attorneySignupStyles.label}>
-          Username <Text style={attorneySignupStyles.requiredStar}>*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="username"
-          render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={[
-                attorneySignupStyles.input,
-                errors.username && attorneySignupStyles.inputError,
-              ]}
-              placeholder="Enter username"
-              value={value}
-              onChangeText={onChange}
-              autoCapitalize="none"
-            />
-          )}
-        />
-        {errors.username && (
-          <Text style={attorneySignupStyles.errorText}>
-            {errors.username.message}
-          </Text>
-        )}
-      </View>
+      <FormInput
+        control={control}
+        name="username"
+        label="Username"
+        placeholder="Choose a unique username"
+        error={errors.username}
+        required
+        autoCapitalize="none"
+      />
 
-      <View style={attorneySignupStyles.inputContainer}>
-        <Text style={attorneySignupStyles.label}>
-          Password <Text style={attorneySignupStyles.requiredStar}>*</Text>
-        </Text>
-        <View style={{ position: "relative" }}>
-          <Controller
-            control={control}
-            name="password"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[
-                  attorneySignupStyles.input,
-                  errors.password && attorneySignupStyles.inputError,
-                ]}
-                placeholder="Enter password"
-                value={value}
-                onChangeText={onChange}
-                secureTextEntry={!showPassword}
-              />
-            )}
-          />
+      <FormInput
+        control={control}
+        name="password"
+        label="Password"
+        placeholder="Create a secure password"
+        error={errors.password}
+        required
+        secureTextEntry={!showPassword}
+        rightIcon={
           <TouchableOpacity
             onPress={onTogglePassword}
-            style={{
-              position: "absolute",
-              right: 16,
-              top: 12,
-            }}
+            style={attorneySignupStyles.eyeIcon}
+            activeOpacity={0.7}
           >
             <Ionicons
-              name={showPassword ? "eye-off" : "eye"}
+              name={showPassword ? "eye-off-outline" : "eye-outline"}
               size={20}
               color="#64748b"
             />
           </TouchableOpacity>
-        </View>
-        {errors.password && (
-          <Text style={attorneySignupStyles.errorText}>
-            {errors.password.message}
-          </Text>
-        )}
-      </View>
+        }
+        helperText="Must be at least 6 characters"
+      />
 
-      <View style={attorneySignupStyles.inputContainer}>
-        <Text style={attorneySignupStyles.label}>
-          Confirm Password{" "}
-          <Text style={attorneySignupStyles.requiredStar}>*</Text>
-        </Text>
-        <View style={{ position: "relative" }}>
-          <Controller
-            control={control}
-            name="confirmPassword"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[
-                  attorneySignupStyles.input,
-                  errors.confirmPassword && attorneySignupStyles.inputError,
-                ]}
-                placeholder="Confirm password"
-                value={value}
-                onChangeText={onChange}
-                secureTextEntry={!showConfirmPassword}
-              />
-            )}
-          />
+      <FormInput
+        control={control}
+        name="confirmPassword"
+        label="Confirm Password"
+        placeholder="Re-enter your password"
+        error={errors.confirmPassword}
+        required
+        secureTextEntry={!showConfirmPassword}
+        rightIcon={
           <TouchableOpacity
             onPress={onToggleConfirmPassword}
-            style={{
-              position: "absolute",
-              right: 16,
-              top: 12,
-            }}
+            style={attorneySignupStyles.eyeIcon}
+            activeOpacity={0.7}
           >
             <Ionicons
-              name={showConfirmPassword ? "eye-off" : "eye"}
+              name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
               size={20}
               color="#64748b"
             />
           </TouchableOpacity>
-        </View>
-        {errors.confirmPassword && (
-          <Text style={attorneySignupStyles.errorText}>
-            {errors.confirmPassword.message}
-          </Text>
-        )}
-      </View>
+        }
+      />
 
       <View style={attorneySignupStyles.rowContainer}>
-        <View
-          style={[attorneySignupStyles.inputContainer, attorneySignupStyles.halfWidth]}
-        >
-          <Text style={attorneySignupStyles.label}>
-            First Name <Text style={attorneySignupStyles.requiredStar}>*</Text>
-          </Text>
-          <Controller
+        <View style={attorneySignupStyles.halfWidth}>
+          <FormInput
             control={control}
             name="firstName"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[
-                  attorneySignupStyles.input,
-                  errors.firstName && attorneySignupStyles.inputError,
-                ]}
-                placeholder="First name"
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
+            label="First Name"
+            placeholder="Juan"
+            error={errors.firstName}
+            required
           />
-          {errors.firstName && (
-            <Text style={attorneySignupStyles.errorText}>
-              {errors.firstName.message}
-            </Text>
-          )}
         </View>
 
-        <View
-          style={[attorneySignupStyles.inputContainer, attorneySignupStyles.halfWidth]}
-        >
-          <Text style={attorneySignupStyles.label}>Middle Name</Text>
-          <Controller
+        <View style={attorneySignupStyles.halfWidth}>
+          <FormInput
             control={control}
             name="middleName"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={attorneySignupStyles.input}
-                placeholder="Middle name"
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
+            label="Middle Name"
+            placeholder="Santos"
           />
         </View>
       </View>
 
       <View style={attorneySignupStyles.rowContainer}>
-        <View
-          style={[attorneySignupStyles.inputContainer, attorneySignupStyles.halfWidth]}
-        >
-          <Text style={attorneySignupStyles.label}>
-            Last Name <Text style={attorneySignupStyles.requiredStar}>*</Text>
-          </Text>
-          <Controller
+        <View style={attorneySignupStyles.halfWidth}>
+          <FormInput
             control={control}
             name="lastName"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[
-                  attorneySignupStyles.input,
-                  errors.lastName && attorneySignupStyles.inputError,
-                ]}
-                placeholder="Last name"
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
+            label="Last Name"
+            placeholder="Dela Cruz"
+            error={errors.lastName}
+            required
           />
-          {errors.lastName && (
-            <Text style={attorneySignupStyles.errorText}>
-              {errors.lastName.message}
-            </Text>
-          )}
         </View>
 
-        <View
-          style={[attorneySignupStyles.inputContainer, attorneySignupStyles.halfWidth]}
-        >
-          <Text style={attorneySignupStyles.label}>Suffix</Text>
-          <Controller
+        <View style={attorneySignupStyles.halfWidth}>
+          <FormInput
             control={control}
             name="suffix"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={attorneySignupStyles.input}
-                placeholder="Jr., Sr., III"
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
+            label="Suffix"
+            placeholder="Jr., Sr., III"
           />
         </View>
       </View>
@@ -319,7 +276,7 @@ export const AttorneySignupFormFields = ({
                 onValueChange={onChange}
                 style={attorneySignupStyles.picker}
               >
-                <Picker.Item label="Select role" value="" />
+                <Picker.Item label="Select your role" value="" />
                 <Picker.Item label="Attorney" value="attorney" />
                 <Picker.Item label="PAO Lawyer" value="pao_lawyer" />
                 <Picker.Item label="Legal Volunteer" value="legal_volunteer" />
@@ -334,403 +291,216 @@ export const AttorneySignupFormFields = ({
         )}
       </View>
 
-      <View style={attorneySignupStyles.inputContainer}>
-        <Text style={attorneySignupStyles.label}>
-          PRC License Number{" "}
-          <Text style={attorneySignupStyles.requiredStar}>*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="prcLicenseNumber"
-          render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={[
-                attorneySignupStyles.input,
-                errors.prcLicenseNumber && attorneySignupStyles.inputError,
-              ]}
-              placeholder="Enter PRC License Number"
-              value={value}
-              onChangeText={onChange}
-            />
-          )}
-        />
-        {errors.prcLicenseNumber && (
-          <Text style={attorneySignupStyles.errorText}>
-            {errors.prcLicenseNumber.message}
-          </Text>
-        )}
-      </View>
+      <FormInput
+        control={control}
+        name="prcLicenseNumber"
+        label="PRC License Number"
+        placeholder="e.g., 1234567"
+        error={errors.prcLicenseNumber}
+        required
+        keyboardType="numeric"
+      />
 
-      <View style={attorneySignupStyles.inputContainer}>
-        <Text style={attorneySignupStyles.label}>
-          IBR Number <Text style={attorneySignupStyles.requiredStar}>*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="ibrNumber"
-          render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={[
-                attorneySignupStyles.input,
-                errors.ibrNumber && attorneySignupStyles.inputError,
-              ]}
-              placeholder="Enter IBR Number"
-              value={value}
-              onChangeText={onChange}
-            />
-          )}
-        />
-        {errors.ibrNumber && (
-          <Text style={attorneySignupStyles.errorText}>
-            {errors.ibrNumber.message}
-          </Text>
-        )}
-      </View>
+      <FormInput
+        control={control}
+        name="ibrNumber"
+        label="IBR Number"
+        placeholder="e.g., IBR-1234567"
+        error={errors.ibrNumber}
+        required
+      />
 
-      <View style={attorneySignupStyles.inputContainer}>
-        <Text style={attorneySignupStyles.label}>
-          Bar Admission Date{" "}
-          <Text style={attorneySignupStyles.requiredStar}>*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="barAdmissionDate"
-          rules={{
-            required: "Bar admission date is required",
-            pattern: {
-              value: /^\d{4}-\d{2}-\d{2}$/,
-              message: "Please use YYYY-MM-DD format (e.g., 2020-05-15)",
-            },
-          }}
-          render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={[
-                attorneySignupStyles.input,
-                errors.barAdmissionDate && attorneySignupStyles.inputError,
-              ]}
-              placeholder="YYYY-MM-DD (e.g., 2020-05-15)"
-              value={value ? (typeof value === 'string' ? value : value.toISOString().split('T')[0]) : ''}
-              onChangeText={onChange}
-              keyboardType="numeric"
-            />
-          )}
-        />
-        {errors.barAdmissionDate && (
-          <Text style={attorneySignupStyles.errorText}>
-            {errors.barAdmissionDate.message}
-          </Text>
-        )}
-        <Text style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-          Format: Year-Month-Day (e.g., 2020-05-15)
-        </Text>
-      </View>
+      <FormInput
+        control={control}
+        name="barAdmissionDate"
+        label="Bar Admission Date"
+        placeholder="YYYY-MM-DD (e.g., 2020-05-15)"
+        error={errors.barAdmissionDate}
+        required
+        keyboardType="numeric"
+        helperText="Format: Year-Month-Day (e.g., 2020-05-15)"
+      />
 
-      <View style={attorneySignupStyles.inputContainer}>
-        <Text style={attorneySignupStyles.label}>
-          Phone Number <Text style={attorneySignupStyles.requiredStar}>*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="phoneNumber"
-          render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={[
-                attorneySignupStyles.input,
-                errors.phoneNumber && attorneySignupStyles.inputError,
-              ]}
-              placeholder="+639171234567"
-              value={value}
-              onChangeText={onChange}
-              keyboardType="phone-pad"
-            />
-          )}
-        />
-        {errors.phoneNumber && (
-          <Text style={attorneySignupStyles.errorText}>
-            {errors.phoneNumber.message}
-          </Text>
-        )}
-      </View>
+      <FormInput
+        control={control}
+        name="phoneNumber"
+        label="Phone Number"
+        placeholder="+639171234567"
+        error={errors.phoneNumber}
+        required
+        keyboardType="phone-pad"
+      />
 
-      <View style={attorneySignupStyles.inputContainer}>
-        <Text style={attorneySignupStyles.label}>Law Firm</Text>
-        <Controller
-          control={control}
-          name="lawFirm"
-          render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={attorneySignupStyles.input}
-              placeholder="Enter law firm name"
-              value={value}
-              onChangeText={onChange}
-            />
-          )}
-        />
-      </View>
+      <FormInput
+        control={control}
+        name="lawFirm"
+        label="Law Firm / Organization"
+        placeholder="Enter law firm or organization name"
+      />
 
       {/* Office Address */}
-      <Text style={attorneySignupStyles.sectionTitle}>Office Address</Text>
+      <Text style={attorneySignupStyles.sectionTitle}>
+        Office Address
+      </Text>
 
       <View style={attorneySignupStyles.addressSection}>
-        <View style={attorneySignupStyles.inputContainer}>
-          <Text style={attorneySignupStyles.label}>Street</Text>
-          <Controller
-            control={control}
-            name="officeAddress.street"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={attorneySignupStyles.input}
-                placeholder="Street address"
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
-          />
+        <FormInput
+          control={control}
+          name="officeAddress.street"
+          label="Street Address"
+          placeholder="Building name, street"
+        />
+
+        <FormInput
+          control={control}
+          name="officeAddress.barangay"
+          label="Barangay"
+          placeholder="Barangay name"
+        />
+
+        <View style={attorneySignupStyles.rowContainer}>
+          <View style={attorneySignupStyles.halfWidth}>
+            <FormInput
+              control={control}
+              name="officeAddress.city"
+              label="City"
+              placeholder="City"
+              error={errors.officeAddress?.city}
+              required
+            />
+          </View>
+
+          <View style={attorneySignupStyles.halfWidth}>
+            <FormInput
+              control={control}
+              name="officeAddress.zipCode"
+              label="Zip Code"
+              placeholder="1000"
+              keyboardType="numeric"
+            />
+          </View>
         </View>
 
-        <View style={attorneySignupStyles.inputContainer}>
-          <Text style={attorneySignupStyles.label}>Barangay</Text>
-          <Controller
-            control={control}
-            name="officeAddress.barangay"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={attorneySignupStyles.input}
-                placeholder="Barangay"
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
-          />
-        </View>
+        <FormInput
+          control={control}
+          name="officeAddress.province"
+          label="Province"
+          placeholder="Province name"
+          error={errors.officeAddress?.province}
+          required
+        />
 
-        <View style={attorneySignupStyles.inputContainer}>
-          <Text style={attorneySignupStyles.label}>
-            City <Text style={attorneySignupStyles.requiredStar}>*</Text>
-          </Text>
-          <Controller
-            control={control}
-            name="officeAddress.city"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[
-                  attorneySignupStyles.input,
-                  errors.officeAddress?.city &&
-                    attorneySignupStyles.inputError,
-                ]}
-                placeholder="City"
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
-          />
-          {errors.officeAddress?.city && (
-            <Text style={attorneySignupStyles.errorText}>
-              {errors.officeAddress.city.message}
-            </Text>
-          )}
-        </View>
-
-        <View style={attorneySignupStyles.inputContainer}>
-          <Text style={attorneySignupStyles.label}>
-            Province <Text style={attorneySignupStyles.requiredStar}>*</Text>
-          </Text>
-          <Controller
-            control={control}
-            name="officeAddress.province"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[
-                  attorneySignupStyles.input,
-                  errors.officeAddress?.province &&
-                    attorneySignupStyles.inputError,
-                ]}
-                placeholder="Province"
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
-          />
-          {errors.officeAddress?.province && (
-            <Text style={attorneySignupStyles.errorText}>
-              {errors.officeAddress.province.message}
-            </Text>
-          )}
-        </View>
-
-        <View style={attorneySignupStyles.inputContainer}>
-          <Text style={attorneySignupStyles.label}>
-            Region <Text style={attorneySignupStyles.requiredStar}>*</Text>
-          </Text>
-          <Controller
-            control={control}
-            name="officeAddress.region"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[
-                  attorneySignupStyles.input,
-                  errors.officeAddress?.region &&
-                    attorneySignupStyles.inputError,
-                ]}
-                placeholder="Region"
-                value={value}
-                onChangeText={onChange}
-              />
-            )}
-          />
-          {errors.officeAddress?.region && (
-            <Text style={attorneySignupStyles.errorText}>
-              {errors.officeAddress.region.message}
-            </Text>
-          )}
-        </View>
-
-        <View style={attorneySignupStyles.inputContainer}>
-          <Text style={attorneySignupStyles.label}>Zip Code</Text>
-          <Controller
-            control={control}
-            name="officeAddress.zipCode"
-            render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={attorneySignupStyles.input}
-                placeholder="Zip code"
-                value={value}
-                onChangeText={onChange}
-                keyboardType="numeric"
-              />
-            )}
-          />
-        </View>
+        <FormInput
+          control={control}
+          name="officeAddress.region"
+          label="Region"
+          placeholder="e.g., NCR, Region III"
+          error={errors.officeAddress?.region}
+          required
+        />
       </View>
 
       {/* Specializations */}
-      <Text style={attorneySignupStyles.sectionTitle}>Specializations</Text>
+      <Text style={attorneySignupStyles.sectionTitle}>
+        Areas of Specialization
+      </Text>
+      <Text style={attorneySignupStyles.sectionDescription}>
+        Select all areas where you practice
+      </Text>
       <Controller
         control={control}
         name="specializations"
         render={({ field: { onChange, value } }) => (
           <View style={attorneySignupStyles.multiSelectContainer}>
             {SPECIALIZATIONS.map((spec) => (
-              <TouchableOpacity
+              <CheckboxItem
                 key={spec}
-                style={attorneySignupStyles.multiSelectItem}
+                label={spec}
+                isChecked={value?.includes(spec)}
                 onPress={() => {
                   const newValue = value?.includes(spec)
                     ? value.filter((s) => s !== spec)
                     : [...(value || []), spec];
                   onChange(newValue);
                 }}
-              >
-                <View
-                  style={[
-                    attorneySignupStyles.checkbox,
-                    value?.includes(spec) &&
-                      attorneySignupStyles.checkboxChecked,
-                  ]}
-                >
-                  {value?.includes(spec) && (
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                  )}
-                </View>
-                <Text style={attorneySignupStyles.checkboxLabel}>{spec}</Text>
-              </TouchableOpacity>
+              />
             ))}
           </View>
         )}
       />
 
       {/* Languages */}
-      <Text style={attorneySignupStyles.sectionTitle}>Languages</Text>
+      <Text style={attorneySignupStyles.sectionTitle}>
+        Languages Spoken
+      </Text>
+      <Text style={attorneySignupStyles.sectionDescription}>
+        Select all languages you can communicate in
+      </Text>
       <Controller
         control={control}
         name="languages"
         render={({ field: { onChange, value } }) => (
           <View style={attorneySignupStyles.multiSelectContainer}>
             {LANGUAGES.map((lang) => (
-              <TouchableOpacity
+              <CheckboxItem
                 key={lang}
-                style={attorneySignupStyles.multiSelectItem}
+                label={lang}
+                isChecked={value?.includes(lang)}
                 onPress={() => {
                   const newValue = value?.includes(lang)
                     ? value.filter((l) => l !== lang)
                     : [...(value || []), lang];
                   onChange(newValue);
                 }}
-              >
-                <View
-                  style={[
-                    attorneySignupStyles.checkbox,
-                    value?.includes(lang) &&
-                      attorneySignupStyles.checkboxChecked,
-                  ]}
-                >
-                  {value?.includes(lang) && (
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                  )}
-                </View>
-                <Text style={attorneySignupStyles.checkboxLabel}>{lang}</Text>
-              </TouchableOpacity>
+              />
             ))}
           </View>
         )}
       />
 
       {/* Consultation Mode */}
-      <Text style={attorneySignupStyles.sectionTitle}>Consultation Mode</Text>
+      <Text style={attorneySignupStyles.sectionTitle}>
+        Consultation Preferences
+      </Text>
+      <Text style={attorneySignupStyles.sectionDescription}>
+        How do you prefer to meet with clients?
+      </Text>
       <Controller
         control={control}
         name="consultationMode"
         render={({ field: { onChange, value } }) => (
-          <View style={attorneySignupStyles.multiSelectContainer}>
+          <View style={attorneySignupStyles.consultationModeContainer}>
             {CONSULTATION_MODES.map((mode) => (
-              <TouchableOpacity
-                key={mode}
-                style={attorneySignupStyles.multiSelectItem}
+              <CheckboxItem
+                key={mode.value}
+                label={mode.label}
+                isChecked={value?.includes(mode.value)}
                 onPress={() => {
-                  const newValue = value?.includes(mode)
-                    ? value.filter((m) => m !== mode)
-                    : [...(value || []), mode];
+                  const newValue = value?.includes(mode.value)
+                    ? value.filter((m) => m !== mode.value)
+                    : [...(value || []), mode.value];
                   onChange(newValue);
                 }}
-              >
-                <View
-                  style={[
-                    attorneySignupStyles.checkbox,
-                    value?.includes(mode) &&
-                      attorneySignupStyles.checkboxChecked,
-                  ]}
-                >
-                  {value?.includes(mode) && (
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                  )}
-                </View>
-                <Text style={attorneySignupStyles.checkboxLabel}>
-                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                </Text>
-              </TouchableOpacity>
+              />
             ))}
           </View>
         )}
       />
 
       {/* Biography */}
-      <Text style={attorneySignupStyles.sectionTitle}>Biography</Text>
-      <View style={attorneySignupStyles.inputContainer}>
-        <Controller
-          control={control}
-          name="biography"
-          render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={[attorneySignupStyles.input, attorneySignupStyles.textArea]}
-              placeholder="Tell us about yourself and your experience..."
-              value={value}
-              onChangeText={onChange}
-              multiline
-              numberOfLines={4}
-            />
-          )}
-        />
-      </View>
+      <Text style={attorneySignupStyles.sectionTitle}>
+        Professional Biography
+      </Text>
+      <Text style={attorneySignupStyles.sectionDescription}>
+        Tell clients about your experience and expertise
+      </Text>
+      <FormInput
+        control={control}
+        name="biography"
+        placeholder="Describe your legal background, years of experience, notable cases, and what makes you unique as an attorney..."
+        multiline
+        numberOfLines={4}
+      />
 
       {/* Submit Button */}
       <TouchableOpacity
@@ -740,10 +510,21 @@ export const AttorneySignupFormFields = ({
         ]}
         onPress={onSubmit}
         disabled={isRegistering}
+        activeOpacity={0.8}
       >
-        <Text style={attorneySignupStyles.submitButtonText}>
-          {isRegistering ? "Creating Account..." : "Create Attorney Account"}
-        </Text>
+        <View style={attorneySignupStyles.submitButtonContent}>
+          {isRegistering && (
+            <Ionicons 
+              name="hourglass-outline" 
+              size={18} 
+              color="#FFFFFF" 
+              style={{ marginRight: 8 }} 
+            />
+          )}
+          <Text style={attorneySignupStyles.submitButtonText}>
+            {isRegistering ? "Creating Account..." : "Create Attorney Account"}
+          </Text>
+        </View>
       </TouchableOpacity>
     </View>
   );

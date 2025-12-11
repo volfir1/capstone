@@ -9,7 +9,7 @@ import { SignupHero } from "components/hero/signupHero";
 import { SignupFormFields } from "components/auth/signupFormfields";
 import { SocialSignupButtons } from "components/buttons/signupButton";
 import { useSignup } from "hooks/useSignup";
-import signupStyles from "../../asssets/styles/signupStyles";
+import signupStyles from "@assets/styles/signupStyles";
 
 export default function Signup() {
   const {

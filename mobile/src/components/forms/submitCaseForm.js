@@ -10,7 +10,7 @@ import {
   Modal 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import styles from 'asssets/styles/components/caseFormStyles';
+import styles from 'assets/styles/components/caseFormStyles';
 import { CASE_TYPES } from 'utils/caseTypes';
 import { useSubmitCase } from 'hooks/useSubmitCase';
 

@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller } from "react-hook-form";
-import loginStyles from "../../asssets/styles/loginStyles";
+import loginStyles from "../../assets/styles/loginStyles";
 import validationRules from "../../utils/formValidation";
 
 export const LoginFormFields = ({
