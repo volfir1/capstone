@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,8 +21,9 @@ const ChatScreen = () => {
   const router = useRouter();
   const { caseId, attorneyName, clientName } = useLocalSearchParams();
   const { user } = useAuth();
-  const { messages, loading, sending, sendMessage } = useChat(caseId);
+  const { messages, loading, sending, sendMessage, refreshMessages } = useChat(caseId);
   const [messageText, setMessageText] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef(null);
 
   const chatPartnerName = attorneyName || clientName || 'Chat';
@@ -41,6 +43,18 @@ const ChatScreen = () => {
     const success = await sendMessage(messageText);
     if (success) {
       setMessageText('');
+    }
+  };
+
+  // Pull-to-refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshMessages();
+    } catch (error) {
+      console.error("Error refreshing messages:", error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -114,6 +128,16 @@ const ChatScreen = () => {
           keyExtractor={(item) => item._id}
           renderItem={renderMessage}
           contentContainerStyle={styles.messagesList}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#8B6F47"]} // Android
+              tintColor="#8B6F47" // iOS
+              title="Pull to refresh" // iOS
+              titleColor="#8B6F47" // iOS
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />

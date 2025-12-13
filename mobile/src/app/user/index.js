@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,6 +23,7 @@ export default function UserDashboard() {
   const { logout, user, isLoading } = useAuth();
   const { cases, assignedCase, loading: casesLoading, refreshCases } = useUserCases();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const assignedAttorney = assignedCase?.attorneyId;
 
@@ -72,6 +74,18 @@ export default function UserDashboard() {
     }
   };
 
+  // Pull-to-refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshCases();
+    } catch (error) {
+      console.error("Error refreshing:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const pendingCases = cases.filter(c => !c.attorneyId).length;
   const ongoingCases = cases.filter(c => c.attorneyId).length;
   const completedCases = 0; // TODO: Add status field to case model
@@ -104,6 +118,16 @@ export default function UserDashboard() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#8B6F47"]} // Android
+            tintColor="#8B6F47" // iOS
+            title="Pull to refresh" // iOS
+            titleColor="#8B6F47" // iOS
+          />
+        }
       >
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>

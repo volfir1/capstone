@@ -16,7 +16,7 @@ import {
   Divider,
 } from "@mantine/core";
 import { IconChevronDown, IconCheck, IconInfoCircle, IconFileText, IconAlertCircle } from "@tabler/icons-react";
-import { CASE_OPTIONS } from "@/utils/caseTypes";
+import { CASE_TYPES } from "@/utils/caseTypes";
 import { 
   PRIMARY_GOLD, 
   PRIMARY_BROWN, 
@@ -52,7 +52,7 @@ const CaseTypeSelectorModal = ({ opened, onClose, onSelect, selectedType }) => {
         Select the type of legal case you need assistance with
       </Text>
       <Grid gutter="md">
-        {CASE_OPTIONS.map((type) => {
+        {CASE_TYPES.map((type) => {
           const isSelected = selectedType?.id === type.id;
           return (
             <Grid.Col span={6} key={type.id}>

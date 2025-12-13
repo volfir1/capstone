@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import apiClient from "../api/apiClient";
-import { Alert } from "react-native";
+import { notifications } from '@mantine/notifications';
+import apiClient from "@config/api/apiClient";
 
 export const useChat = (caseId) => {
   const [messages, setMessages] = useState([]);
@@ -14,7 +14,7 @@ export const useChat = (caseId) => {
     isFetchingRef.current = true;
     try {
       setLoading(true);
-      console.log('Making request to:', `${apiClient.defaults.baseURL}/chat/case/${caseId}`);
+      console.log('Fetching messages for case:', caseId);
       const response = await apiClient.get(`/chat/case/${caseId}`);
       
       if (response.data.success) {
@@ -22,9 +22,13 @@ export const useChat = (caseId) => {
       }
     } catch (error) {
       console.error("Error fetching messages:", error);
-      // Don't show alert for rate limit errors during auto-refresh
+      // Don't show notification for rate limit errors during auto-refresh
       if (error.response?.status !== 429) {
-        Alert.alert("Error", "Failed to load messages");
+        notifications.show({
+          title: 'Error',
+          message: 'Failed to load messages',
+          color: 'red',
+        });
       }
     } finally {
       setLoading(false);
@@ -33,7 +37,7 @@ export const useChat = (caseId) => {
   }, [caseId]);
 
   const sendMessage = async (messageText) => {
-    if (!messageText.trim()) return;
+    if (!messageText.trim()) return false;
 
     try {
       setSending(true);
@@ -47,9 +51,14 @@ export const useChat = (caseId) => {
         setMessages((prev) => [...prev, response.data.data]);
         return true;
       }
+      return false;
     } catch (error) {
       console.error("Error sending message:", error);
-      Alert.alert("Error", "Failed to send message");
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to send message',
+        color: 'red',
+      });
       return false;
     } finally {
       setSending(false);
@@ -69,7 +78,7 @@ export const useChat = (caseId) => {
   useEffect(() => {
     fetchMessages();
     
-    // Increased interval to 15 seconds to avoid rate limiting
+    // Increased interval to 15 seconds to match mobile and avoid rate limiting
     const interval = setInterval(fetchMessages, 15000);
     
     return () => clearInterval(interval);

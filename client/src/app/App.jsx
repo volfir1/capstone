@@ -20,6 +20,8 @@ const AboutPage = lazy(()=> import('./pages/About'))
 const FeaturesPage = lazy(()=> import('./pages/Features'))
 const HowItWorks = lazy(()=> import('./pages/How')) 
 const UserForm = lazy(() => import('./pages/other/UserForm'))
+const TrackCase = lazy(() => import('./pages/user/TrackCase'))
+const UserChat = lazy(() => import('./pages/user/Chat'))
 
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
@@ -96,6 +98,8 @@ function AppRoutes() {
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<Home />} />
           <Route  path="submitcase" element={< SubmitCase/>}/>
+          <Route  path="trackcase" element={< TrackCase/>}/>
+          <Route path="chat/:caseId?" element={<UserChat/>}/>
         </Route>
 
         {/* Admin */}

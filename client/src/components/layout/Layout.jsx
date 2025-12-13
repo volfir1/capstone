@@ -13,27 +13,15 @@ import {
   Flex,
   Avatar,
   Menu,
-  Divider,
-  Image,
 } from "@mantine/core";
 import {
-  IconHome,
-  IconSettings,
   IconBell,
   IconSearch,
-  IconDashboard,
-  IconUsers,
-  IconFiles,
-  IconChartArea,
-  IconShield,
-  IconDatabase,
-  IconClipboardText,
-  IconUserPlus,
   IconLogout,
   IconUserCircle,
   IconChevronDown,
-  IconBriefcase2,
   IconScale,
+  IconSettings,
 } from "@tabler/icons-react";
 import { useAuth } from "../../context/authContext";
 import { useNavigate } from "react-router";
@@ -45,6 +33,11 @@ import {
   CHARCOAL, 
   ACCENT_TAN 
 } from "@/utils/constants";
+import { 
+  getNavigationByRole, 
+  ROLE_DISPLAY, 
+  PAGE_TITLES 
+} from "@/utils/navigation";
 
 // Base Layout Component
 const Layout = ({
@@ -57,47 +50,14 @@ const Layout = ({
   const [opened, setOpened] = useState(false);
   const navigate = useNavigate();
   const { userData } = useAuth();
-
-  // Define navigation items based on user role
-  const getNavItems = () => {
-    const currentPath = window.location.pathname;
-    if (userData?.role === "admin") {
-      const adminItems = [
-        { icon: IconDashboard, label: "Dashboard", path: '/admin' },
-        { icon: IconUsers, label: "Users Management", badge: "12", path: '/admin/users' },
-        { icon: IconShield, label: "Roles & Permissions", path: '/admin/roles' },
-        { icon: IconDatabase, label: "Database", path: '/admin/database' },
-        { icon: IconClipboardText, label: "Reports", path: '/admin/reports' },
-        { icon: IconChartArea, label: "Analytics", badge: "New", path: '/admin/analytics' },
-        { icon: IconUserPlus, label: "Add Users", path: '/admin/add-users' },
-        { icon: IconFiles, label: "Content Management", path: '/admin/content' },
-        { icon: IconSettings, label: "System Settings", path: '/admin/settings' },
-      ];
-      return adminItems.map(item => ({
-        ...item,
-        active: currentPath === item.path
-      }));
-    } else {
-      const userItems = [
-        { icon: IconHome, label: "Home", path: "home" },
-        { icon: IconBriefcase2, label: "Submit a Case", path: "submitcase" },
-        { icon: IconFiles, label: "My Cases", path: "/cases" },
-        { icon: IconUserCircle, label: "Profile", path: "/profile" },
-      ];
-      return userItems.map(item => ({
-        ...item,
-        active: currentPath === item.path
-      }));
-    }
-  };
-
-  // Get page title based on user role
-  const getPageTitle = () => {
-    return userData?.role === "admin" ? "Admin Dashboard" : "Client Portal";
-  };
-
-  const navItems = getNavItems();
-  const pageTitle = getPageTitle();
+  
+  const currentPath = window.location.pathname;
+  const userRole = userData?.role || "client";
+  
+  // Get navigation items for current user role
+  const navItems = getNavigationByRole(userRole, currentPath);
+  const pageTitle = PAGE_TITLES[userRole] || PAGE_TITLES.client;
+  const roleDisplay = ROLE_DISPLAY[userRole] || ROLE_DISPLAY.client;
 
   return (
     <AppShell
@@ -129,7 +89,6 @@ const Layout = ({
             }}
           >
             <Group gap="sm">
-              {/* Logo Placeholder - Replace with your actual logo */}
               <Box
                 style={{
                   width: 40,
@@ -223,8 +182,8 @@ const Layout = ({
                 <Text size="sm" fw={600} c={CHARCOAL}>
                   {userData?.firstName} {userData?.lastName}
                 </Text>
-                <Text size="xs" c={MUTED_OLIVE} tt="capitalize">
-                  {userData?.role}
+                <Text size="xs" c={MUTED_OLIVE}>
+                  {roleDisplay}
                 </Text>
               </Box>
             </Group>

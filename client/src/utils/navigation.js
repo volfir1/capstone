@@ -1,0 +1,94 @@
+// utils/navigationConfig.js
+
+import {
+  IconHome,
+  IconSettings,
+  IconDashboard,
+  IconUsers,
+  IconFiles,
+  IconChartArea,
+  IconShield,
+  IconDatabase,
+  IconClipboardText,
+  IconUserPlus,
+  IconUserCircle,
+  IconBriefcase2,
+  IconFolder,
+  IconCalendar,
+  IconMessage,
+  IconBook,
+  IconSchool,
+  IconCheckbox,
+  IconMessageCircle
+} from "@tabler/icons-react";
+
+export const NAVIGATION_CONFIG = {
+  admin: [
+    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
+    { icon: IconUsers, label: "Users Management", badge: "12", path: '/admin/users' },
+    { icon: IconShield, label: "Roles & Permissions", path: '/admin/roles' },
+    { icon: IconDatabase, label: "Database", path: '/admin/database' },
+    { icon: IconClipboardText, label: "Reports", path: '/admin/reports' },
+    { icon: IconChartArea, label: "Analytics", badge: "New", path: '/admin/analytics' },
+    { icon: IconUserPlus, label: "Add Users", path: '/admin/add-users' },
+    { icon: IconFiles, label: "Content Management", path: '/admin/content' },
+    { icon: IconSettings, label: "System Settings", path: '/admin/settings' },
+  ],
+  
+  attorney: [
+    { icon: IconDashboard, label: "Dashboard", path: '/attorney' },
+    { icon: IconFolder, label: "My Cases", badge: "8", path: '/attorney/cases' },
+    { icon: IconBriefcase2, label: "Assigned Cases", path: '/attorney/assigned' },
+    { icon: IconCalendar, label: "Schedule", path: '/attorney/schedule' },
+    { icon: IconMessage, label: "Client Messages", path: '/attorney/messages' },
+    { icon: IconClipboardText, label: "Case Reports", path: '/attorney/reports' },
+    { icon: IconFiles, label: "Documents", path: '/attorney/documents' },
+    { icon: IconUserCircle, label: "Profile", path: '/attorney/profile' },
+    { icon: IconSettings, label: "Settings", path: '/attorney/settings' },
+  ],
+  
+  intern: [
+    { icon: IconDashboard, label: "Dashboard", path: '/intern' },
+    { icon: IconBook, label: "Learning Resources", path: '/intern/resources' },
+    { icon: IconFolder, label: "Assigned Tasks", badge: "5", path: '/intern/tasks' },
+    { icon: IconFiles, label: "Case Assistance", path: '/intern/cases' },
+    { icon: IconCheckbox, label: "Training Modules", path: '/intern/training' },
+    { icon: IconCalendar, label: "Schedule", path: '/intern/schedule' },
+    { icon: IconMessage, label: "Messages", path: '/intern/messages' },
+    { icon: IconSchool, label: "Mentorship", path: '/intern/mentorship' },
+    { icon: IconUserCircle, label: "Profile", path: '/intern/profile' },
+  ],
+  
+  client: [
+    { icon: IconHome, label: "Home", path: "home" },
+    { icon: IconBriefcase2, label: "Submit a Case", path: "submitcase" },
+    { icon: IconFiles, label: "My Cases", path: "trackcase" },
+    { icon: IconMessageCircle, label: "Chat with Attorney", path: "chat" },
+    { icon: IconUserCircle, label: "Profile", path: "profile" },
+  ],
+};
+
+// Helper function to get navigation items by role
+export const getNavigationByRole = (role, currentPath) => {
+  const items = NAVIGATION_CONFIG[role] || NAVIGATION_CONFIG.client;
+  return items.map(item => ({
+    ...item,
+    active: currentPath === item.path
+  }));
+};
+
+// Role display names
+export const ROLE_DISPLAY = {
+  admin: "Administrator",
+  attorney: "Attorney",
+  intern: "Legal Intern",
+  client: "Client",
+};
+
+// Page titles by role
+export const PAGE_TITLES = {
+  admin: "Admin Dashboard",
+  attorney: "Attorney Portal",
+  intern: "Intern Portal",
+  client: "Client Portal",
+};

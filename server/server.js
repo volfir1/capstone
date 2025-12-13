@@ -70,10 +70,11 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at port ${PORT}`)
     console.log(`Local: http://localhost:${PORT}`)
     console.log(`Network: Use your WiFi IP address (check ipconfig)`)
-    console.log(`Access from phone: http://192.168.100.94:${PORT}`)
+    console.log(`Access from phone: http://${HOST}:${PORT}`)
 })
