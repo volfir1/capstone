@@ -188,7 +188,7 @@ export default function AttorneySignup() {
         color: 'green',
       });
 
-      navigate('/auth');
+      navigate('/auth/attorneylogin');
     } catch (error) {
       console.error('Attorney signup error:', error);
       try {
@@ -650,7 +650,7 @@ export default function AttorneySignup() {
               <ActionIcon
                 size="lg"
                 variant="subtle"
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate('/auth/attorneylogin')}
                 style={{ color: PRIMARY_BROWN, marginBottom: '1rem' }}
               >
                 <IconArrowLeft size={24} />
@@ -726,7 +726,7 @@ export default function AttorneySignup() {
               <Text
                 component="span"
                 style={{ color: PRIMARY_BROWN, cursor: 'pointer', fontWeight: 600 }}
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate('/auth/attorneylogin')}
               >
                 Login here
               </Text>

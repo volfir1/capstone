@@ -8,8 +8,12 @@ import { lazy, Suspense } from "react";
 import { Loaders } from "../components/ui/Loader";
 import SubmitCase from "./pages/user/SubmitCase";
 
+// Auth
 const Signup = lazy(() => import("./pages/auth/Signup/Signup"));
 const Login = lazy(() => import("./pages/auth/Login/Login"));
+const AttorneySignup = lazy(() => import('./pages/auth/Signup/AttorneySingup.jsx'))
+const AttorneyLogin = lazy(() => import('./pages/auth/Login/AttorneyLogin.jsx'))
+
 const Home = lazy(() => import("./pages/user/Home"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
@@ -28,14 +32,19 @@ const ManageAttorney = lazy(() => import('./pages/admin/ManageAttorney'))
 const AssignCase = lazy(() => import('./pages/admin/AssingCase'))
 const UserManagement = lazy(() => import("@admin/userManagement"))
 
+
+// Attorney
+const AttorneyDashboard = lazy(() => import('./pages/attorney/AttorneyDashboard'))
+const AttorneyMessenger = lazy(() => import('./pages/attorney/Messenger.jsx'))
+
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
 });
 
-function ProtectedRoute({ children, adminOnly = false }) {
+function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false }) {
   const { userLoggedIn, userData, loading } = useAuth();
 
-  console.log('ProtectedRoute render:', { loading, userLoggedIn, hasUserData: !!userData, adminOnly });
+  console.log('ProtectedRoute render:', { loading, userLoggedIn, hasUserData: !!userData, adminOnly, attorneyOnly });
 
   if (loading) {
     console.log('ProtectedRoute: Showing loader - loading is true');
@@ -44,7 +53,7 @@ function ProtectedRoute({ children, adminOnly = false }) {
   
   if (!userLoggedIn) {
     console.log('ProtectedRoute: Redirecting to login - not logged in');
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/auth/login" replace />;
   }
   
   if (!userData) {
@@ -54,7 +63,7 @@ function ProtectedRoute({ children, adminOnly = false }) {
   
   if (!userData?.isVerified) {
     console.log('ProtectedRoute: Redirecting to login - not verified');
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/auth/login" replace />;
   }
 
   if (adminOnly && userData?.role !== "admin") {
@@ -62,9 +71,19 @@ function ProtectedRoute({ children, adminOnly = false }) {
     return <Navigate to="/user/home" replace />;
   }
 
-  if (!adminOnly && userData?.role === "admin") {
+  if (attorneyOnly && userData?.role !== "attorney" && userData?.role !== "pao_lawyer" && userData?.role !== "legal_volunteer") {
+    console.log('ProtectedRoute: Redirecting - not attorney');
+    return <Navigate to="/auth/login" replace />;
+  }
+
+  if (!adminOnly && !attorneyOnly && userData?.role === "admin") {
     console.log('ProtectedRoute: Redirecting to /admin - is admin');
     return <Navigate to="/admin" replace />;
+  }
+
+  if (!adminOnly && !attorneyOnly && (userData?.role === "attorney" || userData?.role === "pao_lawyer" || userData?.role === "legal_volunteer")) {
+    console.log('ProtectedRoute: Redirecting to /attorney - is attorney');
+    return <Navigate to="/attorney" replace />;
   }
 
   console.log('ProtectedRoute: Rendering children');
@@ -86,8 +105,13 @@ function AppRoutes() {
   return (
     <Suspense fallback={<Loaders height={window.innerHeight} />}>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+         <Route path="auth">
+          <Route path="login" element={<Login />} />
+          <Route path="signup" element={<Signup />} />
+          <Route path="attorneylogin" element={<AttorneyLogin />} />
+          <Route path="attorneysignup" element={<AttorneySignup />} />
+        </Route>
+       
         <Route path="/formapp" element={<UserForm />} />
         {/* User */}
         <Route
@@ -102,8 +126,8 @@ function AppRoutes() {
         >
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<Home />} />
-          <Route  path="submitcase" element={< SubmitCase/>}/>
-          <Route  path="trackcase" element={< TrackCase/>}/>
+          <Route path="submitcase" element={< SubmitCase/>}/>
+          <Route path="trackcase" element={< TrackCase/>}/>
           <Route path="chat/:caseId?" element={<UserChat/>}/>
         </Route>
 
@@ -122,6 +146,20 @@ function AppRoutes() {
           <Route path="users" element={<UserManagement />} />
           <Route path="attorneys" element={<ManageAttorney />} />
           < Route path="assigncase" element={<AssignCase />}/>
+        </Route>
+
+        <Route
+          path="attorney"
+          element={
+            <ProtectedRoute attorneyOnly>
+              <Layout>
+                <Outlet />
+              </Layout>
+            </ProtectedRoute> 
+          }
+        >
+          <Route index element={<AttorneyDashboard />} />
+          <Route path="chat" element={<AttorneyMessenger />} />
         </Route>
         
         <Route path="/forgot-password" element={<ForgotPassword />} />

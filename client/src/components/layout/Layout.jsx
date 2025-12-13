@@ -25,6 +25,7 @@ import {
 } from "@tabler/icons-react";
 import { useAuth } from "../../context/authContext";
 import { useNavigate } from "react-router";
+import { doSignOut } from "@/firebase/auth";
 import { 
   PRIMARY_GOLD, 
   PRIMARY_BROWN, 
@@ -58,6 +59,15 @@ const Layout = ({
   const navItems = getNavigationByRole(userRole, currentPath);
   const pageTitle = PAGE_TITLES[userRole] || PAGE_TITLES.client;
   const roleDisplay = ROLE_DISPLAY[userRole] || ROLE_DISPLAY.client;
+
+  const handleLogout = async () => {
+    try {
+      await doSignOut();
+      navigate('/auth/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   return (
     <AppShell
@@ -314,6 +324,7 @@ const Layout = ({
                   <Menu.Item 
                     leftSection={<IconLogout size={16} />} 
                     color="red"
+                    onClick={handleLogout}
                     styles={{
                       item: {
                         '&:hover': {

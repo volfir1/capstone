@@ -36,7 +36,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconFolder, label: "My Cases", badge: "8", path: '/attorney/cases' },
     { icon: IconBriefcase2, label: "Assigned Cases", path: '/attorney/assigned'  },
     { icon: IconCalendar, label: "Schedule", path: '/attorney/schedule' },
-    { icon: IconMessage, label: "Client Messages", path: '/attorney/messages' },
+    { icon: IconMessageCircle, label: "Client Messages", path: '/attorney/chat' },
     { icon: IconClipboardText, label: "Case Reports", path: '/attorney/reports' },
     { icon: IconFiles, label: "Documents", path: '/attorney/documents' },
     { icon: IconUserCircle, label: "Profile", path: '/attorney/profile' },

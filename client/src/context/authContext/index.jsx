@@ -3,6 +3,7 @@ import { auth } from "../../firebase/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { getUserData } from "@/features/auth/user";
 import { verifyUser } from "@/features/auth/auth";
+import apiClient from "@config/api/apiClient";
 
 const AuthContext = React.createContext();
 
@@ -44,24 +45,48 @@ export default function AuthProvider({ children }) {
 
             try {
               console.log('Fetching user data from backend...');
-              const backendUserData = await getUserData();
-              setUserData(backendUserData);
-              console.log('User data loaded:', backendUserData);
-            } catch (userError) {
-              console.log('User not found in MongoDB, creating new user...');
+              
+              // First try to fetch as regular user
+              try {
+                const backendUserData = await getUserData();
+                setUserData(backendUserData);
+                console.log('User data loaded:', backendUserData);
+              } catch (userError) {
+                // If regular user fetch fails, try to fetch as attorney
+                console.log('Not found as regular user, checking if attorney...');
+                try {
+                  const attorneyResponse = await apiClient.post('/auth/verify-attorney', {
+                    email: user.email,
+                  });
+                  
+                  if (attorneyResponse.data.success) {
+                    const attorneyData = attorneyResponse.data.data;
+                    setUserData(attorneyData);
+                    console.log('Attorney data loaded:', attorneyData);
+                  } else {
+                    throw new Error('Not found as attorney either');
+                  }
+                } catch (attorneyError) {
+                  // Not an attorney either, create as regular user
+                  console.log('Not found as attorney, creating new regular user...');
 
-              const displayName = user.displayName || '';
-              const nameParts = displayName.split(' ');
-              const firstName = nameParts[0] || '';
-              const lastName = nameParts.slice(1).join(' ') || '';
-              const username = user.email;
+                  const displayName = user.displayName || '';
+                  const nameParts = displayName.split(' ');
+                  const firstName = nameParts[0] || '';
+                  const lastName = nameParts.slice(1).join(' ') || '';
+                  const username = user.email;
 
-              const { registerUser } = await import('@/features/auth/register');
-              await registerUser(firstName, lastName, username);
+                  const { registerUser } = await import('@/features/auth/register');
+                  await registerUser(firstName, lastName, username);
 
-              const newUserData = await getUserData();
-              setUserData(newUserData);
-              console.log('New user created and loaded:', newUserData);
+                  const newUserData = await getUserData();
+                  setUserData(newUserData);
+                  console.log('New user created and loaded:', newUserData);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to fetch any user data:', error);
+              setUserData(null);
             }
           } else {
             console.log('User is not verified yet — skipping backend sync');

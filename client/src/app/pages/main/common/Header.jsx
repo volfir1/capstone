@@ -82,7 +82,7 @@ export default function HomepageHeader({ activePage }) {
 
           {/* Desktop Button */}
           <Group visibleFrom="sm">
-            <Link to="/login" style={{ textDecoration: 'none' }}>
+            <Link to="/auth/login" style={{ textDecoration: 'none' }}>
               <Button
                 variant="gradient"
                 gradient={{ from: PRIMARY_GOLD, to: PRIMARY_BROWN }}

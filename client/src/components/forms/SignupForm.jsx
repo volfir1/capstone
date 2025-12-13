@@ -279,7 +279,7 @@ export const SignupForm = ({
                 <Text size="sm" style={{ color: MUTED_OLIVE, fontSize: 13 }}>
                   Already have an account?{" "}
                   <Anchor 
-                    href="/login" 
+                    href="/auth/login" 
                     fw={600}
                     style={{ 
                       color: PRIMARY_BROWN,
@@ -289,6 +289,24 @@ export const SignupForm = ({
                     onMouseLeave={(e) => e.currentTarget.style.color = PRIMARY_BROWN}
                   >
                     Sign in
+                  </Anchor>
+                </Text>
+              </Center>
+
+              <Center mt={12}>
+                <Text size="sm" style={{ color: MUTED_OLIVE, fontSize: 13 }}>
+                  Attorney?{" "}
+                  <Anchor 
+                    href="/auth/attorneysignup" 
+                    fw={600}
+                    style={{ 
+                      color: PRIMARY_BROWN,
+                      textDecoration: "none",
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = PRIMARY_GOLD}
+                    onMouseLeave={(e) => e.currentTarget.style.color = PRIMARY_BROWN}
+                  >
+                    Register as attorney
                   </Anchor>
                 </Text>
               </Center>

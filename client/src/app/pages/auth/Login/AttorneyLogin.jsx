@@ -303,7 +303,7 @@ export default function AttorneyLogin() {
                 <Anchor
                   component="button"
                   type="button"
-                  onClick={() => navigate('/auth/attorney-signup')}
+                  onClick={() => navigate('/auth/attorneysignup')}
                   style={{ color: PRIMARY_BROWN, fontWeight: 600 }}
                 >
                   Sign up
@@ -318,7 +318,7 @@ export default function AttorneyLogin() {
                 <Anchor
                   component="button"
                   type="button"
-                  onClick={() => navigate('/auth')}
+                  onClick={() => navigate('/auth/login')}
                   style={{ color: PRIMARY_BROWN, fontWeight: 600 }}
                 >
                   User Login

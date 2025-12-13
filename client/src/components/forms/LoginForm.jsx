@@ -170,6 +170,24 @@ export const LoginForm = ({
             Sign In to Continue
           </Button>
 
+          <Center mt={12}>
+            <Text size="sm" style={{ color: MUTED_OLIVE }}>
+              Attorney?{" "}
+              <Anchor 
+                href="/auth/attorneylogin" 
+                fw={600}
+                style={{ 
+                  color: PRIMARY_BROWN,
+                  textDecoration: "none",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = PRIMARY_GOLD}
+                onMouseLeave={(e) => e.currentTarget.style.color = PRIMARY_BROWN}
+              >
+                Login as attorney
+              </Anchor>
+            </Text>
+          </Center>
+
           <Divider
             label={
               <Text size="xs" fw={500} style={{ color: MUTED_OLIVE }}>
@@ -197,7 +215,7 @@ export const LoginForm = ({
             <Text size="sm" style={{ color: MUTED_OLIVE }}>
               New to JustReach?{" "}
               <Anchor 
-                href="/signup" 
+                href="/auth/signup" 
                 fw={600}
                 style={{ 
                   color: PRIMARY_BROWN,
