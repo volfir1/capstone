@@ -32,7 +32,7 @@ export const useAttorneyLogin = () => {
       // Navigate based on role
       if (attorneyData.role === "admin") {
         console.log("Admin role detected, navigating to admin dashboard");
-        router.replace("/admin/dashboard");
+        router.replace("/admin");
       } else {
         console.log("Attorney role detected, navigating to attorney dashboard");
         router.replace("/attorney/dashboard");

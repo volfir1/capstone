@@ -37,7 +37,7 @@ export const useNativeLogin = () => {
 
   const navigateByRole = (role) => {
     if (role === "admin") {
-      router.replace("/(tabs)/Home");
+      router.replace("/admin");
     } else {
       router.replace("/user");
     }
