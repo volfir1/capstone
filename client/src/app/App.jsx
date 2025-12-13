@@ -121,7 +121,7 @@ function AppRoutes() {
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="attorneys" element={<ManageAttorney />} />
-          < Route path="assign" element={<AssignCase />}/>
+          < Route path="assigncase" element={<AssignCase />}/>
         </Route>
         
         <Route path="/forgot-password" element={<ForgotPassword />} />

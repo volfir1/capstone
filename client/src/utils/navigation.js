@@ -25,10 +25,10 @@ import {
 
 export const NAVIGATION_CONFIG = {
   admin: [
-    { icon: IconDashboard, label: "Dashboard", path: 'admin' },
+    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
     { icon: IconUsers, label: "Users Management", badge: "12", path: 'users' },
     { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
-    { icon: IconBriefcase2, label: "Assign Case", path: 'assign' },
+    { icon: IconBriefcase2, label: "Assign Case", path: 'assigncase' },
   ],
   
   attorney: [

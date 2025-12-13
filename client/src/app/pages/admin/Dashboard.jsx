@@ -91,7 +91,7 @@ export default function AdminDashboard() {
       icon: IconBriefcase,
       color: '#4682B4',
       bgColor: '#E8F4F8',
-      route: '/admin/manage-attorneys',
+      route: '/admin/attorneys',
     },
     {
       id: 'unassigned',
@@ -100,7 +100,7 @@ export default function AdminDashboard() {
       icon: IconAlertCircle,
       color: '#D2691E',
       bgColor: '#FFF3E6',
-      route: '/admin/assign-cases',
+      route: '/admin/assigncase',
     },
   ];
 
@@ -110,7 +110,7 @@ export default function AdminDashboard() {
       title: 'Assign Cases',
       icon: IconUserPlus,
       color: PRIMARY_BROWN,
-      route: '/admin/assign-cases',
+      route: '/admin/assigncase',
       enabled: true,
     },
     {
@@ -118,16 +118,16 @@ export default function AdminDashboard() {
       title: 'Verify Attorneys',
       icon: IconUserCheck,
       color: '#999',
-      route: null,
-      enabled: false,
+      route: '/admin/attorneys',
+      enabled: true,
     },
     {
       id: 'manage',
       title: 'Manage Users',
       icon: IconUsers,
       color: '#999',
-      route: null,
-      enabled: false,
+      route: '/admin/users',
+      enabled: true,
     },
   ];
 
