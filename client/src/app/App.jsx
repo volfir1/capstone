@@ -14,7 +14,7 @@ const Home = lazy(() => import("./pages/user/Home"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
 const PageNotFound = lazy(() => import("./pages/other/PageNotFound"));
-const UserManagement = lazy(() => import("@admin/userManagement"))
+
 const LandingPage = lazy(()=> import("./pages/LandingPage"))
 const AboutPage = lazy(()=> import('./pages/About'))
 const FeaturesPage = lazy(()=> import('./pages/Features'))
@@ -22,6 +22,11 @@ const HowItWorks = lazy(()=> import('./pages/How'))
 const UserForm = lazy(() => import('./pages/other/UserForm'))
 const TrackCase = lazy(() => import('./pages/user/TrackCase'))
 const UserChat = lazy(() => import('./pages/user/Chat'))
+
+// Admin
+const ManageAttorney = lazy(() => import('./pages/admin/ManageAttorney'))
+const AssignCase = lazy(() => import('./pages/admin/AssingCase'))
+const UserManagement = lazy(() => import("@admin/userManagement"))
 
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
@@ -115,6 +120,8 @@ function AppRoutes() {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
+          <Route path="attorneys" element={<ManageAttorney />} />
+          < Route path="assign" element={<AssignCase />}/>
         </Route>
         
         <Route path="/forgot-password" element={<ForgotPassword />} />

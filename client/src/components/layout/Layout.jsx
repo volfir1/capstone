@@ -71,7 +71,7 @@ const Layout = ({
             }
           : undefined
       }
-      padding="md"
+      padding={0}
     >
       {showNavbar && (
         <AppShell.Navbar
@@ -331,8 +331,10 @@ const Layout = ({
         </AppShell.Header>
       )}
 
-      <AppShell.Main style={{ backgroundColor: THEMED_LIGHT_BG }}>
-        <Container fluid>{children}</Container>
+      <AppShell.Main style={{ backgroundColor: 'white' }}>
+        <Box style={{ minHeight: 'calc(100vh - 60px)' }}>
+          {children}
+        </Box>
       </AppShell.Main>
     </AppShell>
   );

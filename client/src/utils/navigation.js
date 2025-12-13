@@ -19,26 +19,22 @@ import {
   IconBook,
   IconSchool,
   IconCheckbox,
-  IconMessageCircle
+  IconMessageCircle,
+  IconScale,
 } from "@tabler/icons-react";
 
 export const NAVIGATION_CONFIG = {
   admin: [
-    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
-    { icon: IconUsers, label: "Users Management", badge: "12", path: '/admin/users' },
-    { icon: IconShield, label: "Roles & Permissions", path: '/admin/roles' },
-    { icon: IconDatabase, label: "Database", path: '/admin/database' },
-    { icon: IconClipboardText, label: "Reports", path: '/admin/reports' },
-    { icon: IconChartArea, label: "Analytics", badge: "New", path: '/admin/analytics' },
-    { icon: IconUserPlus, label: "Add Users", path: '/admin/add-users' },
-    { icon: IconFiles, label: "Content Management", path: '/admin/content' },
-    { icon: IconSettings, label: "System Settings", path: '/admin/settings' },
+    { icon: IconDashboard, label: "Dashboard", path: 'admin' },
+    { icon: IconUsers, label: "Users Management", badge: "12", path: 'users' },
+    { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
+    { icon: IconBriefcase2, label: "Assign Case", path: 'assign' },
   ],
   
   attorney: [
     { icon: IconDashboard, label: "Dashboard", path: '/attorney' },
     { icon: IconFolder, label: "My Cases", badge: "8", path: '/attorney/cases' },
-    { icon: IconBriefcase2, label: "Assigned Cases", path: '/attorney/assigned' },
+    { icon: IconBriefcase2, label: "Assigned Cases", path: '/attorney/assigned'  },
     { icon: IconCalendar, label: "Schedule", path: '/attorney/schedule' },
     { icon: IconMessage, label: "Client Messages", path: '/attorney/messages' },
     { icon: IconClipboardText, label: "Case Reports", path: '/attorney/reports' },
