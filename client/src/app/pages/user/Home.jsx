@@ -48,7 +48,7 @@ const Home = () => {
   const handleSignout = async () => {
     try {
       await doSignOut();
-      navigate("/login");
+      navigate("/auth/login");
     } catch (error) {
       console.error("Sign out error", error);
     }
@@ -59,7 +59,7 @@ const Home = () => {
   }
 
   if (!userLoggedIn) {
-    return <Navigate to="/login" replace={true} />
+    return <Navigate to="/auth/login" replace={true} />
   }
 
   if (!userData) {

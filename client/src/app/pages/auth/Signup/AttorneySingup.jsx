@@ -212,526 +212,732 @@ export default function AttorneySignup() {
     }
   };
 
+  const inputStyles = {
+    input: { 
+      backgroundColor: 'white',
+      borderColor: '#E5E0D8',
+      fontSize: '15px',
+      padding: '12px 16px',
+      height: '48px',
+      '&:focus': {
+        borderColor: PRIMARY_GOLD,
+      }
+    },
+    label: {
+      fontSize: '14px',
+      fontWeight: 500,
+      color: CHARCOAL,
+      marginBottom: '8px',
+    },
+    error: {
+      fontSize: '13px',
+    }
+  };
+
   const renderBasicInfo = () => (
-    <Stack spacing="md">
-      <Controller
-        name="email"
-        control={control}
-        rules={{ required: 'Email is required', pattern: { value: /^\S+@\S+$/i, message: 'Invalid email' } }}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Email Address"
-            placeholder="your.email@example.com"
-            required
-            error={errors.email?.message}
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Controller
-        name="username"
-        control={control}
-        rules={{ required: 'Username is required', minLength: { value: 3, message: 'Min 3 characters' } }}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Username"
-            placeholder="Choose a unique username"
-            required
-            error={errors.username?.message}
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Controller
-        name="password"
-        control={control}
-        rules={{ required: 'Password is required', minLength: { value: 6, message: 'Min 6 characters' } }}
-        render={({ field }) => (
-          <PasswordInput
-            {...field}
-            label="Password"
-            placeholder="Create a secure password"
-            required
-            error={errors.password?.message}
-            description="Must be at least 6 characters"
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Controller
-        name="confirmPassword"
-        control={control}
-        rules={{ 
-          required: 'Please confirm password',
-          validate: value => value === watchPassword || 'Passwords do not match'
-        }}
-        render={({ field }) => (
-          <PasswordInput
-            {...field}
-            label="Confirm Password"
-            placeholder="Re-enter your password"
-            required
-            error={errors.confirmPassword?.message}
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Grid>
-        <Grid.Col span={6}>
+    <Stack spacing="lg">
+      <Box>
+        <Text size="xs" weight={600} color={PRIMARY_BROWN} mb="md" style={{ letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          Account Information
+        </Text>
+        <Stack spacing="md">
           <Controller
-            name="firstName"
+            name="email"
             control={control}
-            rules={{ required: 'First name is required' }}
+            rules={{ required: 'Email is required', pattern: { value: /^\S+@\S+$/i, message: 'Invalid email' } }}
             render={({ field }) => (
               <TextInput
                 {...field}
-                label="First Name"
-                placeholder="Juan"
+                label="Email Address"
+                placeholder="your.email@example.com"
                 required
-                error={errors.firstName?.message}
-                styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
+                error={errors.email?.message}
+                styles={inputStyles}
               />
             )}
           />
-        </Grid.Col>
-        <Grid.Col span={6}>
-          <Controller
-            name="middleName"
-            control={control}
-            render={({ field }) => (
-              <TextInput
-                {...field}
-                label="Middle Name"
-                placeholder="Santos"
-                styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-              />
-            )}
-          />
-        </Grid.Col>
-      </Grid>
 
-      <Grid>
-        <Grid.Col span={6}>
           <Controller
-            name="lastName"
+            name="username"
             control={control}
-            rules={{ required: 'Last name is required' }}
+            rules={{ required: 'Username is required', minLength: { value: 3, message: 'Min 3 characters' } }}
             render={({ field }) => (
               <TextInput
                 {...field}
-                label="Last Name"
-                placeholder="Dela Cruz"
+                label="Username"
+                placeholder="Choose a unique username"
                 required
-                error={errors.lastName?.message}
-                styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
+                error={errors.username?.message}
+                styles={inputStyles}
               />
             )}
           />
-        </Grid.Col>
-        <Grid.Col span={6}>
-          <Controller
-            name="suffix"
-            control={control}
-            render={({ field }) => (
-              <TextInput
-                {...field}
-                label="Suffix"
-                placeholder="Jr., Sr., III"
-                styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
+
+          <Grid gutter="md">
+            <Grid.Col span={6}>
+              <Controller
+                name="password"
+                control={control}
+                rules={{ required: 'Password is required', minLength: { value: 6, message: 'Min 6 characters' } }}
+                render={({ field }) => (
+                  <PasswordInput
+                    {...field}
+                    label="Password"
+                    placeholder="••••••••"
+                    required
+                    error={errors.password?.message}
+                    description="At least 6 characters"
+                    styles={inputStyles}
+                  />
+                )}
               />
-            )}
-          />
-        </Grid.Col>
-      </Grid>
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Controller
+                name="confirmPassword"
+                control={control}
+                rules={{ 
+                  required: 'Please confirm password',
+                  validate: value => value === watchPassword || 'Passwords do not match'
+                }}
+                render={({ field }) => (
+                  <PasswordInput
+                    {...field}
+                    label="Confirm Password"
+                    placeholder="••••••••"
+                    required
+                    error={errors.confirmPassword?.message}
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+          </Grid>
+        </Stack>
+      </Box>
+
+      <Divider style={{ borderColor: '#E5E0D8' }} />
+
+      <Box>
+        <Text size="xs" weight={600} color={PRIMARY_BROWN} mb="md" style={{ letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          Personal Information
+        </Text>
+        <Stack spacing="md">
+          <Grid gutter="md">
+            <Grid.Col span={6}>
+              <Controller
+                name="firstName"
+                control={control}
+                rules={{ required: 'First name is required' }}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="First Name"
+                    placeholder="Juan"
+                    required
+                    error={errors.firstName?.message}
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Controller
+                name="middleName"
+                control={control}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="Middle Name"
+                    placeholder="Santos (optional)"
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+          </Grid>
+
+          <Grid gutter="md">
+            <Grid.Col span={8}>
+              <Controller
+                name="lastName"
+                control={control}
+                rules={{ required: 'Last name is required' }}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="Last Name"
+                    placeholder="Dela Cruz"
+                    required
+                    error={errors.lastName?.message}
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+            <Grid.Col span={4}>
+              <Controller
+                name="suffix"
+                control={control}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="Suffix"
+                    placeholder="Jr., Sr., III"
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+          </Grid>
+        </Stack>
+      </Box>
     </Stack>
   );
 
   const renderProfessionalInfo = () => (
-    <Stack spacing="md">
-      <Controller
-        name="role"
-        control={control}
-        rules={{ required: 'Role is required' }}
-        render={({ field }) => (
-          <Select
-            {...field}
-            label="Role"
-            placeholder="Select your role"
-            required
-            data={[
-              { value: 'attorney', label: 'Attorney' },
-              { value: 'pao_lawyer', label: 'PAO Lawyer' },
-              { value: 'legal_volunteer', label: 'Legal Volunteer' },
-            ]}
-            error={errors.role?.message}
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Grid>
-        <Grid.Col span={6}>
+    <Stack spacing="lg">
+      <Box>
+        <Text size="xs" weight={600} color={PRIMARY_BROWN} mb="md" style={{ letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          Professional Details
+        </Text>
+        <Stack spacing="md">
           <Controller
-            name="prcLicenseNumber"
+            name="role"
             control={control}
-            rules={{ required: 'PRC License is required' }}
+            rules={{ required: 'Role is required' }}
             render={({ field }) => (
-              <TextInput
+              <Select
                 {...field}
-                label="PRC License Number"
-                placeholder="e.g., 1234567"
+                label="Professional Role"
+                placeholder="Select your role"
                 required
-                error={errors.prcLicenseNumber?.message}
-                styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
+                data={[
+                  { value: 'attorney', label: 'Attorney' },
+                  { value: 'pao_lawyer', label: 'PAO Lawyer' },
+                  { value: 'legal_volunteer', label: 'Legal Volunteer' },
+                ]}
+                error={errors.role?.message}
+                styles={inputStyles}
               />
             )}
           />
-        </Grid.Col>
-        <Grid.Col span={6}>
+
+          <Grid gutter="md">
+            <Grid.Col span={6}>
+              <Controller
+                name="prcLicenseNumber"
+                control={control}
+                rules={{ required: 'PRC License is required' }}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="PRC License Number"
+                    placeholder="1234567"
+                    required
+                    error={errors.prcLicenseNumber?.message}
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Controller
+                name="ibrNumber"
+                control={control}
+                rules={{ required: 'IBR Number is required' }}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="IBR Number"
+                    placeholder="IBR-1234567"
+                    required
+                    error={errors.ibrNumber?.message}
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+          </Grid>
+
+          <Grid gutter="md">
+            <Grid.Col span={6}>
+              <Controller
+                name="barAdmissionDate"
+                control={control}
+                rules={{ required: 'Bar admission date is required' }}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="Bar Admission Date"
+                    type="date"
+                    required
+                    error={errors.barAdmissionDate?.message}
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Controller
+                name="phoneNumber"
+                control={control}
+                rules={{ required: 'Phone number is required' }}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="Phone Number"
+                    placeholder="+639171234567"
+                    required
+                    error={errors.phoneNumber?.message}
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+          </Grid>
+
           <Controller
-            name="ibrNumber"
+            name="lawFirm"
             control={control}
-            rules={{ required: 'IBR Number is required' }}
             render={({ field }) => (
               <TextInput
                 {...field}
-                label="IBR Number"
-                placeholder="e.g., IBR-1234567"
-                required
-                error={errors.ibrNumber?.message}
-                styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
+                label="Law Firm / Organization"
+                placeholder="Enter law firm or organization name (optional)"
+                styles={inputStyles}
               />
             )}
           />
-        </Grid.Col>
-      </Grid>
-
-      <Controller
-        name="barAdmissionDate"
-        control={control}
-        rules={{ required: 'Bar admission date is required' }}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Bar Admission Date"
-            type="date"
-            required
-            error={errors.barAdmissionDate?.message}
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Controller
-        name="phoneNumber"
-        control={control}
-        rules={{ required: 'Phone number is required' }}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Phone Number"
-            placeholder="+639171234567"
-            required
-            error={errors.phoneNumber?.message}
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Controller
-        name="lawFirm"
-        control={control}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Law Firm / Organization"
-            placeholder="Enter law firm or organization name"
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
+        </Stack>
+      </Box>
     </Stack>
   );
 
   const renderAddressInfo = () => (
-    <Stack spacing="md">
-      <Text size="lg" weight={600} style={{ color: PRIMARY_BROWN }}>
-        Office Address
-      </Text>
-
-      <Controller
-        name="officeAddress.street"
-        control={control}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Street Address"
-            placeholder="Building name, street"
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Controller
-        name="officeAddress.barangay"
-        control={control}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Barangay"
-            placeholder="Barangay name"
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Grid>
-        <Grid.Col span={6}>
+    <Stack spacing="lg">
+      <Box>
+        <Text size="xs" weight={600} color={PRIMARY_BROWN} mb="md" style={{ letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          Office Location
+        </Text>
+        <Stack spacing="md">
           <Controller
-            name="officeAddress.city"
+            name="officeAddress.street"
             control={control}
-            rules={{ required: 'City is required' }}
             render={({ field }) => (
               <TextInput
                 {...field}
-                label="City"
-                placeholder="City"
+                label="Street Address"
+                placeholder="Building name, street number (optional)"
+                styles={inputStyles}
+              />
+            )}
+          />
+
+          <Grid gutter="md">
+            <Grid.Col span={6}>
+              <Controller
+                name="officeAddress.barangay"
+                control={control}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="Barangay"
+                    placeholder="Barangay name (optional)"
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Controller
+                name="officeAddress.zipCode"
+                control={control}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="Zip Code"
+                    placeholder="1000 (optional)"
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+          </Grid>
+
+          <Grid gutter="md">
+            <Grid.Col span={6}>
+              <Controller
+                name="officeAddress.city"
+                control={control}
+                rules={{ required: 'City is required' }}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="City / Municipality"
+                    placeholder="e.g., Quezon City"
+                    required
+                    error={errors.officeAddress?.city?.message}
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Controller
+                name="officeAddress.province"
+                control={control}
+                rules={{ required: 'Province is required' }}
+                render={({ field }) => (
+                  <TextInput
+                    {...field}
+                    label="Province"
+                    placeholder="e.g., Metro Manila"
+                    required
+                    error={errors.officeAddress?.province?.message}
+                    styles={inputStyles}
+                  />
+                )}
+              />
+            </Grid.Col>
+          </Grid>
+
+          <Controller
+            name="officeAddress.region"
+            control={control}
+            rules={{ required: 'Region is required' }}
+            render={({ field }) => (
+              <TextInput
+                {...field}
+                label="Region"
+                placeholder="e.g., NCR, Region III"
                 required
-                error={errors.officeAddress?.city?.message}
-                styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
+                error={errors.officeAddress?.region?.message}
+                styles={inputStyles}
               />
             )}
           />
-        </Grid.Col>
-        <Grid.Col span={6}>
-          <Controller
-            name="officeAddress.zipCode"
-            control={control}
-            render={({ field }) => (
-              <TextInput
-                {...field}
-                label="Zip Code"
-                placeholder="1000"
-                styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-              />
-            )}
-          />
-        </Grid.Col>
-      </Grid>
-
-      <Controller
-        name="officeAddress.province"
-        control={control}
-        rules={{ required: 'Province is required' }}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Province"
-            placeholder="Province name"
-            required
-            error={errors.officeAddress?.province?.message}
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Controller
-        name="officeAddress.region"
-        control={control}
-        rules={{ required: 'Region is required' }}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Region"
-            placeholder="e.g., NCR, Region III"
-            required
-            error={errors.officeAddress?.region?.message}
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
+        </Stack>
+      </Box>
     </Stack>
   );
 
   const renderAdditionalInfo = () => (
-    <Stack spacing="md">
-      <Controller
-        name="specializations"
-        control={control}
-        render={({ field }) => (
-          <MultiSelect
-            {...field}
-            label="Areas of Specialization"
-            placeholder="Select all areas where you practice"
-            data={SPECIALIZATIONS}
-            searchable
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
-      <Controller
-        name="languages"
-        control={control}
-        render={({ field }) => (
-          <MultiSelect
-            {...field}
-            label="Languages Spoken"
-            placeholder="Select all languages you can communicate in"
-            data={LANGUAGES}
-            searchable
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
-          />
-        )}
-      />
-
+    <Stack spacing="lg">
       <Box>
-        <Text size="sm" weight={500} mb="xs">Consultation Preferences</Text>
-        <Controller
-          name="consultationMode"
-          control={control}
-          render={({ field: { value, onChange } }) => (
-            <Stack spacing="xs">
-              <Checkbox
-                label="Online Consultation"
-                checked={value?.includes('online')}
-                onChange={(e) => {
-                  const newValue = e.currentTarget.checked
-                    ? [...(value || []), 'online']
-                    : value?.filter((v) => v !== 'online');
-                  onChange(newValue);
-                }}
+        <Text size="xs" weight={600} color={PRIMARY_BROWN} mb="md" style={{ letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          Practice Areas & Languages
+        </Text>
+        <Stack spacing="md">
+          <Controller
+            name="specializations"
+            control={control}
+            render={({ field }) => (
+              <MultiSelect
+                {...field}
+                label="Areas of Legal Specialization"
+                placeholder="Select your practice areas"
+                data={SPECIALIZATIONS}
+                searchable
+                styles={inputStyles}
               />
-              <Checkbox
-                label="In-Person Meeting"
-                checked={value?.includes('in-person')}
-                onChange={(e) => {
-                  const newValue = e.currentTarget.checked
-                    ? [...(value || []), 'in-person']
-                    : value?.filter((v) => v !== 'in-person');
-                  onChange(newValue);
-                }}
+            )}
+          />
+
+          <Controller
+            name="languages"
+            control={control}
+            render={({ field }) => (
+              <MultiSelect
+                {...field}
+                label="Languages"
+                placeholder="Select languages you can communicate in"
+                data={LANGUAGES}
+                searchable
+                styles={inputStyles}
               />
-            </Stack>
-          )}
-        />
+            )}
+          />
+        </Stack>
       </Box>
 
-      <Controller
-        name="biography"
-        control={control}
-        render={({ field }) => (
-          <Textarea
-            {...field}
-            label="Professional Biography"
-            placeholder="Describe your legal background, years of experience, notable cases, and what makes you unique as an attorney..."
-            minRows={4}
-            description="Tell clients about your experience and expertise"
-            styles={{ input: { backgroundColor: THEMED_LIGHT_BG } }}
+      <Divider style={{ borderColor: '#E5E0D8' }} />
+
+      <Box>
+        <Text size="xs" weight={600} color={PRIMARY_BROWN} mb="md" style={{ letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          Service Preferences
+        </Text>
+        <Stack spacing="md">
+          <Box>
+            <Text size="sm" weight={500} mb="sm" style={{ color: CHARCOAL }}>
+              Consultation Methods
+            </Text>
+            <Controller
+              name="consultationMode"
+              control={control}
+              render={({ field: { value, onChange } }) => (
+                <Stack spacing="xs">
+                  <Checkbox
+                    label="Online Consultation (Video/Phone)"
+                    checked={value?.includes('online')}
+                    onChange={(e) => {
+                      const newValue = e.currentTarget.checked
+                        ? [...(value || []), 'online']
+                        : value?.filter((v) => v !== 'online');
+                      onChange(newValue);
+                    }}
+                    styles={{
+                      input: { cursor: 'pointer' },
+                      label: { cursor: 'pointer', fontSize: '15px' }
+                    }}
+                  />
+                  <Checkbox
+                    label="In-Person Meeting at Office"
+                    checked={value?.includes('in-person')}
+                    onChange={(e) => {
+                      const newValue = e.currentTarget.checked
+                        ? [...(value || []), 'in-person']
+                        : value?.filter((v) => v !== 'in-person');
+                      onChange(newValue);
+                    }}
+                    styles={{
+                      input: { cursor: 'pointer' },
+                      label: { cursor: 'pointer', fontSize: '15px' }
+                    }}
+                  />
+                </Stack>
+              )}
+            />
+          </Box>
+
+          <Controller
+            name="biography"
+            control={control}
+            render={({ field }) => (
+              <Textarea
+                {...field}
+                label="Professional Biography"
+                placeholder="Share your legal background, years of experience, notable achievements, and what distinguishes your practice..."
+                minRows={5}
+                description="Help clients understand your expertise and approach"
+                styles={{
+                  ...inputStyles,
+                  input: {
+                    ...inputStyles.input,
+                    height: 'auto',
+                    minHeight: '140px',
+                  }
+                }}
+              />
+            )}
           />
-        )}
-      />
+        </Stack>
+      </Box>
     </Stack>
   );
 
   return (
-    <Box style={{ minHeight: '100vh', backgroundColor: '#F9F6F1', padding: '2rem' }}>
-      <Container size="md">
-        <Paper p="xl" radius="lg" shadow="sm" style={{ backgroundColor: 'white' }}>
-          <Stack spacing="xl">
-            {/* Header */}
-            <Box>
-              <ActionIcon
-                size="lg"
-                variant="subtle"
-                onClick={() => navigate('/auth/attorneylogin')}
-                style={{ color: PRIMARY_BROWN, marginBottom: '1rem' }}
+    <Box style={{ minHeight: '100vh', backgroundColor: THEMED_LIGHT_BG }}>
+      <Container size="lg" py={40}>
+        <Box mb={24}>
+          <ActionIcon
+            size="lg"
+            variant="subtle"
+            onClick={() => navigate('/auth/attorneylogin')}
+            style={{ color: PRIMARY_BROWN }}
+          >
+            <IconArrowLeft size={20} />
+          </ActionIcon>
+        </Box>
+
+        <Paper 
+          p={0} 
+          radius="md" 
+          style={{ 
+            backgroundColor: 'white',
+            border: '1px solid #E5E0D8',
+            overflow: 'hidden'
+          }}
+        >
+          {/* Header Section */}
+          <Box 
+            style={{ 
+              padding: '32px 40px',
+              borderBottom: '1px solid #E5E0D8',
+              backgroundColor: '#FEFDFB'
+            }}
+          >
+            <Group spacing="md" mb={8}>
+              <Box
+                style={{
+                  width: 56,
+                  height: 56,
+                  backgroundColor: PRIMARY_BROWN,
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
-                <IconArrowLeft size={24} />
-              </ActionIcon>
-              
-              <Group spacing="sm" mb="xs">
-                <Box
-                  style={{
-                    width: 48,
-                    height: 48,
-                    backgroundColor: PRIMARY_BROWN,
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <IconBriefcase size={28} color="white" />
-                </Box>
-                <Title order={1} style={{ color: PRIMARY_BROWN }}>
+                <IconBriefcase size={32} color="white" strokeWidth={1.5} />
+              </Box>
+              <Box>
+                <Title order={2} style={{ color: PRIMARY_BROWN, fontSize: '28px', fontWeight: 600, marginBottom: '4px' }}>
                   Attorney Registration
                 </Title>
-              </Group>
-              <Text size="sm" color="dimmed">
-                Create your attorney account to start providing legal services
-              </Text>
-            </Box>
+                <Text size="sm" style={{ color: MUTED_OLIVE, fontSize: '15px' }}>
+                  Join our platform to provide legal services to those in need
+                </Text>
+              </Box>
+            </Group>
+          </Box>
 
-            <Divider />
-
-            {/* Stepper */}
-            <Stepper active={active} color={PRIMARY_GOLD}>
-              <Stepper.Step label="Basic Info" icon={<IconUser size={18} />}>
-                {renderBasicInfo()}
-              </Stepper.Step>
-              <Stepper.Step label="Professional" icon={<IconBriefcase size={18} />}>
-                {renderProfessionalInfo()}
-              </Stepper.Step>
-              <Stepper.Step label="Address" icon={<IconMapPin size={18} />}>
-                {renderAddressInfo()}
-              </Stepper.Step>
-              <Stepper.Step label="Additional" icon={<IconFileText size={18} />}>
-                {renderAdditionalInfo()}
-              </Stepper.Step>
+          {/* Stepper Section */}
+          <Box style={{ padding: '32px 40px', backgroundColor: 'white' }}>
+            <Stepper 
+              active={active} 
+              color={PRIMARY_GOLD}
+              styles={{
+                stepIcon: {
+                  borderWidth: 2,
+                },
+                separator: {
+                  marginLeft: 8,
+                  marginRight: 8,
+                },
+                stepLabel: {
+                  fontSize: '14px',
+                  fontWeight: 500,
+                },
+                stepDescription: {
+                  fontSize: '13px',
+                }
+              }}
+            >
+              <Stepper.Step 
+                label="Basic Information" 
+                description="Account & personal details"
+                icon={<IconUser size={18} />}
+              />
+              <Stepper.Step 
+                label="Professional Details" 
+                description="Credentials & experience"
+                icon={<IconBriefcase size={18} />}
+              />
+              <Stepper.Step 
+                label="Office Location" 
+                description="Practice address"
+                icon={<IconMapPin size={18} />}
+              />
+              <Stepper.Step 
+                label="Additional Information" 
+                description="Specializations & preferences"
+                icon={<IconFileText size={18} />}
+              />
             </Stepper>
+          </Box>
 
-            {/* Navigation Buttons */}
-            <Group position="apart" mt="xl">
-              {active > 0 && (
-                <Button variant="outline" onClick={prevStep} style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}>
-                  Back
-                </Button>
-              )}
-              {active < 3 ? (
-                <Button onClick={nextStep} style={{ backgroundColor: PRIMARY_GOLD, marginLeft: active === 0 ? 'auto' : 0 }}>
-                  Next
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSubmit(handleAttorneySignup)}
-                  loading={isRegistering}
-                  leftIcon={<IconCheck size={18} />}
-                  style={{ backgroundColor: PRIMARY_BROWN, marginLeft: 'auto' }}
-                >
-                  Create Attorney Account
-                </Button>
-              )}
+          <Divider style={{ borderColor: '#E5E0D8' }} />
+
+          {/* Form Content */}
+          <Box style={{ padding: '40px 40px 32px' }}>
+            {active === 0 && renderBasicInfo()}
+            {active === 1 && renderProfessionalInfo()}
+            {active === 2 && renderAddressInfo()}
+            {active === 3 && renderAdditionalInfo()}
+          </Box>
+
+          {/* Footer Section */}
+          <Box 
+            style={{ 
+              padding: '24px 40px',
+              borderTop: '1px solid #E5E0D8',
+              backgroundColor: '#FEFDFB'
+            }}
+          >
+            <Group position="apart">
+              <Box>
+                {active > 0 && (
+                  <Button 
+                    variant="subtle" 
+                    onClick={prevStep}
+                    style={{ 
+                      color: PRIMARY_BROWN,
+                      fontWeight: 500,
+                    }}
+                    size="md"
+                  >
+                    Back
+                  </Button>
+                )}
+              </Box>
+              <Box>
+                {active < 3 ? (
+                  <Button 
+                    onClick={nextStep}
+                    size="md"
+                    style={{ 
+                      backgroundColor: PRIMARY_GOLD,
+                      color: 'white',
+                      fontWeight: 500,
+                      paddingLeft: '32px',
+                      paddingRight: '32px',
+                    }}
+                  >
+                    Continue
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleSubmit(handleAttorneySignup)}
+                    loading={isRegistering}
+                    leftIcon={<IconCheck size={18} />}
+                    size="md"
+                    style={{ 
+                      backgroundColor: PRIMARY_BROWN,
+                      color: 'white',
+                      fontWeight: 500,
+                      paddingLeft: '32px',
+                      paddingRight: '32px',
+                    }}
+                  >
+                    Create Attorney Account
+                  </Button>
+                )}
+              </Box>
             </Group>
 
-            {/* Login Link */}
-            <Text size="sm" align="center" color="dimmed">
+            {active === 3 && (
+              <Text size="xs" align="center" mt="md" style={{ color: MUTED_OLIVE }}>
+                By creating an account, you agree to our Terms of Service and Privacy Policy
+              </Text>
+            )}
+          </Box>
+
+          {/* Login Link */}
+          <Box 
+            style={{ 
+              padding: '20px 40px',
+              borderTop: '1px solid #E5E0D8',
+              backgroundColor: 'white',
+              textAlign: 'center'
+            }}
+          >
+            <Text size="sm" style={{ color: MUTED_OLIVE }}>
               Already have an account?{' '}
               <Text
                 component="span"
-                style={{ color: PRIMARY_BROWN, cursor: 'pointer', fontWeight: 600 }}
+                style={{ 
+                  color: PRIMARY_BROWN, 
+                  cursor: 'pointer', 
+                  fontWeight: 600,
+                  textDecoration: 'none'
+                }}
                 onClick={() => navigate('/auth/attorneylogin')}
               >
-                Login here
+                Sign in here
               </Text>
             </Text>
-          </Stack>
+          </Box>
         </Paper>
       </Container>
     </Box>

@@ -27,7 +27,6 @@ export default function AttorneyLogin() {
   const navigate = useNavigate();
   const { getAuthErrorMessage } = useAuth();
   const hasNavigated = useRef(false);
-
   const [loading, setLoading] = useState(false);
   const [attorneyData, setAttorneyData] = useState(null);
 
@@ -47,7 +46,6 @@ export default function AttorneyLogin() {
     if (attorneyData && !hasNavigated.current) {
       console.log('Attorney data loaded, checking role for navigation');
       hasNavigated.current = true;
-
       // Navigate based on role
       if (attorneyData.role === 'admin') {
         console.log('Admin role detected, navigating to admin dashboard');
@@ -65,7 +63,6 @@ export default function AttorneyLogin() {
   const handleAttorneyLogin = async (data) => {
     try {
       setLoading(true);
-
       console.log('Step 1: Signing in with Firebase');
       console.log('Attempting login with email:', data.email);
 
@@ -77,7 +74,6 @@ export default function AttorneyLogin() {
       console.log('Firebase login successful for:', user.email);
 
       console.log('Step 2: Checking attorney in MongoDB');
-
       try {
         const response = await apiClient.post('/auth/verify-attorney', {
           email: data.email,
@@ -125,8 +121,8 @@ export default function AttorneyLogin() {
         setLoading(false);
       } catch (backendError) {
         console.error('Backend verification error:', backendError);
-
         let errorMessage = 'Failed to verify attorney account.';
+        
         if (backendError.response?.status === 404) {
           errorMessage = 'Attorney account not found. Please sign up as an attorney first.';
         } else if (backendError.response?.data?.message) {
@@ -144,7 +140,6 @@ export default function AttorneyLogin() {
       }
     } catch (error) {
       console.error('Attorney login error:', error);
-
       let errorMessage = 'An error occurred during login.';
 
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
@@ -169,157 +164,185 @@ export default function AttorneyLogin() {
   };
 
   return (
-    <Box
-      style={{
-        minHeight: '100vh',
-        backgroundColor: '#F9F6F1',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '2rem',
-      }}
-    >
-      <Container size="xs">
-        <Paper p="xl" radius="lg" shadow="xl" style={{ backgroundColor: 'white' }}>
-          <Stack spacing="xl">
-            {/* Hero Section */}
-            <Center>
-              <Stack spacing="md" align="center">
-                <Box
-                  style={{
-                    width: 80,
-                    height: 80,
-                    backgroundColor: THEMED_LIGHT_BG,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <IconBriefcase size={48} color={PRIMARY_GOLD} />
-                </Box>
-                <Box style={{ textAlign: 'center' }}>
-                  <Title order={1} style={{ color: PRIMARY_BROWN, marginBottom: '0.5rem' }}>
-                    Attorney Portal
-                  </Title>
-                  <Text size="sm" color="dimmed">
-                    Sign in to your attorney account
-                  </Text>
-                </Box>
-              </Stack>
-            </Center>
+    <Box bg={THEMED_LIGHT_BG} mih="100vh" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} py="xl">
+      <style>
+        {`
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+          ::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: ${MUTED_OLIVE};
+            border-radius: 4px;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: ${PRIMARY_BROWN};
+          }
+          * {
+            scrollbar-width: thin;
+            scrollbar-color: ${MUTED_OLIVE} transparent;
+          }
+        `}
+      </style>
+      <Container size="sm" style={{ maxWidth: '600px' }}>
+        <Paper shadow="xs" p="xl" radius="lg" bg="white">
+          <Stack gap="xl">
+            {/* Header Section */}
+            <Stack gap="md" align="center">
+              <Box
+                style={{
+                  width: 70,
+                  height: 70,
+                  backgroundColor: PRIMARY_BROWN,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: `3px solid ${PRIMARY_GOLD}`,
+                }}
+              >
+                <IconBriefcase size={36} color="white" stroke={2} />
+              </Box>
+              <Box style={{ textAlign: 'center' }}>
+                <Title order={2} c={CHARCOAL} mb={4}>
+                  Attorney Portal
+                </Title>
+                <Text size="sm" c={MUTED_OLIVE}>
+                  Sign in to your attorney account
+                </Text>
+              </Box>
+            </Stack>
 
-            <Divider />
+            <Divider color="#F0F0F0" />
 
             {/* Form Section */}
             <form onSubmit={handleSubmit(handleAttorneyLogin)}>
-              <Stack spacing="md">
+              <Group grow align="flex-start" gap="lg">
                 {/* Email Input */}
-                <Controller
-                  name="email"
-                  control={control}
-                  rules={{
-                    required: 'Email is required',
-                    pattern: {
-                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Invalid email address',
-                    },
-                  }}
-                  render={({ field }) => (
-                    <TextInput
-                      {...field}
-                      label="Email"
-                      placeholder="Enter your email"
-                      icon={<IconMail size={18} />}
-                      size="md"
-                      required
-                      error={errors.email?.message}
-                      disabled={loading}
-                      styles={{
-                        input: { backgroundColor: THEMED_LIGHT_BG },
-                      }}
-                    />
-                  )}
-                />
+                <Box style={{ flex: 1 }}>
+                  <Group gap={8} mb={8}>
+                    <Text size="sm" fw={600} c={CHARCOAL}>Email</Text>
+                    <Text size="sm" c="red">*</Text>
+                  </Group>
+                  <Controller
+                    name="email"
+                    control={control}
+                    rules={{
+                      required: 'Email is required',
+                      pattern: {
+                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                        message: 'Invalid email address',
+                      },
+                    }}
+                    render={({ field }) => (
+                      <TextInput
+                        {...field}
+                        placeholder="attorney@example.com"
+                        leftSection={<IconMail size={18} color={MUTED_OLIVE} />}
+                        size="md"
+                        error={errors.email?.message}
+                        disabled={loading}
+                        styles={{
+                          input: {
+                            borderColor: errors.email ? '#E74C3C' : '#E0E0E0',
+                            '&:focus': {
+                              borderColor: errors.email ? '#E74C3C' : PRIMARY_BROWN,
+                            },
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
 
                 {/* Password Input */}
-                <Controller
-                  name="password"
-                  control={control}
-                  rules={{
-                    required: 'Password is required',
-                    minLength: {
-                      value: 6,
-                      message: 'Password must be at least 6 characters',
-                    },
-                  }}
-                  render={({ field }) => (
-                    <PasswordInput
-                      {...field}
-                      label="Password"
-                      placeholder="Enter your password"
-                      icon={<IconLock size={18} />}
-                      size="md"
-                      required
-                      error={errors.password?.message}
-                      disabled={loading}
-                      styles={{
-                        input: { backgroundColor: THEMED_LIGHT_BG },
-                      }}
-                    />
-                  )}
-                />
-
-                {/* Login Button */}
-                <Button
-                  type="submit"
-                  size="md"
-                  fullWidth
-                  loading={loading}
-                  style={{
-                    backgroundColor: PRIMARY_BROWN,
-                    marginTop: '1rem',
-                  }}
-                  styles={{
-                    root: {
-                      '&:hover': {
-                        backgroundColor: '#6B4423',
+                <Box style={{ flex: 1 }}>
+                  <Group gap={8} mb={8}>
+                    <Text size="sm" fw={600} c={CHARCOAL}>Password</Text>
+                    <Text size="sm" c="red">*</Text>
+                  </Group>
+                  <Controller
+                    name="password"
+                    control={control}
+                    rules={{
+                      required: 'Password is required',
+                      minLength: {
+                        value: 6,
+                        message: 'Password must be at least 6 characters',
                       },
-                    },
-                  }}
-                >
-                  {loading ? 'Signing in...' : 'Sign in as Attorney'}
-                </Button>
-              </Stack>
+                    }}
+                    render={({ field }) => (
+                      <PasswordInput
+                        {...field}
+                        placeholder="Enter your password"
+                        leftSection={<IconLock size={18} color={MUTED_OLIVE} />}
+                        size="md"
+                        error={errors.password?.message}
+                        disabled={loading}
+                        styles={{
+                          input: {
+                            borderColor: errors.password ? '#E74C3C' : '#E0E0E0',
+                            '&:focus': {
+                              borderColor: errors.password ? '#E74C3C' : PRIMARY_BROWN,
+                            },
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
+              </Group>
+
+              {/* Login Button */}
+              <Button
+                type="submit"
+                size="md"
+                fullWidth
+                loading={loading}
+                mt="lg"
+                style={{
+                  backgroundColor: PRIMARY_BROWN,
+                }}
+              >
+                {loading ? 'Signing in...' : 'Sign in as Attorney'}
+              </Button>
             </form>
 
             {/* Divider */}
-            <Divider label="or" labelPosition="center" />
+            <Divider label="or" labelPosition="center" color="#F0F0F0" />
 
             {/* Sign Up Link */}
-            <Center>
-              <Text size="sm" color="dimmed">
-                Don't have an attorney account?{' '}
-                <Anchor
-                  component="button"
-                  type="button"
-                  onClick={() => navigate('/auth/attorneysignup')}
-                  style={{ color: PRIMARY_BROWN, fontWeight: 600 }}
-                >
-                  Sign up
-                </Anchor>
-              </Text>
-            </Center>
+            <Paper p="md" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #F0F0F0' }}>
+              <Center>
+                <Text size="sm" c={CHARCOAL}>
+                  Don't have an attorney account?{' '}
+                  <Anchor
+                    component="button"
+                    type="button"
+                    onClick={() => navigate('/auth/attorneysignup')}
+                    c={PRIMARY_BROWN}
+                    fw={600}
+                    style={{ textDecoration: 'none' }}
+                  >
+                    Sign up
+                  </Anchor>
+                </Text>
+              </Center>
+            </Paper>
 
             {/* Back to User Login */}
             <Center>
-              <Text size="sm" color="dimmed">
+              <Text size="sm" c={MUTED_OLIVE}>
                 Not an attorney?{' '}
                 <Anchor
                   component="button"
                   type="button"
                   onClick={() => navigate('/auth/login')}
-                  style={{ color: PRIMARY_BROWN, fontWeight: 600 }}
+                  c={PRIMARY_BROWN}
+                  fw={600}
+                  style={{ textDecoration: 'none' }}
                 >
                   User Login
                 </Anchor>
