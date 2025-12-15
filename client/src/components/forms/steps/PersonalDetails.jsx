@@ -1,10 +1,12 @@
 import React from 'react';
 import { IconUser, IconInfoCircle, IconCheck } from '@tabler/icons-react';
-import { TextInput, Select, Group, Title, Paper, Grid, Stack, Checkbox, Tooltip, Alert, Text } from '@mantine/core';
+import { TextInput, Select, Group, Title, Paper, Grid, Stack, Checkbox, Tooltip, Alert, Text, Box } from '@mantine/core';
 import { 
   PRIMARY_GOLD, 
   PRIMARY_BROWN, 
   THEMED_LIGHT_BG, 
+  MUTED_OLIVE,
+  CHARCOAL,
   GENDER_OPTIONS, 
   CIVIL_STATUS_OPTIONS,
   DEFAULT_COUNTRY_CODE,
@@ -80,241 +82,421 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
   }, [setValue]);
 
   return (
-    <Stack spacing="md">
-      <Group align="center" spacing="sm">
-        <IconUser size={28} color={PRIMARY_BROWN} />
-        <Title order={2} style={{ color: PRIMARY_BROWN }}>Personal Details</Title>
+    <Stack gap="lg" mt="lg">
+      {/* Section Header */}
+      <Group gap="xs">
+        <Box
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: '8px',
+            background: PRIMARY_BROWN,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconUser size={18} color="white" />
+        </Box>
+        <Title order={3} c={CHARCOAL}>Personal Details</Title>
       </Group>
       
-      <TextInput
-        label="Name"
-        placeholder="Juan Dela Cruz"
-        required
-        {...register('name', validationRules.name)}
-        error={errors.name?.message}
-        onChange={(e) => {
-          const capitalized = e.target.value
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(' ');
-          setValue('name', capitalized);
-        }}
-        styles={{
-          input: { backgroundColor: THEMED_LIGHT_BG }
-        }}
-      />
+      {/* Name */}
+      <Box>
+        <Group gap={8} mb={8}>
+          <Text size="sm" fw={600} c={CHARCOAL}>Name</Text>
+          <Text size="sm" c="red">*</Text>
+        </Group>
+        <TextInput
+          placeholder="Juan Dela Cruz"
+          size="md"
+          {...register('name', validationRules.name)}
+          error={errors.name?.message}
+          onChange={(e) => {
+            const capitalized = e.target.value
+              .split(' ')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+              .join(' ');
+            setValue('name', capitalized);
+          }}
+          styles={{
+            input: {
+              borderColor: errors.name ? '#E74C3C' : '#E0E0E0',
+              '&:focus': {
+                borderColor: errors.name ? '#E74C3C' : PRIMARY_BROWN,
+              },
+            },
+          }}
+        />
+      </Box>
       
+      {/* Birthday and Age */}
       <Grid>
         <Grid.Col span={6}>
-          <TextInput
-            label="Birthday"
-            type="date"
-            required
-            {...register('birthday', validationRules.birthday)}
-            error={errors.birthday?.message}
-            styles={{
-              input: { backgroundColor: THEMED_LIGHT_BG }
-            }}
-          />
+          <Box>
+            <Group gap={8} mb={8}>
+              <Text size="sm" fw={600} c={CHARCOAL}>Birthday</Text>
+              <Text size="sm" c="red">*</Text>
+            </Group>
+            <TextInput
+              type="date"
+              size="md"
+              {...register('birthday', validationRules.birthday)}
+              error={errors.birthday?.message}
+              styles={{
+                input: {
+                  borderColor: errors.birthday ? '#E74C3C' : '#E0E0E0',
+                  '&:focus': {
+                    borderColor: errors.birthday ? '#E74C3C' : PRIMARY_BROWN,
+                  },
+                },
+              }}
+            />
+          </Box>
         </Grid.Col>
         <Grid.Col span={6}>
-          <Group spacing={4} mb={4}>
-            <Text size="sm" weight={500}>Age *</Text>
-            <Tooltip label="Your age is automatically calculated from your birthday">
-              <IconInfoCircle size={14} color={PRIMARY_BROWN} style={{ cursor: 'help' }} />
-            </Tooltip>
-          </Group>
-          <TextInput
-            placeholder="Auto-calculated"
-            required
-            value={calculatedAge}
-            readOnly
-            error={errors.age?.message}
-            styles={{
-              input: { backgroundColor: THEMED_LIGHT_BG, cursor: 'not-allowed' }
-            }}
-          />
+          <Box>
+            <Group gap={4} mb={8}>
+              <Text size="sm" fw={600} c={CHARCOAL}>Age</Text>
+              <Text size="sm" c="red">*</Text>
+              <Tooltip label="Your age is automatically calculated from your birthday">
+                <IconInfoCircle size={14} color={MUTED_OLIVE} style={{ cursor: 'help' }} />
+              </Tooltip>
+            </Group>
+            <TextInput
+              placeholder="Auto-calculated"
+              size="md"
+              value={calculatedAge}
+              readOnly
+              error={errors.age?.message}
+              styles={{
+                input: {
+                  backgroundColor: '#F5F5F5',
+                  borderColor: '#E0E0E0',
+                  cursor: 'not-allowed',
+                },
+              }}
+            />
+          </Box>
         </Grid.Col>
       </Grid>
       
+      {/* Minor Alert */}
       {calculatedAge && parseInt(calculatedAge) < 18 && (
-        <Alert color="yellow" icon={<IconInfoCircle size={16} />}>
-          <Text size="sm">
+        <Alert 
+          color="yellow"
+          styles={{
+            root: {
+              backgroundColor: `${PRIMARY_GOLD}10`,
+              border: `1px solid ${PRIMARY_GOLD}`,
+            },
+            icon: {
+              color: PRIMARY_GOLD,
+            },
+          }}
+        >
+          <Text size="sm" c={CHARCOAL}>
             <strong>Minor Detected:</strong> Legal guardian or representative information may be required.
           </Text>
         </Alert>
       )}
       
-      <TextInput
-        label="Contact Number"
-        placeholder="+63 912 345 6789"
-        type="tel"
-        required
-        {...register('contactNumber', validationRules.contactNumber)}
-        error={errors.contactNumber?.message}
-        onChange={(e) => {
-          const formatted = formatPhoneNumber(e.target.value);
-          setValue('contactNumber', formatted);
-        }}
-        description="Format: +63 912 345 6789"
-        styles={{
-          input: { backgroundColor: THEMED_LIGHT_BG }
-        }}
-      />
+      {/* Contact Number */}
+      <Box>
+        <Group gap={8} mb={8}>
+          <Text size="sm" fw={600} c={CHARCOAL}>Contact Number</Text>
+          <Text size="sm" c="red">*</Text>
+        </Group>
+        <TextInput
+          placeholder="+63 912 345 6789"
+          type="tel"
+          size="md"
+          {...register('contactNumber', validationRules.contactNumber)}
+          error={errors.contactNumber?.message}
+          onChange={(e) => {
+            const formatted = formatPhoneNumber(e.target.value);
+            setValue('contactNumber', formatted);
+          }}
+          description="Format: +63 912 345 6789"
+          styles={{
+            input: {
+              borderColor: errors.contactNumber ? '#E74C3C' : '#E0E0E0',
+              '&:focus': {
+                borderColor: errors.contactNumber ? '#E74C3C' : PRIMARY_BROWN,
+              },
+            },
+            description: {
+              color: MUTED_OLIVE,
+              fontSize: '12px',
+            },
+          }}
+        />
+      </Box>
       
+      {/* Sex and Civil Status */}
       <Grid>
         <Grid.Col span={6}>
-          <Select
-            label="Sex"
-            placeholder="Select Sex"
-            required
-            data={GENDER_OPTIONS}
-            {...register('sex', validationRules.sex)}
-            onChange={(value) => setValue('sex', value)}
-            error={errors.sex?.message}
-            searchable
-            styles={{
-              input: { backgroundColor: THEMED_LIGHT_BG }
-            }}
-          />
+          <Box>
+            <Group gap={8} mb={8}>
+              <Text size="sm" fw={600} c={CHARCOAL}>Sex</Text>
+              <Text size="sm" c="red">*</Text>
+            </Group>
+            <Select
+              placeholder="Select Sex"
+              size="md"
+              data={GENDER_OPTIONS}
+              {...register('sex', validationRules.sex)}
+              onChange={(value) => setValue('sex', value)}
+              error={errors.sex?.message}
+              searchable
+              styles={{
+                input: {
+                  borderColor: errors.sex ? '#E74C3C' : '#E0E0E0',
+                  '&:focus': {
+                    borderColor: errors.sex ? '#E74C3C' : PRIMARY_BROWN,
+                  },
+                },
+              }}
+            />
+          </Box>
         </Grid.Col>
         <Grid.Col span={6}>
-          <Select
-            label="Civil Status"
-            placeholder="Select Civil Status"
-            required
-            data={CIVIL_STATUS_OPTIONS}
-            {...register('civilStatus', validationRules.civilStatus)}
-            onChange={(value) => setValue('civilStatus', value)}
-            error={errors.civilStatus?.message}
-            styles={{
-              input: { backgroundColor: THEMED_LIGHT_BG }
-            }}
-          />
+          <Box>
+            <Group gap={8} mb={8}>
+              <Text size="sm" fw={600} c={CHARCOAL}>Civil Status</Text>
+              <Text size="sm" c="red">*</Text>
+            </Group>
+            <Select
+              placeholder="Select Civil Status"
+              size="md"
+              data={CIVIL_STATUS_OPTIONS}
+              {...register('civilStatus', validationRules.civilStatus)}
+              onChange={(value) => setValue('civilStatus', value)}
+              error={errors.civilStatus?.message}
+              styles={{
+                input: {
+                  borderColor: errors.civilStatus ? '#E74C3C' : '#E0E0E0',
+                  '&:focus': {
+                    borderColor: errors.civilStatus ? '#E74C3C' : PRIMARY_BROWN,
+                  },
+                },
+              }}
+            />
+          </Box>
         </Grid.Col>
       </Grid>
       
-      <TextInput
-        label="Citizenship"
-        placeholder="Filipino"
-        required
-        {...register('citizenship', validationRules.citizenship)}
-        error={errors.citizenship?.message}
-        rightSection={watch?.('citizenship') === DEFAULT_CITIZENSHIP ? <IconCheck size={16} color="green" /> : null}
-        styles={{
-          input: { backgroundColor: THEMED_LIGHT_BG }
-        }}
-      />
-      
-      {(civilStatus === 'Married' || civilStatus === 'Widowed') && (
+      {/* Citizenship */}
+      <Box>
+        <Group gap={8} mb={8}>
+          <Text size="sm" fw={600} c={CHARCOAL}>Citizenship</Text>
+          <Text size="sm" c="red">*</Text>
+        </Group>
         <TextInput
-          label="Spouse Name"
-          placeholder="Enter spouse name"
-          required={civilStatus === 'Married'}
-          {...register('spouse', validationRules.spouse)}
-          error={errors.spouse?.message}
+          placeholder="Filipino"
+          size="md"
+          {...register('citizenship', validationRules.citizenship)}
+          error={errors.citizenship?.message}
+          rightSection={watch?.('citizenship') === DEFAULT_CITIZENSHIP ? <IconCheck size={16} color={PRIMARY_BROWN} /> : null}
           styles={{
-            input: { backgroundColor: THEMED_LIGHT_BG }
+            input: {
+              borderColor: errors.citizenship ? '#E74C3C' : '#E0E0E0',
+              '&:focus': {
+                borderColor: errors.citizenship ? '#E74C3C' : PRIMARY_BROWN,
+              },
+            },
           }}
         />
+      </Box>
+      
+      {/* Spouse Name (conditional) */}
+      {(civilStatus === 'Married' || civilStatus === 'Widowed') && (
+        <Box>
+          <Group gap={8} mb={8}>
+            <Text size="sm" fw={600} c={CHARCOAL}>Spouse Name</Text>
+            {civilStatus === 'Married' && <Text size="sm" c="red">*</Text>}
+          </Group>
+          <TextInput
+            placeholder="Enter spouse name"
+            size="md"
+            {...register('spouse', validationRules.spouse)}
+            error={errors.spouse?.message}
+            styles={{
+              input: {
+                borderColor: errors.spouse ? '#E74C3C' : '#E0E0E0',
+                '&:focus': {
+                  borderColor: errors.spouse ? '#E74C3C' : PRIMARY_BROWN,
+                },
+              },
+            }}
+          />
+        </Box>
       )}
       
-      <TextInput
-        label="Cellphone Number"
-        placeholder="+63 912 345 6789"
-        type="tel"
-        {...register('cellphoneNumber', validationRules.cellphoneNumber)}
-        error={errors.cellphoneNumber?.message}
-        onChange={(e) => {
-          const formatted = formatPhoneNumber(e.target.value);
-          setValue('cellphoneNumber', formatted);
-        }}
-        description="Optional alternate contact number"
-        styles={{
-          input: { backgroundColor: THEMED_LIGHT_BG }
-        }}
-      />
+      {/* Cellphone Number */}
+      <Box>
+        <Text size="sm" fw={600} c={CHARCOAL} mb={8}>Cellphone Number</Text>
+        <TextInput
+          placeholder="+63 912 345 6789"
+          type="tel"
+          size="md"
+          {...register('cellphoneNumber', validationRules.cellphoneNumber)}
+          error={errors.cellphoneNumber?.message}
+          onChange={(e) => {
+            const formatted = formatPhoneNumber(e.target.value);
+            setValue('cellphoneNumber', formatted);
+          }}
+          description="Optional alternate contact number"
+          styles={{
+            input: {
+              borderColor: errors.cellphoneNumber ? '#E74C3C' : '#E0E0E0',
+              '&:focus': {
+                borderColor: errors.cellphoneNumber ? '#E74C3C' : PRIMARY_BROWN,
+              },
+            },
+            description: {
+              color: MUTED_OLIVE,
+              fontSize: '12px',
+            },
+          }}
+        />
+      </Box>
       
-      <TextInput
-        label="Present Address"
-        placeholder="123 Street, Barangay, City"
-        required
-        {...register('presentAddress', validationRules.presentAddress)}
-        error={errors.presentAddress?.message}
-        styles={{
-          input: { backgroundColor: THEMED_LIGHT_BG }
-        }}
-      />
+      {/* Present Address */}
+      <Box>
+        <Group gap={8} mb={8}>
+          <Text size="sm" fw={600} c={CHARCOAL}>Present Address</Text>
+          <Text size="sm" c="red">*</Text>
+        </Group>
+        <TextInput
+          placeholder="123 Street, Barangay, City"
+          size="md"
+          {...register('presentAddress', validationRules.presentAddress)}
+          error={errors.presentAddress?.message}
+          styles={{
+            input: {
+              borderColor: errors.presentAddress ? '#E74C3C' : '#E0E0E0',
+              '&:focus': {
+                borderColor: errors.presentAddress ? '#E74C3C' : PRIMARY_BROWN,
+              },
+            },
+          }}
+        />
+      </Box>
       
-      <TextInput
-        label="Telephone Number"
-        placeholder="(02) 1234-5678"
-        {...register('telephoneNumber', validationRules.telephoneNumber)}
-        error={errors.telephoneNumber?.message}
-        styles={{
-          input: { backgroundColor: THEMED_LIGHT_BG }
-        }}
-      />
+      {/* Telephone Number */}
+      <Box>
+        <Text size="sm" fw={600} c={CHARCOAL} mb={8}>Telephone Number</Text>
+        <TextInput
+          placeholder="(02) 1234-5678"
+          size="md"
+          {...register('telephoneNumber', validationRules.telephoneNumber)}
+          error={errors.telephoneNumber?.message}
+          styles={{
+            input: {
+              borderColor: errors.telephoneNumber ? '#E74C3C' : '#E0E0E0',
+              '&:focus': {
+                borderColor: errors.telephoneNumber ? '#E74C3C' : PRIMARY_BROWN,
+              },
+            },
+          }}
+        />
+      </Box>
       
+      {/* Same Address Checkbox */}
       <Checkbox
         label="Permanent address is the same as present address"
         checked={sameAsPresent}
         onChange={(event) => setSameAsPresent(event.currentTarget.checked)}
         styles={{
-          label: { color: PRIMARY_BROWN, fontWeight: 500 }
+          label: { color: CHARCOAL, fontWeight: 500 }
         }}
       />
       
-      <TextInput
-        label="Permanent Address"
-        placeholder="123 Street, Barangay, City"
-        required
-        {...register('permanentAddress', validationRules.permanentAddress)}
-        error={errors.permanentAddress?.message}
-        disabled={sameAsPresent}
-        styles={{
-          input: { 
-            backgroundColor: sameAsPresent ? '#f0f0f0' : THEMED_LIGHT_BG,
-            cursor: sameAsPresent ? 'not-allowed' : 'text'
-          }
-        }}
-      />
+      {/* Permanent Address */}
+      <Box>
+        <Group gap={8} mb={8}>
+          <Text size="sm" fw={600} c={CHARCOAL}>Permanent Address</Text>
+          <Text size="sm" c="red">*</Text>
+        </Group>
+        <TextInput
+          placeholder="123 Street, Barangay, City"
+          size="md"
+          {...register('permanentAddress', validationRules.permanentAddress)}
+          error={errors.permanentAddress?.message}
+          disabled={sameAsPresent}
+          styles={{
+            input: { 
+              backgroundColor: sameAsPresent ? '#F5F5F5' : 'white',
+              borderColor: errors.permanentAddress ? '#E74C3C' : '#E0E0E0',
+              cursor: sameAsPresent ? 'not-allowed' : 'text',
+              '&:focus': {
+                borderColor: errors.permanentAddress ? '#E74C3C' : PRIMARY_BROWN,
+              },
+            },
+          }}
+        />
+      </Box>
       
+      {/* Relator Checkbox */}
       <Checkbox
         label="I am filling this form on behalf of someone else"
         checked={showRelator}
         onChange={(event) => setShowRelator(event.currentTarget.checked)}
         styles={{
-          label: { color: PRIMARY_BROWN, fontWeight: 500 }
+          label: { color: CHARCOAL, fontWeight: 500 }
         }}
       />
       
+      {/* Relator Section */}
       {showRelator && (
-        <Paper p="md" style={{ backgroundColor: THEMED_LIGHT_BG, borderLeft: `4px solid ${PRIMARY_GOLD}` }}>
-          <Title order={4} mb="sm" style={{ color: PRIMARY_BROWN }}>
+        <Paper p="lg" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
+          <Title order={4} mb="md" c={CHARCOAL}>
             Relator/Representative Information
           </Title>
-          <Stack spacing="sm">
-            <TextInput
-              label="Name of Relator/Representative"
-              placeholder="Maria Santos"
-              required
-              {...register('relatorName', validationRules.relatorName)}
-              error={errors.relatorName?.message}
-              styles={{
-                input: { backgroundColor: 'white' }
-              }}
-            />
-            <TextInput
-              label="Relationship to the Client"
-              placeholder="Sister, Brother, Parent, Attorney, etc."
-              required
-              {...register('relationshipToClient', validationRules.relationshipToClient)}
-              error={errors.relationshipToClient?.message}
-              styles={{
-                input: { backgroundColor: 'white' }
-              }}
-            />
+          <Stack gap="md">
+            <Box>
+              <Group gap={8} mb={8}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Name of Relator/Representative</Text>
+                <Text size="sm" c="red">*</Text>
+              </Group>
+              <TextInput
+                placeholder="Maria Santos"
+                size="md"
+                {...register('relatorName', validationRules.relatorName)}
+                error={errors.relatorName?.message}
+                styles={{
+                  input: {
+                    backgroundColor: 'white',
+                    borderColor: errors.relatorName ? '#E74C3C' : '#E0E0E0',
+                    '&:focus': {
+                      borderColor: errors.relatorName ? '#E74C3C' : PRIMARY_BROWN,
+                    },
+                  },
+                }}
+              />
+            </Box>
+            <Box>
+              <Group gap={8} mb={8}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Relationship to the Client</Text>
+                <Text size="sm" c="red">*</Text>
+              </Group>
+              <TextInput
+                placeholder="Sister, Brother, Parent, Attorney, etc."
+                size="md"
+                {...register('relationshipToClient', validationRules.relationshipToClient)}
+                error={errors.relationshipToClient?.message}
+                styles={{
+                  input: {
+                    backgroundColor: 'white',
+                    borderColor: errors.relationshipToClient ? '#E74C3C' : '#E0E0E0',
+                    '&:focus': {
+                      borderColor: errors.relationshipToClient ? '#E74C3C' : PRIMARY_BROWN,
+                    },
+                  },
+                }}
+              />
+            </Box>
           </Stack>
         </Paper>
       )}

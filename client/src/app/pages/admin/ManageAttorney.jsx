@@ -15,12 +15,10 @@ import {
   Button,
   Avatar,
   Divider,
-  ThemeIcon,
-  Card,
+  SimpleGrid,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-  IconArrowLeft,
   IconRefresh,
   IconBriefcase,
   IconMail,
@@ -29,10 +27,10 @@ import {
   IconFileText,
   IconCheck,
   IconX,
-  IconCheckbox,
   IconUser,
+  IconShield,
 } from '@tabler/icons-react';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL } from '@utils/constants';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 
 export default function ManageAttorneys() {
@@ -49,7 +47,6 @@ export default function ManageAttorneys() {
     try {
       setLoading(true);
       const response = await apiClient.get('/auth/all-attorneys');
-
       if (response.data.success) {
         setAttorneys(response.data.data);
       }
@@ -69,7 +66,6 @@ export default function ManageAttorneys() {
     try {
       setActivating(attorneyId);
       const response = await apiClient.put(`/auth/activate-attorney/${attorneyId}`);
-
       if (response.data.success) {
         notifications.show({
           title: 'Success',
@@ -103,42 +99,82 @@ export default function ManageAttorneys() {
   const getStatusColor = (status) => {
     switch (status) {
       case 'active':
-        return 'green';
+        return MUTED_OLIVE;
       case 'pending':
-        return 'orange';
+        return PRIMARY_GOLD;
       case 'suspended':
-        return 'red';
+        return '#E74C3C';
       default:
-        return 'gray';
+        return ACCENT_TAN;
     }
   };
 
   return (
-    <Box>
-      <Container size="xl" py="xl">
+    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <style>
+        {`
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+          ::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: ${MUTED_OLIVE};
+            border-radius: 4px;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: ${PRIMARY_BROWN};
+          }
+          * {
+            scrollbar-width: thin;
+            scrollbar-color: ${MUTED_OLIVE} transparent;
+          }
+        `}
+      </style>
+      <Container size="xl">
         {/* Header */}
-        <Paper p="lg" radius="md" mb="xl" style={{ backgroundColor: 'white' }}>
-          <Group position="apart">
-            <Group spacing="md">
-              <ActionIcon
-                size="lg"
-                variant="subtle"
-                onClick={() => navigate(-1)}
-                style={{ color: CHARCOAL }}
+        <Paper 
+          shadow="xs" 
+          p="xl" 
+          mb="xl" 
+          radius="lg"
+          style={{ 
+            background: PRIMARY_BROWN,
+            border: 'none',
+          }}
+        >
+          <Group justify="space-between" align="center">
+            <Group gap="md" align="center">
+              <Box
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '12px',
+                  background: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
-                <IconArrowLeft size={24} />
-              </ActionIcon>
-              <Title order={1} style={{ color: CHARCOAL }}>
-                Manage Attorneys
-              </Title>
+                <IconShield size={24} color={PRIMARY_BROWN} stroke={2.5} />
+              </Box>
+              <Box>
+                <Title order={2} c="white" mb={4}>
+                  Manage Attorneys
+                </Title>
+                <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
+                  Review and activate attorney accounts
+                </Text>
+              </Box>
             </Group>
             <ActionIcon
               size="lg"
-              variant="light"
+              variant="white"
               color={PRIMARY_BROWN}
               onClick={fetchAttorneys}
               loading={loading}
-              style={{ backgroundColor: THEMED_LIGHT_BG }}
+              radius="md"
             >
               <IconRefresh size={20} />
             </ActionIcon>
@@ -147,60 +183,81 @@ export default function ManageAttorneys() {
 
         {/* Content */}
         {loading ? (
-          <Center py="xl">
-            <Stack align="center" spacing="md">
-              <Loader size="lg" color={PRIMARY_BROWN} />
-              <Text color="dimmed">Loading attorneys...</Text>
-            </Stack>
-          </Center>
+          <Paper shadow="xs" p="xl" radius="lg" bg="white">
+            <Center style={{ minHeight: '400px' }}>
+              <Stack align="center" gap="md">
+                <Loader size="lg" color={PRIMARY_BROWN} />
+                <Text c="dimmed">Loading attorneys...</Text>
+              </Stack>
+            </Center>
+          </Paper>
         ) : attorneys.length === 0 ? (
-          <Center py="xl">
-            <Stack align="center" spacing="md">
-              <IconBriefcase size={64} color="#ccc" />
-              <Text size="lg" color="dimmed">
-                No attorneys found
-              </Text>
-            </Stack>
-          </Center>
+          <Paper shadow="xs" p="xl" radius="lg" bg="white">
+            <Center style={{ minHeight: '400px' }}>
+              <Stack align="center" gap="md">
+                <Box
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: '50%',
+                    background: THEMED_LIGHT_BG,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <IconBriefcase size={40} color={PRIMARY_GOLD} />
+                </Box>
+                <Title order={2} c={PRIMARY_BROWN}>
+                  No Attorneys Found
+                </Title>
+                <Text c="dimmed" ta="center">
+                  There are no attorney accounts to display
+                </Text>
+              </Stack>
+            </Center>
+          </Paper>
         ) : (
-          <Stack spacing="md">
+          <Stack gap="lg">
             {attorneys.map((attorney) => (
-              <Card
+              <Paper
                 key={attorney._id}
-                shadow="sm"
-                padding="lg"
-                radius="md"
-                withBorder
-                style={{ backgroundColor: 'white', borderColor: '#E8E4DC' }}
+                shadow="xs"
+                p="xl"
+                radius="lg"
+                style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}
               >
-                <Stack spacing="md">
+                <Stack gap="lg">
                   {/* Header */}
-                  <Group position="apart" align="flex-start">
-                    <Group spacing="md" align="flex-start">
+                  <Group justify="space-between" align="flex-start">
+                    <Group gap="md" align="flex-start">
                       <Avatar
-                        size={56}
-                        radius="xl"
+                        size={64}
+                        radius="md"
                         color={PRIMARY_BROWN}
-                        style={{ border: `2px solid ${PRIMARY_GOLD}` }}
+                        style={{ border: `3px solid ${PRIMARY_GOLD}` }}
                       >
-                        <IconUser size={28} />
+                        <IconUser size={32} />
                       </Avatar>
                       <Box>
-                        <Text size="lg" weight={700} style={{ color: CHARCOAL }}>
+                        <Text size="lg" fw={700} c={CHARCOAL}>
                           {attorney.firstName} {attorney.lastName}
                         </Text>
-                        <Group spacing="xs" mt={4}>
+                        <Group gap="xs" mt={4}>
                           <IconMail size={14} color={MUTED_OLIVE} />
-                          <Text size="sm" color="dimmed">
+                          <Text size="sm" c="dimmed">
                             {attorney.email}
                           </Text>
                         </Group>
                         <Badge
                           size="sm"
-                          variant="light"
-                          color={PRIMARY_BROWN}
-                          mt={4}
-                          style={{ textTransform: 'capitalize' }}
+                          radius="sm"
+                          mt={8}
+                          style={{
+                            backgroundColor: PRIMARY_BROWN,
+                            color: 'white',
+                            textTransform: 'capitalize',
+                          }}
                         >
                           {attorney.role}
                         </Badge>
@@ -208,108 +265,225 @@ export default function ManageAttorneys() {
                     </Group>
                     <Badge
                       size="lg"
-                      variant="filled"
-                      color={getStatusColor(attorney.accountStatus)}
-                      style={{ textTransform: 'capitalize' }}
+                      radius="sm"
+                      style={{
+                        backgroundColor: getStatusColor(attorney.accountStatus),
+                        color: 'white',
+                        textTransform: 'capitalize',
+                      }}
                     >
                       {attorney.accountStatus}
                     </Badge>
                   </Group>
 
-                  <Divider />
+                  <Divider color="#F0F0F0" />
 
                   {/* Details */}
-                  <Stack spacing="xs">
-                    <Group spacing="sm">
-                      <IconId size={16} color={MUTED_OLIVE} />
-                      <Text size="sm" color="dimmed">
-                        PRC: <strong>{attorney.prcLicenseNumber}</strong>
-                      </Text>
-                    </Group>
-                    <Group spacing="sm">
-                      <IconFileText size={16} color={MUTED_OLIVE} />
-                      <Text size="sm" color="dimmed">
-                        IBR: <strong>{attorney.ibrNumber}</strong>
-                      </Text>
-                    </Group>
-                    <Group spacing="sm">
-                      <IconPhone size={16} color={MUTED_OLIVE} />
-                      <Text size="sm" color="dimmed">
-                        {attorney.phoneNumber}
-                      </Text>
-                    </Group>
-                    {attorney.specializations && attorney.specializations.length > 0 && (
-                      <Group spacing="sm">
-                        <IconBriefcase size={16} color={MUTED_OLIVE} />
-                        <Text size="sm" color="dimmed">
-                          {attorney.specializations.join(', ')}
+                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+                    <Box>
+                      <Group gap="xs" mb={8}>
+                        <Box
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '8px',
+                            background: PRIMARY_BROWN,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <IconId size={16} color="white" />
+                        </Box>
+                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                          PRC License
                         </Text>
                       </Group>
-                    )}
-                  </Stack>
+                      <Text fw={500} c={CHARCOAL} ml={40}>
+                        {attorney.prcLicenseNumber}
+                      </Text>
+                    </Box>
 
-                  <Divider />
+                    <Box>
+                      <Group gap="xs" mb={8}>
+                        <Box
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '8px',
+                            background: PRIMARY_GOLD,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <IconFileText size={16} color="white" />
+                        </Box>
+                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                          IBR Number
+                        </Text>
+                      </Group>
+                      <Text fw={500} c={CHARCOAL} ml={40}>
+                        {attorney.ibrNumber}
+                      </Text>
+                    </Box>
+
+                    <Box>
+                      <Group gap="xs" mb={8}>
+                        <Box
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '8px',
+                            background: MUTED_OLIVE,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <IconPhone size={16} color="white" />
+                        </Box>
+                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                          Phone Number
+                        </Text>
+                      </Group>
+                      <Text fw={500} c={CHARCOAL} ml={40}>
+                        {attorney.phoneNumber}
+                      </Text>
+                    </Box>
+
+                    {attorney.specializations && attorney.specializations.length > 0 && (
+                      <Box>
+                        <Group gap="xs" mb={8}>
+                          <Box
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: '8px',
+                              background: ACCENT_TAN,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <IconBriefcase size={16} color="white" />
+                          </Box>
+                          <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                            Specializations
+                          </Text>
+                        </Group>
+                        <Text fw={500} c={CHARCOAL} ml={40}>
+                          {attorney.specializations.join(', ')}
+                        </Text>
+                      </Box>
+                    )}
+                  </SimpleGrid>
+
+                  <Divider color="#F0F0F0" />
 
                   {/* Verification Info */}
-                  <Group position="apart">
-                    <Group spacing="xs">
-                      <Text size="sm" weight={500} color="dimmed">
-                        Email Verified:
-                      </Text>
-                      <ThemeIcon
-                        size="sm"
-                        radius="xl"
-                        color={attorney.isVerified ? 'green' : 'red'}
-                        variant="light"
-                      >
-                        {attorney.isVerified ? <IconCheck size={14} /> : <IconX size={14} />}
-                      </ThemeIcon>
-                    </Group>
-                    <Group spacing="xs">
-                      <Text size="sm" weight={500} color="dimmed">
-                        Bar Member:
-                      </Text>
-                      <ThemeIcon
-                        size="sm"
-                        radius="xl"
-                        color={attorney.isBarMemberActive ? 'green' : 'red'}
-                        variant="light"
-                      >
-                        {attorney.isBarMemberActive ? <IconCheck size={14} /> : <IconX size={14} />}
-                      </ThemeIcon>
-                    </Group>
+                  <Group justify="space-around">
+                    <Paper
+                      p="md"
+                      radius="md"
+                      style={{
+                        backgroundColor: attorney.isVerified ? `${MUTED_OLIVE}10` : `${ACCENT_TAN}10`,
+                        border: `1px solid ${attorney.isVerified ? MUTED_OLIVE : ACCENT_TAN}`,
+                        flex: 1,
+                      }}
+                    >
+                      <Group gap="xs" justify="center">
+                        <Box
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: attorney.isVerified ? MUTED_OLIVE : ACCENT_TAN,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {attorney.isVerified ? <IconCheck size={16} color="white" /> : <IconX size={16} color="white" />}
+                        </Box>
+                        <Box>
+                          <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                            Email Verified
+                          </Text>
+                          <Text size="sm" fw={600} c={CHARCOAL}>
+                            {attorney.isVerified ? 'Yes' : 'No'}
+                          </Text>
+                        </Box>
+                      </Group>
+                    </Paper>
+
+                    <Paper
+                      p="md"
+                      radius="md"
+                      style={{
+                        backgroundColor: attorney.isBarMemberActive ? `${MUTED_OLIVE}10` : `${ACCENT_TAN}10`,
+                        border: `1px solid ${attorney.isBarMemberActive ? MUTED_OLIVE : ACCENT_TAN}`,
+                        flex: 1,
+                      }}
+                    >
+                      <Group gap="xs" justify="center">
+                        <Box
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: attorney.isBarMemberActive ? MUTED_OLIVE : ACCENT_TAN,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {attorney.isBarMemberActive ? <IconCheck size={16} color="white" /> : <IconX size={16} color="white" />}
+                        </Box>
+                        <Box>
+                          <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                            Bar Member
+                          </Text>
+                          <Text size="sm" fw={600} c={CHARCOAL}>
+                            {attorney.isBarMemberActive ? 'Active' : 'Inactive'}
+                          </Text>
+                        </Box>
+                      </Group>
+                    </Paper>
                   </Group>
 
                   {/* Action Buttons */}
                   {attorney.accountStatus === 'pending' && (
                     <Button
                       fullWidth
-                      color="green"
-                      leftIcon={<IconCheckbox size={18} />}
+                      size="md"
+                      leftSection={<IconCheck size={18} />}
                       onClick={() => confirmActivation(attorney)}
                       loading={activating === attorney._id}
                       disabled={activating === attorney._id}
+                      style={{
+                        backgroundColor: MUTED_OLIVE,
+                      }}
                     >
                       Activate Account
                     </Button>
                   )}
-
                   {attorney.accountStatus === 'active' && (
                     <Paper
-                      p="sm"
+                      p="md"
                       radius="md"
-                      style={{ backgroundColor: '#E8F5E9', textAlign: 'center' }}
+                      style={{ backgroundColor: `${MUTED_OLIVE}10`, border: `1px solid ${MUTED_OLIVE}` }}
                     >
-                      <Group position="center" spacing="xs">
-                        <IconCheck size={20} color="#4CAF50" />
-                        <Text size="sm" weight={600} style={{ color: '#4CAF50' }}>
+                      <Group justify="center" gap="xs">
+                        <IconCheck size={20} color={MUTED_OLIVE} />
+                        <Text size="sm" fw={600} c={MUTED_OLIVE}>
                           Account Active
                         </Text>
                       </Group>
                     </Paper>
                   )}
                 </Stack>
-              </Card>
+              </Paper>
             ))}
           </Stack>
         )}

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { IconChevronRight, IconChevronLeft, IconCircleCheck } from '@tabler/icons-react';
-import { Button, Stepper, Group, Box, Text, Title, Paper, Stack, Divider } from '@mantine/core';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG } from '@utils/constants';
-
+import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText } from '@tabler/icons-react';
+import { Button, Stepper, Group, Box, Text, Title, Paper, Stack, Divider, Container } from '@mantine/core';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL } from '@utils/constants';
 // Import the separated form components
 import PersonalDetailsForm from '@components/forms/steps/PersonalDetails';
 import FinancialDetailsForm from '@components/forms/steps/FinancialDetails';
@@ -70,37 +69,111 @@ export default function UserForm() {
   };
   
   return (
-    <Box style={{ minHeight: '100vh', backgroundColor: '#F9F6F1', padding: '2rem' }}>
-      <Box style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        <Paper p="xl" radius="lg" shadow="xl" style={{ backgroundColor: 'white' }}>
-          <Stack spacing="xl">
-            <Box style={{ textAlign: 'center' }}>
-              <Title order={1} mb="xs" style={{ color: PRIMARY_BROWN }}>
+    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <style>
+        {`
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+          ::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: ${MUTED_OLIVE};
+            border-radius: 4px;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: ${PRIMARY_BROWN};
+          }
+          * {
+            scrollbar-width: thin;
+            scrollbar-color: ${MUTED_OLIVE} transparent;
+          }
+        `}
+      </style>
+      <Container size="xl">
+        {/* Header */}
+        <Paper 
+          shadow="xs" 
+          p="xl" 
+          mb="xl" 
+          radius="lg"
+          style={{ 
+            background: PRIMARY_BROWN,
+            border: 'none',
+          }}
+        >
+          <Group gap="md" align="center">
+            <Box
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: '12px',
+                background: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <IconFileText size={24} color={PRIMARY_BROWN} stroke={2.5} />
+            </Box>
+            <Box>
+              <Title order={2} c="white" mb={4}>
                 Sebastinian Office of Legal Aid (SOLA)
               </Title>
-              <Text size="sm" style={{ color: MUTED_OLIVE }}>
-                College of Law<br />
-                San Sebastian College - Recoletos, Manila
+              <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
+                College of Law - San Sebastian College Recoletos, Manila
               </Text>
+            </Box>
+          </Group>
+        </Paper>
+
+        {/* Form Paper */}
+        <Paper shadow="xs" p="xl" radius="lg" bg="white">
+          <Stack gap="xl">
+            {/* Form Title Badge */}
+            <Box style={{ textAlign: 'center' }}>
               <Paper 
-                mt="md" 
-                p="xs" 
+                p="sm" 
+                radius="md"
                 style={{ 
                   display: 'inline-block',
-                  backgroundColor: THEMED_LIGHT_BG, 
-                  borderRadius: '50px'
+                  backgroundColor: `${PRIMARY_GOLD}15`,
+                  border: `1px solid ${PRIMARY_GOLD}`,
                 }}
               >
-                <Text size="sm" weight={600} style={{ color: PRIMARY_BROWN }}>
+                <Text size="sm" fw={600} c={PRIMARY_BROWN}>
                   CLIENT'S INFORMATION SHEET
                 </Text>
               </Paper>
             </Box>
             
+            {/* Stepper */}
             <Stepper 
               active={active} 
-              color={PRIMARY_GOLD}
+              color={PRIMARY_BROWN}
               completedIcon={<IconCircleCheck size={20} />}
+              styles={{
+                step: {
+                  padding: '8px',
+                },
+                stepIcon: {
+                  borderWidth: '2px',
+                },
+                separator: {
+                  marginLeft: '8px',
+                  marginRight: '8px',
+                  height: '2px',
+                },
+                stepLabel: {
+                  fontWeight: 600,
+                  fontSize: '14px',
+                },
+                stepDescription: {
+                  fontSize: '12px',
+                  color: MUTED_OLIVE,
+                },
+              }}
             >
               <Stepper.Step label="Personal" description="Personal Details">
                 {active === 0 && renderStep()}
@@ -119,41 +192,50 @@ export default function UserForm() {
               </Stepper.Step>
             </Stepper>
             
-            <Divider />
+            <Divider color="#F0F0F0" />
             
-            <Group position="apart">
-              {active > 0 && (
+            {/* Navigation Buttons */}
+            <Group justify="space-between">
+              {active > 0 ? (
                 <Button 
                   variant="outline" 
-                  leftIcon={<IconChevronLeft size={20} />}
+                  leftSection={<IconChevronLeft size={20} />}
                   onClick={prevStep}
-                  style={{ 
-                    borderColor: PRIMARY_GOLD,
-                    color: PRIMARY_BROWN
+                  size="md"
+                  styles={{
+                    root: {
+                      borderColor: '#E0E0E0',
+                      color: MUTED_OLIVE,
+                      '&:hover': {
+                        backgroundColor: THEMED_LIGHT_BG,
+                      },
+                    },
                   }}
                 >
                   Previous
                 </Button>
+              ) : (
+                <Box />
               )}
               
               {active < totalSteps - 1 ? (
                 <Button 
                   rightSection={<IconChevronRight size={20} />}
                   onClick={nextStep}
+                  size="md"
                   style={{ 
-                    backgroundColor: PRIMARY_GOLD,
-                    marginLeft: active === 0 ? 'auto' : 0
+                    backgroundColor: PRIMARY_BROWN,
                   }}
                 >
-                  Next
+                  Next Step
                 </Button>
               ) : (
                 <Button 
-                  leftIcon={<IconCircleCheck size={20} />}
+                  leftSection={<IconCircleCheck size={20} />}
                   onClick={handleFormSubmit}
+                  size="md"
                   style={{ 
                     backgroundColor: PRIMARY_BROWN,
-                    marginLeft: 'auto'
                   }}
                 >
                   Submit Application
@@ -162,7 +244,7 @@ export default function UserForm() {
             </Group>
           </Stack>
         </Paper>
-      </Box>
+      </Container>
     </Box>
   );
 }

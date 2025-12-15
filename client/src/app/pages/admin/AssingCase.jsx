@@ -9,24 +9,23 @@ import {
   Group,
   Stack,
   Badge,
-  ActionIcon,
   Loader,
   Center,
   Button,
   Modal,
   Select,
-  Card,
   Divider,
   ScrollArea,
+  SimpleGrid,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-  IconArrowLeft,
   IconFileText,
-  IconCheck,
-  IconX,
+  IconUserPlus,
+  IconCalendar,
+  IconUser,
 } from '@tabler/icons-react';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL } from '@utils/constants';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 
 export default function AssignCases() {
@@ -58,7 +57,6 @@ export default function AssignCases() {
     try {
       setLoading(true);
       const response = await apiClient.get('/cases/admin/all-cases');
-
       if (response.data.success) {
         setCases(response.data.data);
       }
@@ -77,7 +75,6 @@ export default function AssignCases() {
   const fetchAttorneys = async () => {
     try {
       const response = await apiClient.get('/cases/admin/attorneys');
-
       if (response.data.success) {
         setAttorneys(response.data.data);
       }
@@ -114,6 +111,7 @@ export default function AssignCases() {
           color: 'green',
         });
         await fetchCases();
+        handleCloseModal();
       }
     } catch (error) {
       console.error('Error assigning attorney:', error);
@@ -138,100 +136,182 @@ export default function AssignCases() {
   };
 
   return (
-    <Box>
-      <Container size="xl" py="xl">
+    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <style>
+        {`
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+          ::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: ${MUTED_OLIVE};
+            border-radius: 4px;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: ${PRIMARY_BROWN};
+          }
+          * {
+            scrollbar-width: thin;
+            scrollbar-color: ${MUTED_OLIVE} transparent;
+          }
+        `}
+      </style>
+      <Container size="xl">
         {/* Header */}
-        <Paper p="lg" radius="md" mb="xl" style={{ backgroundColor: 'white' }}>
-          <Group>
-            <ActionIcon
-              size="lg"
-              variant="subtle"
-              onClick={() => navigate(-1)}
-              style={{ color: CHARCOAL }}
+        <Paper 
+          shadow="xs" 
+          p="xl" 
+          mb="xl" 
+          radius="lg"
+          style={{ 
+            background: PRIMARY_BROWN,
+            border: 'none',
+          }}
+        >
+          <Group gap="md" align="center">
+            <Box
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: '12px',
+                background: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <IconArrowLeft size={24} />
-            </ActionIcon>
-            <Title order={1} style={{ color: CHARCOAL }}>
-              Assign Cases
-            </Title>
+              <IconUserPlus size={24} color={PRIMARY_BROWN} stroke={2.5} />
+            </Box>
+            <Box>
+              <Title order={2} c="white" mb={4}>
+                Assign Cases
+              </Title>
+              <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
+                Assign attorneys to pending cases
+              </Text>
+            </Box>
           </Group>
         </Paper>
 
         {/* Content */}
         {loading ? (
-          <Center py="xl">
-            <Stack align="center" spacing="md">
-              <Loader size="lg" color={PRIMARY_BROWN} />
-              <Text color="dimmed">Loading cases...</Text>
-            </Stack>
-          </Center>
+          <Paper shadow="xs" p="xl" radius="lg" bg="white">
+            <Center style={{ minHeight: '400px' }}>
+              <Stack align="center" gap="md">
+                <Loader size="lg" color={PRIMARY_BROWN} />
+                <Text c="dimmed">Loading cases...</Text>
+              </Stack>
+            </Center>
+          </Paper>
         ) : cases.length === 0 ? (
-          <Center py="xl">
-            <Stack align="center" spacing="md">
-              <IconFileText size={64} color="#ccc" />
-              <Text size="lg" color="dimmed">
-                No cases available
-              </Text>
-            </Stack>
-          </Center>
+          <Paper shadow="xs" p="xl" radius="lg" bg="white">
+            <Center style={{ minHeight: '400px' }}>
+              <Stack align="center" gap="md">
+                <Box
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: '50%',
+                    background: THEMED_LIGHT_BG,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <IconFileText size={40} color={PRIMARY_GOLD} />
+                </Box>
+                <Title order={2} c={PRIMARY_BROWN}>
+                  No Cases Available
+                </Title>
+                <Text c="dimmed" ta="center">
+                  There are no cases to assign at this time
+                </Text>
+              </Stack>
+            </Center>
+          </Paper>
         ) : (
-          <Stack spacing="md">
+          <Stack gap="lg">
             {cases.map((caseItem) => (
-              <Card
+              <Paper
                 key={caseItem._id}
-                shadow="sm"
-                padding="lg"
-                radius="md"
-                withBorder
+                shadow="xs"
+                p="lg"
+                radius="lg"
                 style={{
                   backgroundColor: 'white',
                   cursor: 'pointer',
-                  transition: 'transform 0.2s ease',
-                  borderColor: '#E8E4DC',
+                  border: '1px solid #F0F0F0',
                 }}
                 onClick={() => handleCasePress(caseItem)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateX(4px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateX(0)';
-                }}
               >
-                <Stack spacing="xs">
-                  <Group position="apart" align="flex-start">
-                    <Box>
+                <Group justify="space-between" align="flex-start">
+                  <Box style={{ flex: 1 }}>
+                    <Group gap="xs" mb={8}>
                       <Badge
                         size="sm"
-                        variant="light"
-                        color={PRIMARY_BROWN}
-                        mb="xs"
+                        radius="sm"
+                        style={{
+                          backgroundColor: PRIMARY_BROWN,
+                          color: 'white',
+                        }}
                       >
                         {caseItem.caseNumber}
                       </Badge>
-                      <Text size="lg" weight={700} style={{ color: CHARCOAL }}>
-                        {caseItem.caseTitle}
-                      </Text>
-                      <Text size="sm" color="dimmed" mt={4}>
-                        {caseItem.caseType}
-                      </Text>
-                    </Box>
-                    {caseItem.attorneyId ? (
-                      <Badge color="green" variant="filled">
-                        Assigned
-                      </Badge>
-                    ) : (
-                      <Badge color="orange" variant="filled">
-                        Unassigned
-                      </Badge>
-                    )}
-                  </Group>
-                  {caseItem.attorneyId && (
-                    <Text size="xs" style={{ color: PRIMARY_BROWN, fontStyle: 'italic' }} mt="xs">
-                      Assigned to: {caseItem.attorneyId.firstName} {caseItem.attorneyId.lastName}
+                      {caseItem.attorneyId ? (
+                        <Badge
+                          size="sm"
+                          radius="sm"
+                          style={{
+                            backgroundColor: MUTED_OLIVE,
+                            color: 'white',
+                          }}
+                        >
+                          Assigned
+                        </Badge>
+                      ) : (
+                        <Badge
+                          size="sm"
+                          radius="sm"
+                          style={{
+                            backgroundColor: PRIMARY_GOLD,
+                            color: 'white',
+                          }}
+                        >
+                          Unassigned
+                        </Badge>
+                      )}
+                    </Group>
+                    <Text size="md" fw={700} c={CHARCOAL} mb={4}>
+                      {caseItem.caseTitle}
                     </Text>
-                  )}
-                </Stack>
-              </Card>
+                    <Text size="sm" c={MUTED_OLIVE} mb={8}>
+                      {caseItem.caseType}
+                    </Text>
+                    {caseItem.attorneyId && (
+                      <Group gap="xs">
+                        <Box
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: '6px',
+                            background: PRIMARY_GOLD,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <IconUser size={14} color="white" />
+                        </Box>
+                        <Text size="xs" c={PRIMARY_BROWN} fw={600}>
+                          Assigned to: {caseItem.attorneyId.firstName} {caseItem.attorneyId.lastName}
+                        </Text>
+                      </Group>
+                    )}
+                  </Box>
+                </Group>
+              </Paper>
             ))}
           </Stack>
         )}
@@ -242,69 +322,113 @@ export default function AssignCases() {
         opened={selectedCase !== null}
         onClose={handleCloseModal}
         title={
-          <Text size="xl" weight={700} style={{ color: PRIMARY_BROWN }}>
+          <Title order={3} c={CHARCOAL}>
             Case Details
-          </Text>
+          </Title>
         }
         size="lg"
         centered
+        styles={{
+          header: {
+            borderBottom: '1px solid #F0F0F0',
+            paddingBottom: '16px',
+          },
+          body: {
+            padding: '24px',
+          },
+        }}
       >
         {selectedCase && (
-          <ScrollArea style={{ maxHeight: '70vh' }}>
-            <Stack spacing="md">
+          <Stack gap="lg">
               <Box>
-                <Text size="xs" weight={600} color="dimmed" tt="uppercase" mb={4}>
-                  Case Number
-                </Text>
-                <Text size="md" style={{ color: CHARCOAL }}>
+                <Group gap="xs" mb={8}>
+                  <Box
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '8px',
+                      background: PRIMARY_BROWN,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <IconFileText size={16} color="white" />
+                  </Box>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                    Case Number
+                  </Text>
+                </Group>
+                <Text fw={500} c={CHARCOAL} ml={40}>
                   {selectedCase.caseNumber}
                 </Text>
               </Box>
 
-              <Divider />
+              <Divider color="#F0F0F0" />
 
               <Box>
-                <Text size="xs" weight={600} color="dimmed" tt="uppercase" mb={4}>
+                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={8}>
                   Title
                 </Text>
-                <Text size="md" style={{ color: CHARCOAL }}>
+                <Text fw={600} c={CHARCOAL}>
                   {selectedCase.caseTitle}
                 </Text>
               </Box>
 
               <Box>
-                <Text size="xs" weight={600} color="dimmed" tt="uppercase" mb={4}>
+                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={8}>
                   Type
                 </Text>
-                <Text size="md" style={{ color: CHARCOAL }}>
+                <Text fw={500} c={CHARCOAL}>
                   {selectedCase.caseType}
                 </Text>
               </Box>
 
+              <Divider color="#F0F0F0" />
+
               <Box>
-                <Text size="xs" weight={600} color="dimmed" tt="uppercase" mb={4}>
+                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={8}>
                   Short Description
                 </Text>
-                <Text size="md" style={{ color: CHARCOAL }}>
-                  {selectedCase.shortDescription}
-                </Text>
+                <Paper p="md" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #F0F0F0' }}>
+                  <Text size="sm" c={CHARCOAL}>
+                    {selectedCase.shortDescription}
+                  </Text>
+                </Paper>
               </Box>
 
               <Box>
-                <Text size="xs" weight={600} color="dimmed" tt="uppercase" mb={4}>
+                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={8}>
                   Detailed Description
                 </Text>
-                <Text size="md" style={{ color: CHARCOAL }}>
-                  {selectedCase.detailedDescription}
-                </Text>
+                <Paper p="md" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #F0F0F0' }}>
+                  <Text size="sm" c={CHARCOAL}>
+                    {selectedCase.detailedDescription}
+                  </Text>
+                </Paper>
               </Box>
 
-              <Divider />
+              <Divider color="#F0F0F0" />
 
               <Box>
-                <Text size="xs" weight={600} color="dimmed" tt="uppercase" mb={8}>
-                  Assign Attorney
-                </Text>
+                <Group gap="xs" mb={8}>
+                  <Box
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '8px',
+                      background: PRIMARY_GOLD,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <IconUser size={16} color="white" />
+                  </Box>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                    Assign Attorney
+                  </Text>
+                </Group>
                 <Select
                   placeholder="Select an attorney..."
                   value={selectedAttorney}
@@ -315,7 +439,12 @@ export default function AssignCases() {
                   }))}
                   size="md"
                   styles={{
-                    input: { backgroundColor: THEMED_LIGHT_BG },
+                    input: {
+                      borderColor: '#E0E0E0',
+                      '&:focus': {
+                        borderColor: PRIMARY_BROWN,
+                      },
+                    },
                   }}
                 />
               </Box>
@@ -326,19 +455,13 @@ export default function AssignCases() {
                 onClick={assignAttorneyToCase}
                 loading={assigning}
                 disabled={assigning}
-                style={{ backgroundColor: PRIMARY_BROWN }}
-                styles={{
-                  root: {
-                    '&:hover': {
-                      backgroundColor: '#6B4423',
-                    },
-                  },
+                style={{
+                  backgroundColor: PRIMARY_BROWN,
                 }}
               >
                 {assigning ? 'Assigning...' : 'Assign Attorney'}
               </Button>
             </Stack>
-          </ScrollArea>
         )}
       </Modal>
     </Box>

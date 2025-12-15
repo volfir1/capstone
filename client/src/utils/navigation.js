@@ -65,12 +65,20 @@ export const NAVIGATION_CONFIG = {
 };
 
 // Helper function to get navigation items by role
+// Helper function to get navigation items by role
 export const getNavigationByRole = (role, currentPath) => {
   const items = NAVIGATION_CONFIG[role] || NAVIGATION_CONFIG.client;
-  return items.map(item => ({
-    ...item,
-    active: currentPath === item.path
-  }));
+  
+  return items.map(item => {
+    // Normalize paths for comparison
+    const itemPath = item.path.startsWith('/') ? item.path : `/${role}/${item.path}`;
+    const isActive = currentPath === itemPath || currentPath.startsWith(itemPath + '/');
+    
+    return {
+      ...item,
+      active: isActive
+    };
+  });
 };
 
 // Role display names
@@ -87,4 +95,36 @@ export const PAGE_TITLES = {
   attorney: "Attorney Portal",
   intern: "Intern Portal",
   client: "Client Portal",
+};
+
+// Layout configuration for specific pages
+export const LAYOUT_CONFIG = {
+  // Pages with custom layout settings (no header/sidebar or custom)
+  '/user/chat': { showHeader: false, showNavbar: true },
+  '/attorney/chat': { showHeader: true, showNavbar: false },
+  '/attorney/chat/:caseId': { showHeader: false, showNavbar: false },
+  
+  // Add more custom pages here as needed
+  // Example: '/user/profile': { showHeader: true, showNavbar: false },
+};
+
+// Helper function to get layout config for current path
+export const getLayoutConfig = (pathname) => {
+  // Check for exact match first
+  if (LAYOUT_CONFIG[pathname]) {
+    return LAYOUT_CONFIG[pathname];
+  }
+  
+  // Check for pattern match (e.g., routes with params)
+  for (const [pattern, config] of Object.entries(LAYOUT_CONFIG)) {
+    if (pattern.includes(':')) {
+      const regex = new RegExp('^' + pattern.replace(/:[^/]+/g, '[^/]+') + '$');
+      if (regex.test(pathname)) {
+        return config;
+      }
+    }
+  }
+  
+  // Default: show both header and navbar
+  return { showHeader: true, showNavbar: true };
 };

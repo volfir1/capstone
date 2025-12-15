@@ -15,7 +15,7 @@ import {
   Alert,
   Divider,
 } from "@mantine/core";
-import { IconChevronDown, IconCheck, IconInfoCircle, IconFileText, IconAlertCircle } from "@tabler/icons-react";
+import { IconChevronDown, IconCheck, IconInfoCircle, IconFileText } from "@tabler/icons-react";
 import { CASE_TYPES } from "@/utils/caseTypes";
 import { 
   PRIMARY_GOLD, 
@@ -40,7 +40,7 @@ const CaseTypeSelectorModal = ({ opened, onClose, onSelect, selectedType }) => {
       size="xl"
       styles={{
         header: {
-          borderBottom: `2px solid ${THEMED_LIGHT_BG}`,
+          borderBottom: `1px solid #F0F0F0`,
           paddingBottom: '16px',
         },
         body: {
@@ -57,30 +57,15 @@ const CaseTypeSelectorModal = ({ opened, onClose, onSelect, selectedType }) => {
           return (
             <Grid.Col span={6} key={type.id}>
               <Paper
-                shadow="sm"
                 p="lg"
                 style={{
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
                   border: isSelected 
                     ? `2px solid ${PRIMARY_BROWN}` 
-                    : `2px solid ${THEMED_LIGHT_BG}`,
+                    : `1px solid #F0F0F0`,
                   backgroundColor: isSelected ? `${PRIMARY_BROWN}10` : 'white',
                   position: 'relative',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.borderColor = ACCENT_TAN;
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.borderColor = THEMED_LIGHT_BG;
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '';
-                  }
+                  borderRadius: '8px',
                 }}
                 onClick={() => {
                   onSelect(type);
@@ -91,8 +76,8 @@ const CaseTypeSelectorModal = ({ opened, onClose, onSelect, selectedType }) => {
                   <Box
                     style={{
                       position: 'absolute',
-                      top: 8,
-                      right: 8,
+                      top: 12,
+                      right: 12,
                       backgroundColor: PRIMARY_BROWN,
                       borderRadius: '50%',
                       width: 24,
@@ -175,12 +160,15 @@ const CaseForm = ({ onSubmit }) => {
 
   return (
     <form onSubmit={handleSubmit(onFormSubmit)}>
-      <Stack gap="lg">
+      <Stack gap="xl">
         {/* Case Title */}
         <Box>
-          <Text size="sm" fw={600} c={CHARCOAL} mb={4}>
-            Case Title *
-          </Text>
+          <Group gap={8} mb={8}>
+            <Text size="sm" fw={600} c={CHARCOAL}>
+              Case Title
+            </Text>
+            <Text size="sm" c="red">*</Text>
+          </Group>
           <Controller
             name="caseTitle"
             control={control}
@@ -193,25 +181,31 @@ const CaseForm = ({ onSubmit }) => {
                 error={errors.caseTitle?.message}
                 styles={{
                   input: {
-                    borderColor: errors.caseTitle ? 'red' : ACCENT_TAN,
+                    borderColor: errors.caseTitle ? '#E74C3C' : '#E0E0E0',
                     '&:focus': {
-                      borderColor: errors.caseTitle ? 'red' : PRIMARY_GOLD,
+                      borderColor: errors.caseTitle ? '#E74C3C' : PRIMARY_BROWN,
                     },
                   },
                 }}
               />
             )}
           />
+          <Text size="xs" c={MUTED_OLIVE} mt={4}>
+            A clear, concise title helps us understand your case quickly
+          </Text>
         </Box>
 
-        <Divider color={ACCENT_TAN} opacity={0.3} />
+        <Divider color="#F0F0F0" />
 
         {/* Case Type Selector */}
         <Box>
-          <Title order={4} mb="xs" c={CHARCOAL} fw={600}>
-            Case Type *
-          </Title>
-          <Text size="sm" c={MUTED_OLIVE} mb="sm">
+          <Group gap={8} mb={4}>
+            <Text size="sm" fw={600} c={CHARCOAL}>
+              Case Type
+            </Text>
+            <Text size="sm" c="red">*</Text>
+          </Group>
+          <Text size="xs" c={MUTED_OLIVE} mb="md">
             Select the category that best describes your legal matter
           </Text>
           <Controller
@@ -229,55 +223,55 @@ const CaseForm = ({ onSubmit }) => {
                     rightSection={<IconChevronDown size={18} />}
                     styles={{
                       root: {
-                        borderColor: errors.caseType ? 'red' : ACCENT_TAN,
-                        color: MUTED_OLIVE,
-                        borderWidth: '2px',
-                        borderStyle: 'dashed',
-                        height: '60px',
+                        borderColor: errors.caseType ? '#E74C3C' : '#E0E0E0',
+                        color: CHARCOAL,
+                        height: '56px',
                         '&:hover': {
-                          borderColor: errors.caseType ? 'red' : PRIMARY_GOLD,
-                          backgroundColor: `${PRIMARY_GOLD}10`,
+                          borderColor: errors.caseType ? '#E74C3C' : PRIMARY_BROWN,
+                          backgroundColor: `${THEMED_LIGHT_BG}`,
                         },
                       },
                     }}
                   >
-                    <Text size="md" c={MUTED_OLIVE}>
-                      Click to select a case type
+                    <Text size="sm" c={MUTED_OLIVE}>
+                      Select a case type
                     </Text>
                   </Button>
                 ) : (
                   <Paper 
                     p="md" 
-                    bg={`${PRIMARY_GOLD}15`}
                     style={{ 
-                      border: `1px solid ${PRIMARY_GOLD}`,
+                      border: `2px solid ${PRIMARY_BROWN}`,
                       borderRadius: '8px',
+                      backgroundColor: 'white',
                     }}
                   >
-                    <Group gap="sm">
-                      <Box
-                        style={{
-                          backgroundColor: PRIMARY_BROWN,
-                          borderRadius: '8px',
-                          padding: '8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <field.value.icon size={20} color="white" />
-                      </Box>
-                      <Box style={{ flex: 1 }}>
-                        <Text size="sm" fw={600} c={CHARCOAL}>
-                          Selected Case Type
-                        </Text>
-                        <Text size="sm" c={MUTED_OLIVE}>
-                          {field.value.label}
-                        </Text>
-                      </Box>
+                    <Group gap="md" justify="space-between">
+                      <Group gap="sm">
+                        <Box
+                          style={{
+                            backgroundColor: PRIMARY_BROWN,
+                            borderRadius: '8px',
+                            padding: '10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <field.value.icon size={20} color="white" />
+                        </Box>
+                        <Box>
+                          <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                            Selected Case Type
+                          </Text>
+                          <Text size="sm" fw={600} c={CHARCOAL}>
+                            {field.value.label}
+                          </Text>
+                        </Box>
+                      </Group>
                       <Button
                         variant="subtle"
-                        size="xs"
+                        size="sm"
                         color={PRIMARY_BROWN}
                         onClick={() => setModalOpened(true)}
                       >
@@ -287,7 +281,7 @@ const CaseForm = ({ onSubmit }) => {
                   </Paper>
                 )}
                 {errors.caseType && (
-                  <Text size="sm" c="red" mt="xs">
+                  <Text size="sm" c="#E74C3C" mt="xs">
                     {errors.caseType.message}
                   </Text>
                 )}
@@ -296,13 +290,16 @@ const CaseForm = ({ onSubmit }) => {
           />
         </Box>
 
-        <Divider color={ACCENT_TAN} opacity={0.3} />
+        <Divider color="#F0F0F0" />
 
         {/* Short Description */}
         <Box>
-          <Text size="sm" fw={600} c={CHARCOAL} mb={4}>
-            Short Description *
-          </Text>
+          <Group gap={8} mb={8}>
+            <Text size="sm" fw={600} c={CHARCOAL}>
+              Short Description
+            </Text>
+            <Text size="sm" c="red">*</Text>
+          </Group>
           <Controller
             name="shortDescription"
             control={control}
@@ -316,22 +313,28 @@ const CaseForm = ({ onSubmit }) => {
                 error={errors.shortDescription?.message}
                 styles={{
                   input: {
-                    borderColor: errors.shortDescription ? 'red' : ACCENT_TAN,
+                    borderColor: errors.shortDescription ? '#E74C3C' : '#E0E0E0',
                     '&:focus': {
-                      borderColor: errors.shortDescription ? 'red' : PRIMARY_GOLD,
+                      borderColor: errors.shortDescription ? '#E74C3C' : PRIMARY_BROWN,
                     },
                   },
                 }}
               />
             )}
           />
+          <Text size="xs" c={MUTED_OLIVE} mt={4}>
+            A quick overview of your legal issue
+          </Text>
         </Box>
 
         {/* Detailed Description */}
         <Box>
-          <Text size="sm" fw={600} c={CHARCOAL} mb={4}>
-            Detailed Description *
-          </Text>
+          <Group gap={8} mb={8}>
+            <Text size="sm" fw={600} c={CHARCOAL}>
+              Detailed Description
+            </Text>
+            <Text size="sm" c="red">*</Text>
+          </Group>
           <Controller
             name="detailedDescription"
             control={control}
@@ -345,50 +348,74 @@ const CaseForm = ({ onSubmit }) => {
                 error={errors.detailedDescription?.message}
                 styles={{
                   input: {
-                    borderColor: errors.detailedDescription ? 'red' : ACCENT_TAN,
+                    borderColor: errors.detailedDescription ? '#E74C3C' : '#E0E0E0',
                     '&:focus': {
-                      borderColor: errors.detailedDescription ? 'red' : PRIMARY_GOLD,
+                      borderColor: errors.detailedDescription ? '#E74C3C' : PRIMARY_BROWN,
                     },
                   },
                 }}
               />
             )}
           />
+          <Text size="xs" c={MUTED_OLIVE} mt={4}>
+            Include all relevant facts, dates, and circumstances
+          </Text>
         </Box>
 
         {/* Information Alert */}
         <Alert
           icon={<IconInfoCircle size={20} />}
-          color="gray"
+          color="blue"
           variant="light"
-          style={{
-            backgroundColor: `rgba(166, 138, 100, 0.15)`,
-            borderLeft: `4px solid ${ACCENT_TAN}`,
+          styles={{
+            root: {
+              backgroundColor: `${PRIMARY_GOLD}10`,
+              border: `1px solid ${PRIMARY_GOLD}`,
+            },
+            icon: {
+              color: PRIMARY_BROWN,
+            },
           }}
         >
-          <Text size="sm" fw={500} c={CHARCOAL}>
+          <Text size="sm" c={CHARCOAL}>
             After submission, your case will be reviewed and an attorney will be assigned to assist you. You will receive a confirmation email within 24-48 hours.
           </Text>
         </Alert>
 
-        <Divider color={ACCENT_TAN} opacity={0.3} />
+        <Divider color="#F0F0F0" />
 
         {/* Submit Button */}
-        <Group justify="flex-end" mt="md">
+        <Group justify="flex-end" mt="md" gap="md">
           <Button 
             variant="outline"
-            size="lg"
+            size="md"
             color={MUTED_OLIVE}
             type="button"
+            styles={{
+              root: {
+                borderColor: '#E0E0E0',
+                color: MUTED_OLIVE,
+                '&:hover': {
+                  backgroundColor: THEMED_LIGHT_BG,
+                },
+              },
+            }}
           >
             Save as Draft
           </Button>
           <Button 
-            size="lg" 
-            color={PRIMARY_BROWN}
+            size="md" 
             type="submit"
             leftSection={<IconFileText size={20} />}
             loading={isSubmitting}
+            styles={{
+              root: {
+                backgroundColor: PRIMARY_BROWN,
+                '&:hover': {
+                  backgroundColor: '#5a3d2b',
+                },
+              },
+            }}
           >
             Submit Case
           </Button>

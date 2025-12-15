@@ -8,13 +8,10 @@ import {
   Box,
   Group,
   Stack,
-  Grid,
-  Card,
   ActionIcon,
   Loader,
   Center,
   SimpleGrid,
-  ThemeIcon,
   Badge,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -26,9 +23,9 @@ import {
   IconRefresh,
   IconUserPlus,
   IconUserCheck,
-  IconArrowRight,
+  IconChevronRight,
 } from '@tabler/icons-react';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL } from '@utils/constants';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 
 export default function AdminDashboard() {
@@ -45,7 +42,6 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
       const response = await apiClient.get('/cases/admin/stats');
-
       if (response.data.success) {
         setStats(response.data.data);
       }
@@ -71,8 +67,7 @@ export default function AdminDashboard() {
       title: 'Total Cases',
       count: stats.totalCases,
       icon: IconFiles,
-      color: '#8B6F47',
-      bgColor: '#F5EFE7',
+      color: PRIMARY_BROWN,
       route: null,
     },
     {
@@ -80,8 +75,7 @@ export default function AdminDashboard() {
       title: 'Total Users',
       count: stats.totalUsers,
       icon: IconUsers,
-      color: '#6B8E23',
-      bgColor: '#F0F8E8',
+      color: PRIMARY_GOLD,
       route: null,
     },
     {
@@ -89,8 +83,7 @@ export default function AdminDashboard() {
       title: 'Total Attorneys',
       count: stats.totalAttorneys,
       icon: IconBriefcase,
-      color: '#4682B4',
-      bgColor: '#E8F4F8',
+      color: MUTED_OLIVE,
       route: '/admin/attorneys',
     },
     {
@@ -98,8 +91,7 @@ export default function AdminDashboard() {
       title: 'Unassigned Cases',
       count: stats.unassignedCases,
       icon: IconAlertCircle,
-      color: '#D2691E',
-      bgColor: '#FFF3E6',
+      color: ACCENT_TAN,
       route: '/admin/assigncase',
     },
   ];
@@ -108,6 +100,7 @@ export default function AdminDashboard() {
     {
       id: 'assign',
       title: 'Assign Cases',
+      description: 'Assign cases to attorneys',
       icon: IconUserPlus,
       color: PRIMARY_BROWN,
       route: '/admin/assigncase',
@@ -116,205 +109,208 @@ export default function AdminDashboard() {
     {
       id: 'verify',
       title: 'Verify Attorneys',
+      description: 'Review attorney applications',
       icon: IconUserCheck,
-      color: '#999',
+      color: PRIMARY_GOLD,
       route: '/admin/attorneys',
       enabled: true,
     },
     {
       id: 'manage',
       title: 'Manage Users',
+      description: 'View and manage users',
       icon: IconUsers,
-      color: '#999',
+      color: ACCENT_TAN,
       route: '/admin/users',
       enabled: true,
     },
   ];
 
   return (
-    <Box>
-      <Container size="xl" py="xl">
-        {/* Welcome Section */}
-        <Paper p="xl" radius="md" mb="xl" style={{ backgroundColor: 'white' }}>
-          <Stack spacing="xs">
-            <Text size="sm" weight={500} style={{ color: PRIMARY_BROWN }}>
-              Welcome back,
-            </Text>
-            <Title order={1} style={{ color: CHARCOAL }}>
-              Administrator
-            </Title>
-            <Text size="sm" color="dimmed">
-              Manage your legal services platform
-            </Text>
-          </Stack>
-        </Paper>
-
-        {/* Dashboard Overview */}
-        <Stack spacing="xl">
-          {/* Section Header */}
-          <Group position="apart" align="center">
-            <Title order={2} style={{ color: CHARCOAL }}>
-              Dashboard Overview
-            </Title>
+    <Box 
+      bg={THEMED_LIGHT_BG} 
+      mih="100vh" 
+      py="xl"
+    >
+      <style>
+        {`
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+          ::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: ${MUTED_OLIVE};
+            border-radius: 4px;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: ${PRIMARY_BROWN};
+          }
+          * {
+            scrollbar-width: thin;
+            scrollbar-color: ${MUTED_OLIVE} transparent;
+          }
+        `}
+      </style>
+      <Container size="xl">
+        {/* Welcome Header */}
+        <Paper 
+          shadow="xs" 
+          p="xl" 
+          mb="xl" 
+          radius="lg"
+          style={{ 
+            background: PRIMARY_BROWN,
+            border: 'none',
+          }}
+        >
+          <Group justify="space-between" align="center">
+            <Box>
+              <Title order={2} c="white" mb={4}>
+                Administrator Dashboard
+              </Title>
+              <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
+                Manage your legal services platform
+              </Text>
+            </Box>
             <ActionIcon
               size="lg"
-              variant="light"
+              variant="white"
               color={PRIMARY_BROWN}
               onClick={fetchStats}
               loading={loading}
-              style={{ backgroundColor: THEMED_LIGHT_BG }}
+              radius="md"
             >
               <IconRefresh size={20} />
             </ActionIcon>
           </Group>
+        </Paper>
 
-          {/* Stats Grid */}
-          {loading && !stats.totalCases ? (
-            <Center py="xl">
-              <Loader size="lg" color={PRIMARY_BROWN} />
-            </Center>
-          ) : (
-            <SimpleGrid
-              cols={4}
-              spacing="lg"
-              breakpoints={[
-                { maxWidth: 'md', cols: 2 },
-                { maxWidth: 'sm', cols: 1 },
-              ]}
-            >
-              {features.map((feature) => {
-                const IconComponent = feature.icon;
-                const isClickable = !!feature.route;
+        {/* Stats Cards */}
+        {loading && !stats.totalCases ? (
+          <Center py="xl">
+            <Loader size="lg" color={PRIMARY_BROWN} />
+          </Center>
+        ) : (
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg" mb="xl">
+            {features.map((feature) => {
+              const IconComponent = feature.icon;
+              const isClickable = !!feature.route;
+              return (
+                <Paper
+                  key={feature.id}
+                  shadow="xs"
+                  p="xl"
+                  radius="lg"
+                  style={{
+                    background: 'white',
+                    border: '1px solid #F0F0F0',
+                    cursor: isClickable ? 'pointer' : 'default',
+                  }}
+                  onClick={() => isClickable && navigate(feature.route)}
+                >
+                  <Group justify="space-between" mb="md">
+                    <Box
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: '12px',
+                        background: feature.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <IconComponent size={24} color="white" stroke={2.5} />
+                    </Box>
+                  </Group>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>
+                    {feature.title}
+                  </Text>
+                  <Text size="2rem" fw={700} c={CHARCOAL} lh={1} mb={4}>
+                    {feature.count}
+                  </Text>
+                  {isClickable && (
+                    <Text size="xs" c={feature.color} fw={500}>
+                      View details
+                    </Text>
+                  )}
+                </Paper>
+              );
+            })}
+          </SimpleGrid>
+        )}
 
-                return (
-                  <Card
-                    key={feature.id}
-                    shadow="sm"
-                    padding="lg"
-                    radius="md"
-                    withBorder
-                    style={{
-                      backgroundColor: feature.bgColor,
-                      cursor: isClickable ? 'pointer' : 'default',
-                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                      position: 'relative',
-                      borderColor: '#E8E4DC',
-                    }}
-                    onClick={() => isClickable && navigate(feature.route)}
-                    onMouseEnter={(e) => {
-                      if (isClickable) {
-                        e.currentTarget.style.transform = 'translateY(-4px)';
-                        e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.1)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (isClickable) {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '';
-                      }
-                    }}
-                  >
-                    <Stack spacing="md">
-                      <Group position="apart">
-                        <ThemeIcon
-                          size={56}
-                          radius="md"
-                          style={{ backgroundColor: feature.color }}
-                        >
-                          <IconComponent size={28} color="white" />
-                        </ThemeIcon>
-                        {isClickable && (
-                          <ActionIcon
-                            size="sm"
-                            radius="xl"
-                            variant="light"
-                            style={{ backgroundColor: 'white' }}
-                          >
-                            <IconArrowRight size={16} color={feature.color} />
-                          </ActionIcon>
-                        )}
-                      </Group>
-                      <Box>
-                        <Text size={36} weight={700} style={{ color: CHARCOAL, lineHeight: 1 }}>
-                          {feature.count}
-                        </Text>
-                        <Text size="sm" weight={600} color="dimmed" mt={4}>
-                          {feature.title}
-                        </Text>
+        {/* Quick Actions */}
+        <Paper shadow="xs" p="xl" radius="lg" bg="white">
+          <Group mb="xl" justify="space-between">
+            <Box>
+              <Title order={3} c={CHARCOAL} mb={4}>Quick Actions</Title>
+              <Text size="sm" c={MUTED_OLIVE}>Common administrative tasks</Text>
+            </Box>
+          </Group>
+          <Stack gap="md">
+            {quickActions.map((action) => {
+              const IconComponent = action.icon;
+              const isEnabled = action.enabled;
+              return (
+                <Paper
+                  key={action.id}
+                  p="lg"
+                  radius="md"
+                  style={{
+                    border: '1px solid #F0F0F0',
+                    cursor: isEnabled ? 'pointer' : 'default',
+                    background: 'white',
+                    opacity: isEnabled ? 1 : 0.6,
+                  }}
+                  onClick={() => isEnabled && action.route && navigate(action.route)}
+                >
+                  <Group justify="space-between">
+                    <Group gap="md">
+                      <Box
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '10px',
+                          background: action.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <IconComponent size={20} color="white" stroke={2.5} />
                       </Box>
-                    </Stack>
-                  </Card>
-                );
-              })}
-            </SimpleGrid>
-          )}
-
-          {/* Quick Actions */}
-          <Box>
-            <Title order={2} mb="lg" style={{ color: CHARCOAL }}>
-              Quick Actions
-            </Title>
-            <Stack spacing="md">
-              {quickActions.map((action) => {
-                const IconComponent = action.icon;
-                const isEnabled = action.enabled;
-
-                return (
-                  <Paper
-                    key={action.id}
-                    p="lg"
-                    radius="md"
-                    shadow="sm"
-                    withBorder
-                    style={{
-                      backgroundColor: 'white',
-                      cursor: isEnabled ? 'pointer' : 'default',
-                      opacity: isEnabled ? 1 : 0.6,
-                      transition: 'transform 0.2s ease',
-                      borderColor: '#E8E4DC',
-                    }}
-                    onClick={() => isEnabled && action.route && navigate(action.route)}
-                    onMouseEnter={(e) => {
-                      if (isEnabled) {
-                        e.currentTarget.style.transform = 'translateX(4px)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (isEnabled) {
-                        e.currentTarget.style.transform = 'translateX(0)';
-                      }
-                    }}
-                  >
-                    <Group position="apart">
-                      <Group spacing="md">
-                        <ThemeIcon
-                          size={48}
-                          radius="md"
-                          style={{ backgroundColor: THEMED_LIGHT_BG }}
-                        >
-                          <IconComponent size={24} color={action.color} />
-                        </ThemeIcon>
-                        <Box>
-                          <Text size="md" weight={700} style={{ color: isEnabled ? CHARCOAL : '#999' }}>
-                            {action.title}
-                          </Text>
-                          {!isEnabled && (
-                            <Badge size="sm" variant="light" color="gray" mt={4}>
-                              Coming Soon
-                            </Badge>
-                          )}
-                        </Box>
-                      </Group>
-                      {isEnabled && (
-                        <IconArrowRight size={20} color={MUTED_OLIVE} />
-                      )}
+                      <Box>
+                        <Text fw={600} c={isEnabled ? CHARCOAL : '#999'} mb={4}>
+                          {action.title}
+                        </Text>
+                        <Text size="xs" c={MUTED_OLIVE}>
+                          {action.description}
+                        </Text>
+                        {!isEnabled && (
+                          <Badge size="sm" variant="light" color="gray" mt={4}>
+                            Coming Soon
+                          </Badge>
+                        )}
+                      </Box>
                     </Group>
-                  </Paper>
-                );
-              })}
-            </Stack>
-          </Box>
-        </Stack>
+                    {isEnabled && (
+                      <ActionIcon 
+                        variant="subtle" 
+                        color="gray"
+                        size="sm"
+                      >
+                        <IconChevronRight size={18} />
+                      </ActionIcon>
+                    )}
+                  </Group>
+                </Paper>
+              );
+            })}
+          </Stack>
+        </Paper>
       </Container>
     </Box>
   );

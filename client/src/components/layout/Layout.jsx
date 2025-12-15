@@ -13,6 +13,11 @@ import {
   Flex,
   Avatar,
   Menu,
+  UnstyledButton,
+  Tooltip,
+  Indicator,
+  Stack,
+  Divider,
 } from "@mantine/core";
 import {
   IconBell,
@@ -22,6 +27,7 @@ import {
   IconChevronDown,
   IconScale,
   IconSettings,
+  IconChevronRight,
 } from "@tabler/icons-react";
 import { useAuth } from "../../context/authContext";
 import { useNavigate } from "react-router";
@@ -37,16 +43,15 @@ import {
 import { 
   getNavigationByRole, 
   ROLE_DISPLAY, 
-  PAGE_TITLES 
+  PAGE_TITLES,
+  getLayoutConfig 
 } from "@/utils/navigation";
 
 // Base Layout Component
 const Layout = ({
   children,
-  showHeader = true,
-  showNavbar = true,
-  headerHeight = 60,
-  navbarWidth = 260,
+  headerHeight = 70,
+  navbarWidth = 280,
 }) => {
   const [opened, setOpened] = useState(false);
   const navigate = useNavigate();
@@ -54,6 +59,11 @@ const Layout = ({
   
   const currentPath = window.location.pathname;
   const userRole = userData?.role || "client";
+  
+  // Get layout configuration for current page
+  const layoutConfig = getLayoutConfig(currentPath);
+  const showHeader = layoutConfig.showHeader;
+  const showNavbar = layoutConfig.showNavbar;
   
   // Get navigation items for current user role
   const navItems = getNavigationByRole(userRole, currentPath);
@@ -87,55 +97,59 @@ const Layout = ({
         <AppShell.Navbar
           style={{
             backgroundColor: "white",
-            borderRight: `1px solid ${ACCENT_TAN}`,
+            borderRight: `1px solid #E8E8E8`,
+            boxShadow: '2px 0 8px rgba(0, 0, 0, 0.02)',
           }}
         >
-          {/* Navbar Header with Logo */}
-          <Box 
-            p="lg" 
-            pb="md"
-            style={{ 
-              borderBottom: `2px solid ${THEMED_LIGHT_BG}`,
-            }}
-          >
-            <Group gap="sm">
-              <Box
-                style={{
-                  width: 40,
-                  height: 40,
-                  backgroundColor: PRIMARY_BROWN,
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconScale size={24} color="white" />
-              </Box>
-              <Box>
-                <Text size="lg" fw={700} c={PRIMARY_BROWN} lh={1.2}>
-                  JustReach
-                </Text>
-                <Text size="xs" c={MUTED_OLIVE} lh={1.2}>
-                  Legal Services
-                </Text>
-              </Box>
-            </Group>
-          </Box>
-
-          <AppShell.Section grow>
-            <ScrollArea px="md" py="md">
+          {/* Navigation Section */}
+          <AppShell.Section grow component={ScrollArea} px="lg" pt="xl">
+            <Stack gap="xs">
               {navItems.map((item, index) => (
                 <NavLink
                   key={index}
-                  leftSection={<item.icon size={20} stroke={1.5} />}
-                  label={item.label}
+                  leftSection={
+                    <Box 
+                      style={{
+                        width: 40,
+                        height: 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '10px',
+                        backgroundColor: item.active ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      }}
+                    >
+                      <item.icon size={22} stroke={2.5} />
+                    </Box>
+                  }
+                  label={
+                    <Text size="md" fw={item.active ? 600 : 500}>
+                      {item.label}
+                    </Text>
+                  }
                   rightSection={
-                    item.badge && (
-                      <Badge size="xs" color={PRIMARY_GOLD} variant="filled">
+                    item.badge ? (
+                      <Badge 
+                        size="md" 
+                        color={PRIMARY_BROWN} 
+                        variant="filled"
+                        style={{
+                          fontWeight: 600,
+                        }}
+                      >
                         {item.badge}
                       </Badge>
-                    )
+                    ) : item.active ? (
+                      <Box
+                        style={{
+                          width: 4,
+                          height: 4,
+                          borderRadius: '50%',
+                          backgroundColor: 'white',
+                        }}
+                      />
+                    ) : null
                   }
                   active={item.active}
                   onClick={() => {
@@ -143,19 +157,25 @@ const Layout = ({
                     if (item.path) navigate(item.path);
                     if (item.onClick) item.onClick();
                   }}
-                  mb="xs"
                   styles={{
                     root: {
-                      borderRadius: "8px",
-                      fontWeight: 500,
-                      padding: '10px 12px',
-                      transition: 'all 0.2s ease',
+                      borderRadius: "12px",
+                      padding: '14px 16px',
+                      marginBottom: '8px',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      border: 'none',
                       '&:hover': {
                         backgroundColor: item.active ? PRIMARY_BROWN : THEMED_LIGHT_BG,
+                        transform: 'translateX(4px)',
+                        boxShadow: item.active ? '0 4px 12px rgba(101, 67, 33, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.05)',
+                      },
+                      '&:active': {
+                        transform: 'translateX(2px)',
                       },
                     },
                     label: {
                       color: item.active ? 'white' : CHARCOAL,
+                      fontSize: '15px',
                     },
                     section: {
                       color: item.active ? 'white' : MUTED_OLIVE,
@@ -163,40 +183,36 @@ const Layout = ({
                   }}
                   style={{
                     backgroundColor: item.active ? PRIMARY_BROWN : "transparent",
+                    boxShadow: item.active ? '0 2px 8px rgba(101, 67, 33, 0.2)' : 'none',
                   }}
                 />
               ))}
-            </ScrollArea>
+            </Stack>
           </AppShell.Section>
 
-          {/* User Profile Section */}
+          {/* Welcome Section at Bottom */}
           <Box 
-            p="md" 
-            pt="sm"
+            p="lg"
             style={{ 
-              borderTop: `2px solid ${THEMED_LIGHT_BG}`,
+              borderTop: `1px solid #F0F0F0`,
+              backgroundColor: THEMED_LIGHT_BG,
             }}
           >
-            <Group gap="sm">
-              <Avatar 
-                size="md" 
-                color={PRIMARY_BROWN}
-                style={{
-                  border: `2px solid ${PRIMARY_GOLD}`,
-                }}
-              >
-                {userData?.firstName?.charAt(0)}
-                {userData?.lastName?.charAt(0)}
-              </Avatar>
-              <Box style={{ flex: 1 }}>
-                <Text size="sm" fw={600} c={CHARCOAL}>
-                  {userData?.firstName} {userData?.lastName}
-                </Text>
-                <Text size="xs" c={MUTED_OLIVE}>
-                  {roleDisplay}
-                </Text>
-              </Box>
-            </Group>
+            <Box 
+              p="md"
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '10px',
+                border: `1px solid #E8E8E8`,
+              }}
+            >
+              <Text size="lg" fw={700} c={CHARCOAL} mb={4}>
+                {pageTitle}
+              </Text>
+              <Text size="xs" c={MUTED_OLIVE} fw={500}>
+                Welcome back, {userData?.firstName}
+              </Text>
+            </Box>
           </Box>
         </AppShell.Navbar>
       )}
@@ -205,11 +221,12 @@ const Layout = ({
         <AppShell.Header
           style={{
             backgroundColor: "white",
-            borderBottom: `2px solid ${THEMED_LIGHT_BG}`,
+            borderBottom: `1px solid #F0F0F0`,
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
           }}
         >
-          <Flex align="center" justify="space-between" h="100%" px="md">
-            <Group>
+          <Flex align="center" justify="space-between" h="100%" px="xl">
+            <Group gap="lg">
               {showNavbar && (
                 <Burger
                   opened={opened}
@@ -219,99 +236,132 @@ const Layout = ({
                   color={PRIMARY_BROWN}
                 />
               )}
-              <Text fw={600} size="lg" c={CHARCOAL}>
-                {pageTitle}
-              </Text>
+              <Group gap="md">
+                <Box
+                  style={{
+                    width: 42,
+                    height: 42,
+                    background: `linear-gradient(135deg, ${PRIMARY_BROWN} 0%, #5C4033 100%)`,
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(101, 67, 33, 0.15)',
+                  }}
+                >
+                  <IconScale size={22} color="white" stroke={2} />
+                </Box>
+                <Box>
+                  <Text size="lg" fw={700} c={PRIMARY_BROWN} lh={1.2}>
+                    JustReach
+                  </Text>
+                  <Text size="xs" c={MUTED_OLIVE} fw={500} lh={1.2}>
+                    Legal Services
+                  </Text>
+                </Box>
+              </Group>
             </Group>
 
-            <Group gap="xs">
-              <ActionIcon
-                size="lg"
-                variant="subtle"
-                color={MUTED_OLIVE}
-                visibleFrom="sm"
-                styles={{
-                  root: {
-                    '&:hover': {
-                      backgroundColor: THEMED_LIGHT_BG,
+            <Group gap="sm">
+              <Tooltip label="Search" position="bottom">
+                <ActionIcon
+                  size={44}
+                  variant="subtle"
+                  color={MUTED_OLIVE}
+                  visibleFrom="sm"
+                  radius="xl"
+                  styles={{
+                    root: {
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        backgroundColor: THEMED_LIGHT_BG,
+                        transform: 'scale(1.05)',
+                      },
                     },
-                  },
-                }}
-              >
-                <IconSearch size={20} />
-              </ActionIcon>
+                  }}
+                >
+                  <IconSearch size={20} />
+                </ActionIcon>
+              </Tooltip>
               
-              <ActionIcon 
-                size="lg" 
-                variant="subtle" 
-                color={MUTED_OLIVE}
-                styles={{
-                  root: {
-                    '&:hover': {
-                      backgroundColor: THEMED_LIGHT_BG,
-                    },
-                  },
-                }}
-              >
-                <IconBell size={20} />
-              </ActionIcon>
-
-              <Menu shadow="md" width={220}>
-                <Menu.Target>
-                  <Group 
-                    style={{ 
-                      cursor: "pointer",
-                      padding: '4px 8px',
-                      borderRadius: '8px',
-                      transition: 'background-color 0.2s ease',
-                    }}
-                    gap="xs"
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = THEMED_LIGHT_BG;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
+              <Tooltip label="Notifications" position="bottom">
+                <Indicator 
+                  color="red" 
+                  size={8}
+                  offset={5}
+                  processing
+                >
+                  <ActionIcon 
+                    size={44} 
+                    variant="subtle" 
+                    color={MUTED_OLIVE}
+                    radius="xl"
+                    styles={{
+                      root: {
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          backgroundColor: THEMED_LIGHT_BG,
+                          transform: 'scale(1.05)',
+                        },
+                      },
                     }}
                   >
-                    <Avatar
-                      size="sm"
-                      color={PRIMARY_BROWN}
-                      style={{
-                        border: `2px solid ${PRIMARY_GOLD}`,
+                    <IconBell size={20} />
+                  </ActionIcon>
+                </Indicator>
+              </Tooltip>
+
+              <Menu shadow="lg" width={200} position="bottom-end">
+                <Menu.Target>
+                  <Tooltip label="Account" position="bottom">
+                    <ActionIcon
+                      size={44}
+                      variant="subtle"
+                      color={MUTED_OLIVE}
+                      radius="xl"
+                      styles={{
+                        root: {
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            backgroundColor: THEMED_LIGHT_BG,
+                            transform: 'scale(1.05)',
+                          },
+                        },
                       }}
                     >
-                      {userData?.firstName?.charAt(0)}
-                      {userData?.lastName?.charAt(0)}
-                    </Avatar>
-                    <Box visibleFrom="sm">
-                      <Text size="sm" fw={600} c={CHARCOAL}>
-                        {userData?.firstName} {userData?.lastName}
-                      </Text>
-                      <Text size="xs" c={MUTED_OLIVE}>
-                        {userData?.email}
-                      </Text>
-                    </Box>
-                    <IconChevronDown size={16} color={MUTED_OLIVE} />
-                  </Group>
+                      <IconUserCircle size={22} />
+                    </ActionIcon>
+                  </Tooltip>
                 </Menu.Target>
 
-                <Menu.Dropdown>
+                <Menu.Dropdown style={{ borderRadius: '12px', border: `1px solid #E8E8E8` }}>
+                  <Menu.Label style={{ fontSize: '11px', fontWeight: 600, color: MUTED_OLIVE, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Account
+                  </Menu.Label>
                   <Menu.Item 
-                    leftSection={<IconUserCircle size={16} />}
+                    leftSection={<IconUserCircle size={18} />}
                     styles={{
                       item: {
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        padding: '10px 12px',
                         '&:hover': {
                           backgroundColor: THEMED_LIGHT_BG,
                         },
                       },
                     }}
                   >
-                    Profile
+                    View Profile
                   </Menu.Item>
                   <Menu.Item 
-                    leftSection={<IconSettings size={16} />}
+                    leftSection={<IconSettings size={18} />}
                     styles={{
                       item: {
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        padding: '10px 12px',
                         '&:hover': {
                           backgroundColor: THEMED_LIGHT_BG,
                         },
@@ -322,11 +372,15 @@ const Layout = ({
                   </Menu.Item>
                   <Menu.Divider />
                   <Menu.Item 
-                    leftSection={<IconLogout size={16} />} 
+                    leftSection={<IconLogout size={18} />} 
                     color="red"
                     onClick={handleLogout}
                     styles={{
                       item: {
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        padding: '10px 12px',
                         '&:hover': {
                           backgroundColor: '#fee',
                         },
@@ -342,8 +396,8 @@ const Layout = ({
         </AppShell.Header>
       )}
 
-      <AppShell.Main style={{ backgroundColor: 'white' }}>
-        <Box style={{ minHeight: 'calc(100vh - 60px)' }}>
+      <AppShell.Main style={{ backgroundColor: THEMED_LIGHT_BG }}>
+        <Box style={{ minHeight: 'calc(100vh - 70px)' }}>
           {children}
         </Box>
       </AppShell.Main>

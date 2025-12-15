@@ -13,6 +13,8 @@ import {
   Box,
   Badge,
   Divider,
+  ActionIcon,
+  SimpleGrid,
 } from "@mantine/core";
 import { 
   IconLogout, 
@@ -25,6 +27,7 @@ import {
   IconCalendar,
   IconClock,
   IconChevronRight,
+  IconMessageCircle,
 } from "@tabler/icons-react";
 import { doSignOut } from "@/firebase/auth";
 import { Navigate, useNavigate } from "react-router";
@@ -63,351 +66,421 @@ const Home = () => {
     return <Loaders height={window.innerHeight - 100} />;
   }
 
+  const stats = [
+    {
+      icon: IconBriefcase2,
+      label: "Active Cases",
+      value: "3",
+      subtitle: "2 pending review",
+      color: PRIMARY_BROWN,
+    },
+    {
+      icon: IconFiles,
+      label: "Documents",
+      value: "12",
+      subtitle: "Uploaded files",
+      color: PRIMARY_GOLD,
+    },
+    {
+      icon: IconBell,
+      label: "Notifications",
+      value: "5",
+      subtitle: "Unread messages",
+      color: MUTED_OLIVE,
+    },
+    {
+      icon: IconCalendar,
+      label: "Appointments",
+      value: "2",
+      subtitle: "This month",
+      color: ACCENT_TAN,
+    },
+  ];
+
+  const quickActions = [
+    {
+      icon: IconBriefcase2,
+      title: "Submit New Case",
+      description: "Start a new legal case",
+      path: "/submitcase",
+      color: PRIMARY_BROWN,
+    },
+    {
+      icon: IconFiles,
+      title: "View My Cases",
+      description: "Track your cases",
+      path: "/cases",
+      color: PRIMARY_GOLD,
+    },
+    {
+      icon: IconMessageCircle,
+      title: "Chat with Attorney",
+      description: "Get instant support",
+      path: "/chat",
+      color: ACCENT_TAN,
+    },
+    {
+      icon: IconSettings,
+      title: "Account Settings",
+      description: "Manage your profile",
+      path: "/user/settings",
+      color: MUTED_OLIVE,
+    },
+  ];
+
   return (
-    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
-      <Container size="lg">
+    <Box 
+      bg={THEMED_LIGHT_BG} 
+      mih="100vh" 
+      py="xl"
+      style={{
+        '::-webkit-scrollbar': {
+          width: '8px',
+        },
+        '::-webkit-scrollbar-track': {
+          background: 'transparent',
+        },
+        '::-webkit-scrollbar-thumb': {
+          background: MUTED_OLIVE,
+          borderRadius: '4px',
+        },
+        '::-webkit-scrollbar-thumb:hover': {
+          background: PRIMARY_BROWN,
+        },
+        scrollbarWidth: 'thin',
+        scrollbarColor: `${MUTED_OLIVE} transparent`,
+      }}
+    >
+      <style>
+        {`
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+          ::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: ${MUTED_OLIVE};
+            border-radius: 4px;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: ${PRIMARY_BROWN};
+          }
+          * {
+            scrollbar-width: thin;
+            scrollbar-color: ${MUTED_OLIVE} transparent;
+          }
+        `}
+      </style>
+      <Container size="xl">
         {/* Welcome Header */}
         <Paper 
-          shadow="sm" 
+          shadow="xs" 
           p="xl" 
           mb="xl" 
-          bg="white"
-          style={{ borderTop: `4px solid ${PRIMARY_GOLD}` }}
+          radius="lg"
+          style={{ 
+            background: PRIMARY_BROWN,
+            border: 'none',
+          }}
         >
-          <Group justify="space-between" align="flex-start">
-            <Box>
-              <Group gap="sm" mb="xs">
-                <Title order={1} c={CHARCOAL}>
-                  Welcome Back, {userData.firstName}!
-                </Title>
-                {userData.isVerified && (
-                  <Badge 
-                    color={PRIMARY_GOLD} 
-                    variant="light"
-                    leftSection={<IconShieldCheck size={14} />}
-                  >
-                    Verified
-                  </Badge>
-                )}
-              </Group>
-              <Text c={MUTED_OLIVE} size="sm">
-                {new Date().toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </Text>
-            </Box>
+          <Group justify="space-between" align="center">
+            <Group gap="lg">
+              <Avatar 
+                size={64}
+                radius="md"
+                style={{ 
+                  border: `3px solid ${PRIMARY_GOLD}`,
+                  background: 'white',
+                  color: PRIMARY_BROWN,
+                }}
+              >
+                <Text size="xl" fw={700}>
+                  {userData.firstName?.charAt(0)}{userData.lastName?.charAt(0)}
+                </Text>
+              </Avatar>
+              <Box>
+                <Group gap="sm" mb={4}>
+                  <Title order={2} c="white">
+                    Welcome Back, {userData.firstName}!
+                  </Title>
+                  {userData.isVerified && (
+                    <Badge 
+                      color={PRIMARY_GOLD} 
+                      variant="filled"
+                      size="lg"
+                      leftSection={<IconShieldCheck size={14} />}
+                    >
+                      Verified
+                    </Badge>
+                  )}
+                </Group>
+                <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
+                  {new Date().toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </Text>
+              </Box>
+            </Group>
             <Button 
               leftSection={<IconLogout size={18} />}
-              variant="outline"
+              variant="white"
               color={PRIMARY_BROWN}
               onClick={handleSignout}
+              size="md"
+              radius="md"
             >
               Logout
             </Button>
           </Group>
         </Paper>
 
-        {/* Profile Overview Card */}
-        <Paper shadow="sm" p="xl" mb="xl" bg="white">
-          <Group mb="md">
-            <Avatar 
-              size={80}
-              color={PRIMARY_BROWN}
-              radius="md"
-              style={{ border: `3px solid ${PRIMARY_GOLD}` }}
+        {/* Stats Cards */}
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg" mb="xl">
+          {stats.map((stat, index) => (
+            <Paper 
+              key={index}
+              shadow="xs" 
+              p="xl" 
+              radius="lg"
+              style={{ 
+                background: 'white',
+                border: '1px solid #F0F0F0',
+              }}
             >
-              <Text size="xl" fw={700}>
-                {userData.firstName?.charAt(0)}{userData.lastName?.charAt(0)}
-              </Text>
-            </Avatar>
-            <Box style={{ flex: 1 }}>
-              <Title order={2} c={CHARCOAL}>
-                {userData.firstName} {userData.lastName}
-              </Title>
-              <Text c={MUTED_OLIVE} size="sm" mb="xs">
-                {userData.email}
-              </Text>
-              <Group gap="xs">
-                <Badge 
-                  color={userData.isVerified ? "green" : "red"} 
-                  variant="light"
-                  leftSection={<IconShieldCheck size={14} />}
+              <Group justify="space-between" mb="md">
+                <Box
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: '12px',
+                    background: stat.color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
                 >
-                  {userData.isVerified ? 'Verified Account' : 'Unverified Account'}
-                </Badge>
-                <Badge color={ACCENT_TAN} variant="light" tt="capitalize">
-                  {userData.role}
-                </Badge>
+                  <stat.icon size={24} color="white" stroke={2.5} />
+                </Box>
               </Group>
-            </Box>
-          </Group>
-        </Paper>
-
-        {/* Quick Stats */}
-        <Grid mb="xl">
-          <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <Paper 
-              shadow="sm" 
-              p="lg" 
-              bg="white"
-              style={{ 
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease',
-                borderLeft: `4px solid ${PRIMARY_BROWN}`,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '';
-              }}
-            >
-              <Group justify="space-between" mb="xs">
-                <IconBriefcase2 size={32} color={PRIMARY_BROWN} />
-                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
-                  Active Cases
-                </Text>
-              </Group>
-              <Text size="2rem" fw={700} c={CHARCOAL}>
-                3
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>
+                {stat.label}
               </Text>
-              <Text size="xs" c={MUTED_OLIVE}>
-                2 pending review
+              <Text size="2rem" fw={700} c={CHARCOAL} lh={1} mb={4}>
+                {stat.value}
+              </Text>
+              <Text size="xs" c={stat.color} fw={500}>
+                {stat.subtitle}
               </Text>
             </Paper>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <Paper 
-              shadow="sm" 
-              p="lg" 
-              bg="white"
-              style={{ 
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease',
-                borderLeft: `4px solid ${PRIMARY_GOLD}`,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '';
-              }}
-            >
-              <Group justify="space-between" mb="xs">
-                <IconFiles size={32} color={PRIMARY_GOLD} />
-                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
-                  Documents
-                </Text>
-              </Group>
-              <Text size="2rem" fw={700} c={CHARCOAL}>
-                12
-              </Text>
-              <Text size="xs" c={MUTED_OLIVE}>
-                Uploaded files
-              </Text>
-            </Paper>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <Paper 
-              shadow="sm" 
-              p="lg" 
-              bg="white"
-              style={{ 
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease',
-                borderLeft: `4px solid ${ACCENT_TAN}`,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '';
-              }}
-            >
-              <Group justify="space-between" mb="xs">
-                <IconBell size={32} color={ACCENT_TAN} />
-                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
-                  Notifications
-                </Text>
-              </Group>
-              <Text size="2rem" fw={700} c={CHARCOAL}>
-                5
-              </Text>
-              <Text size="xs" c={MUTED_OLIVE}>
-                Unread messages
-              </Text>
-            </Paper>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <Paper 
-              shadow="sm" 
-              p="lg" 
-              bg="white"
-              style={{ 
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease',
-                borderLeft: `4px solid ${MUTED_OLIVE}`,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '';
-              }}
-            >
-              <Group justify="space-between" mb="xs">
-                <IconCalendar size={32} color={MUTED_OLIVE} />
-                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
-                  Appointments
-                </Text>
-              </Group>
-              <Text size="2rem" fw={700} c={CHARCOAL}>
-                2
-              </Text>
-              <Text size="xs" c={MUTED_OLIVE}>
-                This month
-              </Text>
-            </Paper>
-          </Grid.Col>
-        </Grid>
+          ))}
+        </SimpleGrid>
 
         <Grid>
           {/* Quick Actions */}
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <Paper shadow="sm" p="xl" bg="white" h="100%">
-              <Group mb="lg" justify="space-between">
-                <Title order={3} c={CHARCOAL}>Quick Actions</Title>
-                <IconChevronRight size={20} color={MUTED_OLIVE} />
+          <Grid.Col span={{ base: 12, md: 7 }}>
+            <Paper shadow="xs" p="xl" radius="lg" bg="white" h="100%">
+              <Group mb="xl" justify="space-between">
+                <Box>
+                  <Title order={3} c={CHARCOAL} mb={4}>Quick Actions</Title>
+                  <Text size="sm" c={MUTED_OLIVE}>Get started with common tasks</Text>
+                </Box>
               </Group>
-              <Stack gap="sm">
-                <Button 
-                  leftSection={<IconBriefcase2 size={18} />}
-                  variant="light"
-                  color={PRIMARY_BROWN}
-                  fullWidth
-                  justify="space-between"
-                  rightSection={<IconChevronRight size={16} />}
-                  onClick={() => navigate("/submitcase")}
-                  styles={{
-                    root: {
-                      height: 'auto',
-                      padding: '12px 16px',
-                    },
-                  }}
-                >
-                  <Box>
-                    <Text fw={600}>Submit New Case</Text>
-                    <Text size="xs" opacity={0.8}>Start a new legal case</Text>
-                  </Box>
-                </Button>
-                <Button 
-                  leftSection={<IconFiles size={18} />}
-                  variant="light"
-                  color={PRIMARY_GOLD}
-                  fullWidth
-                  justify="space-between"
-                  rightSection={<IconChevronRight size={16} />}
-                  onClick={() => navigate("/cases")}
-                  styles={{
-                    root: {
-                      height: 'auto',
-                      padding: '12px 16px',
-                    },
-                  }}
-                >
-                  <Box>
-                    <Text fw={600}>View My Cases</Text>
-                    <Text size="xs" opacity={0.8}>Track your cases</Text>
-                  </Box>
-                </Button>
-                <Button 
-                  leftSection={<IconSettings size={18} />}
-                  variant="light"
-                  color={ACCENT_TAN}
-                  fullWidth
-                  justify="space-between"
-                  rightSection={<IconChevronRight size={16} />}
-                  onClick={() => navigate("/user/settings")}
-                  styles={{
-                    root: {
-                      height: 'auto',
-                      padding: '12px 16px',
-                    },
-                  }}
-                >
-                  <Box>
-                    <Text fw={600}>Account Settings</Text>
-                    <Text size="xs" opacity={0.8}>Manage your profile</Text>
-                  </Box>
-                </Button>
-              </Stack>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                {quickActions.map((action, index) => (
+                  <Paper
+                    key={index}
+                    p="lg"
+                    radius="md"
+                    style={{
+                      border: '1px solid #F0F0F0',
+                      cursor: 'pointer',
+                      background: 'white',
+                    }}
+                    onClick={() => navigate(action.path)}
+                  >
+                    <Group justify="space-between" mb="sm">
+                      <Box
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '10px',
+                          background: action.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <action.icon size={20} color="white" stroke={2.5} />
+                      </Box>
+                      <ActionIcon 
+                        variant="subtle" 
+                        color="gray"
+                        size="sm"
+                      >
+                        <IconChevronRight size={18} />
+                      </ActionIcon>
+                    </Group>
+                    <Text fw={600} c={CHARCOAL} mb={4}>
+                      {action.title}
+                    </Text>
+                    <Text size="xs" c={MUTED_OLIVE}>
+                      {action.description}
+                    </Text>
+                  </Paper>
+                ))}
+              </SimpleGrid>
             </Paper>
           </Grid.Col>
 
           {/* Account Information */}
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <Paper shadow="sm" p="xl" bg="white" h="100%">
-              <Group mb="lg" justify="space-between">
-                <Title order={3} c={CHARCOAL}>Account Details</Title>
-                <IconUser size={20} color={MUTED_OLIVE} />
-              </Group>
-              <Stack gap="md">
+          <Grid.Col span={{ base: 12, md: 5 }}>
+            <Paper shadow="xs" p="xl" radius="lg" bg="white" h="100%">
+              <Group mb="xl" justify="space-between">
                 <Box>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>
-                    Full Name
-                  </Text>
-                  <Text fw={500} c={CHARCOAL}>
+                  <Title order={3} c={CHARCOAL} mb={4}>Account Details</Title>
+                  <Text size="sm" c={MUTED_OLIVE}>Your profile information</Text>
+                </Box>
+                <ActionIcon 
+                  variant="light" 
+                  color={PRIMARY_BROWN}
+                  size="lg"
+                  radius="md"
+                  onClick={() => navigate("/user/settings")}
+                >
+                  <IconSettings size={20} />
+                </ActionIcon>
+              </Group>
+              <Stack gap="lg">
+                <Box>
+                  <Group gap="xs" mb={8}>
+                    <Box
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '8px',
+                        background: PRIMARY_BROWN,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <IconUser size={16} color="white" />
+                    </Box>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                      Full Name
+                    </Text>
+                  </Group>
+                  <Text fw={600} c={CHARCOAL} size="md" ml={40}>
                     {userData.firstName} {userData.lastName}
                   </Text>
                 </Box>
-                <Divider color={THEMED_LIGHT_BG} />
+
+                <Divider color="#F0F0F0" />
+
                 <Box>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>
-                    Email Address
-                  </Text>
-                  <Text fw={500} c={CHARCOAL}>
+                  <Group gap="xs" mb={8}>
+                    <Box
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '8px',
+                        background: PRIMARY_GOLD,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <IconShieldCheck size={16} color="white" />
+                    </Box>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                      Email Address
+                    </Text>
+                  </Group>
+                  <Text fw={500} c={CHARCOAL} ml={40}>
                     {userData.email}
                   </Text>
                 </Box>
-                <Divider color={THEMED_LIGHT_BG} />
+
+                <Divider color="#F0F0F0" />
+
                 <Box>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>
-                    Username
-                  </Text>
-                  <Text fw={500} c={CHARCOAL}>
-                    {userData.username}
-                  </Text>
-                </Box>
-                <Divider color={THEMED_LIGHT_BG} />
-                <Box>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>
-                    Member Since
-                  </Text>
-                  <Group gap="xs">
-                    <IconClock size={16} color={MUTED_OLIVE} />
-                    <Text fw={500} c={CHARCOAL}>
-                      {new Date(userData.createdAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
+                  <Group gap="xs" mb={8}>
+                    <Box
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '8px',
+                        background: ACCENT_TAN,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <IconUser size={16} color="white" />
+                    </Box>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                      Username
                     </Text>
                   </Group>
+                  <Text fw={500} c={CHARCOAL} ml={40}>
+                    @{userData.username}
+                  </Text>
                 </Box>
+
+                <Divider color="#F0F0F0" />
+
+                <Box>
+                  <Group gap="xs" mb={8}>
+                    <Box
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '8px',
+                        background: MUTED_OLIVE,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <IconClock size={16} color="white" />
+                    </Box>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>
+                      Member Since
+                    </Text>
+                  </Group>
+                  <Text fw={500} c={CHARCOAL} ml={40}>
+                    {new Date(userData.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </Text>
+                </Box>
+
+                <Paper 
+                  p="md" 
+                  radius="md"
+                  style={{
+                    background: '#FFF9E6',
+                    border: `1px solid ${PRIMARY_GOLD}`,
+                  }}
+                >
+                  <Group>
+                    <IconShieldCheck size={20} color={PRIMARY_GOLD} />
+                    <Box style={{ flex: 1 }}>
+                      <Text size="sm" fw={600} c={CHARCOAL}>
+                        {userData.isVerified ? 'Verified Account' : 'Unverified Account'}
+                      </Text>
+                      <Text size="xs" c={MUTED_OLIVE}>
+                        {userData.isVerified ? 'Your account is verified' : 'Please verify your account'}
+                      </Text>
+                    </Box>
+                  </Group>
+                </Paper>
               </Stack>
             </Paper>
           </Grid.Col>

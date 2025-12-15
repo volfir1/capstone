@@ -1,89 +1,199 @@
 import React from 'react';
-import { IconCircleCheck } from '@tabler/icons-react';
-import { Text, Group, Title, Paper, Grid, Stack } from '@mantine/core';
-import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG, CHARCOAL } from '@utils/constants';
+import { IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
+import { Text, Group, Title, Paper, Grid, Stack, Box, Divider, Alert } from '@mantine/core';
+import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG, CHARCOAL, MUTED_OLIVE } from '@utils/constants';
 
 export default function ReviewForm({ formData, getValues }) {
   const allData = { ...formData, ...getValues() };
   
   return (
-    <Stack spacing="lg">
-      <Group align="center" spacing="sm">
-        <IconCircleCheck size={28} color={PRIMARY_BROWN} />
-        <Title order={2} style={{ color: PRIMARY_BROWN }}>Review Your Information</Title>
+    <Stack gap="lg" mt="lg">
+      {/* Section Header */}
+      <Group gap="xs">
+        <Box
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: '8px',
+            background: PRIMARY_BROWN,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconCircleCheck size={18} color="white" />
+        </Box>
+        <Title order={3} c={CHARCOAL}>Review Your Information</Title>
       </Group>
       
-      <Paper p="lg" style={{ backgroundColor: THEMED_LIGHT_BG }}>
-        <Title order={3} mb="md" style={{ color: PRIMARY_BROWN }}>Personal Details</Title>
-        <Grid gutter="xs">
+      <Text size="sm" c={MUTED_OLIVE}>
+        Please review all the information you've provided before submitting your application.
+      </Text>
+      
+      {/* Personal Details */}
+      <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+        <Title order={4} mb="md" c={CHARCOAL}>Personal Details</Title>
+        <Divider mb="md" color="#F0F0F0" />
+        <Grid gutter="md">
           <Grid.Col span={6}>
-            <Text size="sm"><strong>Name:</strong> {allData.name}</Text>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.name || 'N/A'}</Text>
+            </Box>
           </Grid.Col>
           <Grid.Col span={6}>
-            <Text size="sm"><strong>Age:</strong> {allData.age}</Text>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.age || 'N/A'}</Text>
+            </Box>
           </Grid.Col>
           <Grid.Col span={6}>
-            <Text size="sm"><strong>Birthday:</strong> {allData.birthday}</Text>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.birthday || 'N/A'}</Text>
+            </Box>
           </Grid.Col>
           <Grid.Col span={6}>
-            <Text size="sm"><strong>Sex:</strong> {allData.sex}</Text>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.sex || 'N/A'}</Text>
+            </Box>
           </Grid.Col>
           <Grid.Col span={6}>
-            <Text size="sm"><strong>Civil Status:</strong> {allData.civilStatus}</Text>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.civilStatus || 'N/A'}</Text>
+            </Box>
           </Grid.Col>
           <Grid.Col span={6}>
-            <Text size="sm"><strong>Contact:</strong> {allData.contactNumber}</Text>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.contactNumber || 'N/A'}</Text>
+            </Box>
           </Grid.Col>
           <Grid.Col span={12}>
-            <Text size="sm"><strong>Present Address:</strong> {allData.presentAddress}</Text>
-          </Grid.Col>
-        </Grid>
-      </Paper>
-      
-      <Paper p="lg" style={{ backgroundColor: THEMED_LIGHT_BG }}>
-        <Title order={3} mb="md" style={{ color: PRIMARY_BROWN }}>Financial Details</Title>
-        <Grid gutter="xs">
-          <Grid.Col span={6}>
-            <Text size="sm"><strong>Income Source:</strong> {allData.currentSourceOfIncome}</Text>
-          </Grid.Col>
-          <Grid.Col span={6}>
-            <Text size="sm"><strong>Monthly Income:</strong> ₱{allData.monthlyIncome}</Text>
-          </Grid.Col>
-          <Grid.Col span={6}>
-            <Text size="sm"><strong>Nature of Work:</strong> {allData.natureOfWork}</Text>
-          </Grid.Col>
-          <Grid.Col span={6}>
-            <Text size="sm"><strong>Employer:</strong> {allData.employerName}</Text>
-          </Grid.Col>
-        </Grid>
-      </Paper>
-      
-      <Paper p="lg" style={{ backgroundColor: THEMED_LIGHT_BG }}>
-        <Title order={3} mb="md" style={{ color: PRIMARY_BROWN }}>Case Details</Title>
-        <Grid gutter="xs">
-          <Grid.Col span={6}>
-            <Text size="sm"><strong>Party Represented:</strong> {allData.partyRepresented}</Text>
-          </Grid.Col>
-          <Grid.Col span={6}>
-            <Text size="sm"><strong>Case Number:</strong> {allData.caseNumber}</Text>
-          </Grid.Col>
-          <Grid.Col span={6}>
-            <Text size="sm"><strong>Venue:</strong> {allData.venue}</Text>
-          </Grid.Col>
-          <Grid.Col span={6}>
-            <Text size="sm"><strong>Present Stage:</strong> {allData.presentStage}</Text>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.presentAddress || 'N/A'}</Text>
+            </Box>
           </Grid.Col>
           <Grid.Col span={12}>
-            <Text size="sm"><strong>Court:</strong> {allData.courtDivision}</Text>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.permanentAddress || 'N/A'}</Text>
+            </Box>
           </Grid.Col>
         </Grid>
       </Paper>
       
-      <Paper p="md" withBorder style={{ borderColor: PRIMARY_GOLD, backgroundColor: '#FFFBF0', borderWidth: 2 }}>
-        <Text size="xs" style={{ color: CHARCOAL }}>
-          <strong>DATA PRIVACY:</strong> Sebastinian Office of Legal Aid (SOLA), College of Law is committed to upholding the Philippine Data Privacy Act which implements the Constitutional right to informational privacy of data subjects. Your personal information is collected and processed in order for us to verify your identity, assess your application, and contact you about your case.
+      {/* Financial Details */}
+      <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+        <Title order={4} mb="md" c={CHARCOAL}>Financial Details</Title>
+        <Divider mb="md" color="#F0F0F0" />
+        <Grid gutter="md">
+          <Grid.Col span={6}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income Source</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.currentSourceOfIncome || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>
+                {allData.monthlyIncome ? `₱${Number(allData.monthlyIncome).toLocaleString()}` : 'N/A'}
+              </Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.natureOfWork || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.employerName || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={12}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.employerAddress || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+        </Grid>
+      </Paper>
+      
+      {/* Case Details */}
+      <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+        <Title order={4} mb="md" c={CHARCOAL}>Case Details</Title>
+        <Divider mb="md" color="#F0F0F0" />
+        <Grid gutter="md">
+          <Grid.Col span={6}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.partyRepresented || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Number</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.caseNumber || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.venue || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.presentStage || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={12}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Division</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.courtDivision || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={12}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Address</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.courtAddress || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+          <Grid.Col span={12}>
+            <Box>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>{allData.presidingOfficer || 'N/A'}</Text>
+            </Box>
+          </Grid.Col>
+        </Grid>
+      </Paper>
+      
+      {/* Data Privacy Notice */}
+      <Alert
+        icon={<IconInfoCircle size={20} />}
+        styles={{
+          root: {
+            backgroundColor: `${PRIMARY_GOLD}10`,
+            border: `1px solid ${PRIMARY_GOLD}`,
+          },
+          icon: {
+            color: PRIMARY_BROWN,
+          },
+        }}
+      >
+        <Text size="sm" fw={600} c={CHARCOAL} mb={4}>Data Privacy Notice</Text>
+        <Text size="xs" c={CHARCOAL}>
+          Sebastinian Office of Legal Aid (SOLA), College of Law is committed to upholding the Philippine Data Privacy Act which implements the Constitutional right to informational privacy of data subjects. Your personal information is collected and processed in order for us to verify your identity, assess your application, and contact you about your case.
         </Text>
-      </Paper>
+      </Alert>
     </Stack>
   );
 }

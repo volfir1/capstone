@@ -23,32 +23,67 @@ export default function SubmitCase() {
   };
 
   return (
-    <Box bg="white" mih="100vh">
-      <Container size="xl" p={0}>
+    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <style>
+        {`
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+          ::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: ${MUTED_OLIVE};
+            border-radius: 4px;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: ${PRIMARY_BROWN};
+          }
+          * {
+            scrollbar-width: thin;
+            scrollbar-color: ${MUTED_OLIVE} transparent;
+          }
+        `}
+      </style>
+      <Container size="xl">
         {/* Header Section */}
         <Paper 
-          shadow="none" 
+          shadow="xs" 
           p="xl" 
-          mb={0} 
-          bg="white" 
+          mb="xl" 
+          radius="lg"
           style={{ 
-            borderTop: `4px solid ${PRIMARY_BROWN}`, 
-            borderBottom: `1px solid ${THEMED_LIGHT_BG}` 
+            background: PRIMARY_BROWN,
+            border: 'none',
           }}
         >
-          <Group mb="md">
-            <IconScale size={32} color={PRIMARY_BROWN} />
-            <Title order={2} c={CHARCOAL}>
-              Submit a Legal Case
-            </Title>
+          <Group gap="md" align="center">
+            <Box
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: '12px',
+                background: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <IconScale size={24} color={PRIMARY_BROWN} stroke={2.5} />
+            </Box>
+            <Box>
+              <Title order={2} c="white" mb={4}>
+                Submit a Legal Case
+              </Title>
+              <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
+                Please provide detailed information about your case. All fields marked with an asterisk (*) are required.
+              </Text>
+            </Box>
           </Group>
-          <Text size="sm" c={MUTED_OLIVE}>
-            Please provide detailed information about your case. All fields marked with an asterisk (*) are required.
-          </Text>
         </Paper>
 
         {/* Form Section */}
-        <Paper shadow="none" p="xl" bg="white" mb={0}>
+        <Paper shadow="xs" p="xl" radius="lg" bg="white">
           <Box maw={900} mx="auto">
             <CaseForm onSubmit={handleSubmit} />
           </Box>
