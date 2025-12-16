@@ -7,6 +7,9 @@ import { Layout } from "../components/layout/Layout";
 import { lazy, Suspense } from "react";
 import { Loaders } from "../components/ui/Loader";
 import SubmitCase from "./pages/user/SubmitCase";
+import UserProfile from "./pages/other/Profiles/UserProfile";
+import AttorneyProfile from "./pages/other/Profiles/AttorneyProfile";
+import AdminProfile from "./pages/other/Profiles/AdminProfile";
 
 // Auth
 const Signup = lazy(() => import("./pages/auth/Signup/Signup"));
@@ -26,6 +29,7 @@ const HowItWorks = lazy(()=> import('./pages/How'))
 const UserForm = lazy(() => import('./pages/other/UserForm'))
 const TrackCase = lazy(() => import('./pages/user/TrackCase'))
 const UserChat = lazy(() => import('./pages/user/Chat'))
+const ProfilePage = lazy(() => import('./pages/other/Profile'))
 
 // Admin
 const ManageAttorney = lazy(() => import('./pages/admin/ManageAttorney'))
@@ -129,6 +133,8 @@ function AppRoutes() {
           <Route path="submitcase" element={< SubmitCase/>}/>
           <Route path="trackcase" element={< TrackCase/>}/>
           <Route path="chat/:caseId?" element={<UserChat/>}/>
+          <Route path="profile" element={<UserProfile />} />
+
         </Route>
 
         {/* Admin */}
@@ -146,8 +152,10 @@ function AppRoutes() {
           <Route path="users" element={<UserManagement />} />
           <Route path="attorneys" element={<ManageAttorney />} />
           < Route path="assigncase" element={<AssignCase />}/>
+          <Route path="profile" element={<AdminProfile />} />
         </Route>
-
+      
+      {/* Attorney */}
         <Route
           path="attorney"
           element={
@@ -160,6 +168,7 @@ function AppRoutes() {
         >
           <Route index element={<AttorneyDashboard />} />
           <Route path="chat" element={<AttorneyMessenger />} />
+          <Route path="profile" element={<AttorneyProfile />} />
         </Route>
         
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -168,6 +177,7 @@ function AppRoutes() {
         <Route path="/features" element={<FeaturesPage />} />
         <Route path="/how" element={<HowItWorks/>} />
         <Route path="*" element={<PageNotFound />} />
+
       </Routes>
     </Suspense>
   );
