@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import {
@@ -26,9 +26,7 @@ import apiClient from '@config/api/apiClient';
 export default function AttorneyLogin() {
   const navigate = useNavigate();
   const { getAuthErrorMessage } = useAuth();
-  const hasNavigated = useRef(false);
   const [loading, setLoading] = useState(false);
-  const [attorneyData, setAttorneyData] = useState(null);
 
   const {
     control,
@@ -40,25 +38,6 @@ export default function AttorneyLogin() {
       password: '',
     },
   });
-
-  // Handle navigation when attorney data is loaded
-  useEffect(() => {
-    if (attorneyData && !hasNavigated.current) {
-      console.log('Attorney data loaded, checking role for navigation');
-      hasNavigated.current = true;
-      // Navigate based on role
-      if (attorneyData.role === 'admin') {
-        console.log('Admin role detected, navigating to admin dashboard');
-        navigate('/admin');
-      } else if (attorneyData.role === 'intern') {
-        console.log('Intern role detected, navigating to intern dashboard');
-        navigate('/intern');
-      } else {
-        console.log('Attorney role detected, navigating to attorney dashboard');
-        navigate('/attorney');
-      }
-    }
-  }, [attorneyData, navigate]);
 
   const handleAttorneyLogin = async (data) => {
     try {
@@ -117,7 +96,19 @@ export default function AttorneyLogin() {
         }
 
         console.log('Step 3: Attorney verified, logging in');
-        setAttorneyData(attorney);
+        
+        // Navigate based on role immediately
+        if (attorney.role === 'admin') {
+          console.log('Admin role detected, navigating to admin dashboard');
+          navigate('/admin');
+        } else if (attorney.role === 'intern') {
+          console.log('Intern role detected, navigating to intern dashboard');
+          navigate('/intern');
+        } else {
+          console.log('Attorney role detected, navigating to attorney dashboard');
+          navigate('/attorney');
+        }
+        
         setLoading(false);
       } catch (backendError) {
         console.error('Backend verification error:', backendError);

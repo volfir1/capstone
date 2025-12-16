@@ -21,6 +21,8 @@ import {
   IconMessage,
   IconUser,
   IconSearch,
+  IconPaperclip,
+  IconPhoto,
 } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL } from '@utils/constants';
 import { useAuth } from '@/context/authContext';
@@ -461,39 +463,85 @@ export default function AttorneyMessenger() {
                 backgroundColor: 'white',
               }}
             >
-              <Group spacing="md" align="flex-end">
-                <Textarea
-                  placeholder="Type a message..."
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  maxLength={1000}
-                  autosize
-                  minRows={1}
-                  maxRows={4}
-                  style={{ flex: 1 }}
-                  styles={{
-                    input: {
-                      backgroundColor: THEMED_LIGHT_BG,
-                      borderRadius: '20px',
-                      border: 'none',
-                      padding: '10px 16px',
-                    },
-                  }}
-                />
-                <ActionIcon
-                  size={44}
-                  radius="xl"
-                  onClick={handleSend}
-                  disabled={!messageText.trim() || sending}
-                  loading={sending}
+              <Group spacing="md" align="center" noWrap>
+                {/* Attachment Icons */}
+                <Group spacing="xs" style={{ flexShrink: 0 }}>
+                  <ActionIcon
+                    size={36}
+                    radius="xl"
+                    variant="subtle"
+                    color={MUTED_OLIVE}
+                    onClick={() => notifications.show({
+                      title: 'Coming Soon',
+                      message: 'File attachment feature will be available soon',
+                      color: 'blue',
+                    })}
+                  >
+                    <IconPaperclip size={20} />
+                  </ActionIcon>
+                  <ActionIcon
+                    size={36}
+                    radius="xl"
+                    variant="subtle"
+                    color={MUTED_OLIVE}
+                    onClick={() => notifications.show({
+                      title: 'Coming Soon',
+                      message: 'Image upload feature will be available soon',
+                      color: 'blue',
+                    })}
+                  >
+                    <IconPhoto size={20} />
+                  </ActionIcon>
+                </Group>
+
+                {/* Input Box with Send Button Inside */}
+                <Box
                   style={{
-                    backgroundColor: !messageText.trim() || sending ? '#ccc' : PRIMARY_BROWN,
-                    color: 'white',
+                    flex: 1,
+                    position: 'relative',
+                    backgroundColor: THEMED_LIGHT_BG,
+                    borderRadius: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    paddingRight: '8px',
                   }}
                 >
-                  <IconSend size={20} />
-                </ActionIcon>
+                  <Textarea
+                    placeholder="Type a message..."
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    maxLength={1000}
+                    autosize
+                    minRows={1}
+                    maxRows={4}
+                    styles={{
+                      root: { flex: 1 },
+                      input: {
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        padding: '10px 16px',
+                        paddingRight: '50px',
+                        resize: 'none',
+                      },
+                    }}
+                  />
+                  <ActionIcon
+                    size={36}
+                    radius="xl"
+                    onClick={handleSend}
+                    disabled={!messageText.trim() || sending}
+                    loading={sending}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      backgroundColor: !messageText.trim() || sending ? '#ccc' : PRIMARY_BROWN,
+                      color: 'white',
+                    }}
+                  >
+                    <IconSend size={18} />
+                  </ActionIcon>
+                </Box>
               </Group>
             </Paper>
           </>

@@ -102,7 +102,7 @@ export const PAGE_TITLES = {
 export const LAYOUT_CONFIG = {
   // Pages with custom layout settings (no header/sidebar or custom)
   '/user/chat': { showHeader: false, showNavbar: true },
-  '/attorney/chat': { showHeader: true, showNavbar: false },
+  '/attorney/chat': { showHeader: false, showNavbar: true },
   '/attorney/chat/:caseId': { showHeader: false, showNavbar: false },
   
   // Add more custom pages here as needed
