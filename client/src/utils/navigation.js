@@ -29,6 +29,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconUsers, label: "Users Management", badge: "12", path: 'users' },
     { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
     { icon: IconBriefcase2, label: "Assign Case", path: 'assigncase' }, 
+    { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
   ],
   

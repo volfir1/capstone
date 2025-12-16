@@ -35,6 +35,7 @@ const ProfilePage = lazy(() => import('./pages/other/Profile'))
 const ManageAttorney = lazy(() => import('./pages/admin/ManageAttorney'))
 const AssignCase = lazy(() => import('./pages/admin/AssingCase'))
 const UserManagement = lazy(() => import("@admin/userManagement"))
+const RecommendationForAction = lazy(() => import('./pages/admin/RecommendationForAction'))
 
 
 // Attorney
@@ -152,6 +153,7 @@ function AppRoutes() {
           <Route path="users" element={<UserManagement />} />
           <Route path="attorneys" element={<ManageAttorney />} />
           < Route path="assigncase" element={<AssignCase />}/>
+          <Route path="recommendation" element={<RecommendationForAction />} />
           <Route path="profile" element={<AdminProfile />} />
         </Route>
       
