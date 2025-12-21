@@ -93,7 +93,7 @@ export default function UserManagementTable() {
           size="sm"
           radius="sm"
           style={{
-            backgroundColor: row.role === 'admin' ? PRIMARY_BROWN : MUTED_OLIVE,
+            backgroundColor: row.role === 'secretary' ? PRIMARY_BROWN : MUTED_OLIVE,
             color: 'white',
             fontWeight: 600,
             textTransform: 'capitalize',

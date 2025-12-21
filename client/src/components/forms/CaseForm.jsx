@@ -15,6 +15,7 @@ import {
   Alert,
   Divider,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { IconChevronDown, IconCheck, IconInfoCircle, IconFileText } from "@tabler/icons-react";
 import { CASE_TYPES } from "@/utils/caseTypes";
 import { 

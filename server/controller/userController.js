@@ -54,7 +54,9 @@ export const fetchUsers = async (req, res) =>{
             return res.status(404).json({ success: false, message: 'User not found'})
         }
 
-        if(user.role !== 'admin'){
+        // Allow secretary and attorney roles to access user management
+        const allowedRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern'];
+        if(!allowedRoles.includes(user.role)){
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
 

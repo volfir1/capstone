@@ -21,16 +21,19 @@ import {
   IconCheckbox,
   IconMessageCircle,
   IconScale,
+  IconLocationSearch,
+  IconChartDots
 } from "@tabler/icons-react";
 
 export const NAVIGATION_CONFIG = {
-  admin: [
+  secretary: [
     { icon: IconDashboard, label: "Dashboard", path: '/admin' },
     { icon: IconUsers, label: "Users Management", badge: "12", path: 'users' },
     { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
     { icon: IconBriefcase2, label: "Assign Case", path: 'assigncase' }, 
     { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
+    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientstats' },
   ],
   
   attorney: [
@@ -40,27 +43,20 @@ export const NAVIGATION_CONFIG = {
     { icon: IconBriefcase2, label: "Assigned Cases", path: 'assigned'  },
     { icon: IconCalendar, label: "Schedule", path: 'schedule' },
     { icon: IconMessageCircle, label: "Client Messages", path: 'chat' },
-    { icon: IconClipboardText, label: "Case Reports", path: 'reports' },
-    { icon: IconFiles, label: "Documents", path: 'documents' },
-    { icon: IconSettings, label: "Settings", path: 'settings' },
+    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientstats' },
   ],
   
   intern: [
     { icon: IconDashboard, label: "Dashboard", path: '/intern' },
-    { icon: IconBook, label: "Learning Resources", path: '/intern/resources' },
-    { icon: IconFolder, label: "Assigned Tasks", badge: "5", path: '/intern/tasks' },
-    { icon: IconFiles, label: "Case Assistance", path: '/intern/cases' },
-    { icon: IconCheckbox, label: "Training Modules", path: '/intern/training' },
-    { icon: IconCalendar, label: "Schedule", path: '/intern/schedule' },
-    { icon: IconMessage, label: "Messages", path: '/intern/messages' },
-    { icon: IconSchool, label: "Mentorship", path: '/intern/mentorship' },
-    { icon: IconUserCircle, label: "Profile", path: '/intern/profile' },
+    { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
+    { icon: IconUserCircle, label: "Profile", path: 'profile' },
+    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientstats' },
   ],
   
   client: [
     { icon: IconHome, label: "Home", path: "home" },
     { icon: IconBriefcase2, label: "Schedule appointment", path: "appointment" },
-    { icon: IconFiles, label: "My Cases", path: "trackcase" },
+    { icon: IconLocationSearch, label: "Track Appointment", path: "track" },
     { icon: IconMessageCircle, label: "Chat with Attorney", path: "chat" },
     { icon: IconUserCircle, label: "Profile", path: "profile" },
   ],

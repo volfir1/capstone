@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getAuth } from 'firebase/auth';
+import { auth } from '@/firebase/firebase';
 
 // 1. Create a "pre-configured" instance of Axios
 const client = axios.create({
@@ -10,7 +10,6 @@ const client = axios.create({
 // 2. Use an Interceptor to automatically add the auth token to every request
 client.interceptors.request.use(
   async (config) => {
-    const auth = getAuth();
     const user = auth.currentUser;
 
     if (user) {

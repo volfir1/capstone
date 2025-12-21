@@ -28,6 +28,7 @@ import {
   IconScale,
   IconSettings,
   IconChevronRight,
+  IconDashboard,
 } from "@tabler/icons-react";
 import { useAuth } from "../../context/authContext";
 import { useNavigate } from "react-router";
@@ -58,17 +59,27 @@ const Layout = ({
   const { userData } = useAuth();
   
   const currentPath = window.location.pathname;
-  const userRole = userData?.role || "client";
+  const actualUserRole = userData?.role || "client";
+  
+  // Determine which navigation to show based on current route
+  let displayRole = actualUserRole;
+  if (currentPath.startsWith('/admin')) {
+    displayRole = 'admin';
+  } else if (currentPath.startsWith('/attorney')) {
+    displayRole = 'attorney';
+  } else if (currentPath.startsWith('/user')) {
+    displayRole = 'client';
+  }
   
   // Get layout configuration for current page
   const layoutConfig = getLayoutConfig(currentPath);
   const showHeader = layoutConfig.showHeader;
   const showNavbar = layoutConfig.showNavbar;
   
-  // Get navigation items for current user role
-  const navItems = getNavigationByRole(userRole, currentPath);
-  const pageTitle = PAGE_TITLES[userRole] || PAGE_TITLES.client;
-  const roleDisplay = ROLE_DISPLAY[userRole] || ROLE_DISPLAY.client;
+  // Get navigation items based on display role (route-based)
+  const navItems = getNavigationByRole(displayRole, currentPath);
+  const pageTitle = PAGE_TITLES[displayRole] || PAGE_TITLES.client;
+  const roleDisplay = ROLE_DISPLAY[displayRole] || ROLE_DISPLAY.client;
 
   const handleLogout = async () => {
     try {
@@ -209,9 +220,67 @@ const Layout = ({
               <Text size="lg" fw={700} c={CHARCOAL} mb={4}>
                 {pageTitle}
               </Text>
-              <Text size="xs" c={MUTED_OLIVE} fw={500}>
+              <Text size="xs" c={MUTED_OLIVE} fw={500} mb="md">
                 Welcome back, {userData?.firstName}
               </Text>
+              
+              {/* Switch Dashboard for Attorney Roles */}
+              {(actualUserRole === 'attorney' || actualUserRole === 'pao_lawyer' || actualUserRole === 'legal_volunteer') && (
+                <UnstyledButton
+                  onClick={() => {
+                    const isOnAdminPage = currentPath.startsWith('/admin');
+                    navigate(isOnAdminPage ? '/attorney' : '/admin');
+                    setOpened(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    backgroundColor: THEMED_LIGHT_BG,
+                    border: `1px solid #E8E8E8`,
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                  styles={{
+                    root: {
+                      '&:hover': {
+                        backgroundColor: PRIMARY_BROWN,
+                        borderColor: PRIMARY_BROWN,
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 4px 12px rgba(101, 67, 33, 0.2)',
+                        '& .switch-text': {
+                          color: 'white',
+                        },
+                        '& .switch-icon': {
+                          color: 'white',
+                        },
+                      },
+                    },
+                  }}
+                >
+                  <Group gap={8}>
+                    <Box
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '6px',
+                        backgroundColor: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <IconDashboard size={16} color={PRIMARY_BROWN} stroke={2} className="switch-icon" />
+                    </Box>
+                    <Text size="sm" fw={600} c={CHARCOAL} className="switch-text">
+                      {currentPath.startsWith('/admin') ? 'Switch to Attorney' : 'Switch to Admin'}
+                    </Text>
+                  </Group>
+                  <IconChevronRight size={16} color={MUTED_OLIVE} stroke={2} className="switch-icon" />
+                </UnstyledButton>
+              )}
             </Box>
           </Box>
         </AppShell.Navbar>
