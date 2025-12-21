@@ -64,9 +64,11 @@ const Layout = ({
   // Determine which navigation to show based on current route
   let displayRole = actualUserRole;
   if (currentPath.startsWith('/admin')) {
-    displayRole = 'admin';
+    displayRole = 'secretary';
   } else if (currentPath.startsWith('/attorney')) {
     displayRole = 'attorney';
+  } else if (currentPath.startsWith('/intern')) {
+    displayRole = 'intern';
   } else if (currentPath.startsWith('/user')) {
     displayRole = 'client';
   }

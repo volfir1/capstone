@@ -142,7 +142,6 @@ function AppRoutes() {
         >
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<Home />} />
-          <Route path="trackcase" element={< TrackCase/>}/>
           <Route path="chat/:caseId?" element={<UserChat/>}/>
           <Route path="profile" element={<UserProfile />} />
           <Route path="appointment" element={<UserForm />} />
@@ -198,7 +197,7 @@ function AppRoutes() {
           }
         >
           <Route path="recommendation" element={<RecommendationForAction />} />
-          <Route path="clientstats" element={<ClientApplicationStatus />} />
+          <Route path="clientstats" element={<ClientApplicationStatus />} />  
         </Route>
         
         <Route path="/forgot-password" element={<ForgotPassword />} />

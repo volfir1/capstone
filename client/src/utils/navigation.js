@@ -63,17 +63,27 @@ export const NAVIGATION_CONFIG = {
 };
 
 // Helper function to get navigation items by role
-// Helper function to get navigation items by role
 export const getNavigationByRole = (role, currentPath) => {
   const items = NAVIGATION_CONFIG[role] || NAVIGATION_CONFIG.client;
   
+  // Map role to base path
+  const rolePathMap = {
+    secretary: 'admin',
+    attorney: 'attorney',
+    intern: 'intern',
+    client: 'user'
+  };
+  
+  const basePath = rolePathMap[role] || 'user';
+  
   return items.map(item => {
     // Normalize paths for comparison
-    const itemPath = item.path.startsWith('/') ? item.path : `/${role}/${item.path}`;
+    const itemPath = item.path.startsWith('/') ? item.path : `/${basePath}/${item.path}`;
     const isActive = currentPath === itemPath || currentPath.startsWith(itemPath + '/');
     
     return {
       ...item,
+      path: itemPath,
       active: isActive
     };
   });
@@ -81,7 +91,7 @@ export const getNavigationByRole = (role, currentPath) => {
 
 // Role display names
 export const ROLE_DISPLAY = {
-  admin: "Administrator",
+  secretary: "Secretary",
   attorney: "Attorney",
   intern: "Legal Intern",
   client: "Client",
@@ -89,7 +99,7 @@ export const ROLE_DISPLAY = {
 
 // Page titles by role
 export const PAGE_TITLES = {
-  admin: "Admin Dashboard",
+  secretary: "Admin Dashboard",
   attorney: "Attorney Portal",
   intern: "Intern Portal",
   client: "Client Portal",
