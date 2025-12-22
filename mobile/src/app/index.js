@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import styles from '@assets/styles/landingStyles';
 
@@ -177,6 +177,16 @@ export default function LandingPage() {
         
         <Text style={styles.footerCopyright}>© 2024 JustReach. All rights reserved.</Text>
       </View>
+
+      {/* Floating AI Chatbot Button */}
+      <TouchableOpacity 
+        style={styles.floatingChatButton}
+        onPress={() => router.push('/ai-chatbot')}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
+        <Text style={styles.floatingChatText}>Ask AI</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }

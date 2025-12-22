@@ -1,16 +1,16 @@
+import './config/env.js'; // MUST BE VERY FIRST - loads environment variables
+
 import express from "express"
 import mongoose from 'mongoose'
 import userRoutes from './routes/userRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import caseRoutes from './routes/caseRoutes.js'
 import chatRoutes from './routes/chatRoutes.js'
-import dotenv from 'dotenv'
+import chatbotRoutes from "./routes/chatbotRoutes.js"; // Fixed: was chatnotRoutes
 import cors from "cors"
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import admin from 'firebase-admin'
-
-dotenv.config()
 
 // Initialize Firebase Admin SDK
 admin.initializeApp({
@@ -49,11 +49,19 @@ app.use(express.json({ limit: '10mb' })) // Limit payload size
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cors(corsOptions))
 
-// Routes
+// Public Routes (no auth required)
+app.use("/api/ai-assistant", chatbotRoutes); // AI Chatbot - public access
+
+// Test route to verify server is working
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Server is working!" });
+});
+
+// Protected Routes (auth required)
 app.use('/api/users', userRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/cases', caseRoutes)
-app.use('/api/chat', chatRoutes)
+app.use('/api/chat', chatRoutes) // Attorney-Client chat
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URL)
@@ -70,11 +78,13 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST
+const HOST = process.env.HOST // This is just for display, not required
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => { // 0.0.0.0 means accept from any IP
     console.log(`Server running at port ${PORT}`)
     console.log(`Local: http://localhost:${PORT}`)
-    console.log(`Network: Use your WiFi IP address (check ipconfig)`)
-    console.log(`Access from phone: http://${HOST}:${PORT}`)
+    console.log(`Network: Access from your current WiFi IP`)
+    if (HOST) {
+        console.log(`Configured Host: http://${HOST}:${PORT}`)
+    }
 })

@@ -1,0 +1,26 @@
+### Test Server Connection
+GET http://localhost:5000/api/test
+
+### Test AI Assistant - Public Access (No Auth)
+POST http://localhost:5000/api/ai-assistant/message
+Content-Type: application/json
+
+{
+  "message": "Pwede po ba akong magreklamo kung hindi ako binabayaran ng employer ko ng tamang sahod?"
+}
+
+### Test AI Assistant - English
+POST http://localhost:5000/api/ai-assistant/message
+Content-Type: application/json
+
+{
+  "message": "kailan ako pwede mag-file ng maternity leave sa trabaho ko?"
+}
+
+### Test AI Assistant - Rate Limit Test
+POST http://localhost:5000/api/ai-assistant/message
+Content-Type: application/json
+
+{
+  "message": "Hello"
+}

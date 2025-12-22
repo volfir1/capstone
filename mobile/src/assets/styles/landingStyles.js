@@ -337,6 +337,31 @@ const landingStyles = StyleSheet.create({
     borderTopColor: MUTED_OLIVE,
     opacity: 0.8,
   },
+
+  // Floating AI Chatbot Button
+  floatingChatButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    backgroundColor: PRIMARY_GOLD,
+    borderRadius: 30,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    zIndex: 1000,
+  },
+  floatingChatText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default landingStyles;
