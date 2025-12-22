@@ -59,7 +59,7 @@ export const NAVIGATION_CONFIG = {
   
   client: [
     { icon: IconHome, label: "Home", path: "home" },
-    { icon: IconBriefcase2, label: "Submit a Case", path: "submitcase" },
+    { icon: IconBriefcase2, label: "Schedule appointment", path: "appointment" },
     { icon: IconFiles, label: "My Cases", path: "trackcase" },
     { icon: IconMessageCircle, label: "Chat with Attorney", path: "chat" },
     { icon: IconUserCircle, label: "Profile", path: "profile" },

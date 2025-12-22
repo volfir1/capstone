@@ -6,7 +6,7 @@ import { Outlet } from "react-router";
 import { Layout } from "../components/layout/Layout";
 import { lazy, Suspense } from "react";
 import { Loaders } from "../components/ui/Loader";
-import SubmitCase from "./pages/user/SubmitCase";
+import SubmitCase from "./pages/other/SubmitCase";
 import UserProfile from "./pages/other/Profiles/UserProfile";
 import AttorneyProfile from "./pages/other/Profiles/AttorneyProfile";
 import AdminProfile from "./pages/other/Profiles/AdminProfile";
@@ -26,7 +26,7 @@ const LandingPage = lazy(()=> import("./pages/LandingPage"))
 const AboutPage = lazy(()=> import('./pages/About'))
 const FeaturesPage = lazy(()=> import('./pages/Features'))
 const HowItWorks = lazy(()=> import('./pages/How')) 
-const UserForm = lazy(() => import('./pages/other/UserForm'))
+const UserForm = lazy(() => import('./pages/user/UserForm'))
 const TrackCase = lazy(() => import('./pages/user/TrackCase'))
 const UserChat = lazy(() => import('./pages/user/Chat'))
 const ProfilePage = lazy(() => import('./pages/other/Profile'))
@@ -117,7 +117,7 @@ function AppRoutes() {
           <Route path="attorneysignup" element={<AttorneySignup />} />
         </Route>
        
-        <Route path="/formapp" element={<UserForm />} />
+       
         {/* User */}
         <Route
           path="/user"
@@ -135,6 +135,7 @@ function AppRoutes() {
           <Route path="trackcase" element={< TrackCase/>}/>
           <Route path="chat/:caseId?" element={<UserChat/>}/>
           <Route path="profile" element={<UserProfile />} />
+           <Route path="appointment" element={<UserForm />} />
 
         </Route>
 
