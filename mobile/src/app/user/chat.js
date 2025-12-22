@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useChat } from '../../hooks/useChat';
 import { useAuth } from 'context/authContext';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, CHARCOAL, THEMED_LIGHT_BG } from 'utils/constants';
 
 const ChatScreen = () => {
   const router = useRouter();
@@ -73,7 +74,14 @@ const ChatScreen = () => {
           isMyMessage ? styles.myMessageContainer : styles.theirMessageContainer,
         ]}
       >
-        {!isMyMessage && <Text style={styles.senderName}>{senderName}</Text>}
+        {!isMyMessage && (
+          <View style={styles.senderHeader}>
+            <View style={styles.senderAvatar}>
+              <Ionicons name="person" size={16} color="white" />
+            </View>
+            <Text style={styles.senderName}>{senderName}</Text>
+          </View>
+        )}
         <View
           style={[
             styles.messageBubble,
@@ -106,7 +114,7 @@ const ChatScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#2D2D2D" />
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>{chatPartnerName}</Text>
@@ -118,7 +126,7 @@ const ChatScreen = () => {
       {/* Messages List */}
       {loading && messages.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B6F47" />
+          <ActivityIndicator size="large" color={PRIMARY_BROWN} />
           <Text style={styles.loadingText}>Loading messages...</Text>
         </View>
       ) : (
@@ -132,10 +140,10 @@ const ChatScreen = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={["#8B6F47"]} // Android
-              tintColor="#8B6F47" // iOS
-              title="Pull to refresh" // iOS
-              titleColor="#8B6F47" // iOS
+              colors={[PRIMARY_BROWN]}
+              tintColor={PRIMARY_BROWN}
+              title="Pull to refresh"
+              titleColor={PRIMARY_BROWN}
             />
           }
           ListEmptyComponent={
@@ -155,15 +163,17 @@ const ChatScreen = () => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            value={messageText}
-            onChangeText={setMessageText}
-            placeholder="Type a message..."
-            placeholderTextColor="#999"
-            multiline
-            maxLength={1000}
-          />
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              value={messageText}
+              onChangeText={setMessageText}
+              placeholder="Type a message..."
+              placeholderTextColor="#999"
+              multiline
+              maxLength={1000}
+            />
+          </View>
           <TouchableOpacity
             style={[styles.sendButton, (!messageText.trim() || sending) && styles.sendButtonDisabled]}
             onPress={handleSend}
@@ -184,17 +194,20 @@ const ChatScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F0',
+    backgroundColor: THEMED_LIGHT_BG,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    paddingVertical: 16,
+    backgroundColor: PRIMARY_BROWN,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   backButton: {
     padding: 8,
@@ -206,11 +219,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2D2D2D',
+    color: '#FFFFFF',
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 2,
   },
   placeholder: {
@@ -257,20 +270,38 @@ const styles = StyleSheet.create({
   theirMessageContainer: {
     alignSelf: 'flex-start',
   },
+  senderHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    marginLeft: 4,
+    gap: 6,
+  },
+  senderAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: PRIMARY_BROWN,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   senderName: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8B6F47',
-    marginBottom: 4,
-    marginLeft: 12,
+    color: PRIMARY_BROWN,
   },
   messageBubble: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 18,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   myMessageBubble: {
-    backgroundColor: '#8B6F47',
+    backgroundColor: PRIMARY_BROWN,
     borderBottomRightRadius: 4,
   },
   theirMessageBubble: {
@@ -280,14 +311,14 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   messageText: {
-    fontSize: 16,
+    fontSize: 15,
     lineHeight: 22,
   },
   myMessageText: {
     color: '#FFFFFF',
   },
   theirMessageText: {
-    color: '#2D2D2D',
+    color: CHARCOAL,
   },
   timeText: {
     fontSize: 10,
@@ -308,29 +339,39 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
+    gap: 10,
+  },
+  inputWrapper: {
+    flex: 1,
+    backgroundColor: THEMED_LIGHT_BG,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 4,
   },
   input: {
-    flex: 1,
-    backgroundColor: '#F5F5F0',
-    borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingTop: 10,
-    fontSize: 16,
+    fontSize: 15,
     maxHeight: 100,
-    marginRight: 12,
-    color: '#2D2D2D',
+    color: CHARCOAL,
   },
   sendButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#8B6F47',
+    backgroundColor: PRIMARY_BROWN,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   sendButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#CCC',
+    opacity: 0.5,
   },
 });
 

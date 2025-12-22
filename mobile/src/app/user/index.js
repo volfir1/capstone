@@ -14,15 +14,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "context/authContext";
 import styles from "@assets/styles/userDashboardStyles";
-import { CHARCOAL } from "utils/constants";
-import SubmitCaseForm from "components/forms/submitCaseForm";
+import { CHARCOAL, PRIMARY_BROWN, PRIMARY_GOLD, MUTED_OLIVE } from "utils/constants";
 import { useUserCases } from "../../hooks/useUserCases";
 
 export default function UserDashboard() {
   const router = useRouter();
   const { logout, user, isLoading } = useAuth();
   const { cases, assignedCase, loading: casesLoading, refreshCases } = useUserCases();
-  const [isModalVisible, setIsModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const assignedAttorney = assignedCase?.attorneyId;
@@ -54,14 +52,6 @@ export default function UserDashboard() {
     ]);
   };
 
-  const handleSubmitCase = async (caseData) => {
-    setIsModalVisible(false);
-    // Refresh cases after submission
-    setTimeout(() => {
-      refreshCases();
-    }, 1000);
-  };
-
   const handleChatPress = () => {
     if (assignedCase && assignedAttorney) {
       router.push({
@@ -89,6 +79,73 @@ export default function UserDashboard() {
   const pendingCases = cases.filter(c => !c.attorneyId).length;
   const ongoingCases = cases.filter(c => c.attorneyId).length;
   const completedCases = 0; // TODO: Add status field to case model
+
+  const statsData = [
+    {
+      icon: "briefcase",
+      label: "Active Cases",
+      value: ongoingCases.toString(),
+      subtitle: `${pendingCases} pending`,
+      color: PRIMARY_BROWN,
+      bgColor: `${PRIMARY_BROWN}15`,
+    },
+    {
+      icon: "documents",
+      label: "Documents",
+      value: "12",
+      subtitle: "Uploaded files",
+      color: PRIMARY_GOLD,
+      bgColor: `${PRIMARY_GOLD}15`,
+    },
+    {
+      icon: "notifications",
+      label: "Notifications",
+      value: "5",
+      subtitle: "Unread messages",
+      color: MUTED_OLIVE,
+      bgColor: `${MUTED_OLIVE}15`,
+    },
+    {
+      icon: "calendar",
+      label: "Appointments",
+      value: "2",
+      subtitle: "This month",
+      color: "#C4AB7D",
+      bgColor: "#C4AB7D15",
+    },
+  ];
+
+  const quickActions = [
+    {
+      icon: "briefcase-outline",
+      title: "Schedule Appointment",
+      description: "Book a legal consultation",
+      path: "appointment",
+      color: PRIMARY_BROWN,
+    },
+    {
+      icon: "location-outline",
+      title: "Track Appointment",
+      description: "Monitor your appointments",
+      path: "track-appointment",
+      color: PRIMARY_GOLD,
+    },
+    {
+      icon: "chatbubbles-outline",
+      title: "Chat with Attorney",
+      description: "Get instant support",
+      path: "chat",
+      color: MUTED_OLIVE,
+      disabled: !assignedAttorney,
+    },
+    {
+      icon: "person-outline",
+      title: "Profile",
+      description: "Manage your account",
+      path: "profile",
+      color: "#C4AB7D",
+    },
+  ];
 
   return (
     <View style={styles.container}>
@@ -131,24 +188,91 @@ export default function UserDashboard() {
       >
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeText}>Welcome back,</Text>
-          {user?.displayName && (
-            <Text style={styles.nameText}>{user.displayName}</Text>
-          )}
-          {user?.email && <Text style={styles.emailText}>{user.email}</Text>}
+          <View style={styles.welcomeHeader}>
+            <View>
+              <Text style={styles.welcomeText}>Welcome back,</Text>
+              {user?.displayName && (
+                <Text style={styles.nameText}>{user.displayName}</Text>
+              )}
+            </View>
+            {user?.email && (
+              <View style={styles.verifiedBadge}>
+                <Ionicons name="shield-checkmark" size={16} color="white" />
+                <Text style={styles.verifiedText}>Verified</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.dateText}>
+            {new Date().toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </Text>
+        </View>
+
+        {/* Stats Cards */}
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>Overview</Text>
+          <View style={styles.statsGrid}>
+            {statsData.map((stat, index) => (
+              <View key={index} style={[styles.statCard, { backgroundColor: stat.bgColor }]}>
+                <View style={[styles.statIconContainer, { backgroundColor: stat.color }]}>
+                  <Ionicons name={stat.icon} size={20} color="white" />
+                </View>
+                <View style={styles.statContent}>
+                  <Text style={styles.statValue}>{stat.value}</Text>
+                  <Text style={styles.statLabel}>{stat.label}</Text>
+                  <Text style={styles.statSubtitle}>{stat.subtitle}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionsGrid}>
+            {quickActions.map((action, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[styles.actionCard, action.disabled && styles.actionCardDisabled]}
+                onPress={() => action.disabled ? null : router.push(action.path)}
+                disabled={action.disabled}
+              >
+                <View style={[styles.actionIconContainer, { backgroundColor: `${action.color}15` }]}>
+                  <Ionicons name={action.icon} size={24} color={action.color} />
+                </View>
+                <Text style={styles.actionTitle}>{action.title}</Text>
+                <Text style={styles.actionDescription}>
+                  {action.disabled ? "Attorney not assigned yet" : action.description}
+                </Text>
+                {!action.disabled && (
+                  <Ionicons 
+                    name="chevron-forward" 
+                    size={18} 
+                    color={MUTED_OLIVE} 
+                    style={styles.actionArrow}
+                  />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Attorney Profile Section - Only show if attorney is assigned */}
         {casesLoading ? (
           <View style={styles.loadingSection}>
-            <ActivityIndicator size="small" color="#8B6F47" />
+            <ActivityIndicator size="small" color={PRIMARY_BROWN} />
           </View>
         ) : assignedAttorney ? (
           <View style={styles.attorneySection}>
-            <Text style={styles.sectionHeader}>Your Assigned Attorney</Text>
+            <Text style={styles.sectionTitle}>Your Assigned Attorney</Text>
             <View style={styles.attorneyCard}>
-              <View style={styles.attorneyAvatar}>
-                <Ionicons name="person" size={32} color="#8B6F47" />
+              <View style={styles.attorneyAvatarLarge}>
+                <Ionicons name="person" size={32} color="white" />
               </View>
               <View style={styles.attorneyInfo}>
                 <Text style={styles.attorneyName}>
@@ -156,91 +280,83 @@ export default function UserDashboard() {
                 </Text>
                 <Text style={styles.attorneyEmail}>{assignedAttorney.email}</Text>
                 {assignedAttorney.phoneNumber && (
-                  <Text style={styles.attorneyPhone}>
-                    📞 {assignedAttorney.phoneNumber}
-                  </Text>
+                  <View style={styles.attorneyContactRow}>
+                    <Ionicons name="call" size={14} color={MUTED_OLIVE} />
+                    <Text style={styles.attorneyPhone}>{assignedAttorney.phoneNumber}</Text>
+                  </View>
                 )}
                 {assignedAttorney.specializations && assignedAttorney.specializations.length > 0 && (
-                  <Text style={styles.attorneySpec}>
-                    {assignedAttorney.specializations.join(", ")}
-                  </Text>
+                  <View style={styles.specializationsContainer}>
+                    {assignedAttorney.specializations.map((spec, idx) => (
+                      <View key={idx} style={styles.specializationBadge}>
+                        <Text style={styles.specializationText}>{spec}</Text>
+                      </View>
+                    ))}
+                  </View>
                 )}
               </View>
+              <TouchableOpacity
+                style={styles.chatIconButton}
+                onPress={handleChatPress}
+              >
+                <Ionicons name="chatbubble" size={20} color="white" />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.caseInfo}>
-              Case: {assignedCase.caseTitle} ({assignedCase.caseNumber})
-            </Text>
+            <View style={styles.caseInfoBox}>
+              <Ionicons name="folder-open" size={16} color={PRIMARY_BROWN} />
+              <Text style={styles.caseInfo}>
+                {assignedCase.caseTitle} ({assignedCase.caseNumber})
+              </Text>
+            </View>
           </View>
         ) : null}
 
-        {/* Case Overview Section */}
-        <View style={styles.content}>
-          <Text style={styles.sectionHeader}>Case Overview</Text>
-
-          {/* Status Cards */}
-          <View style={styles.statusContainer}>
-            <View style={styles.statusCard}>
-              <Text style={styles.statusNumber}>{pendingCases}</Text>
-              <Text style={styles.statusLabel}>Pending Cases</Text>
-            </View>
-
-            <View style={styles.statusCard}>
-              <Text style={styles.statusNumber}>{ongoingCases}</Text>
-              <Text style={styles.statusLabel}>Ongoing Cases</Text>
-            </View>
-
-            <View style={styles.statusCard}>
-              <Text style={styles.statusNumber}>{completedCases}</Text>
-              <Text style={styles.statusLabel}>Completed Cases</Text>
-            </View>
-          </View>
-
-          {/* Action Buttons */}
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => setIsModalVisible(true)}
-            >
-              <Text style={styles.primaryButtonText}>Submit a Case</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => router.push("user/trackCase")}
-            >
-              <Text style={styles.secondaryButtonText}>Track Case</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.chatButton,
-                !assignedAttorney && styles.chatButtonDisabled,
-              ]}
-              onPress={handleChatPress}
-              disabled={!assignedAttorney}
-            >
-              <Text
-                style={[
-                  styles.chatButtonText,
-                  !assignedAttorney && styles.chatButtonTextDisabled,
-                ]}
-              >
-                Chat with Attorney
-              </Text>
-              {!assignedAttorney && (
-                <Text style={styles.disabledNote}>
-                  Available when attorney is assigned
-                </Text>
-              )}
+        {/* Recent Activity Section */}
+        <View style={styles.recentActivitySection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <TouchableOpacity onPress={() => router.push('/user/trackCase')}>
+              <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
+          
+          {cases.length > 0 ? (
+            cases.slice(0, 3).map((caseItem, index) => (
+              <View key={index} style={styles.activityCard}>
+                <View style={styles.activityIconContainer}>
+                  <Ionicons name="document-text" size={20} color={PRIMARY_BROWN} />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityTitle}>{caseItem.caseTitle}</Text>
+                  <Text style={styles.activitySubtitle}>
+                    {caseItem.attorneyId ? 'Attorney Assigned' : 'Pending Review'}
+                  </Text>
+                  <Text style={styles.activityDate}>
+                    {new Date(caseItem.createdAt).toLocaleDateString()}
+                  </Text>
+                </View>
+                <View style={[
+                  styles.activityStatusBadge,
+                  { backgroundColor: caseItem.attorneyId ? `${MUTED_OLIVE}20` : `${PRIMARY_GOLD}20` }
+                ]}>
+                  <Text style={[
+                    styles.activityStatusText,
+                    { color: caseItem.attorneyId ? MUTED_OLIVE : PRIMARY_GOLD }
+                  ]}>
+                    {caseItem.attorneyId ? 'Active' : 'Pending'}
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="folder-open-outline" size={48} color="#CCC" />
+              <Text style={styles.emptyStateText}>No cases yet</Text>
+              <Text style={styles.emptyStateSubtext}>Start by submitting your first case</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
-      <SubmitCaseForm
-        visible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
-        onSubmit={handleSubmitCase}
-      />
     </View>
   );
 }
