@@ -1,10 +1,12 @@
-import React from 'react';
-import { IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
+import React, { useState } from 'react';
+import { IconCircleCheck, IconInfoCircle, IconCalendar } from '@tabler/icons-react';
 import { Text, Group, Title, Paper, Grid, Stack, Box, Divider, Alert } from '@mantine/core';
+import { DateInput } from '@mantine/dates';
 import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG, CHARCOAL, MUTED_OLIVE } from '@utils/constants';
 
 export default function ReviewForm({ formData, getValues }) {
   const allData = { ...formData, ...getValues() };
+  const [appointmentDate, setAppointmentDate] = useState(null);
   
   return (
     <Stack gap="lg" mt="lg">
@@ -174,6 +176,63 @@ export default function ReviewForm({ formData, getValues }) {
             </Box>
           </Grid.Col>
         </Grid>
+      </Paper>
+      
+      {/* Appointment Date */}
+      <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+        <Title order={4} mb="md" c={CHARCOAL}>Preferred Appointment Date</Title>
+        <Divider mb="md" color="#F0F0F0" />
+        <Text size="sm" c={MUTED_OLIVE} mb="md">
+          Select your preferred date for the consultation appointment. The office will confirm availability and contact you.
+        </Text>
+        <DateInput
+          value={appointmentDate}
+          onChange={setAppointmentDate}
+          label="Appointment Date"
+          placeholder="Select a date"
+          leftSection={<IconCalendar size={18} color={PRIMARY_BROWN} />}
+          valueFormat="MMMM DD, YYYY"
+          minDate={new Date()}
+          clearable
+          required
+          styles={{
+            input: {
+              borderColor: '#E0E0E0',
+              '&:focus': {
+                borderColor: PRIMARY_BROWN,
+              },
+            },
+            label: {
+              color: CHARCOAL,
+              fontWeight: 600,
+              marginBottom: '8px',
+            },
+          }}
+        />
+        {appointmentDate && (
+          <Alert
+            mt="md"
+            icon={<IconInfoCircle size={18} />}
+            styles={{
+              root: {
+                backgroundColor: `${PRIMARY_BROWN}10`,
+                border: `1px solid ${PRIMARY_BROWN}`,
+              },
+              icon: {
+                color: PRIMARY_BROWN,
+              },
+            }}
+          >
+            <Text size="sm" c={CHARCOAL}>
+              <strong>Selected Date:</strong> {new Date(appointmentDate).toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </Text>
+          </Alert>
+        )}
       </Paper>
       
       {/* Data Privacy Notice */}

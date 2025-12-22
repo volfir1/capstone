@@ -146,7 +146,7 @@ export default function AuthProvider({ children }) {
     userLoggedIn,
     loading,
     userData,
-    isAdmin: userData?.role === "admin",
+    isAdmin: userData?.role === "secretary",
     isVerified: userData?.isVerified || false,
     refreshUserData,
   };

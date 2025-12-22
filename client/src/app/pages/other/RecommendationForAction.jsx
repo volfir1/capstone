@@ -19,6 +19,7 @@ import {
     Stepper
 } from '@mantine/core';
 import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText } from '@tabler/icons-react'; // Added icons
+import { useAuth } from '@/context/authContext';
 
 // --- Consolidated Constants ---
 const PRIMARY_GOLD = '#FFD700';
@@ -266,10 +267,18 @@ SupervisingLawyerActionSection.displayName = 'SupervisingLawyerActionSection';
 const totalSteps = 3;
 
 export default function CaseRecordFormsDisplay() {
+    const { userData } = useAuth();
     const [active, setActive] = useState(0);
+    const isIntern = userData?.role === 'intern';
 
     const nextStep = () => setActive((current) => (current < totalSteps - 1 ? current + 1 : current));
     const prevStep = () => setActive((current) => (current > 0 ? current - 1 : current));
+    
+    const handleSubmit = () => {
+        // TODO: Add submission logic here
+        alert('Form submitted successfully!');
+        console.log('Form submitted by:', userData?.role);
+    };
 
     const renderStepContent = () => {
         switch (active) {
@@ -364,25 +373,41 @@ export default function CaseRecordFormsDisplay() {
                                 <Box /> // Empty box to maintain spacing
                             )}
                             
-                            {active < totalSteps - 1 ? (
-                                <Button 
-                                    rightSection={<IconChevronRight size={20} />}
-                                    onClick={nextStep}
-                                    size="md"
-                                    style={{ backgroundColor: PRIMARY_BROWN }}
-                                >
-                                    Next Step
-                                </Button>
-                            ) : (
-                                <Button 
-                                    leftSection={<IconCircleCheck size={20} />}
-                                    onClick={() => alert('Submit logic would go here!')} // Placeholder submit action
-                                    size="md"
-                                    style={{ backgroundColor: PRIMARY_BROWN }}
-                                >
-                                    Finalize Record
-                                </Button>
-                            )}
+                            <Group gap="md">
+                                {/* Show Submit for Review button for interns on step 2 */}
+                                {isIntern && active === 1 && (
+                                    <Button 
+                                        leftSection={<IconCircleCheck size={20} />}
+                                        onClick={handleSubmit}
+                                        size="md"
+                                        variant="filled"
+                                        style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                    >
+                                        Submit for Review
+                                    </Button>
+                                )}
+                                
+                                {/* Show Next or Finalize button */}
+                                {active < totalSteps - 1 ? (
+                                    <Button 
+                                        rightSection={<IconChevronRight size={20} />}
+                                        onClick={nextStep}
+                                        size="md"
+                                        style={{ backgroundColor: PRIMARY_BROWN }}
+                                    >
+                                        Next Step
+                                    </Button>
+                                ) : (
+                                    <Button 
+                                        leftSection={<IconCircleCheck size={20} />}
+                                        onClick={handleSubmit}
+                                        size="md"
+                                        style={{ backgroundColor: PRIMARY_BROWN }}
+                                    >
+                                        Finalize Record
+                                    </Button>
+                                )}
+                            </Group>
                         </Group>
                     </Stack>
                 </Paper>

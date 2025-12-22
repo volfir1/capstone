@@ -1,6 +1,7 @@
 import React from 'react';
-import { IconUser, IconInfoCircle, IconCheck } from '@tabler/icons-react';
+import { IconUser, IconInfoCircle, IconCheck, IconCalendar } from '@tabler/icons-react';
 import { TextInput, Select, Group, Title, Paper, Grid, Stack, Checkbox, Tooltip, Alert, Text, Box } from '@mantine/core';
+import { DateInput } from '@mantine/dates';
 import { 
   PRIMARY_GOLD, 
   PRIMARY_BROWN, 
@@ -138,11 +139,16 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
               <Text size="sm" fw={600} c={CHARCOAL}>Birthday</Text>
               <Text size="sm" c="red">*</Text>
             </Group>
-            <TextInput
-              type="date"
+            <DateInput
+              placeholder="Pick your birthday"
               size="md"
+              valueFormat="MMMM DD, YYYY"
+              leftSection={<IconCalendar size={16} color={MUTED_OLIVE} />}
+              maxDate={new Date()}
               {...register('birthday', validationRules.birthday)}
+              onChange={(date) => setValue('birthday', date)}
               error={errors.birthday?.message}
+              clearable
               styles={{
                 input: {
                   borderColor: errors.birthday ? '#E74C3C' : '#E0E0E0',

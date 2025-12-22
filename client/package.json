@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@mantine/core": "^8.3.0",
+    "@mantine/dates": "^8.3.10",
     "@mantine/hooks": "^8.3.0",
     "@mantine/notifications": "^8.3.10",
     "@react-router/node": "^7.7.1",

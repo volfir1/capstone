@@ -98,8 +98,8 @@ export default function AttorneyLogin() {
         console.log('Step 3: Attorney verified, logging in');
         
         // Navigate based on role immediately
-        if (attorney.role === 'admin') {
-          console.log('Admin role detected, navigating to admin dashboard');
+        if (attorney.role === 'secretary') {
+          console.log('Secretary role detected, navigating to admin dashboard');
           navigate('/admin');
         } else if (attorney.role === 'intern') {
           console.log('Intern role detected, navigating to intern dashboard');

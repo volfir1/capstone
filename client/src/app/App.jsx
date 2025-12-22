@@ -1,12 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
 import "@mantine/core/styles.css";
+import "@mantine/dates/styles.css";
 import { createTheme, MantineProvider } from "@mantine/core";
+import { DatesProvider } from "@mantine/dates";
 import AuthProvider, { useAuth } from "../context/authContext";
 import { Outlet } from "react-router";
 import { Layout } from "../components/layout/Layout";
 import { lazy, Suspense } from "react";
 import { Loaders } from "../components/ui/Loader";
-import SubmitCase from "./pages/other/SubmitCase";
 import UserProfile from "./pages/other/Profiles/UserProfile";
 import AttorneyProfile from "./pages/other/Profiles/AttorneyProfile";
 import AdminProfile from "./pages/other/Profiles/AdminProfile";
@@ -16,6 +17,7 @@ const Signup = lazy(() => import("./pages/auth/Signup/Signup"));
 const Login = lazy(() => import("./pages/auth/Login/Login"));
 const AttorneySignup = lazy(() => import('./pages/auth/Signup/AttorneySingup.jsx'))
 const AttorneyLogin = lazy(() => import('./pages/auth/Login/AttorneyLogin.jsx'))
+const TrackAppointment = lazy (()=> import('./pages/user/TrackAppointment'))
 
 const Home = lazy(() => import("./pages/user/Home"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
@@ -30,26 +32,30 @@ const UserForm = lazy(() => import('./pages/user/UserForm'))
 const TrackCase = lazy(() => import('./pages/user/TrackCase'))
 const UserChat = lazy(() => import('./pages/user/Chat'))
 const ProfilePage = lazy(() => import('./pages/other/Profile'))
+const ClientApplicationStatus = lazy(() => import('./pages/other/ClientFormStatus'))
 
 // Admin
 const ManageAttorney = lazy(() => import('./pages/admin/ManageAttorney'))
 const AssignCase = lazy(() => import('./pages/admin/AssingCase'))
-const UserManagement = lazy(() => import("@admin/userManagement"))
-const RecommendationForAction = lazy(() => import('./pages/admin/RecommendationForAction'))
+const UserManagement = lazy(() => import('./pages/admin/userManagement'))
+const RecommendationForAction = lazy(() => import('./pages/other/RecommendationForAction'))
 
 
 // Attorney
 const AttorneyDashboard = lazy(() => import('./pages/attorney/AttorneyDashboard'))
 const AttorneyMessenger = lazy(() => import('./pages/attorney/Messenger.jsx'))
 
+// Intern
+
+
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
 });
 
-function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false }) {
+function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false, internOnly = false }) {
   const { userLoggedIn, userData, loading } = useAuth();
 
-  console.log('ProtectedRoute render:', { loading, userLoggedIn, hasUserData: !!userData, adminOnly, attorneyOnly });
+  console.log('ProtectedRoute render:', { loading, userLoggedIn, hasUserData: !!userData, adminOnly, attorneyOnly, internOnly });
 
   if (loading) {
     console.log('ProtectedRoute: Showing loader - loading is true');
@@ -71,8 +77,8 @@ function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false }) {
     return <Navigate to="/auth/login" replace />;
   }
 
-  if (adminOnly && userData?.role !== "admin") {
-    console.log('ProtectedRoute: Redirecting to /user/home - not admin');
+  if (adminOnly && userData?.role !== "secretary" && userData?.role !== "attorney" && userData?.role !== "pao_lawyer" && userData?.role !== "legal_volunteer" && userData?.role !== "intern") {
+    console.log('ProtectedRoute: Redirecting to /user/home - not secretary or attorney');
     return <Navigate to="/user/home" replace />;
   }
 
@@ -81,15 +87,20 @@ function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false }) {
     return <Navigate to="/auth/login" replace />;
   }
 
-  if (!adminOnly && !attorneyOnly && userData?.role === "admin") {
-    console.log('ProtectedRoute: Redirecting to /admin - is admin');
-    return <Navigate to="/admin" replace />;
+  if (internOnly && userData?.role !== "intern") {
+    console.log('ProtectedRoute: Redirecting - not intern');
+    return <Navigate to="/auth/login" replace />;
   }
 
-  if (!adminOnly && !attorneyOnly && (userData?.role === "attorney" || userData?.role === "pao_lawyer" || userData?.role === "legal_volunteer")) {
-    console.log('ProtectedRoute: Redirecting to /attorney - is attorney');
-    return <Navigate to="/attorney" replace />;
+  if (!adminOnly && !attorneyOnly && !internOnly && userData?.role === "secretary") {
+    console.log('ProtectedRoute: Redirecting to /admin - is secretary');
+    return <Navigate to="/admin" replace />;
   }
+  if (!adminOnly && !attorneyOnly && !internOnly && userData?.role === "intern") {
+    console.log('ProtectedRoute: Redirecting to /intern - is intern');
+    return <Navigate to="/intern" replace />;
+  }
+  // Note: Attorneys can access both attorney and admin routes, so no redirect needed here
 
   console.log('ProtectedRoute: Rendering children');
   return children;
@@ -131,12 +142,10 @@ function AppRoutes() {
         >
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<Home />} />
-          <Route path="submitcase" element={< SubmitCase/>}/>
-          <Route path="trackcase" element={< TrackCase/>}/>
           <Route path="chat/:caseId?" element={<UserChat/>}/>
           <Route path="profile" element={<UserProfile />} />
-           <Route path="appointment" element={<UserForm />} />
-
+          <Route path="appointment" element={<UserForm />} />
+          <Route path="track" element={<TrackAppointment />} />
         </Route>
 
         {/* Admin */}
@@ -156,6 +165,7 @@ function AppRoutes() {
           < Route path="assigncase" element={<AssignCase />}/>
           <Route path="recommendation" element={<RecommendationForAction />} />
           <Route path="profile" element={<AdminProfile />} />
+          <Route path="clientstats" element={<ClientApplicationStatus />} />
         </Route>
       
       {/* Attorney */}
@@ -172,6 +182,22 @@ function AppRoutes() {
           <Route index element={<AttorneyDashboard />} />
           <Route path="chat" element={<AttorneyMessenger />} />
           <Route path="profile" element={<AttorneyProfile />} />
+          <Route path="clientstats" element={<ClientApplicationStatus />} />
+        </Route>
+      
+      {/* Intern */}
+        <Route
+          path="/intern"
+          element={
+            <ProtectedRoute internOnly>
+              <Layout>
+                <Outlet />
+              </Layout>
+            </ProtectedRoute> 
+          }
+        >
+          <Route path="recommendation" element={<RecommendationForAction />} />
+          <Route path="clientstats" element={<ClientApplicationStatus />} />  
         </Route>
         
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -189,11 +215,13 @@ function AppRoutes() {
 function App() {
   return (
     <MantineProvider theme={theme}>
-      <AuthProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
-      </AuthProvider>
+      <DatesProvider settings={{ locale: 'en', firstDayOfWeek: 0, weekendDays: [0, 6] }}>
+        <AuthProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </AuthProvider>
+      </DatesProvider>
     </MantineProvider>
   );
 }
