@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Tabs, 
   Card, 
@@ -45,49 +45,42 @@ import {
 } from '@utils/constants';
 
 export default function AppointmentTracker() {
-  
-  // --- SAMPLE DATA FOR DEMONSTRATION ---
+  const [forAppointmentData, setForAppointmentData] = useState([])
+  const [loadingAppointments, setLoadingAppointments] = useState(false)
 
-  const forAppointmentData = [
-    {
-      id: 1,
-      type: "Initial Interview",
-      submittedDate: "Nov 10, 2025",
-      status: "Scheduled",
-      appointmentDate: "Nov 18, 2025",
-      appointmentTime: "10:00 AM",
-      location: "SOLA (Sebastian Office Legal Aid)",
-      purpose: "Client information gathering and case assessment"
-    },
-    {
-      id: 2,
-      type: "Follow-up Interview",
-      submittedDate: "Oct 28, 2025",
-      status: "Rescheduled",
-      originalDate: "Nov 05, 2025",
-      appointmentDate: "Nov 12, 2025",
-      appointmentTime: "2:30 PM",
-      location: "SOLA (Sebastian Office Legal Aid)",
-      purpose: "Additional document review and clarification"
-    },
-    {
-      id: 3,
-      type: "Case Evaluation",
-      submittedDate: "Nov 02, 2025",
-      status: "Canceled",
-      originalDate: "Nov 08, 2025",
-      cancelReason: "Client request - documentation incomplete",
-      location: "SOLA (Sebastian Office Legal Aid)"
-    },
-    {
-      id: 4,
-      type: "Initial Consultation",
-      submittedDate: "Nov 14, 2025",
-      status: "Pending",
-      location: "SOLA (Sebastian Office Legal Aid)",
-      purpose: "Awaiting attorney availability for scheduling"
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      setLoadingAppointments(true)
+      try {
+        const { default: apiClient } = await import('@config/api/apiClient')
+        const resp = await apiClient.get('/clientsinfo')
+        const docs = resp?.data || []
+        const mapped = (Array.isArray(docs) ? docs : []).map((d, idx) => {
+          const appointed = d.appointedDate || d.appointmentDate || d.caseDetails?.appointedDate
+          const dateOnly = appointed ? new Date(appointed).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD'
+          return {
+            id: d._id || idx,
+            type: 'Initial Interview',
+            submittedDate: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
+            status: appointed ? 'Scheduled' : 'Pending',
+            appointmentDate: dateOnly,
+            appointmentTime: '',
+            location: d.caseDetails?.location || 'SOLA (Sebastian Office Legal Aid)',
+            purpose: d.caseDetails?.purpose || `Appointment for ${d.fullName || ''}`,
+            clientName: d.fullName || (d.personal && (d.personal.fullName || `${d.personal.firstName || ''} ${d.personal.lastName || ''}`.trim())) || '',
+          }
+        })
+        if (mounted) setForAppointmentData(mapped)
+      } catch (err) {
+        console.error('Failed to load clientsinfo for appointments', err)
+      } finally {
+        if (mounted) setLoadingAppointments(false)
+      }
     }
-  ];
+    load()
+    return () => { mounted = false }
+  }, [])
 
   const legalAdviceData = [
     {
@@ -251,6 +244,11 @@ export default function AppointmentTracker() {
           <Text fw={700} size="lg" c={CHARCOAL} mb={4}>
             {item.type}
           </Text>
+          {item.clientName && (
+            <Text size="sm" c={MUTED_OLIVE} mb={6}>
+              {item.clientName}
+            </Text>
+          )}
           <Group gap="xs">
             <IconCalendarEvent size={14} color={MUTED_OLIVE} />
             <Text size="xs" c={MUTED_OLIVE}>

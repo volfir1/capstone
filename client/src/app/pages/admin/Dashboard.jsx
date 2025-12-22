@@ -27,6 +27,8 @@ import {
 } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
+import { useAuth } from '@/context/authContext';
+import { useLocation } from 'react-router-dom';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -37,6 +39,12 @@ export default function AdminDashboard() {
     unassignedCases: 0,
   });
   const [loading, setLoading] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [finalized, setFinalized] = useState([]);
+  const [loadingFinalized, setLoadingFinalized] = useState(false);
+  const { userData } = useAuth();
+  const location = useLocation();
 
   const fetchStats = async () => {
     try {
@@ -59,7 +67,46 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    // only fetch reviews for attorney and secretary roles
+    if (userData && (userData.role === 'attorney' || userData.role === 'secretary')) {
+      fetchReviews();
+      fetchFinalized();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userData, location]);
+
+  const fetchReviews = async () => {
+    try {
+      setLoadingReviews(true);
+      // fetch all reviews (server can filter by query if needed)
+      const resp = await apiClient.get('/reviews');
+      const data = resp.data?.data ?? resp.data ?? [];
+      setReviews(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching reviews', err);
+      setReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  }
+
+  const fetchFinalized = async () => {
+    try {
+      setLoadingFinalized(true);
+      const resp = await apiClient.get('/finalize');
+      const data = resp.data?.data ?? resp.data ?? [];
+      setFinalized(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching finalized records', err);
+      setFinalized([]);
+    } finally {
+      setLoadingFinalized(false);
+    }
+  }
 
   const features = [
     {
@@ -242,8 +289,100 @@ export default function AdminDashboard() {
           </SimpleGrid>
         )}
 
+        {/* can you make a section here, to retrieve all the for reviews in mongodb ? */}
+        <Paper shadow="xs" p="xl" radius="lg" bg="white" mt="xl">
+          <Group position="apart" mb="5">
+            <Box>
+              <Title order={4}>Submitted For Review</Title>
+              <Text size="sm" c={MUTED_OLIVE}>Recent review submissions (click to open)</Text>
+            </Box>
+          </Group>
+
+          <Stack>
+            {loading ? (
+              <Center><Loader /></Center>
+            ) : (
+              reviews.length ? reviews.map((r) => (
+                <Paper
+                  key={r._id || r.id || r.caseId}
+                  p="md"
+                  radius="md"
+                  withBorder
+                  style={{ cursor: 'pointer', borderRadius: 12, border: '1px solid #E6D9CC', background: '#FBF7F4' }}
+                  onClick={() => navigate('/admin/recommendation', { state: { review: r } })}
+                >
+                  <Group noWrap align="flex-start">
+                    <Box style={{ width: 52, height: 52, borderRadius: 12, background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                      <IconFiles size={20} />
+                    </Box>
+                    <Box style={{ flex: 1 }}>
+                      <Text fw={700}>{r.content?.caseInfo?.title || r.caseTitle || r.caseId}</Text>
+                      <Text size="xs" c={MUTED_OLIVE}>{r.content?.interviewInfo?.clientName || r.clientName || ''}</Text>
+                      <Group spacing="xs" mt={6}>
+                        {r.priority && <Badge size="sm" color="yellow">{r.priority.toUpperCase()}</Badge>}
+                        <Text size="xs" c="dimmed">Submitted: {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}</Text>
+                      </Group>
+                    </Box>
+                    <ActionIcon>
+                      <IconChevronRight />
+                    </ActionIcon>
+                  </Group>
+                </Paper>
+              )) : (
+                <Text size="sm" c={MUTED_OLIVE}>No reviews found</Text>
+              )
+            )}
+          </Stack>
+        </Paper>
+
+        {/* Finalized Records */}
+        <Paper shadow="xs" p="xl" radius="lg" bg="white" mt="xl">
+          <Group position="apart" mb="md">
+            <Box>
+              <Title order={4}>Finalized Records</Title>
+              <Text size="sm" c={MUTED_OLIVE}>Recently finalized case records (click to open)</Text>
+            </Box>
+          </Group>
+
+          <Stack>
+            {loadingFinalized ? (
+              <Center><Loader /></Center>
+            ) : (
+              finalized.length ? finalized.map((f) => (
+                <Paper
+                  key={f._id || f.id || f.caseId}
+                  p="md"
+                  radius="md"
+                  withBorder
+                  style={{ cursor: 'pointer', borderRadius: 12, border: '1px solid #E6D9CC', background: '#F7FBF9' }}
+                  onClick={() => navigate('/admin/recommendation', { state: { review: f } })}
+                >
+                  <Group noWrap align="flex-start">
+                    <Box style={{ width: 52, height: 52, borderRadius: 12, background: MUTED_OLIVE, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                      <IconBriefcase size={20} />
+                    </Box>
+                    <Box style={{ flex: 1 }}>
+                      <Text fw={700}>{f.caseTitle || f.content?.caseInfo?.title || f.caseId}</Text>
+                      <Text size="xs" c={MUTED_OLIVE}>{f.clientName || f.content?.interviewInfo?.clientName || ''}</Text>
+                      <Group spacing="xs" mt={6}>
+                        <Text size="xs" c="dimmed">Finalized: {f.createdAt ? new Date(f.createdAt).toLocaleDateString() : ''}</Text>
+                        <Text size="xs" c="dimmed">By: {f.finalizedRole || f.finalizedBy}</Text>
+                      </Group>
+                    </Box>
+                    <ActionIcon>
+                      <IconChevronRight />
+                    </ActionIcon>
+                  </Group>
+                </Paper>
+              )) : (
+                <Text size="sm" c={MUTED_OLIVE}>No finalized records found</Text>
+              )
+            )}
+          </Stack>
+        </Paper>
+
         {/* Quick Actions */}
-        <Paper shadow="xs" p="xl" radius="lg" bg="white">
+        <Paper shadow="xs" p="xl" mt="xl" radius="lg" bg="white">
           <Group mb="xl" justify="space-between">
             <Box>
               <Title order={3} c={CHARCOAL} mb={4}>Quick Actions</Title>

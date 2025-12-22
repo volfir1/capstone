@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     Group, 
     Box, 
@@ -20,6 +20,7 @@ import {
 } from '@mantine/core';
 import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
+import { useLocation } from 'react-router-dom';
 
 // --- Consolidated Constants ---
 const PRIMARY_GOLD = '#FFD700';
@@ -61,7 +62,7 @@ EvidenceTable.displayName = 'EvidenceTable';
 // ====================================================================================
 // 1. Reconstructed Case Record Table (Based on image_588e74.png)
 // ====================================================================================
-export const CaseInformationSection = React.memo(() => (
+export const CaseInformationSection = React.memo(({ value = {}, onChange = () => {} }) => (
     <Paper shadow="md" p="xl" radius="lg" bg="white">
         <Stack gap="xl">
             <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Reconstructed Case Record Table</Title>
@@ -73,23 +74,35 @@ export const CaseInformationSection = React.memo(() => (
             <Grid gutter="xl">
                 <Grid.Col span={{ base: 12, md: 6 }}>
                     <Stack>
-                        <TextInput label="Title" placeholder="e.g., Juan dela Cruz vs. Pedro Reyes" />
-                        <TextInput label="Nature of the Case" placeholder="e.g., Estafa, Annulment, Ejectment" />
-                        <TextInput label="Tribunal" placeholder="e.g., Regional Trial Court, MTC, SC" />
-                        <TextInput label="Branch" placeholder="e.g., Branch 123" />
-                        <TextInput label="Presiding Judge" placeholder="Hon. [Judge Name]" />
-                        <TextInput label="Tel/Email of Clerk of Court" placeholder="Contact details" />
+                        <TextInput label="Title" placeholder="e.g., Juan dela Cruz vs. Pedro Reyes"
+                            value={value.title || ''} onChange={(e) => onChange({ ...value, title: e.target.value })} />
+                        <TextInput label="Nature of the Case" placeholder="e.g., Estafa, Annulment, Ejectment"
+                            value={value.nature || ''} onChange={(e) => onChange({ ...value, nature: e.target.value })} />
+                        <TextInput label="Tribunal" placeholder="e.g., Regional Trial Court, MTC, SC"
+                            value={value.tribunal || ''} onChange={(e) => onChange({ ...value, tribunal: e.target.value })} />
+                        <TextInput label="Branch" placeholder="e.g., Branch 123"
+                            value={value.branch || ''} onChange={(e) => onChange({ ...value, branch: e.target.value })} />
+                        <TextInput label="Presiding Judge" placeholder="Hon. [Judge Name]"
+                            value={value.presidingJudge || ''} onChange={(e) => onChange({ ...value, presidingJudge: e.target.value })} />
+                        <TextInput label="Tel/Email of Clerk of Court" placeholder="Contact details"
+                            value={value.telEmail || ''} onChange={(e) => onChange({ ...value, telEmail: e.target.value })} />
                     </Stack>
                 </Grid.Col>
 
                 <Grid.Col span={{ base: 12, md: 6 }}>
                     <Stack>
-                        <TextInput label="Contact Details (Case)" placeholder="Relevant phone/email" />
-                        <TextInput label="Counsel/s on Record" placeholder="Name/s of counsel" />
-                        <TextInput label="Public Prosecutor" placeholder="Name of prosecutor (if applicable)" />
-                        <TextInput label="Opposing Counsel" placeholder="Name of opposing counsel" />
-                        <Textarea label="Client/s Address" placeholder="Full client address" autosize minRows={2} />
-                        <Textarea label="Others (Contact Details)" placeholder="Any other relevant contacts" autosize minRows={2} />
+                        <TextInput label="Contact Details (Case)" placeholder="Relevant phone/email"
+                            value={value.contactDetails || ''} onChange={(e) => onChange({ ...value, contactDetails: e.target.value })} />
+                        <TextInput label="Counsel/s on Record" placeholder="Name/s of counsel"
+                            value={value.counsels || ''} onChange={(e) => onChange({ ...value, counsels: e.target.value })} />
+                        <TextInput label="Public Prosecutor" placeholder="Name of prosecutor (if applicable)"
+                            value={value.publicProsecutor || ''} onChange={(e) => onChange({ ...value, publicProsecutor: e.target.value })} />
+                        <TextInput label="Opposing Counsel" placeholder="Name of opposing counsel"
+                            value={value.opposingCounsel || ''} onChange={(e) => onChange({ ...value, opposingCounsel: e.target.value })} />
+                        <Textarea label="Client/s Address" placeholder="Full client address" autosize minRows={2}
+                            value={value.clientAddress || ''} onChange={(e) => onChange({ ...value, clientAddress: e.target.value })} />
+                        <Textarea label="Others (Contact Details)" placeholder="Any other relevant contacts" autosize minRows={2}
+                            value={value.others || ''} onChange={(e) => onChange({ ...value, others: e.target.value })} />
                     </Stack>
                 </Grid.Col>
             </Grid>
@@ -101,7 +114,8 @@ export const CaseInformationSection = React.memo(() => (
                 label="Party/ies" 
                 placeholder="List all parties involved (Petitioner/Respondent, Plaintiff/Defendant, etc.)" 
                 autosize 
-                minRows={3} 
+                minRows={3}
+                value={value.parties || ''} onChange={(e) => onChange({ ...value, parties: e.target.value })} 
             />
 
             <Divider />
@@ -113,7 +127,8 @@ export const CaseInformationSection = React.memo(() => (
                         label="CASE HISTORY (in reverse chronological order)" 
                         placeholder="List past events, rulings, and filings from most recent to oldest"
                         autosize 
-                        minRows={5} 
+                        minRows={5}
+                        value={value.caseHistory || ''} onChange={(e) => onChange({ ...value, caseHistory: e.target.value })}
                     />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, md: 6 }}>
@@ -121,7 +136,8 @@ export const CaseInformationSection = React.memo(() => (
                         label="REMARKS / REMINDERS / NOTES (deadlines / material dates, etc.)" 
                         placeholder="Important dates, next hearing, filing deadlines"
                         autosize 
-                        minRows={5} 
+                        minRows={5}
+                        value={value.remarks || ''} onChange={(e) => onChange({ ...value, remarks: e.target.value })}
                     />
                 </Grid.Col>
             </Grid>
@@ -134,7 +150,7 @@ CaseInformationSection.displayName = 'CaseInformationSection';
 // ====================================================================================
 // 2. Client Interview and Evidence Section (Based on image_588eb7.png)
 // ====================================================================================
-export const ClientInterviewSection = React.memo(() => (
+export const ClientInterviewSection = React.memo(({ value = {}, onChange = () => {} }) => (
     <Paper shadow="md" p="xl" radius="lg" bg="white">
         <Stack gap="xl">
             <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Client Interview and Evidence Record</Title>
@@ -142,10 +158,14 @@ export const ClientInterviewSection = React.memo(() => (
             <Divider />
             
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-                <TextInput label="Date of Interview" type="date" />
-                <TextInput label="Date Submitted" type="date" />
-                <TextInput label="Client's Name" placeholder="Full Name" />
-                <TextInput label="Interviewing Intern/s Duty Day" placeholder="Intern Name/s and Duty Day" />
+                <TextInput label="Date of Interview" type="date" 
+                    value={value.dateOfInterview || ''} onChange={(e) => onChange({ ...value, dateOfInterview: e.target.value })} />
+                <TextInput label="Date Submitted" type="date"
+                    value={value.dateSubmitted || ''} onChange={(e) => onChange({ ...value, dateSubmitted: e.target.value })} />
+                <TextInput label="Client's Name" placeholder="Full Name"
+                    value={value.clientName || ''} onChange={(e) => onChange({ ...value, clientName: e.target.value })} />
+                <TextInput label="Interviewing Intern/s Duty Day" placeholder="Intern Name/s and Duty Day"
+                    value={value.interviewingInterns || ''} onChange={(e) => onChange({ ...value, interviewingInterns: e.target.value })} />
             </SimpleGrid>
             
             <Divider />
@@ -154,7 +174,8 @@ export const ClientInterviewSection = React.memo(() => (
             <Textarea 
                 placeholder="A brief summary of the client's story and the core legal issue/s." 
                 autosize 
-                minRows={4} 
+                minRows={4}
+                value={value.fastFacts || ''} onChange={(e) => onChange({ ...value, fastFacts: e.target.value })}
             />
 
             <Divider />
@@ -172,9 +193,11 @@ export const ClientInterviewSection = React.memo(() => (
                 placeholder="Brief summary of the initial legal advice given to the client."
                 autosize
                 minRows={3}
+                value={value.internAdvice || ''} onChange={(e) => onChange({ ...value, internAdvice: e.target.value })}
             />
             <Group justify="flex-end">
-                <Checkbox label="For legal advice only" />
+                <Checkbox label="For legal advice only" 
+                    checked={!!value.forLegalAdvice} onChange={(e) => onChange({ ...value, forLegalAdvice: e.currentTarget.checked })} />
             </Group>
 
             <Divider />
@@ -182,8 +205,9 @@ export const ClientInterviewSection = React.memo(() => (
             <Title order={4} c={PRIMARY_BROWN}>Legal Opinion</Title>
             <Textarea 
                 placeholder="The intern's assessment of the case's merits and possible legal strategy."
-                autosize
+                autosize 
                 minRows={5}
+                value={value.legalOpinion || ''} onChange={(e) => onChange({ ...value, legalOpinion: e.target.value })}
             />
         </Stack>
     </Paper>
@@ -194,7 +218,7 @@ ClientInterviewSection.displayName = 'ClientInterviewSection';
 // ====================================================================================
 // 3. Supervising Lawyer's Comment & Director's Action (Based on image_588e92.png)
 // ====================================================================================
-export const SupervisingLawyerActionSection = React.memo(() => (
+export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange = () => {} }) => (
     <Paper shadow="md" p="xl" radius="lg" bg="white">
         <Stack gap="xl">
             <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Supervising Lawyer & Director Action</Title>
@@ -205,13 +229,15 @@ export const SupervisingLawyerActionSection = React.memo(() => (
             <Textarea 
                 placeholder="Comments, corrections, or additional instructions from the Supervising Lawyer." 
                 autosize 
-                minRows={4} 
+                minRows={4}
+                value={value.supervisingComment || ''}
+                onChange={(e) => onChange({ ...value, supervisingComment: e.target.value })}
             />
 
             <Divider />
 
             <Title order={3} c={PRIMARY_BROWN}>Director's Action</Title>
-            <Radio.Group label="Decision">
+            <Radio.Group label="Decision" value={value.decision || ''} onChange={(val) => onChange({ ...value, decision: val })}>
                 <Group>
                     <Radio value="accepted" label="Accepted" />
                     <Radio value="rejected" label="Rejected" />
@@ -223,7 +249,9 @@ export const SupervisingLawyerActionSection = React.memo(() => (
                 label="If accepted/pending, instruction(s); if rejected, reason(s):" 
                 placeholder="Specific instructions or reason for rejection"
                 autosize 
-                minRows={4} 
+                minRows={4}
+                value={value.decisionNote || ''}
+                onChange={(e) => onChange({ ...value, decisionNote: e.target.value })}
             />
 
             <Divider />
@@ -235,7 +263,9 @@ export const SupervisingLawyerActionSection = React.memo(() => (
                         label="Assigned to: Law Interns" 
                         placeholder="List of interns assigned to the case" 
                         autosize 
-                        minRows={3} 
+                        minRows={3}
+                        value={value.assignedTo || ''}
+                        onChange={(e) => onChange({ ...value, assignedTo: e.target.value })}
                     />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, md: 6 }}>
@@ -243,14 +273,20 @@ export const SupervisingLawyerActionSection = React.memo(() => (
                         <TextInput 
                             label="Supervising Lawyer" 
                             placeholder="Signature/Name of Supervising Lawyer" 
+                            value={value.supervisingLawyer || ''}
+                            onChange={(e) => onChange({ ...value, supervisingLawyer: e.target.value })}
                         />
                         <TextInput 
                             label="Director's Signature" 
                             placeholder="Signature/Name of Director" 
+                            value={value.directorSignature || ''}
+                            onChange={(e) => onChange({ ...value, directorSignature: e.target.value })}
                         />
                         <TextInput 
                             label="Date" 
                             type="date" 
+                            value={value.signatureDate || ''}
+                            onChange={(e) => onChange({ ...value, signatureDate: e.target.value })}
                         />
                     </Stack>
                 </Grid.Col>
@@ -270,24 +306,114 @@ export default function CaseRecordFormsDisplay() {
     const { userData } = useAuth();
     const [active, setActive] = useState(0);
     const isIntern = userData?.role === 'intern';
+    const [reviews, setReviews] = useState([])
+    const [saving, setSaving] = useState(false)
+
+    // new controlled state for case + interview
+    const [caseInfo, setCaseInfo] = useState({});
+    const [interviewInfo, setInterviewInfo] = useState({});
+    const [actionInfo, setActionInfo] = useState({});
+    const location = useLocation();
+
+    useEffect(() => {
+        const review = location?.state?.review;
+        if (review && review.content) {
+            const ci = review.content.caseInfo || review.caseInfo || {};
+            const ii = review.content.interviewInfo || review.interviewInfo || {};
+            setCaseInfo(ci);
+            setInterviewInfo(ii);
+        }
+    }, [location]);
 
     const nextStep = () => setActive((current) => (current < totalSteps - 1 ? current + 1 : current));
     const prevStep = () => setActive((current) => (current > 0 ? current - 1 : current));
     
-    const handleSubmit = () => {
-        // TODO: Add submission logic here
-        alert('Form submitted successfully!');
-        console.log('Form submitted by:', userData?.role);
+    const handleSubmit = async () => {
+        const caseIdFromPath = window?.location?.pathname?.split('/')?.pop() || 'unknown';
+        const reviewPayload = {
+            caseId: caseIdFromPath,
+            reviewerId: userData?.id || userData?._id || null,
+            reviewerRole: userData?.role || null,
+            step: active,
+            content: { caseInfo, interviewInfo }
+        };
+
+        try {
+            setSaving(true);
+            // If secretary finalizes record on last step, create a finalized record
+            if (userData?.role === 'secretary' && active === totalSteps - 1) {
+                const finalizePayload = {
+                    caseId: caseIdFromPath,
+                    finalizedBy: userData?.id || userData?._id || null,
+                    finalizedRole: userData?.role || null,
+                    content: { caseInfo, interviewInfo, actionInfo }
+                }
+                const resFinalize = await fetch('/api/finalize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(finalizePayload)
+                })
+                const finalizeText = await resFinalize.text()
+                if (!resFinalize.ok) {
+                    console.error('POST /api/finalize failed', resFinalize.status, finalizeText)
+                    throw new Error(`Finalize save failed: ${resFinalize.status} ${finalizeText}`)
+                }
+                const savedFinalize = finalizeText ? JSON.parse(finalizeText) : null
+                alert('Case finalized and saved')
+                console.log('Saved finalize', savedFinalize)
+                await fetchReviews(caseIdFromPath)
+                return
+            }
+
+            const resReview = await fetch('/api/reviews', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(reviewPayload)
+            });
+            const reviewText = await resReview.text();
+            if (!resReview.ok) {
+                console.error('POST /api/reviews failed', resReview.status, reviewText);
+                throw new Error(`Review save failed: ${resReview.status} ${reviewText}`);
+            }
+            const saved = reviewText ? JSON.parse(reviewText) : null;
+            await fetchReviews(caseIdFromPath);
+
+            alert('Case + Interview saved in review record');
+            console.log('Saved review', saved);
+        } catch (err) {
+            console.error('handleSubmit error:', err);
+            alert(`Failed to save data: ${err.message}`);
+        } finally {
+            setSaving(false);
+        }
     };
+
+    const fetchReviews = async (caseIdParam) => {
+        const caseId = caseIdParam || window?.location?.pathname?.split('/')?.pop() || 'unknown'
+        try {
+            const res = await fetch(`/api/reviews/${caseId}`)
+            if (!res.ok) throw new Error('Failed to fetch reviews')
+            const data = await res.json()
+            setReviews(data)
+        } catch (err) {
+            console.error('fetchReviews error', err)
+        }
+    }
+
+    useEffect(() => {
+        // attempt to load reviews for current case on mount
+        fetchReviews()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const renderStepContent = () => {
         switch (active) {
             case 0:
-                return <CaseInformationSection />;
+                return <CaseInformationSection value={caseInfo} onChange={setCaseInfo} />;
             case 1:
-                return <ClientInterviewSection />;
+                return <ClientInterviewSection value={interviewInfo} onChange={setInterviewInfo} />;
             case 2:
-                return <SupervisingLawyerActionSection />;
+                return <SupervisingLawyerActionSection value={actionInfo} onChange={setActionInfo} />;
             default:
                 return null;
         }

@@ -9,6 +9,7 @@ import PersonalDetailsForm from '@components/forms/steps/PersonalDetails';
 import FinancialDetailsForm from '@components/forms/steps/FinancialDetails';
 import CaseDetailsForm from '@components/forms/steps/CaseDetails';
 import ReviewForm from '@components/forms/steps/ReviewForm';
+import apiClient from '@config/api/apiClient'; // <--- added import
 
 const FORM_STORAGE_KEY = 'justreach_form_draft';
 
@@ -100,37 +101,88 @@ export default function UserForm() {
   
   const onSubmit = async (data) => {
     const finalData = { ...formData, ...data };
-    console.log('Form submitted:', finalData);
-    
+
+    // Normalize key names to ensure DB gets these fields
+    const fullName =
+      finalData.name ||
+      `${finalData.firstName || ''} ${finalData.lastName || ''}`.trim() ||
+      `${finalData.givenName || ''} ${finalData.familyName || ''}`.trim();
+
+    const caseNumber =
+      finalData.caseNumber ||
+      finalData.case_number ||
+      finalData.caseNo ||
+      finalData.case_no ||
+      '';
+
+    const appointedDate =
+      finalData.appointedDate ||
+      finalData.appointmentDate ||
+      finalData.dateSubmitted ||
+      new Date().toISOString();
+
+    // Build payload sent to server (include full form for completeness)
+    const payloadToSave = {
+      ...finalData,
+      fullName,
+      caseNumber,
+      appointedDate,
+      submittedAt: new Date().toISOString(),
+    };
+
+    console.log('Form submitted payload:', payloadToSave);
+
     try {
-      // Your API call would go here
-      // await submitFormData(finalData);
-      
+      const resp = await apiClient.post('/clientsinfo', payloadToSave);
+      const success = resp?.data?.success ?? (resp.status >= 200 && resp.status < 300);
+      if (!success) throw new Error(resp?.data?.message || `Request failed (${resp.status})`);
+
       notifications.show({
-        title: 'Success',
-        message: 'Fill up success wait for admin review and schedule',
+        title: 'Submission Successful',
+        message: `Saved ${fullName} — Case ${caseNumber} — Appointed ${new Date(appointedDate).toLocaleString()}`,
         color: 'green',
         icon: <IconCheck size={18} />,
-        autoClose: 5000,
+        autoClose: 6000,
       });
-      
-      // Wait 5 seconds before clearing and resetting
-      setTimeout(() => {
-        // Clear saved draft after successful submission
+
+      // Clear saved draft after successful submission
+      localStorage.removeItem(FORM_STORAGE_KEY);
+      reset();
+      setFormData({});
+      setActive(0);
+    } catch (error) {
+      console.error('Submit error:', error);
+      // fallback: attempt direct fetch if apiClient not configured
+      try {
+        const fallback = await fetch('/api/clientsinfo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payloadToSave),
+        });
+        if (!fallback.ok) throw new Error(await fallback.text());
+
+        notifications.show({
+          title: 'Submission Successful (fallback)',
+          message: `Saved ${fullName} — Case ${caseNumber}`,
+          color: 'green',
+          icon: <IconCheck size={18} />,
+          autoClose: 6000,
+        });
+
         localStorage.removeItem(FORM_STORAGE_KEY);
-        
-        // Reset form
         reset();
         setFormData({});
         setActive(0);
-      }, 5000);
-      
-    } catch (error) {
+        return;
+      } catch (fallbackErr) {
+        console.error('Fallback submit error:', fallbackErr);
+      }
+
       notifications.show({
         title: 'Error',
-        message: 'error',
+        message: `Failed to submit: ${error?.message || 'unknown error'}`,
         color: 'red',
-        autoClose: 5000,
+        autoClose: 7000,
       });
     }
   };

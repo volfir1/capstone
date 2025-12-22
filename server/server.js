@@ -4,6 +4,9 @@ import userRoutes from './routes/userRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import caseRoutes from './routes/caseRoutes.js'
 import chatRoutes from './routes/chatRoutes.js'
+import reviewRoutes from './routes/reviewRoutes.js'
+import finalizeRoutes from './routes/finalizeRoutes.js'
+import clientsinfoRoutes from './routes/clientsinfoRoutes.js'
 import dotenv from 'dotenv'
 import cors from "cors"
 import helmet from 'helmet'
@@ -54,6 +57,9 @@ app.use('/api/users', userRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/cases', caseRoutes)
 app.use('/api/chat', chatRoutes)
+app.use('/api/reviews', reviewRoutes)
+app.use('/api/finalize', finalizeRoutes)
+app.use('/api/clientsinfo', clientsinfoRoutes)
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URL)
