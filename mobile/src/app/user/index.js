@@ -120,7 +120,7 @@ export default function UserDashboard() {
       icon: "briefcase-outline",
       title: "Schedule Appointment",
       description: "Book a legal consultation",
-      path: "appointment",
+      path: "/user/appointment",
       color: PRIMARY_BROWN,
     },
     {

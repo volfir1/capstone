@@ -278,7 +278,9 @@ export default function AppointmentForm() {
             onPress={() => setShowDatePicker(true)}
           >
             <Text style={styles.inputText}>
-              {formData.birthday.toLocaleDateString()}
+              {formData.birthday instanceof Date 
+                ? formData.birthday.toLocaleDateString() 
+                : 'Select Date'}
             </Text>
             <Ionicons name="calendar-outline" size={20} color={MUTED_OLIVE} />
           </TouchableOpacity>
@@ -297,7 +299,7 @@ export default function AppointmentForm() {
 
       {showDatePicker && (
         <DateTimePicker
-          value={formData.birthday}
+          value={formData.birthday instanceof Date ? formData.birthday : new Date()}
           mode="date"
           display="default"
           onChange={(event, selectedDate) => {
@@ -339,6 +341,8 @@ export default function AppointmentForm() {
               selectedValue={formData.sex}
               onValueChange={(value) => updateField('sex', value)}
               style={styles.picker}
+              dropdownIconColor={CHARCOAL}
+              itemStyle={{ color: CHARCOAL }}
             >
               <Picker.Item label="Select..." value="" />
               <Picker.Item label="Male" value="male" />
@@ -355,6 +359,8 @@ export default function AppointmentForm() {
               selectedValue={formData.civilStatus}
               onValueChange={(value) => updateField('civilStatus', value)}
               style={styles.picker}
+              dropdownIconColor={CHARCOAL}
+              itemStyle={{ color: CHARCOAL }}
             >
               <Picker.Item label="Select..." value="" />
               <Picker.Item label="Single" value="single" />
@@ -535,6 +541,8 @@ export default function AppointmentForm() {
             selectedValue={formData.partyRepresented}
             onValueChange={(value) => updateField('partyRepresented', value)}
             style={styles.picker}
+            dropdownIconColor={CHARCOAL}
+            itemStyle={{ color: CHARCOAL }}
           >
             <Picker.Item label="Select..." value="" />
             <Picker.Item label="Plaintiff" value="plaintiff" />
@@ -586,6 +594,8 @@ export default function AppointmentForm() {
             selectedValue={formData.caseNature}
             onValueChange={(value) => updateField('caseNature', value)}
             style={styles.picker}
+            dropdownIconColor={CHARCOAL}
+            itemStyle={{ color: CHARCOAL }}
           >
             <Picker.Item label="Select..." value="" />
             <Picker.Item label="Civil" value="civil" />

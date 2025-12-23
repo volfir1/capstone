@@ -151,26 +151,29 @@ const AdminDashboard = () => {
                 <Ionicons name="person-add-outline" size={24} color="#8B6F47" />
               </View>
               <Text style={styles.actionButtonText}>Assign Cases</Text>
+              <Text style={styles.actionDescription}>Assign cases to attorneys</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, styles.actionButtonDisabled]}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => router.push('/admin/manageAttorneys')}
+            >
               <View style={styles.actionIconContainer}>
-                <Ionicons name="checkmark-done-outline" size={24} color="#999" />
+                <Ionicons name="checkmark-done-outline" size={24} color="#8B6F47" />
               </View>
-              <Text style={[styles.actionButtonText, styles.actionButtonTextDisabled]}>
-                Verify Attorneys
-              </Text>
-              <Text style={styles.comingSoon}>Coming Soon</Text>
+              <Text style={styles.actionButtonText}>Manage Attorneys</Text>
+              <Text style={styles.actionDescription}>Review attorney applications</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, styles.actionButtonDisabled]}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => router.push('/admin/users')}
+            >
               <View style={styles.actionIconContainer}>
-                <Ionicons name="people-outline" size={24} color="#999" />
+                <Ionicons name="people-outline" size={24} color="#8B6F47" />
               </View>
-              <Text style={[styles.actionButtonText, styles.actionButtonTextDisabled]}>
-                Manage Users
-              </Text>
-              <Text style={styles.comingSoon}>Coming Soon</Text>
+              <Text style={styles.actionButtonText}>Manage Users</Text>
+              <Text style={styles.actionDescription}>View and manage users</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -347,16 +350,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
-  },
-  actionButtonDisabled: {
-    opacity: 0.6,
+    marginBottom: 12,
   },
   actionIconContainer: {
     width: 48,
@@ -365,21 +364,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5EFE7',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginBottom: 12,
   },
   actionButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#2D2D2D',
-    flex: 1,
+    marginBottom: 4,
   },
-  actionButtonTextDisabled: {
-    color: '#999',
-  },
-  comingSoon: {
-    fontSize: 11,
-    color: '#999',
-    fontStyle: 'italic',
+  actionDescription: {
+    fontSize: 13,
+    color: '#666',
   },
   rotating: {
     transform: [{ rotate: '180deg' }],

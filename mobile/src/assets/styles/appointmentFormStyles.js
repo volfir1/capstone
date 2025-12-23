@@ -194,10 +194,12 @@ export default StyleSheet.create({
     borderColor: '#E0E0E0',
     borderRadius: 8,
     overflow: 'hidden',
+    justifyContent: 'center',
   },
   
   picker: {
     height: 50,
+    color: CHARCOAL,
   },
   
   checkboxContainer: {

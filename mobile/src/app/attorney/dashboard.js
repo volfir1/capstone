@@ -21,11 +21,23 @@ const AttorneyDashboard = () => {
   const [assignedCases, setAssignedCases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [casesLoading, setCasesLoading] = useState(false);
+  const [stats, setStats] = useState({
+    activeCases: 0,
+    activeChats: 0,
+  });
 
   useEffect(() => {
     fetchChatList();
     fetchAssignedCases();
   }, []);
+
+  useEffect(() => {
+    // Update stats whenever cases or chats change
+    setStats({
+      activeCases: assignedCases.filter(c => c.status !== 'closed').length,
+      activeChats: chatList.length,
+    });
+  }, [assignedCases, chatList]);
 
   const fetchAssignedCases = async () => {
     try {
@@ -102,7 +114,25 @@ const AttorneyDashboard = () => {
           <Text style={styles.subtitle}>Manage your cases and clients</Text>
         </View>
 
-        {/* Clients Section */}
+        {/* Stats Cards Section */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <View style={[styles.statIconContainer, { backgroundColor: '#7D5A3B' }]}>
+              <Ionicons name="briefcase" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={styles.statLabel}>ACTIVE CASES</Text>
+            <Text style={styles.statValue}>{stats.activeCases}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={[styles.statIconContainer, { backgroundColor: '#C4AB7D' }]}>
+              <Ionicons name="chatbubbles" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={styles.statLabel}>ACTIVE CHATS</Text>
+            <Text style={styles.statValue}>{stats.activeChats}</Text>
+          </View>
+        </View>
+
+        {/* Assigned Cases Section */}
         <View style={styles.content}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Your Assigned Cases</Text>
@@ -299,6 +329,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '400',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#9BA17B',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#2C2C2C',
+    lineHeight: 32,
   },
   content: {
     paddingHorizontal: 24,
