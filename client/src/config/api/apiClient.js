@@ -2,9 +2,11 @@ import axios from 'axios';
 import { auth } from '@/firebase/firebase';
 
 // 1. Create a "pre-configured" instance of Axios
+// If VITE_API_URL is set, use it; otherwise default to relative `/api` to allow Vite dev proxy
+const baseURL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+
 const client = axios.create({
-  // Use environment variable for base URL
-  baseURL: `${import.meta.env.VITE_API_URL}/api`, 
+  baseURL,
 });
 
 // 2. Use an Interceptor to automatically add the auth token to every request
