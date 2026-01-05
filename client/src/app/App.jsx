@@ -20,7 +20,7 @@ const AttorneyLogin = lazy(() => import('./pages/auth/Login/AttorneyLogin.jsx'))
 const TrackAppointment = lazy (()=> import('./pages/user/TrackAppointment'))
 
 const Home = lazy(() => import("./pages/user/Home"));
-const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const AdminDashboard = lazy(() => import("./pages/other/Dashboard"));
 const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
 const PageNotFound = lazy(() => import("./pages/other/PageNotFound"));
 

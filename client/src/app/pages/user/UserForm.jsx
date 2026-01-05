@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconCheck, IconTrash } from '@tabler/icons-react';
-import { Button, Stepper, Group, Box, Text, Title, Paper, Stack, Divider, Container, Tooltip } from '@mantine/core';
+import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconCheck, IconTrash, IconAlertCircle } from '@tabler/icons-react';
+import { Button, Stepper, Group, Box, Text, Title, Paper, Stack, Divider, Container, Tooltip, Modal } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL } from '@utils/constants';
 // Import the separated form components
@@ -16,6 +16,7 @@ const FORM_STORAGE_KEY = 'justreach_form_draft';
 export default function UserForm() {
   const [active, setActive] = useState(0);
   const [formData, setFormData] = useState({});
+  const [confirmModalOpened, setConfirmModalOpened] = useState(false);
   
   const { register, handleSubmit, formState: { errors }, trigger, getValues, setValue, watch, reset } = useForm({
     mode: 'onChange'
@@ -188,6 +189,27 @@ export default function UserForm() {
   };
   
   const handleFormSubmit = () => {
+    // Validate that appointment date is selected or scheduleToday is checked
+    const values = getValues();
+    const hasAppointmentDate = values.appointmentDate || values.scheduleToday;
+    
+    if (!hasAppointmentDate) {
+      notifications.show({
+        title: 'Appointment Date Required',
+        message: 'Please select an appointment date or check "Schedule for today" before submitting.',
+        color: 'red',
+        icon: <IconAlertCircle size={18} />,
+        autoClose: 5000,
+      });
+      return;
+    }
+    
+    // Show confirmation modal
+    setConfirmModalOpened(true);
+  };
+  
+  const confirmSubmit = () => {
+    setConfirmModalOpened(false);
     handleSubmit(onSubmit)();
   };
   
@@ -200,7 +222,7 @@ export default function UserForm() {
       case 2:
         return <CaseDetailsForm register={register} errors={errors} />;
       case 3:
-        return <ReviewForm formData={formData} getValues={getValues} />;
+        return <ReviewForm formData={formData} getValues={getValues} setValue={setValue} />;
       default:
         return null;
     }
@@ -397,6 +419,57 @@ export default function UserForm() {
             </Group>
           </Stack>
         </Paper>
+        
+        {/* Confirmation Modal */}
+        <Modal
+          opened={confirmModalOpened}
+          onClose={() => setConfirmModalOpened(false)}
+          title={
+            <Group gap="xs">
+              <IconAlertCircle size={24} color={PRIMARY_BROWN} />
+              <Text fw={600} size="lg" c={CHARCOAL}>Confirm Submission</Text>
+            </Group>
+          }
+          centered
+          size="md"
+          styles={{
+            title: {
+              fontWeight: 600,
+            },
+          }}
+        >
+          <Stack gap="md">
+            <Text size="sm" c={CHARCOAL}>
+              Are you sure you want to submit this application? Please make sure all the information you provided is accurate and complete.
+            </Text>
+            
+            <Divider />
+            
+            <Group justify="flex-end" gap="sm">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmModalOpened(false)}
+                styles={{
+                  root: {
+                    borderColor: '#E0E0E0',
+                    color: MUTED_OLIVE,
+                  },
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmSubmit}
+                style={{
+                  backgroundColor: PRIMARY_BROWN,
+                }}
+                leftSection={<IconCircleCheck size={18} />}
+              >
+                Yes, Submit
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Container>
     </Box>
   );

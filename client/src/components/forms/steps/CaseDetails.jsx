@@ -1,7 +1,7 @@
 import React from 'react';
 import { IconBriefcase } from '@tabler/icons-react';
-import { TextInput, Textarea, Group, Title, Paper, Grid, Stack, Text, Box } from '@mantine/core';
-import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG, MUTED_OLIVE, CHARCOAL } from '@utils/constants';
+import { TextInput, Textarea, Group, Title, Paper, Grid, Stack, Text, Box, Select } from '@mantine/core';
+import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG, MUTED_OLIVE, CHARCOAL, PARTY_REPRESENTED_OPTIONS, CASE_STAGE_OPTIONS } from '@utils/constants';
 import { validationRules } from '@utils/validation';
 
 export default function CaseDetailsForm({ register, errors }) {
@@ -31,9 +31,12 @@ export default function CaseDetailsForm({ register, errors }) {
           <Text size="sm" fw={600} c={CHARCOAL}>Party Represented</Text>
           <Text size="sm" c="red">*</Text>
         </Group>
-        <TextInput
-          placeholder="Plaintiff/Defendant"
+        <Select
+          placeholder="Select party represented"
           size="md"
+          data={PARTY_REPRESENTED_OPTIONS}
+          searchable
+          clearable
           {...register('partyRepresented', validationRules.partyRepresented)}
           error={errors.partyRepresented?.message}
           styles={{
@@ -101,9 +104,12 @@ export default function CaseDetailsForm({ register, errors }) {
           <Text size="sm" fw={600} c={CHARCOAL}>Present Stage of the Case</Text>
           <Text size="sm" c="red">*</Text>
         </Group>
-        <TextInput
-          placeholder="Pre-trial, Trial, etc."
+        <Select
+          placeholder="Select case stage"
           size="md"
+          data={CASE_STAGE_OPTIONS}
+          searchable
+          clearable
           {...register('presentStage', validationRules.presentStage)}
           error={errors.presentStage?.message}
           styles={{

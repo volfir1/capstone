@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { IconCircleCheck, IconInfoCircle, IconCalendar } from '@tabler/icons-react';
-import { Text, Group, Title, Paper, Grid, Stack, Box, Divider, Alert } from '@mantine/core';
+import { Text, Group, Title, Paper, Grid, Stack, Box, Divider, Alert, Checkbox } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG, CHARCOAL, MUTED_OLIVE } from '@utils/constants';
 
-export default function ReviewForm({ formData, getValues }) {
+export default function ReviewForm({ formData, getValues, setValue }) {
   const allData = { ...formData, ...getValues() };
   const [appointmentDate, setAppointmentDate] = useState(null);
+  const [scheduleToday, setScheduleToday] = useState(false);
+  
+  // Update parent form data when appointment date or scheduleToday changes
+  useEffect(() => {
+    if (setValue) {
+      setValue('appointmentDate', scheduleToday ? new Date().toISOString() : appointmentDate?.toISOString() || null);
+      setValue('scheduleToday', scheduleToday);
+    }
+  }, [appointmentDate, scheduleToday, setValue]);
   
   return (
     <Stack gap="lg" mt="lg">
@@ -185,22 +194,49 @@ export default function ReviewForm({ formData, getValues }) {
         <Text size="sm" c={MUTED_OLIVE} mb="md">
           Select your preferred date for the consultation appointment. The office will confirm availability and contact you.
         </Text>
+        
+        <Checkbox
+          checked={scheduleToday}
+          onChange={(event) => {
+            setScheduleToday(event.currentTarget.checked);
+            if (event.currentTarget.checked) {
+              setAppointmentDate(null);
+            }
+          }}
+          label="Schedule for today"
+          mb="md"
+          styles={{
+            label: {
+              color: CHARCOAL,
+              fontWeight: 500,
+            },
+            input: {
+              '&:checked': {
+                backgroundColor: PRIMARY_BROWN,
+                borderColor: PRIMARY_BROWN,
+              },
+            },
+          }}
+        />
+        
         <DateInput
           value={appointmentDate}
           onChange={setAppointmentDate}
           label="Appointment Date"
           placeholder="Select a date"
-          leftSection={<IconCalendar size={18} color={PRIMARY_BROWN} />}
+          leftSection={<IconCalendar size={18} color={scheduleToday ? '#CCC' : PRIMARY_BROWN} />}
           valueFormat="MMMM DD, YYYY"
           minDate={new Date()}
           clearable
-          required
+          required={!scheduleToday}
+          disabled={scheduleToday}
           styles={{
             input: {
               borderColor: '#E0E0E0',
               '&:focus': {
                 borderColor: PRIMARY_BROWN,
               },
+              opacity: scheduleToday ? 0.5 : 1,
             },
             label: {
               color: CHARCOAL,
@@ -209,7 +245,33 @@ export default function ReviewForm({ formData, getValues }) {
             },
           }}
         />
-        {appointmentDate && (
+        
+        {scheduleToday && (
+          <Alert
+            mt="md"
+            icon={<IconInfoCircle size={18} />}
+            styles={{
+              root: {
+                backgroundColor: `${PRIMARY_BROWN}10`,
+                border: `1px solid ${PRIMARY_BROWN}`,
+              },
+              icon: {
+                color: PRIMARY_BROWN,
+              },
+            }}
+          >
+            <Text size="sm" c={CHARCOAL}>
+              <strong>Selected Date:</strong> Today ({new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })})
+            </Text>
+          </Alert>
+        )}
+        
+        {appointmentDate && !scheduleToday && (
           <Alert
             mt="md"
             icon={<IconInfoCircle size={18} />}

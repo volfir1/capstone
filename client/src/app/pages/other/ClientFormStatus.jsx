@@ -53,8 +53,6 @@ export default function StaffAppointmentManager() {
             scheduledDate: d.appointedDate ? new Date(d.appointedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD',
             rawAppointedDate: d.appointedDate || null,
             status: 'Auto-Scheduled',
-            contactNumber: d.personal?.contactNumber || '+63 000 000 0000',
-            email: d.personal?.email || 'email@sola.com',
             assignedTo: d.assignedTo || 'Atty. Maria Cruz',
             location: d.caseDetails?.location || 'SOLA Office',
             purpose: d.caseDetails?.purpose || `Client information gathering for ${d.fullName}`,
@@ -145,7 +143,8 @@ export default function StaffAppointmentManager() {
     }
 
     setIsUpdating(true);
-    const iso = newDate.toISOString();
+    const dateObj = newDate instanceof Date ? newDate : new Date(newDate);
+    const iso = dateObj.toISOString();
     const payload = { appointedDate: iso };
     console.log('Updating appointment:', selectedAppointment.id, 'with payload:', payload);
 

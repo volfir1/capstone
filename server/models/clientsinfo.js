@@ -5,6 +5,7 @@ const ClientsInfoSchema = new mongoose.Schema({
   fullName: { type: String, index: true },
   caseNumber: { type: String, index: true },
   appointedDate: { type: Date, index: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
 
   // full structured payload
   personal: { type: mongoose.Schema.Types.Mixed },

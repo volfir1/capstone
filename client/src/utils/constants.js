@@ -53,3 +53,35 @@ export const PHILIPPINES_REGIONS = [
 
 export const DEFAULT_COUNTRY_CODE = '+63';
 export const DEFAULT_CITIZENSHIP = 'Filipino';
+
+// Case Details Options
+export const PARTY_REPRESENTED_OPTIONS = [
+  'Plaintiff',
+  'Defendant',
+  'Petitioner',
+  'Respondent',
+  'Complainant',
+  'Accused',
+  'Appellant',
+  'Appellee',
+  'Claimant',
+  'Other'
+];
+
+export const CASE_STAGE_OPTIONS = [
+  'Filing/Initial Complaint',
+  'Pre-Trial',
+  'Mediation',
+  'Trial',
+  'Presentation of Evidence',
+  'Cross-Examination',
+  'Rebuttal',
+  'Closing Arguments',
+  'Post-Trial Motions',
+  'Awaiting Decision/Judgment',
+  'Appeal',
+  'Execution of Judgment',
+  'Case Dismissed',
+  'Case Settled',
+  'Other'
+];
