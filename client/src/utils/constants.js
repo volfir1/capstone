@@ -53,3 +53,26 @@ export const PHILIPPINES_REGIONS = [
 
 export const DEFAULT_COUNTRY_CODE = '+63';
 export const DEFAULT_CITIZENSHIP = 'Filipino';
+
+export const NATURE_OF_CASE_OPTIONS = [
+  'Civil Case',
+  'Criminal Case',
+  'Family Law',
+  'Labor and Employment',
+  'Land and Property Disputes',
+  'Contract Disputes',
+  'Personal Injury',
+  'Debt Collection',
+  'Inheritance and Estate',
+  'Business and Commercial Law',
+  'Consumer Protection',
+  'Tax Law',
+  'Immigration',
+  'Intellectual Property',
+  'Environmental Law',
+  'Administrative Law',
+  'Human Rights Violation',
+  'Cybercrime',
+  'Election Law',
+  'Other'
+];

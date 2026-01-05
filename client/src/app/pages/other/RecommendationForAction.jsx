@@ -380,8 +380,25 @@ export default function CaseRecordFormsDisplay() {
                     throw new Error(`Finalize save failed: ${resFinalize.status} ${finalizeText}`)
                 }
                 const savedFinalize = finalizeText ? JSON.parse(finalizeText) : null
-                alert('Case finalized and saved successfully!')
                 console.log('Saved finalize', savedFinalize)
+                
+                // Delete the review record from reviews collection after finalizing
+                try {
+                    const deleteRes = await fetch(`/api/reviews/case/${caseId}`, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                    if (deleteRes.ok) {
+                        console.log('Review deleted successfully after finalization')
+                    } else {
+                        console.error('Failed to delete review after finalization', deleteRes.status)
+                    }
+                } catch (deleteErr) {
+                    console.error('Error deleting review:', deleteErr)
+                    // Don't throw here, finalization was successful
+                }
+                
+                alert('Case finalized and saved successfully!')
                 await fetchReviews(caseId)
                 
                 // Redirect to dashboard

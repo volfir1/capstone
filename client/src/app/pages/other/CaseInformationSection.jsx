@@ -6,8 +6,10 @@ import {
     Divider, 
     TextInput, 
     Textarea, 
-    Grid
+    Grid,
+    Select
 } from '@mantine/core';
+import { NATURE_OF_CASE_OPTIONS } from '@utils/constants';
 
 // Constants
 const PRIMARY_BROWN = '#5C4033';
@@ -26,8 +28,15 @@ export const CaseInformationSection = React.memo(({ value = {}, onChange = () =>
                     <Stack>
                         <TextInput label="Title" placeholder="e.g., Juan dela Cruz vs. Pedro Reyes"
                             value={value.title || ''} onChange={(e) => onChange({ ...value, title: e.target.value })} />
-                        <TextInput label="Nature of the Case" placeholder="e.g., Estafa, Annulment, Ejectment"
-                            value={value.nature || ''} onChange={(e) => onChange({ ...value, nature: e.target.value })} />
+                        <Select 
+                            label="Nature of the Case" 
+                            placeholder="Select nature of case"
+                            data={NATURE_OF_CASE_OPTIONS}
+                            value={value.nature || ''} 
+                            onChange={(val) => onChange({ ...value, nature: val })}
+                            searchable
+                            clearable
+                        />
                         <TextInput label="Tribunal" placeholder="e.g., Regional Trial Court, MTC, SC"
                             value={value.tribunal || ''} onChange={(e) => onChange({ ...value, tribunal: e.target.value })} />
                         <TextInput label="Branch" placeholder="e.g., Branch 123"

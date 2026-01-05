@@ -3,6 +3,7 @@ import {
   Tabs, Card, Text, Badge, Group, Button, SimpleGrid, Container, Title,
   Paper, Box, Stack, Avatar, Menu, ActionIcon, Select, TextInput, Modal, Loader, Center,
 } from '@mantine/core';
+import ClientFormStatusCalendar from '@components/calendar/ClientFormCalendar';
 import { DatePickerInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import { 
@@ -23,87 +24,131 @@ export default function StaffAppointmentManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [rescheduleModal, setRescheduleModal] = useState(false);
+  const [dateDetailsModal, setDateDetailsModal] = useState(false);
+  const [editEventModal, setEditEventModal] = useState(false);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventToDelete, setEventToDelete] = useState(null);
+  const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
+  const [eventEditForm, setEventEditForm] = useState({
+    title: '',
+    description: '',
+    eventDate: null,
+    eventType: 'appointment',
+    location: '',
+    clientName: '',
+    assignedTo: '',
+    priority: 'Medium',
+  });
   const [newDate, setNewDate] = useState(null);
   const [pendingAppointments, setPendingAppointments] = useState([]);
   const [scheduledAppointments, setScheduledAppointments] = useState([]);
   const [adviceRequests, setAdviceRequests] = useState([]);
   const [documentRequests, setDocumentRequests] = useState([]);
   const [caseRepresentation, setCaseRepresentation] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Fetch all data on mount
-  useEffect(() => {
-    let mounted = true;
-    const loadAllData = async () => {
-      setLoading(true);
+  // Fetch all data function
+  const loadAllData = async () => {
+    setLoading(true);
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      
+      // Fetch pending appointments (auto-scheduled)
       try {
-        const { default: apiClient } = await import('@config/api/apiClient');
-        
-        // Fetch pending appointments (auto-scheduled)
-        try {
-          const pendingResp = await apiClient.get('/clientsinfo');
-          const docs = pendingResp?.data || [];
-          const mapped = (Array.isArray(docs) ? docs : []).map((d, idx) => ({
-            id: d._id || idx,
-            clientName: d.fullName || d.personal?.fullName || `${d.personal?.firstName || ''} ${d.personal?.lastName || ''}`.trim() || '',
-            type: 'Initial Interview',
-            submittedDate: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
-            scheduledDate: d.appointedDate ? new Date(d.appointedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD',
-            rawAppointedDate: d.appointedDate || null,
-            status: 'Auto-Scheduled',
-            contactNumber: d.personal?.contactNumber || '+63 000 000 0000',
-            email: d.personal?.email || 'email@sola.com',
-            assignedTo: d.assignedTo || 'Atty. Maria Cruz',
-            location: d.caseDetails?.location || 'SOLA Office',
-            purpose: d.caseDetails?.purpose || `Client information gathering for ${d.fullName}`,
-            priority: d.priority || 'High',
-          }));
-          if (mounted) setPendingAppointments(mapped);
-        } catch (err) {
-          console.error('Failed to load pending appointments:', err);
-        }
+        const pendingResp = await apiClient.get('/clientsinfo');
+        const docs = pendingResp?.data || [];
+        const mapped = (Array.isArray(docs) ? docs : []).map((d, idx) => ({
+          id: d._id || idx,
+          clientName: d.fullName || d.personal?.fullName || `${d.personal?.firstName || ''} ${d.personal?.lastName || ''}`.trim() || '',
+          type: 'Initial Interview',
+          submittedDate: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
+          scheduledDate: d.appointedDate ? new Date(d.appointedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD',
+          rawAppointedDate: d.appointedDate || null,
+          status: 'Auto-Scheduled',
+          contactNumber: d.personal?.contactNumber || '+63 000 000 0000',
+          email: d.personal?.email || 'email@sola.com',
+          assignedTo: d.assignedTo || 'Atty. Maria Cruz',
+          location: d.caseDetails?.location || 'SOLA Office',
+          purpose: d.caseDetails?.purpose || `Client information gathering for ${d.fullName}`,
+          priority: d.priority || 'High',
+        }));
+        setPendingAppointments(mapped);
+      } catch (err) {
+        console.error('Failed to load pending appointments:', err);
+      }
 
-        // Fetch scheduled appointments
-        try {
-          const scheduledResp = await apiClient.get('/appointments/scheduled');
-          const scheduled = scheduledResp?.data || [];
-          if (mounted) setScheduledAppointments(Array.isArray(scheduled) ? scheduled : []);
-        } catch (err) {
-          console.error('Failed to load scheduled appointments:', err);
-          if (mounted) setScheduledAppointments([]);
-        }
+      // Fetch events
+      try {
+        const eventsResp = await apiClient.get('/events');
+        const eventsData = eventsResp?.data || [];
+        const mappedEvents = (Array.isArray(eventsData) ? eventsData : []).map((e, idx) => ({
+          id: e._id || idx,
+          clientName: e.clientName || 'Event',
+          type: e.eventType || 'other',
+          rawAppointedDate: e.eventDate,
+          scheduledDate: e.eventDate ? new Date(e.eventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD',
+          location: e.location || 'TBD',
+          priority: e.priority || 'Medium',
+          status: e.status || 'scheduled',
+          description: e.description || '',
+          assignedTo: e.assignedTo || '',
+          contactNumber: '',
+          email: '',
+          purpose: e.title || '',
+        }));
+        setEvents(mappedEvents);
+      } catch (err) {
+        console.error('Failed to load events:', err);
+      }
 
-        // Fetch advice requests
-        try {
-          const adviceResp = await apiClient.get('/advice-requests');
-          const advice = adviceResp?.data || [];
-          if (mounted) setAdviceRequests(Array.isArray(advice) ? advice : []);
-        } catch (err) {
-          console.error('Failed to load advice requests:', err);
-          if (mounted) setAdviceRequests([]);
-        }
+      // NOTE: These endpoints are not yet implemented on the backend
+      // Uncomment when the backend routes are ready
+      
+      // Fetch scheduled appointments
+      // try {
+      //   const scheduledResp = await apiClient.get('/appointments/scheduled');
+      //   const scheduled = scheduledResp?.data || [];
+      //   setScheduledAppointments(Array.isArray(scheduled) ? scheduled : []);
+      // } catch (err) {
+      //   console.error('Failed to load scheduled appointments:', err);
+      //   setScheduledAppointments([]);
+      // }
 
-        // Fetch document requests
-        try {
-          const docsResp = await apiClient.get('/document-requests');
-          const docs = docsResp?.data || [];
-          if (mounted) setDocumentRequests(Array.isArray(docs) ? docs : []);
-        } catch (err) {
-          console.error('Failed to load document requests:', err);
-          if (mounted) setDocumentRequests([]);
-        }
+      // Fetch advice requests
+      // try {
+      //   const adviceResp = await apiClient.get('/advice-requests');
+      //   const advice = adviceResp?.data || [];
+      //   setAdviceRequests(Array.isArray(advice) ? advice : []);
+      // } catch (err) {
+      //   console.error('Failed to load advice requests:', err);
+      //   setAdviceRequests([]);
+      // }
 
-        // Fetch case representation
-        try {
-          const caseResp = await apiClient.get('/case-representation');
-          const cases = caseResp?.data || [];
-          if (mounted) setCaseRepresentation(Array.isArray(cases) ? cases : []);
-        } catch (err) {
-          console.error('Failed to load case representation:', err);
-          if (mounted) setCaseRepresentation([]);
-        }
+      // Fetch document requests
+      // try {
+      //   const docsResp = await apiClient.get('/document-requests');
+      //   const docs = docsResp?.data || [];
+      //   setDocumentRequests(Array.isArray(docs) ? docs : []);
+      // } catch (err) {
+      //   console.error('Failed to load document requests:', err);
+      //   setDocumentRequests([]);
+      // }
+
+      // Fetch case representation
+      // try {
+      //   const caseResp = await apiClient.get('/case-representation');
+      //   const cases = caseResp?.data || [];
+      //   setCaseRepresentation(Array.isArray(cases) ? cases : []);
+      // } catch (err) {
+      //   console.error('Failed to load case representation:', err);
+      //   setCaseRepresentation([]);
+      // }
       } catch (err) {
         console.error('Failed to initialize apiClient:', err);
         notifications.show({
@@ -112,13 +157,117 @@ export default function StaffAppointmentManager() {
           color: 'red',
         });
       } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    
+      setLoading(false);
+    }
+  };
+
+  // Fetch all data on mount
+  useEffect(() => {
     loadAllData();
-    return () => { mounted = false };
   }, []);
+
+  const handleDateClick = (date) => {
+    setSelectedDate(date);
+    setDateDetailsModal(true);
+  };
+
+  const getAppointmentsForDate = (date) => {
+    if (!date) return [];
+    const allItems = [...pendingAppointments, ...events];
+    return allItems.filter(item => {
+      if (!item.rawAppointedDate) return false;
+      const itemDate = new Date(item.rawAppointedDate);
+      return itemDate.toDateString() === date.toDateString();
+    });
+  };
+
+  const handleEditEvent = (event) => {
+    // Find the full event data from events array
+    const fullEvent = events.find(e => e.id === event.id);
+    if (!fullEvent) return;
+
+    setSelectedEvent(fullEvent);
+    setEventEditForm({
+      title: fullEvent.purpose || '',
+      description: fullEvent.description || '',
+      eventDate: fullEvent.rawAppointedDate ? new Date(fullEvent.rawAppointedDate) : null,
+      eventType: fullEvent.type || 'appointment',
+      location: fullEvent.location || '',
+      clientName: fullEvent.clientName || '',
+      assignedTo: fullEvent.assignedTo || '',
+      priority: fullEvent.priority || 'Medium',
+    });
+    setEditEventModal(true);
+    setDateDetailsModal(false);
+  };
+
+  const handleUpdateEvent = async () => {
+    if (!eventEditForm.title || !eventEditForm.eventDate || !selectedEvent) {
+      notifications.show({
+        title: 'Error',
+        message: 'Title and date are required',
+        color: 'red',
+      });
+      return;
+    }
+
+    setIsUpdatingEvent(true);
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      await apiClient.put(`/events/${selectedEvent.id}`, eventEditForm);
+      
+      notifications.show({
+        title: 'Success',
+        message: 'Event updated successfully',
+        color: 'green',
+        icon: <IconCheck size={18} />,
+      });
+      
+      setEditEventModal(false);
+      setSelectedEvent(null);
+      await loadAllData();
+    } catch (error) {
+      console.error('Error updating event:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to update event',
+        color: 'red',
+      });
+    } finally {
+      setIsUpdatingEvent(false);
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!eventToDelete) return;
+
+    setIsDeletingEvent(true);
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      await apiClient.delete(`/events/${eventToDelete.id}`);
+      
+      notifications.show({
+        title: 'Success',
+        message: 'Event deleted successfully',
+        color: 'green',
+        icon: <IconCheck size={18} />,
+      });
+      
+      setDeleteConfirmModal(false);
+      setDateDetailsModal(false);
+      setEventToDelete(null);
+      await loadAllData();
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to delete event',
+        color: 'red',
+      });
+    } finally {
+      setIsDeletingEvent(false);
+    }
+  };
 
   const handleOpenEditAppointment = (appointment) => {
     setSelectedAppointment(appointment);
@@ -407,6 +556,34 @@ export default function StaffAppointmentManager() {
           </Group>
         </Paper>
 
+        {/* Appointment Calendar */}
+        <ClientFormStatusCalendar 
+          appointments={[
+            ...pendingAppointments.map(apt => ({
+              id: apt.id,
+              clientName: apt.clientName,
+              type: apt.type,
+              rawAppointedDate: apt.rawAppointedDate,
+              scheduledDate: apt.scheduledDate,
+              location: apt.location,
+              purpose: apt.purpose,
+              date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
+            })),
+            ...events.map(evt => ({
+              id: evt.id,
+              clientName: evt.clientName,
+              type: evt.type,
+              rawAppointedDate: evt.rawAppointedDate,
+              scheduledDate: evt.scheduledDate,
+              location: evt.location,
+              purpose: evt.purpose,
+              date: evt.rawAppointedDate ? new Date(evt.rawAppointedDate) : null,
+            }))
+          ].filter(apt => apt.date)}
+          onEventCreated={loadAllData}
+          onDateClick={handleDateClick}
+        />
+
         <Paper shadow="xs" p="lg" mb="xl" radius="lg" bg="white">
           <Group>
             <TextInput placeholder="Search clients..." leftSection={<IconSearch size={16} />} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ flex: 1 }} />
@@ -474,7 +651,7 @@ export default function StaffAppointmentManager() {
           </Tabs.Panel>
         </Tabs>
 
-        <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title={<Title order={3} c={CHARCOAL}>Edit Appointment</Title>} size="lg" styles={{ header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' }, body: { padding: '24px' } }}>
+        <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title="Edit Appointment" size="lg" styles={{ header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' }, body: { padding: '24px' } }}>
           {selectedAppointment && (
             <Stack gap="lg">
               <Paper p="md" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #F0F0F0' }}>
@@ -514,6 +691,375 @@ export default function StaffAppointmentManager() {
               </Group>
             </Stack>
           )}
+        </Modal>
+
+        {/* Date Details Modal */}
+        <Modal 
+          opened={dateDetailsModal} 
+          onClose={() => setDateDetailsModal(false)} 
+          title={selectedDate ? `Appointments for ${selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}` : 'Appointments'}
+          size="lg"
+          styles={{
+            header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' },
+            body: { padding: '24px' },
+          }}
+        >
+          {selectedDate && (() => {
+            const dateAppointments = getAppointmentsForDate(selectedDate);
+            return dateAppointments.length > 0 ? (
+              <Stack gap="md">
+                {dateAppointments.map((item, idx) => (
+                  <Paper
+                    key={item.id || idx}
+                    p="lg"
+                    radius="md"
+                    style={{
+                      backgroundColor: THEMED_LIGHT_BG,
+                      border: `2px solid ${PRIMARY_GOLD}`,
+                    }}
+                  >
+                    <Group justify="space-between" mb="md">
+                      <Group gap="sm">
+                        <Avatar size={48} radius="md" color={PRIMARY_BROWN}>
+                          <IconUser size={24} />
+                        </Avatar>
+                        <Box>
+                          <Text fw={700} size="md" c={CHARCOAL}>
+                            {/* Show event title for custom events, client name for appointments */}
+                            {events.find(e => e.id === item.id) ? item.purpose || item.clientName : item.clientName}
+                          </Text>
+                          <Badge size="sm" style={{ backgroundColor: PRIMARY_BROWN, marginTop: '4px' }}>
+                            {item.type}
+                          </Badge>
+                        </Box>
+                      </Group>
+                      {/* Show edit and delete buttons only for custom events, not appointments from clientsinfo */}
+                      {events.find(e => e.id === item.id) && (
+                        <Group gap="xs">
+                          <ActionIcon
+                            variant="light"
+                            color={PRIMARY_BROWN}
+                            size="lg"
+                            onClick={() => handleEditEvent(item)}
+                          >
+                            <IconEdit size={18} />
+                          </ActionIcon>
+                          <ActionIcon
+                            variant="light"
+                            color="red"
+                            size="lg"
+                            onClick={() => {
+                              setEventToDelete(item);
+                              setDeleteConfirmModal(true);
+                            }}
+                          >
+                            <IconX size={18} />
+                          </ActionIcon>
+                        </Group>
+                      )}
+                    </Group>
+
+                    <Stack gap="sm">
+                      {item.location && (
+                        <Group gap="xs">
+                          <IconMapPin size={16} color={MUTED_OLIVE} />
+                          <Text size="sm" c={CHARCOAL}>
+                            {item.location}
+                          </Text>
+                        </Group>
+                      )}
+                      <Group gap="xs">
+                        <IconCalendarEvent size={16} color={PRIMARY_BROWN} />
+                        <Text size="sm" fw={600} c={CHARCOAL}>
+                          {item.scheduledDate}
+                        </Text>
+                      </Group>
+                      {item.purpose && (
+                        <Box mt="xs">
+                          <Text size="xs" c={MUTED_OLIVE} mb={4}>
+                            Purpose
+                          </Text>
+                          <Text size="sm" c={CHARCOAL}>
+                            {item.purpose}
+                          </Text>
+                        </Box>
+                      )}
+                      {item.assignedTo && (
+                        <Group gap="xs">
+                          <IconUser size={16} color={PRIMARY_GOLD} />
+                          <Text size="sm" c={CHARCOAL}>
+                            {item.assignedTo}
+                          </Text>
+                        </Group>
+                      )}
+                    </Stack>
+
+                    {item.contactNumber && (
+                      <Group gap="md" mt="md" pt="md" style={{ borderTop: '1px solid #E0E0E0' }}>
+                        {item.contactNumber && (
+                          <Group gap="xs">
+                            <IconPhone size={14} color={MUTED_OLIVE} />
+                            <Text size="xs" c={CHARCOAL}>
+                              {item.contactNumber}
+                            </Text>
+                          </Group>
+                        )}
+                        {item.email && (
+                          <Group gap="xs">
+                            <IconMail size={14} color={MUTED_OLIVE} />
+                            <Text size="xs" c={CHARCOAL}>
+                              {item.email}
+                            </Text>
+                          </Group>
+                        )}
+                      </Group>
+                    )}
+                  </Paper>
+                ))}
+              </Stack>
+            ) : (
+              <Center py="xl">
+                <Stack align="center" gap="md">
+                  <IconCalendarEvent size={48} color={MUTED_OLIVE} />
+                  <Text c={MUTED_OLIVE} size="sm">
+                    No appointments or events scheduled for this date
+                  </Text>
+                </Stack>
+              </Center>
+            );
+          })()}
+        </Modal>
+
+        {/* Edit Event Modal */}
+        <Modal
+          opened={editEventModal}
+          onClose={() => setEditEventModal(false)}
+          title="Edit Event"
+          size="lg"
+          styles={{
+            header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' },
+            body: { padding: '24px' },
+          }}
+        >
+          <Stack gap="md">
+            <TextInput
+              label="Event Title"
+              placeholder="Enter event title"
+              required
+              value={eventEditForm.title}
+              onChange={(e) => setEventEditForm({ ...eventEditForm, title: e.target.value })}
+              styles={{
+                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
+              }}
+            />
+
+            <TextInput
+              label="Description"
+              placeholder="Enter event description"
+              value={eventEditForm.description}
+              onChange={(e) => setEventEditForm({ ...eventEditForm, description: e.target.value })}
+              styles={{
+                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
+              }}
+            />
+
+            <DatePickerInput
+              label="Event Date"
+              placeholder="Select event date"
+              required
+              value={eventEditForm.eventDate}
+              onChange={(date) => setEventEditForm({ ...eventEditForm, eventDate: date })}
+              minDate={new Date()}
+              styles={{
+                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
+              }}
+            />
+
+            <Select
+              label="Event Type"
+              placeholder="Select event type"
+              data={[
+                { value: 'appointment', label: 'Appointment' },
+                { value: 'hearing', label: 'Court Hearing' },
+                { value: 'consultation', label: 'Consultation' },
+                { value: 'deadline', label: 'Deadline' },
+                { value: 'other', label: 'Other' },
+              ]}
+              value={eventEditForm.eventType}
+              onChange={(value) => setEventEditForm({ ...eventEditForm, eventType: value })}
+              styles={{
+                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
+              }}
+            />
+
+            <TextInput
+              label="Location"
+              placeholder="Enter location"
+              leftSection={<IconMapPin size={16} />}
+              value={eventEditForm.location}
+              onChange={(e) => setEventEditForm({ ...eventEditForm, location: e.target.value })}
+              styles={{
+                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
+              }}
+            />
+
+            <TextInput
+              label="Client Name"
+              placeholder="Enter client name (optional)"
+              value={eventEditForm.clientName}
+              onChange={(e) => setEventEditForm({ ...eventEditForm, clientName: e.target.value })}
+              styles={{
+                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
+              }}
+            />
+
+            <TextInput
+              label="Assigned To"
+              placeholder="Enter assigned attorney"
+              value={eventEditForm.assignedTo}
+              onChange={(e) => setEventEditForm({ ...eventEditForm, assignedTo: e.target.value })}
+              styles={{
+                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
+              }}
+            />
+
+            <Select
+              label="Priority"
+              placeholder="Select priority"
+              data={[
+                { value: 'Low', label: 'Low' },
+                { value: 'Medium', label: 'Medium' },
+                { value: 'High', label: 'High' },
+              ]}
+              value={eventEditForm.priority}
+              onChange={(value) => setEventEditForm({ ...eventEditForm, priority: value })}
+              styles={{
+                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
+              }}
+            />
+
+            <Group justify="flex-end" gap="md" mt="md">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setEditEventModal(false)}
+                styles={{
+                  root: { borderColor: '#E0E0E0', color: MUTED_OLIVE },
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="md"
+                onClick={handleUpdateEvent}
+                disabled={!eventEditForm.title || !eventEditForm.eventDate || isUpdatingEvent}
+                loading={isUpdatingEvent}
+                leftSection={<IconCheck size={18} />}
+                style={{ backgroundColor: PRIMARY_BROWN }}
+              >
+                {isUpdatingEvent ? 'Updating...' : 'Update Event'}
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          opened={deleteConfirmModal}
+          onClose={() => {
+            setDeleteConfirmModal(false);
+            setEventToDelete(null);
+          }}
+          title="Delete Event"
+          size="md"
+          styles={{
+            header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' },
+            body: { padding: '24px' },
+          }}
+        >
+          <Stack gap="lg">
+            <Paper
+              p="lg"
+              radius="md"
+              style={{
+                backgroundColor: '#FFF5F5',
+                border: '2px solid #FF6B6B',
+              }}
+            >
+              <Group gap="md" align="flex-start">
+                <Box
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: '50%',
+                    backgroundColor: '#FFE0E0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <IconX size={24} color="#FF6B6B" />
+                </Box>
+                <Box style={{ flex: 1 }}>
+                  <Text fw={700} size="lg" c="#C92A2A" mb={8}>
+                    Are you sure?
+                  </Text>
+                  <Text size="sm" c={CHARCOAL}>
+                    This action cannot be undone. The event will be permanently deleted from the calendar.
+                  </Text>
+                </Box>
+              </Group>
+            </Paper>
+
+            {eventToDelete && (
+              <Paper
+                p="md"
+                radius="md"
+                style={{
+                  backgroundColor: THEMED_LIGHT_BG,
+                  border: '1px solid #E0E0E0',
+                }}
+              >
+                <Text size="xs" c={MUTED_OLIVE} mb={4}>
+                  Event to be deleted:
+                </Text>
+                <Text fw={600} size="md" c={CHARCOAL} mb={4}>
+                  {eventToDelete.purpose || eventToDelete.clientName}
+                </Text>
+                <Text size="sm" c={MUTED_OLIVE}>
+                  {eventToDelete.scheduledDate} • {eventToDelete.location}
+                </Text>
+              </Paper>
+            )}
+
+            <Group justify="flex-end" gap="md">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  setDeleteConfirmModal(false);
+                  setEventToDelete(null);
+                }}
+                disabled={isDeletingEvent}
+                styles={{
+                  root: { borderColor: '#E0E0E0', color: MUTED_OLIVE },
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="md"
+                onClick={handleDeleteEvent}
+                disabled={isDeletingEvent}
+                loading={isDeletingEvent}
+                style={{ backgroundColor: '#C92A2A' }}
+                leftSection={<IconX size={18} />}
+              >
+                {isDeletingEvent ? 'Deleting...' : 'Delete Event'}
+              </Button>
+            </Group>
+          </Stack>
         </Modal>
       </Container>
     </Box>

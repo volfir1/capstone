@@ -29,3 +29,29 @@ export const listFinalized = async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 }
+
+export const updateFinalized = async (req, res) => {
+  try {
+    const { id } = req.params
+    const payload = req.body
+    
+    // Update denormalized fields
+    const caseTitle = payload?.content?.caseInfo?.title || payload.caseTitle || null
+    const clientName = payload?.content?.interviewInfo?.clientName || payload.clientName || null
+    const decision = payload?.content?.actionInfo?.decision || payload.decision || null
+
+    const toUpdate = { ...payload }
+    if (caseTitle) toUpdate.caseTitle = caseTitle
+    if (clientName) toUpdate.clientName = clientName
+    if (decision) toUpdate.decision = decision
+
+    const updated = await Finalize.findByIdAndUpdate(id, toUpdate, { new: true })
+    if (!updated) {
+      return res.status(404).json({ error: 'Finalized record not found' })
+    }
+    res.json(updated)
+  } catch (err) {
+    console.error('updateFinalized error', err)
+    res.status(500).json({ error: err.message })
+  }
+}
