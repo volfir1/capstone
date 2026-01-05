@@ -20,7 +20,7 @@ import {
 } from '@mantine/core';
 import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 
 // --- Consolidated Constants ---
 const PRIMARY_GOLD = '#FFD700';
@@ -31,121 +31,78 @@ const MUTED_OLIVE = '#8A8A5C'; // Re-added for button styling
 
 
 // Helper component for Evidence Tables (Memoized)
-const EvidenceTable = React.memo(({ title }) => (
-    <Stack gap="sm">
-        <Title order={4} c={PRIMARY_BROWN}>{title}</Title>
-        <Table withRowBorders withColumnBorders withTableBorder striped>
-            <Table.Thead>
-                <Table.Tr>
-                    <Table.Th style={{ width: '30%' }}>Type / Description</Table.Th>
-                    <Table.Th style={{ width: '25%' }}>Author / Custodian</Table.Th>
-                    <Table.Th style={{ width: '25%' }}>Purpose</Table.Th>
-                    <Table.Th style={{ width: '20%' }}>Admissibility Issues</Table.Th>
-                </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-                {[...Array(3)].map((_, index) => (
-                    <Table.Tr key={index}>
-                        <Table.Td><TextInput placeholder="Type/Desc" size="xs" variant="unstyled" /></Table.Td>
-                        <Table.Td><TextInput placeholder="Author/Custodian" size="xs" variant="unstyled" /></Table.Td>
-                        <Table.Td><TextInput placeholder="Purpose" size="xs" variant="unstyled" /></Table.Td>
-                        <Table.Td><TextInput placeholder="Issues" size="xs" variant="unstyled" /></Table.Td>
+const EvidenceTable = React.memo(({ title, value = [], onChange = () => {} }) => {
+    const updateRow = (index, field, newValue) => {
+        const updated = [...value];
+        if (!updated[index]) {
+            updated[index] = { type: '', author: '', purpose: '', issues: '' };
+        }
+        updated[index] = { ...updated[index], [field]: newValue };
+        onChange(updated);
+    };
+
+    // Ensure we have at least 3 rows
+    const rows = value.length >= 3 ? value : [...value, ...Array(3 - value.length).fill({ type: '', author: '', purpose: '', issues: '' })];
+
+    return (
+        <Stack gap="sm">
+            <Title order={4} c={PRIMARY_BROWN}>{title}</Title>
+            <Table withRowBorders withColumnBorders withTableBorder striped>
+                <Table.Thead>
+                    <Table.Tr>
+                        <Table.Th style={{ width: '30%' }}>Type / Description</Table.Th>
+                        <Table.Th style={{ width: '25%' }}>Author / Custodian</Table.Th>
+                        <Table.Th style={{ width: '25%' }}>Purpose</Table.Th>
+                        <Table.Th style={{ width: '20%' }}>Admissibility Issues</Table.Th>
                     </Table.Tr>
-                ))}
-            </Table.Tbody>
-        </Table>
-    </Stack>
-));
-EvidenceTable.displayName = 'EvidenceTable';
-
-
-// ====================================================================================
-// 1. Reconstructed Case Record Table (Based on image_588e74.png)
-// ====================================================================================
-export const CaseInformationSection = React.memo(({ value = {}, onChange = () => {} }) => (
-    <Paper shadow="md" p="xl" radius="lg" bg="white">
-        <Stack gap="xl">
-            <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Reconstructed Case Record Table</Title>
-            
-            <Divider />
-
-            <Title order={3} c={PRIMARY_BROWN}>Case Information Section</Title>
-            
-            <Grid gutter="xl">
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Stack>
-                        <TextInput label="Title" placeholder="e.g., Juan dela Cruz vs. Pedro Reyes"
-                            value={value.title || ''} onChange={(e) => onChange({ ...value, title: e.target.value })} />
-                        <TextInput label="Nature of the Case" placeholder="e.g., Estafa, Annulment, Ejectment"
-                            value={value.nature || ''} onChange={(e) => onChange({ ...value, nature: e.target.value })} />
-                        <TextInput label="Tribunal" placeholder="e.g., Regional Trial Court, MTC, SC"
-                            value={value.tribunal || ''} onChange={(e) => onChange({ ...value, tribunal: e.target.value })} />
-                        <TextInput label="Branch" placeholder="e.g., Branch 123"
-                            value={value.branch || ''} onChange={(e) => onChange({ ...value, branch: e.target.value })} />
-                        <TextInput label="Presiding Judge" placeholder="Hon. [Judge Name]"
-                            value={value.presidingJudge || ''} onChange={(e) => onChange({ ...value, presidingJudge: e.target.value })} />
-                        <TextInput label="Tel/Email of Clerk of Court" placeholder="Contact details"
-                            value={value.telEmail || ''} onChange={(e) => onChange({ ...value, telEmail: e.target.value })} />
-                    </Stack>
-                </Grid.Col>
-
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Stack>
-                        <TextInput label="Contact Details (Case)" placeholder="Relevant phone/email"
-                            value={value.contactDetails || ''} onChange={(e) => onChange({ ...value, contactDetails: e.target.value })} />
-                        <TextInput label="Counsel/s on Record" placeholder="Name/s of counsel"
-                            value={value.counsels || ''} onChange={(e) => onChange({ ...value, counsels: e.target.value })} />
-                        <TextInput label="Public Prosecutor" placeholder="Name of prosecutor (if applicable)"
-                            value={value.publicProsecutor || ''} onChange={(e) => onChange({ ...value, publicProsecutor: e.target.value })} />
-                        <TextInput label="Opposing Counsel" placeholder="Name of opposing counsel"
-                            value={value.opposingCounsel || ''} onChange={(e) => onChange({ ...value, opposingCounsel: e.target.value })} />
-                        <Textarea label="Client/s Address" placeholder="Full client address" autosize minRows={2}
-                            value={value.clientAddress || ''} onChange={(e) => onChange({ ...value, clientAddress: e.target.value })} />
-                        <Textarea label="Others (Contact Details)" placeholder="Any other relevant contacts" autosize minRows={2}
-                            value={value.others || ''} onChange={(e) => onChange({ ...value, others: e.target.value })} />
-                    </Stack>
-                </Grid.Col>
-            </Grid>
-
-            <Divider />
-            
-            <Title order={3} c={PRIMARY_BROWN}>Parties Section</Title>
-            <Textarea 
-                label="Party/ies" 
-                placeholder="List all parties involved (Petitioner/Respondent, Plaintiff/Defendant, etc.)" 
-                autosize 
-                minRows={3}
-                value={value.parties || ''} onChange={(e) => onChange({ ...value, parties: e.target.value })} 
-            />
-
-            <Divider />
-
-            <Title order={3} c={PRIMARY_BROWN}>Case History & Notes Section</Title>
-            <Grid gutter="xl">
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Textarea 
-                        label="CASE HISTORY (in reverse chronological order)" 
-                        placeholder="List past events, rulings, and filings from most recent to oldest"
-                        autosize 
-                        minRows={5}
-                        value={value.caseHistory || ''} onChange={(e) => onChange({ ...value, caseHistory: e.target.value })}
-                    />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Textarea 
-                        label="REMARKS / REMINDERS / NOTES (deadlines / material dates, etc.)" 
-                        placeholder="Important dates, next hearing, filing deadlines"
-                        autosize 
-                        minRows={5}
-                        value={value.remarks || ''} onChange={(e) => onChange({ ...value, remarks: e.target.value })}
-                    />
-                </Grid.Col>
-            </Grid>
+                </Table.Thead>
+                <Table.Tbody>
+                    {rows.slice(0, 3).map((row, index) => (
+                        <Table.Tr key={index}>
+                            <Table.Td>
+                                <TextInput 
+                                    placeholder="Type/Desc" 
+                                    size="xs" 
+                                    variant="unstyled"
+                                    value={row.type || ''}
+                                    onChange={(e) => updateRow(index, 'type', e.target.value)}
+                                />
+                            </Table.Td>
+                            <Table.Td>
+                                <TextInput 
+                                    placeholder="Author/Custodian" 
+                                    size="xs" 
+                                    variant="unstyled"
+                                    value={row.author || ''}
+                                    onChange={(e) => updateRow(index, 'author', e.target.value)}
+                                />
+                            </Table.Td>
+                            <Table.Td>
+                                <TextInput 
+                                    placeholder="Purpose" 
+                                    size="xs" 
+                                    variant="unstyled"
+                                    value={row.purpose || ''}
+                                    onChange={(e) => updateRow(index, 'purpose', e.target.value)}
+                                />
+                            </Table.Td>
+                            <Table.Td>
+                                <TextInput 
+                                    placeholder="Issues" 
+                                    size="xs" 
+                                    variant="unstyled"
+                                    value={row.issues || ''}
+                                    onChange={(e) => updateRow(index, 'issues', e.target.value)}
+                                />
+                            </Table.Td>
+                        </Table.Tr>
+                    ))}
+                </Table.Tbody>
+            </Table>
         </Stack>
-    </Paper>
-));
-CaseInformationSection.displayName = 'CaseInformationSection';
-
+    );
+});
+EvidenceTable.displayName = 'EvidenceTable';
 
 // ====================================================================================
 // 2. Client Interview and Evidence Section (Based on image_588eb7.png)
@@ -180,11 +137,19 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
 
             <Divider />
 
-            <EvidenceTable title="Evidence on Hand / Available for the Client(s)" />
+            <EvidenceTable 
+                title="Evidence on Hand / Available for the Client(s)" 
+                value={value.clientEvidence || []}
+                onChange={(evidence) => onChange({ ...value, clientEvidence: evidence })}
+            />
 
             <Divider />
             
-            <EvidenceTable title="Evidence on Hand / Available for the Adverse Party(ies)" />
+            <EvidenceTable 
+                title="Evidence on Hand / Available for the Adverse Party(ies)" 
+                value={value.adversePartyEvidence || []}
+                onChange={(evidence) => onChange({ ...value, adversePartyEvidence: evidence })}
+            />
             
             <Divider />
             
@@ -300,7 +265,7 @@ SupervisingLawyerActionSection.displayName = 'SupervisingLawyerActionSection';
 // ====================================================================================
 // Main Wrapper Component (Managing Steps and Buttons)
 // ====================================================================================
-const totalSteps = 3;
+const totalSteps = 2;
 
 export default function CaseRecordFormsDisplay() {
     const { userData } = useAuth();
@@ -308,20 +273,54 @@ export default function CaseRecordFormsDisplay() {
     const isIntern = userData?.role === 'intern';
     const [reviews, setReviews] = useState([])
     const [saving, setSaving] = useState(false)
+    const [isFromDashboard, setIsFromDashboard] = useState(false)
 
-    // new controlled state for case + interview
-    const [caseInfo, setCaseInfo] = useState({});
+    // controlled state for interview + action
     const [interviewInfo, setInterviewInfo] = useState({});
     const [actionInfo, setActionInfo] = useState({});
     const location = useLocation();
+    const [searchParams] = useSearchParams();
+    const { caseId: caseIdParam } = useParams();
+    const navigate = useNavigate();
+
+    // Get caseId from URL params, search params, or location state
+    const getCaseId = () => {
+        if (caseIdParam) return caseIdParam;
+        const caseIdFromQuery = searchParams.get('caseId');
+        if (caseIdFromQuery) return caseIdFromQuery;
+        const caseIdFromState = location?.state?.caseId;
+        if (caseIdFromState) return caseIdFromState;
+        // Fallback: try to extract from path or use a default
+        const pathParts = window?.location?.pathname?.split('/') || [];
+        // If path contains a case ID pattern (e.g., /admin/recommendation/:caseId)
+        const possibleCaseId = pathParts[pathParts.length - 1];
+        return possibleCaseId && possibleCaseId !== 'recommendation' ? possibleCaseId : 'new-case';
+    };
 
     useEffect(() => {
         const review = location?.state?.review;
         if (review && review.content) {
-            const ci = review.content.caseInfo || review.caseInfo || {};
+            // Mark that this is opened from dashboard (has review in location state)
+            setIsFromDashboard(true);
+            
+            // Load review data from location.state
             const ii = review.content.interviewInfo || review.interviewInfo || {};
-            setCaseInfo(ci);
-            setInterviewInfo(ii);
+            // Restore evidence tables if they exist
+            if (ii.clientEvidence) {
+                setInterviewInfo(prev => ({ ...prev, ...ii }));
+            } else {
+                setInterviewInfo(ii);
+            }
+            
+            // Load action info if available
+            if (review.content?.actionInfo) {
+                setActionInfo(review.content.actionInfo);
+            }
+        } else {
+            // If no review in location state, it's opened from sidebar - reset to clean state
+            setIsFromDashboard(false);
+            setInterviewInfo({});
+            setActionInfo({});
         }
     }, [location]);
 
@@ -329,24 +328,46 @@ export default function CaseRecordFormsDisplay() {
     const prevStep = () => setActive((current) => (current > 0 ? current - 1 : current));
     
     const handleSubmit = async () => {
-        const caseIdFromPath = window?.location?.pathname?.split('/')?.pop() || 'unknown';
+        const caseId = getCaseId();
+        
+        // Filter out completely empty evidence rows before saving
+        const filterEmptyEvidence = (evidenceArray) => {
+            if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
+            return evidenceArray.filter(row => 
+                row && (row.type || row.author || row.purpose || row.issues)
+            );
+        };
+        
+        // Ensure all interview data is included
+        const completeInterviewInfo = {
+            ...interviewInfo,
+            // Filter out empty evidence rows
+            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
+            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+        };
+
         const reviewPayload = {
-            caseId: caseIdFromPath,
+            caseId: caseId,
             reviewerId: userData?.id || userData?._id || null,
             reviewerRole: userData?.role || null,
             step: active,
-            content: { caseInfo, interviewInfo }
+            content: { interviewInfo: completeInterviewInfo }
         };
+
+        console.log('Saving review with payload:', reviewPayload);
 
         try {
             setSaving(true);
             // If secretary finalizes record on last step, create a finalized record
             if (userData?.role === 'secretary' && active === totalSteps - 1) {
                 const finalizePayload = {
-                    caseId: caseIdFromPath,
+                    caseId: caseId,
                     finalizedBy: userData?.id || userData?._id || null,
                     finalizedRole: userData?.role || null,
-                    content: { caseInfo, interviewInfo, actionInfo }
+                    content: { 
+                        interviewInfo: completeInterviewInfo, 
+                        actionInfo 
+                    }
                 }
                 const resFinalize = await fetch('/api/finalize', {
                     method: 'POST',
@@ -359,9 +380,12 @@ export default function CaseRecordFormsDisplay() {
                     throw new Error(`Finalize save failed: ${resFinalize.status} ${finalizeText}`)
                 }
                 const savedFinalize = finalizeText ? JSON.parse(finalizeText) : null
-                alert('Case finalized and saved')
+                alert('Case finalized and saved successfully!')
                 console.log('Saved finalize', savedFinalize)
-                await fetchReviews(caseIdFromPath)
+                await fetchReviews(caseId)
+                
+                // Redirect to dashboard
+                navigate('/admin');
                 return
             }
 
@@ -376,10 +400,22 @@ export default function CaseRecordFormsDisplay() {
                 throw new Error(`Review save failed: ${resReview.status} ${reviewText}`);
             }
             const saved = reviewText ? JSON.parse(reviewText) : null;
-            await fetchReviews(caseIdFromPath);
+            console.log('Successfully saved review:', saved);
+            await fetchReviews(caseId);
 
-            alert('Case + Interview saved in review record');
+            alert('Interview and evidence data saved successfully!');
             console.log('Saved review', saved);
+            
+            // Redirect to dashboard based on user role
+            const getDashboardPath = () => {
+                const role = userData?.role;
+                if (role === 'intern') return '/intern';
+                if (role === 'secretary') return '/admin';
+                if (role === 'attorney') return '/attorney';
+                return '/admin'; // Default fallback
+            };
+            
+            navigate(getDashboardPath());
         } catch (err) {
             console.error('handleSubmit error:', err);
             alert(`Failed to save data: ${err.message}`);
@@ -389,30 +425,41 @@ export default function CaseRecordFormsDisplay() {
     };
 
     const fetchReviews = async (caseIdParam) => {
-        const caseId = caseIdParam || window?.location?.pathname?.split('/')?.pop() || 'unknown'
+        const caseId = caseIdParam || getCaseId();
         try {
             const res = await fetch(`/api/reviews/${caseId}`)
-            if (!res.ok) throw new Error('Failed to fetch reviews')
+            if (!res.ok) {
+                // If no reviews found, that's okay - it's a new case
+                if (res.status === 404) {
+                    console.log('No existing reviews found for case:', caseId);
+                    return;
+                }
+                throw new Error('Failed to fetch reviews')
+            }
             const data = await res.json()
             setReviews(data)
+            // Only load data if opened from dashboard and data exists
+            // (Data from location.state is already loaded in the location useEffect)
+            // Don't auto-load data when opened from sidebar - keep it clean
         } catch (err) {
             console.error('fetchReviews error', err)
         }
     }
 
     useEffect(() => {
-        // attempt to load reviews for current case on mount
-        fetchReviews()
+        // Only fetch reviews list if opened from dashboard (to populate reviews state)
+        // Don't auto-load form data - that should only come from location.state
+        if (isFromDashboard) {
+            fetchReviews()
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [isFromDashboard])
 
     const renderStepContent = () => {
         switch (active) {
             case 0:
-                return <CaseInformationSection value={caseInfo} onChange={setCaseInfo} />;
-            case 1:
                 return <ClientInterviewSection value={interviewInfo} onChange={setInterviewInfo} />;
-            case 2:
+            case 1:
                 return <SupervisingLawyerActionSection value={actionInfo} onChange={setActionInfo} />;
             default:
                 return null;
@@ -421,7 +468,6 @@ export default function CaseRecordFormsDisplay() {
     
     // Step labels for the Stepper component
     const steps = [
-        { label: "Case Info", description: "Record Table" },
         { label: "Interview", description: "Client & Evidence" },
         { label: "Action", description: "Lawyer & Director" },
     ];
@@ -500,37 +546,41 @@ export default function CaseRecordFormsDisplay() {
                             )}
                             
                             <Group gap="md">
-                                {/* Show Submit for Review button for interns on step 2 */}
-                                {isIntern && active === 1 && (
-                                    <Button 
-                                        leftSection={<IconCircleCheck size={20} />}
-                                        onClick={handleSubmit}
-                                        size="md"
-                                        variant="filled"
-                                        style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                    >
-                                        Submit for Review
-                                    </Button>
-                                )}
-                                
-                                {/* Show Next or Finalize button */}
-                                {active < totalSteps - 1 ? (
-                                    <Button 
-                                        rightSection={<IconChevronRight size={20} />}
-                                        onClick={nextStep}
-                                        size="md"
-                                        style={{ backgroundColor: PRIMARY_BROWN }}
-                                    >
-                                        Next Step
-                                    </Button>
+                                {/* Show Submit for Review or Next Step button on step 0 (Interview) */}
+                                {active === 0 ? (
+                                    isFromDashboard ? (
+                                        // If opened from dashboard (existing review), show Next Step button
+                                        <Button 
+                                            rightSection={<IconChevronRight size={20} />}
+                                            onClick={nextStep}
+                                            size="md"
+                                            style={{ backgroundColor: PRIMARY_BROWN }}
+                                        >
+                                            Next Step
+                                        </Button>
+                                    ) : (
+                                        // If opened from sidebar (fresh/new), show Submit for Review button
+                                        <Button 
+                                            leftSection={<IconCircleCheck size={20} />}
+                                            onClick={handleSubmit}
+                                            size="md"
+                                            variant="filled"
+                                            style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                            disabled={saving}
+                                        >
+                                            {saving ? 'Saving...' : 'Submit for Review'}
+                                        </Button>
+                                    )
                                 ) : (
+                                    /* Show Finalize button on step 1 (Action) */
                                     <Button 
                                         leftSection={<IconCircleCheck size={20} />}
                                         onClick={handleSubmit}
                                         size="md"
                                         style={{ backgroundColor: PRIMARY_BROWN }}
+                                        disabled={saving}
                                     >
-                                        Finalize Record
+                                        {saving ? 'Saving...' : 'Finalize Record'}
                                     </Button>
                                 )}
                             </Group>

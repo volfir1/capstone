@@ -39,6 +39,8 @@ const ManageAttorney = lazy(() => import('./pages/admin/ManageAttorney'))
 const AssignCase = lazy(() => import('./pages/admin/AssingCase'))
 const UserManagement = lazy(() => import('./pages/admin/userManagement'))
 const RecommendationForAction = lazy(() => import('./pages/other/RecommendationForAction'))
+const CaseRecord = lazy(() => import('./pages/other/CaseRecord'))
+const FinalizedCases = lazy(() => import('./pages/admin/FinalizedCases'))
 
 
 // Attorney
@@ -164,6 +166,8 @@ function AppRoutes() {
           <Route path="attorneys" element={<ManageAttorney />} />
           < Route path="assigncase" element={<AssignCase />}/>
           <Route path="recommendation" element={<RecommendationForAction />} />
+          <Route path="caserecord" element={<CaseRecord />} />
+          <Route path="finalized" element={<FinalizedCases />} />
           <Route path="profile" element={<AdminProfile />} />
           <Route path="clientstats" element={<ClientApplicationStatus />} />
         </Route>
@@ -182,6 +186,8 @@ function AppRoutes() {
           <Route index element={<AttorneyDashboard />} />
           <Route path="chat" element={<AttorneyMessenger />} />
           <Route path="profile" element={<AttorneyProfile />} />
+          <Route path="caserecord" element={<CaseRecord />} />
+          <Route path="finalized" element={<FinalizedCases />} />
           <Route path="clientstats" element={<ClientApplicationStatus />} />
         </Route>
       
@@ -197,7 +203,9 @@ function AppRoutes() {
           }
         >
           <Route path="recommendation" element={<RecommendationForAction />} />
-          <Route path="clientstats" element={<ClientApplicationStatus />} />  
+          <Route path="caserecord" element={<CaseRecord />} />
+          <Route path="finalized" element={<FinalizedCases />} />
+          <Route path="clientstats" element={<ClientApplicationStatus />} />
         </Route>
         
         <Route path="/forgot-password" element={<ForgotPassword />} />

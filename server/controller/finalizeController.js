@@ -5,10 +5,12 @@ export const createFinalize = async (req, res) => {
     const payload = req.body
     const caseTitle = payload?.content?.caseInfo?.title || payload.caseTitle || null
     const clientName = payload?.content?.interviewInfo?.clientName || payload.clientName || null
+    const decision = payload?.content?.actionInfo?.decision || payload.decision || null
 
     const toCreate = { ...payload }
     if (caseTitle) toCreate.caseTitle = caseTitle
     if (clientName) toCreate.clientName = clientName
+    if (decision) toCreate.decision = decision
 
     const rec = await Finalize.create(toCreate)
     res.status(201).json(rec)
