@@ -8,11 +8,17 @@ export const createFinalize = async (req, res) => {
     const decision = payload?.content?.actionInfo?.decision || payload.decision || null
 
     const toCreate = { ...payload }
+    // Remove caseId if it's "new-case" - let the model auto-generate it
+    if (toCreate.caseId === 'new-case' || !toCreate.caseId) {
+      delete toCreate.caseId
+    }
+    
     if (caseTitle) toCreate.caseTitle = caseTitle
     if (clientName) toCreate.clientName = clientName
     if (decision) toCreate.decision = decision
 
     const rec = await Finalize.create(toCreate)
+    console.log('Created finalize record with caseId:', rec.caseId)
     res.status(201).json(rec)
   } catch (err) {
     console.error('createFinalize error', err)

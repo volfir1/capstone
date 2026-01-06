@@ -31,7 +31,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin' },
     { icon: IconUsers, label: "Users Management", badge: "12", path: 'users' },
     { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
-    { icon: IconBriefcase2, label: "Assign Case", path: 'assigncase' },
+    // { icon: IconBriefcase2, label: "Assign Case", path: 'assigncase' },
     { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     // { icon: IconClipboardText, label: "Case Record", path: 'caserecord' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },

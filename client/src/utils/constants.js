@@ -76,3 +76,26 @@ export const NATURE_OF_CASE_OPTIONS = [
   'Election Law',
   'Other'
 ];
+
+export const CATEGORY_COLORS = {
+  'Civil Case': 'blue',
+  'Criminal Case': 'red',
+  'Family Law': 'pink',
+  'Labor and Employment': 'orange',
+  'Land and Property Disputes': 'teal',
+  'Contract Disputes': 'cyan',
+  'Personal Injury': 'grape',
+  'Debt Collection': 'yellow',
+  'Inheritance and Estate': 'lime',
+  'Business and Commercial Law': 'indigo',
+  'Consumer Protection': 'green',
+  'Tax Law': 'violet',
+  'Immigration': 'blue',
+  'Intellectual Property': 'grape',
+  'Environmental Law': 'green',
+  'Administrative Law': 'gray',
+  'Human Rights Violation': 'red',
+  'Cybercrime': 'dark',
+  'Election Law': 'indigo',
+  'Other': 'gray'
+};

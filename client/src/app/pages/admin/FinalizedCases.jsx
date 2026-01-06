@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -22,46 +22,174 @@ import {
   Textarea,
   Radio,
   Stepper,
+  Select,
 } from '@mantine/core';
 import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft } from '@tabler/icons-react';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN, NATURE_OF_CASE_OPTIONS, CATEGORY_COLORS } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { CaseInformationSection } from '../other/CaseInformationSection';
 
+// Initial state
+const initialState = {
+  // Data
+  finalized: [],
+  caseRecordsMap: {},
+  
+  // UI
+  activeTab: 'accepted',
+  searchTerm: '',
+  categoryFilter: 'all',
+  loading: false,
+  loadingFinalized: false,
+  saving: false,
+  
+  // Review Modal
+  modalOpened: false,
+  selectedCase: null,
+  editMode: false,
+  editedData: null,
+  activeStep: 0,
+  
+  // Case Record Modal
+  caseRecordModalOpened: false,
+  caseRecordData: {},
+  selectedCaseId: null,
+  caseRecordEditMode: false,
+};
+
+// Reducer function
+function stateReducer(state, action) {
+  switch (action.type) {
+    case 'SET_FINALIZED':
+      return { ...state, finalized: action.payload };
+    case 'SET_CASE_RECORDS_MAP':
+      return { ...state, caseRecordsMap: action.payload };
+    case 'SET_LOADING_FINALIZED':
+      return { ...state, loadingFinalized: action.payload };
+    case 'SET_SAVING':
+      return { ...state, saving: action.payload };
+    case 'SET_ACTIVE_TAB':
+      return { ...state, activeTab: action.payload };
+    case 'SET_SEARCH_TERM':
+      return { ...state, searchTerm: action.payload };
+    case 'SET_CATEGORY_FILTER':
+      return { ...state, categoryFilter: action.payload };
+    
+    // Review Modal actions
+    case 'OPEN_REVIEW_MODAL':
+      return {
+        ...state,
+        modalOpened: true,
+        selectedCase: action.payload,
+        editedData: JSON.parse(JSON.stringify(action.payload)),
+        editMode: false,
+        activeStep: 0,
+      };
+    case 'CLOSE_REVIEW_MODAL':
+      return { ...state, modalOpened: false, editMode: false };
+    case 'SET_EDIT_MODE':
+      return { ...state, editMode: action.payload };
+    case 'SET_EDITED_DATA':
+      return { ...state, editedData: action.payload };
+    case 'SET_ACTIVE_STEP':
+      return { ...state, activeStep: action.payload };
+    
+    // Case Record Modal actions
+    case 'OPEN_CASE_RECORD_MODAL':
+      return {
+        ...state,
+        caseRecordModalOpened: true,
+        selectedCaseId: action.payload.caseId,
+        caseRecordData: action.payload.data,
+        caseRecordEditMode: false,
+      };
+    case 'CLOSE_CASE_RECORD_MODAL':
+      return {
+        ...state,
+        caseRecordModalOpened: false,
+        caseRecordData: {},
+        caseRecordEditMode: false,
+      };
+    case 'SET_CASE_RECORD_EDIT_MODE':
+      return { ...state, caseRecordEditMode: action.payload };
+    case 'SET_CASE_RECORD_DATA':
+      return { ...state, caseRecordData: action.payload };
+    
+    default:
+      return state;
+  }
+}
+
 export default function FinalizedCases() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [finalized, setFinalized] = useState([]);
-  const [loadingFinalized, setLoadingFinalized] = useState(false);
-  const [activeTab, setActiveTab] = useState('accepted');
-  const [modalOpened, setModalOpened] = useState(false);
-  const [selectedCase, setSelectedCase] = useState(null);
-  const [editMode, setEditMode] = useState(false);
-  const [editedData, setEditedData] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [activeStep, setActiveStep] = useState(0);
-  const [caseRecordModalOpened, setCaseRecordModalOpened] = useState(false);
-  const [caseRecordData, setCaseRecordData] = useState({});
-  const [selectedCaseId, setSelectedCaseId] = useState(null);
+  const [state, dispatch] = useReducer(stateReducer, initialState);
   const { userData } = useAuth();
 
-  // Group finalized records by decision
-  const acceptedCases = finalized.filter(f => f.decision === 'accepted');
-  const rejectedCases = finalized.filter(f => f.decision === 'rejected');
-  const pendingCases = finalized.filter(f => f.decision === 'pending' || !f.decision);
+  // Filter function
+  const filterCases = (cases) => {
+    let filtered = cases;
+    
+    // Apply category filter
+    if (state.categoryFilter !== 'all') {
+      filtered = filtered.filter(f => {
+        const caseNature = f.content?.caseInfo?.nature || f.category;
+        return caseNature === state.categoryFilter;
+      });
+    }
+    
+    // Apply search filter
+    if (state.searchTerm.trim()) {
+      const search = state.searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(f => {
+        const caseId = (f.caseId || '').toLowerCase();
+        const clientName = (f.clientName || f.content?.interviewInfo?.clientName || '').toLowerCase();
+        return caseId.includes(search) || clientName.includes(search);
+      });
+    }
+    
+    return filtered;
+  };
+
+  // Group finalized records by decision and apply search filter
+  const acceptedCases = filterCases(state.finalized.filter(f => f.decision === 'accepted'));
+  const acceptedWithRecord = acceptedCases.filter(f => state.caseRecordsMap[f._id || f.id]);
+  const acceptedWithoutRecord = acceptedCases.filter(f => !state.caseRecordsMap[f._id || f.id]);
+  const rejectedCases = filterCases(state.finalized.filter(f => f.decision === 'rejected'));
+  const pendingCases = filterCases(state.finalized.filter(f => f.decision === 'pending' || !f.decision));
 
   const fetchFinalized = async () => {
     try {
-      setLoadingFinalized(true);
+      dispatch({ type: 'SET_LOADING_FINALIZED', payload: true });
       const resp = await apiClient.get('/finalize');
       const data = resp.data?.data ?? resp.data ?? [];
-      setFinalized(Array.isArray(data) ? data : []);
+      const finalizedData = Array.isArray(data) ? data : [];
+      dispatch({ type: 'SET_FINALIZED', payload: finalizedData });
+      
+      // Check which accepted cases have case records
+      const accepted = finalizedData.filter(f => f.decision === 'accepted');
+      const recordsMap = {};
+      
+      await Promise.all(
+        accepted.map(async (caseData) => {
+          try {
+            const caseRecordResp = await apiClient.get(`/caserecords/finalize/${caseData._id || caseData.id}`);
+            if (caseRecordResp.data) {
+              recordsMap[caseData._id || caseData.id] = true;
+            }
+          } catch (err) {
+            // No case record exists
+            recordsMap[caseData._id || caseData.id] = false;
+          }
+        })
+      );
+      
+      dispatch({ type: 'SET_CASE_RECORDS_MAP', payload: recordsMap });
     } catch (err) {
       console.error('Error fetching finalized records', err);
-      setFinalized([]);
+      dispatch({ type: 'SET_FINALIZED', payload: [] });
     } finally {
-      setLoadingFinalized(false);
+      dispatch({ type: 'SET_LOADING_FINALIZED', payload: false });
     }
   };
 
@@ -71,85 +199,103 @@ export default function FinalizedCases() {
   }, []);
 
   const openModal = (caseData) => {
-    setSelectedCase(caseData);
-    setEditedData(JSON.parse(JSON.stringify(caseData))); // Deep clone
-    setEditMode(false);
-    setActiveStep(0);
-    setModalOpened(true);
+    dispatch({ type: 'OPEN_REVIEW_MODAL', payload: caseData });
   };
 
-  const openCaseRecordModal = (caseData) => {
-    setSelectedCaseId(caseData.caseId);
-    setCaseRecordData(caseData.content?.caseInfo || {});
-    setCaseRecordModalOpened(true);
+  const openCaseRecordModal = async (caseData) => {
+    try {
+      const caseId = caseData._id; // Use finalize _id instead of caseId
+      
+      // Try to fetch existing case record first
+      try {
+        const resp = await apiClient.get(`/caserecords/finalize/${caseId}`);
+        if (resp.data) {
+          dispatch({ type: 'OPEN_CASE_RECORD_MODAL', payload: { caseId, data: resp.data } });
+          console.log('Loaded existing case record:', resp.data);
+          return;
+        }
+      } catch (fetchErr) {
+        // If not found, use data from finalize content
+        console.log('No existing case record, using finalize content');
+      }
+      
+      dispatch({ type: 'OPEN_CASE_RECORD_MODAL', payload: { caseId, data: caseData.content?.caseInfo || {} } });
+    } catch (err) {
+      console.error('Error opening case record:', err);
+      dispatch({ type: 'OPEN_CASE_RECORD_MODAL', payload: { caseId: caseData._id, data: caseData.content?.caseInfo || {} } });
+    }
   };
 
   const handleSaveCaseRecord = async () => {
     try {
-      setSaving(true);
-      // Add your API call to save case record here
-      // await apiClient.put(`/cases/${selectedCaseId}`, caseRecordData);
-      alert('Case record saved successfully!');
-      setCaseRecordModalOpened(false);
+      dispatch({ type: 'SET_SAVING', payload: true });
+      console.log('Saving case record for finalizeId:', state.selectedCaseId);
+      console.log('Data:', state.caseRecordData);
+      
+      const resp = await apiClient.put(`/caserecords/finalize/${state.selectedCaseId}`, state.caseRecordData);
+      console.log('Save response:', resp.data);
+      
+      if (resp.data) {
+        alert('Case record saved successfully!');
+        dispatch({ type: 'SET_CASE_RECORD_EDIT_MODE', payload: false });
+        // Refetch finalized cases to update the data
+        await fetchFinalized();
+      }
     } catch (err) {
       console.error('Error saving case record:', err);
-      alert('Failed to save case record: ' + err.message);
+      const errorMsg = err.response?.data?.error || err.message;
+      alert('Failed to save case record: ' + errorMsg);
     } finally {
-      setSaving(false);
+      dispatch({ type: 'SET_SAVING', payload: false });
     }
   };
 
   const handleSaveChanges = async () => {
     try {
-      setSaving(true);
-      const resp = await apiClient.put(`/finalize/${editedData._id || editedData.id}`, editedData);
+      dispatch({ type: 'SET_SAVING', payload: true });
+      const resp = await apiClient.put(`/finalize/${state.editedData._id || state.editedData.id}`, state.editedData);
       if (resp.data) {
         // Refetch the entire list to ensure consistency
         await fetchFinalized();
-        setSelectedCase(resp.data);
-        setEditedData(resp.data);
-        setEditMode(false);
+        dispatch({ type: 'SET_EDITED_DATA', payload: resp.data });
+        dispatch({ type: 'SET_EDIT_MODE', payload: false });
         alert('Changes saved successfully!');
       }
     } catch (err) {
       console.error('Error saving changes:', err);
       alert('Failed to save changes: ' + err.message);
     } finally {
-      setSaving(false);
+      dispatch({ type: 'SET_SAVING', payload: false });
     }
   };
 
   const updateEditedData = (path, value) => {
-    setEditedData(prev => {
-      const newData = { ...prev };
-      const keys = path.split('.');
-      let current = newData;
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!current[keys[i]]) current[keys[i]] = {};
-        current = current[keys[i]];
-      }
-      current[keys[keys.length - 1]] = value;
-      return newData;
-    });
+    const newData = { ...state.editedData };
+    const keys = path.split('.');
+    let current = newData;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!current[keys[i]]) current[keys[i]] = {};
+      current = current[keys[i]];
+    }
+    current[keys[keys.length - 1]] = value;
+    dispatch({ type: 'SET_EDITED_DATA', payload: newData });
   };
 
   const updateEvidence = (type, index, field, value) => {
-    setEditedData(prev => {
-      const newData = { ...prev };
-      if (!newData.content) newData.content = {};
-      if (!newData.content.interviewInfo) newData.content.interviewInfo = {};
-      if (!newData.content.interviewInfo[type]) newData.content.interviewInfo[type] = [];
-      
-      const evidence = [...newData.content.interviewInfo[type]];
-      if (!evidence[index]) evidence[index] = {};
-      evidence[index] = { ...evidence[index], [field]: value };
-      newData.content.interviewInfo[type] = evidence;
-      return newData;
-    });
+    const newData = { ...state.editedData };
+    if (!newData.content) newData.content = {};
+    if (!newData.content.interviewInfo) newData.content.interviewInfo = {};
+    if (!newData.content.interviewInfo[type]) newData.content.interviewInfo[type] = [];
+    
+    const evidence = [...newData.content.interviewInfo[type]];
+    if (!evidence[index]) evidence[index] = {};
+    evidence[index] = { ...evidence[index], [field]: value };
+    newData.content.interviewInfo[type] = evidence;
+    dispatch({ type: 'SET_EDITED_DATA', payload: newData });
   };
 
   const renderEvidenceTable = (title, evidence = [], fieldName) => {
-    if (!editMode && (!evidence || evidence.length === 0)) return null;
+    if (!state.editMode && (!evidence || evidence.length === 0)) return null;
     
     const rows = evidence && evidence.length >= 3 ? evidence : [...(evidence || []), ...Array(3 - (evidence?.length || 0)).fill({ type: '', author: '', purpose: '', issues: '' })];
     
@@ -169,7 +315,7 @@ export default function FinalizedCases() {
             {rows.slice(0, 3).map((row, idx) => (
               <Table.Tr key={idx}>
                 <Table.Td>
-                  {editMode ? (
+                  {state.editMode ? (
                     <TextInput
                       placeholder="Type/Desc"
                       size="xs"
@@ -182,7 +328,7 @@ export default function FinalizedCases() {
                   )}
                 </Table.Td>
                 <Table.Td>
-                  {editMode ? (
+                  {state.editMode ? (
                     <TextInput
                       placeholder="Author/Custodian"
                       size="xs"
@@ -195,7 +341,7 @@ export default function FinalizedCases() {
                   )}
                 </Table.Td>
                 <Table.Td>
-                  {editMode ? (
+                  {state.editMode ? (
                     <TextInput
                       placeholder="Purpose"
                       size="xs"
@@ -208,7 +354,7 @@ export default function FinalizedCases() {
                   )}
                 </Table.Td>
                 <Table.Td>
-                  {editMode ? (
+                  {state.editMode ? (
                     <TextInput
                       placeholder="Issues"
                       size="xs"
@@ -242,11 +388,35 @@ export default function FinalizedCases() {
             <IconBriefcase size={18} />
           </Box>
           <Box style={{ flex: 1 }}>
-            <Text fw={600} size="sm">{f.clientName || f.content?.interviewInfo?.clientName || 'Unknown Client'}</Text>
+            <Group spacing="xs" align="center">
+              <Text fw={600} size="sm">{f.clientName || f.content?.interviewInfo?.clientName || 'Unknown Client'}</Text>
+              {f.caseId && (
+                <Badge 
+                  size="sm" 
+                  variant="filled" 
+                  style={{ 
+                    backgroundColor: PRIMARY_GOLD, 
+                    color: CHARCOAL,
+                    fontWeight: 600
+                  }}
+                >
+                  {f.caseId}
+                </Badge>
+              )}
+            </Group>
             <Text size="xs" c="dimmed" mt={4}>
               {f.createdAt ? new Date(f.createdAt).toLocaleDateString() : 'No Date'}
             </Text>
             <Group spacing="xs" mt={4}>
+              {(f.content?.caseInfo?.nature || f.category) && (
+                <Badge 
+                  size="sm" 
+                  variant="light" 
+                  color={CATEGORY_COLORS[f.content?.caseInfo?.nature || f.category] || 'gray'}
+                >
+                  {f.content?.caseInfo?.nature || f.category}
+                </Badge>
+              )}
               <Badge size="sm" variant="light" color="gray">
                 {f.finalizedRole || f.finalizedBy || 'Secretary'}
               </Badge>
@@ -265,7 +435,7 @@ export default function FinalizedCases() {
           >
             View Review
           </Button>
-          {f.decision !== 'rejected' && (
+          {f.decision === 'accepted' && (
             <Button
               size="xs"
               variant="filled"
@@ -290,50 +460,18 @@ export default function FinalizedCases() {
       <Container size="xl">
         {/* Modal for Case Record */}
         <Modal
-          opened={caseRecordModalOpened}
-          onClose={() => {
-            setCaseRecordModalOpened(false);
-            setCaseRecordData({});
-          }}
+          opened={state.caseRecordModalOpened}
+          onClose={() => dispatch({ type: 'CLOSE_CASE_RECORD_MODAL' })}
           title={
             <Group justify="space-between" style={{ width: '100%' }}>
               <Title order={3} c={PRIMARY_BROWN}>Case Record</Title>
-              <Button
-                size="sm"
-                style={{ backgroundColor: PRIMARY_BROWN }}
-                onClick={handleSaveCaseRecord}
-                loading={saving}
-              >
-                Save Changes
-              </Button>
-            </Group>
-          }
-          size="xl"
-          styles={{
-            title: { fontWeight: 700, width: '100%' },
-            body: { maxHeight: '70vh', overflowY: 'auto' },
-          }}
-        >
-          <CaseInformationSection value={caseRecordData} onChange={setCaseRecordData} />
-        </Modal>
-
-        {/* Modal for viewing recommendation */}
-        <Modal
-          opened={modalOpened}
-          onClose={() => {
-            setModalOpened(false);
-            setEditMode(false);
-          }}
-          title={
-            <Group justify="space-between" style={{ width: '100%' }}>
-              <Title order={3} c={PRIMARY_BROWN}>Recommendation for Action</Title>
               <Group gap="sm">
-                {!editMode ? (
+                {!state.caseRecordEditMode ? (
                   <Button
                     size="xs"
                     variant="outline"
                     color={PRIMARY_BROWN}
-                    onClick={() => setEditMode(true)}
+                    onClick={() => dispatch({ type: 'SET_CASE_RECORD_EDIT_MODE', payload: true })}
                   >
                     Edit
                   </Button>
@@ -343,8 +481,9 @@ export default function FinalizedCases() {
                       size="xs"
                       variant="outline"
                       onClick={() => {
-                        setEditedData(JSON.parse(JSON.stringify(selectedCase)));
-                        setEditMode(false);
+                        dispatch({ type: 'SET_CASE_RECORD_EDIT_MODE', payload: false });
+                        // Reset data to original
+                        openCaseRecordModal({ _id: state.selectedCaseId });
                       }}
                     >
                       Cancel
@@ -352,8 +491,8 @@ export default function FinalizedCases() {
                     <Button
                       size="xs"
                       style={{ backgroundColor: PRIMARY_BROWN }}
-                      onClick={handleSaveChanges}
-                      loading={saving}
+                      onClick={handleSaveCaseRecord}
+                      loading={state.saving}
                     >
                       Save Changes
                     </Button>
@@ -368,11 +507,66 @@ export default function FinalizedCases() {
             body: { maxHeight: '70vh', overflowY: 'auto' },
           }}
         >
-          {editedData && (
+          <CaseInformationSection 
+            value={state.caseRecordData} 
+            onChange={(data) => dispatch({ type: 'SET_CASE_RECORD_DATA', payload: data })}
+            readOnly={!state.caseRecordEditMode}
+          />
+        </Modal>
+
+        {/* Modal for viewing recommendation */}
+        <Modal
+          opened={state.modalOpened}
+          onClose={() => dispatch({ type: 'CLOSE_REVIEW_MODAL' })}
+          title={
+            <Group justify="space-between" style={{ width: '100%' }}>
+              <Title order={3} c={PRIMARY_BROWN}>Recommendation for Action</Title>
+              <Group gap="sm">
+                {!state.editMode ? (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    color={PRIMARY_BROWN}
+                    onClick={() => dispatch({ type: 'SET_EDIT_MODE', payload: true })}
+                  >
+                    Edit
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => {
+                        dispatch({ type: 'SET_EDITED_DATA', payload: JSON.parse(JSON.stringify(state.selectedCase)) });
+                        dispatch({ type: 'SET_EDIT_MODE', payload: false });
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="xs"
+                      style={{ backgroundColor: PRIMARY_BROWN }}
+                      onClick={handleSaveChanges}
+                      loading={state.saving}
+                    >
+                      Save Changes
+                    </Button>
+                  </>
+                )}
+              </Group>
+            </Group>
+          }
+          size="xl"
+          styles={{
+            title: { fontWeight: 700, width: '100%' },
+            body: { maxHeight: '70vh', overflowY: 'auto' },
+          }}
+        >
+          {state.editedData && (
             <Stack gap="lg">
               {/* Stepper Navigation */}
               <Stepper 
-                active={activeStep} 
+                active={state.activeStep} 
                 color={PRIMARY_BROWN}
                 completedIcon={<IconCircleCheck size={20} />}
                 styles={{
@@ -387,137 +581,144 @@ export default function FinalizedCases() {
               <Divider />
 
               {/* Step 1: Interview Information */}
-              {activeStep === 0 && (
+              {state.activeStep === 0 && (
               <Paper p="md" withBorder>
                 <Title order={4} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
                 <SimpleGrid cols={2} spacing="sm" mb="md">
                   <Box>
                     <Text size="xs" c="dimmed">Date of Interview</Text>
-                    {editMode ? (
+                    {state.editMode ? (
                       <TextInput
                         type="date"
-                        value={editedData.content?.interviewInfo?.dateOfInterview || ''}
+                        value={state.editedData.content?.interviewInfo?.dateOfInterview || ''}
                         onChange={(e) => updateEditedData('content.interviewInfo.dateOfInterview', e.target.value)}
                       />
                     ) : (
-                      <Text fw={500}>{editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
+                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
                     )}
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Date Submitted</Text>
-                    {editMode ? (
+                    {state.editMode ? (
                       <TextInput
                         type="date"
-                        value={editedData.content?.interviewInfo?.dateSubmitted || ''}
+                        value={state.editedData.content?.interviewInfo?.dateSubmitted || ''}
                         onChange={(e) => updateEditedData('content.interviewInfo.dateSubmitted', e.target.value)}
                       />
                     ) : (
-                      <Text fw={500}>{editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
+                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
                     )}
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Client's Name</Text>
-                    {editMode ? (
+                    {state.editMode ? (
                       <TextInput
-                        value={editedData.content?.interviewInfo?.clientName || ''}
+                        value={state.editedData.content?.interviewInfo?.clientName || ''}
                         onChange={(e) => updateEditedData('content.interviewInfo.clientName', e.target.value)}
                       />
                     ) : (
-                      <Text fw={500}>{editedData.content?.interviewInfo?.clientName || '-'}</Text>
+                      <Text fw={500}>{state.editedData.content?.interviewInfo?.clientName || '-'}</Text>
                     )}
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
-                    {editMode ? (
+                    {state.editMode ? (
                       <TextInput
-                        value={editedData.content?.interviewInfo?.interviewingInterns || ''}
+                        value={state.editedData.content?.interviewInfo?.interviewingInterns || ''}
                         onChange={(e) => updateEditedData('content.interviewInfo.interviewingInterns', e.target.value)}
                       />
                     ) : (
-                      <Text fw={500}>{editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
+                      <Text fw={500}>{state.editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
                     )}
                   </Box>
                 </SimpleGrid>
                 <Divider my="md" />
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Fast Facts</Text>
-                  {editMode ? (
+                  {state.editMode ? (
                     <Textarea
                       autosize
                       minRows={4}
-                      value={editedData.content?.interviewInfo?.fastFacts || ''}
+                      value={state.editedData.content?.interviewInfo?.fastFacts || ''}
                       onChange={(e) => updateEditedData('content.interviewInfo.fastFacts', e.target.value)}
                     />
                   ) : (
-                    <Text size="sm">{editedData.content?.interviewInfo?.fastFacts || '-'}</Text>
+                    <Text size="sm">{state.editedData.content?.interviewInfo?.fastFacts || '-'}</Text>
                   )}
                 </Box>
                 <Divider my="md" />
                 {renderEvidenceTable(
                   "Evidence on Hand / Available for the Client(s)",
-                  editedData.content?.interviewInfo?.clientEvidence,
+                  state.editedData.content?.interviewInfo?.clientEvidence,
                   'clientEvidence'
                 )}
                 {renderEvidenceTable(
                   "Evidence on Hand / Available for the Adverse Party(ies)",
-                  editedData.content?.interviewInfo?.adversePartyEvidence,
+                  state.editedData.content?.interviewInfo?.adversePartyEvidence,
                   'adversePartyEvidence'
                 )}
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
-                  {editMode ? (
+                  {state.editMode ? (
                     <Textarea
                       autosize
                       minRows={3}
-                      value={editedData.content?.interviewInfo?.internAdvice || ''}
+                      value={state.editedData.content?.interviewInfo?.internAdvice || ''}
                       onChange={(e) => updateEditedData('content.interviewInfo.internAdvice', e.target.value)}
                     />
                   ) : (
-                    <Text size="sm">{editedData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                    <Text size="sm">{state.editedData.content?.interviewInfo?.internAdvice || '-'}</Text>
                   )}
                 </Box>
                 <Box>
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
-                  {editMode ? (
+                  {state.editMode ? (
                     <Textarea
                       autosize
                       minRows={5}
-                      value={editedData.content?.interviewInfo?.legalOpinion || ''}
+                      value={state.editedData.content?.interviewInfo?.legalOpinion || ''}
                       onChange={(e) => updateEditedData('content.interviewInfo.legalOpinion', e.target.value)}
                     />
                   ) : (
-                    <Text size="sm">{editedData.content?.interviewInfo?.legalOpinion || '-'}</Text>
+                    <Text size="sm">{state.editedData.content?.interviewInfo?.legalOpinion || '-'}</Text>
                   )}
                 </Box>
               </Paper>
               )}
               
               {/* Step 2: Action Information */}
-              {activeStep === 1 && (
+              {state.activeStep === 1 && (
               <Paper p="md" withBorder>
                 <Title order={4} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
                 
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
-                  {editMode ? (
+                  {state.editMode ? (
                     <Textarea
                       autosize
                       minRows={4}
-                      value={editedData.content?.actionInfo?.supervisingComment || ''}
+                      value={state.editedData.content?.actionInfo?.supervisingComment || ''}
                       onChange={(e) => updateEditedData('content.actionInfo.supervisingComment', e.target.value)}
                     />
                   ) : (
-                    <Text size="sm">{editedData.content?.actionInfo?.supervisingComment || '-'}</Text>
+                    <Text size="sm">{state.editedData.content?.actionInfo?.supervisingComment || '-'}</Text>
                   )}
                 </Box>
                 <Divider my="md" />
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
-                  {editMode ? (
+                  {state.editMode ? (
                     <Radio.Group
-                      value={editedData.decision || ''}
+                      value={state.editedData.decision || ''}
                       onChange={(val) => {
-                        setEditedData(prev => ({ ...prev, decision: val }));
+                        dispatch({ type: 'UPDATE_EDITED_DATA', payload: (prev) => {
+                          const updated = { ...prev, decision: val };
+                          // Also update the nested path for consistency
+                          if (!updated.content) updated.content = {};
+                          if (!updated.content.actionInfo) updated.content.actionInfo = {};
+                          updated.content.actionInfo.decision = val;
+                          return updated;
+                        }});
                       }}
                     >
                       <Group>
@@ -530,75 +731,96 @@ export default function FinalizedCases() {
                     <Badge 
                       size="lg" 
                       color={
-                        editedData.decision === 'accepted' ? 'green' : 
-                        editedData.decision === 'rejected' ? 'red' : 
+                        state.editedData.decision === 'accepted' ? 'green' : 
+                        state.editedData.decision === 'rejected' ? 'red' : 
                         'yellow'
                       }
                     >
-                      {(editedData.decision || 'pending').toUpperCase()}
+                      {(state.editedData.decision || 'pending').toUpperCase()}
+                    </Badge>
+                  )}
+                </Box>
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Case Category</Text>
+                  {state.editMode ? (
+                    <Select
+                      placeholder="Select a category"
+                      value={state.editedData.content?.caseInfo?.nature || state.editedData.category || 'Other'}
+                      onChange={(val) => updateEditedData('content.caseInfo.nature', val)}
+                      data={NATURE_OF_CASE_OPTIONS}
+                      clearable={false}
+                      searchable
+                    />
+                  ) : (
+                    <Badge 
+                      size="lg" 
+                      variant="light"
+                      color={CATEGORY_COLORS[state.editedData.content?.caseInfo?.nature || state.editedData.category] || 'gray'}
+                    >
+                      {state.editedData.content?.caseInfo?.nature || state.editedData.category || 'Other'}
                     </Badge>
                   )}
                 </Box>
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
-                  {editMode ? (
+                  {state.editMode ? (
                     <Textarea
                       autosize
                       minRows={4}
-                      value={editedData.content?.actionInfo?.decisionNote || ''}
+                      value={state.editedData.content?.actionInfo?.decisionNote || ''}
                       onChange={(e) => updateEditedData('content.actionInfo.decisionNote', e.target.value)}
                     />
                   ) : (
-                    <Text size="sm">{editedData.content?.actionInfo?.decisionNote || '-'}</Text>
+                    <Text size="sm">{state.editedData.content?.actionInfo?.decisionNote || '-'}</Text>
                   )}
                 </Box>
                 <Divider my="md" />
                 <SimpleGrid cols={2} spacing="sm">
                   <Box>
                     <Text size="xs" c="dimmed">Assigned To</Text>
-                    {editMode ? (
+                    {state.editMode ? (
                       <Textarea
                         autosize
                         minRows={2}
-                        value={editedData.content?.actionInfo?.assignedTo || ''}
+                        value={state.editedData.content?.actionInfo?.assignedTo || ''}
                         onChange={(e) => updateEditedData('content.actionInfo.assignedTo', e.target.value)}
                       />
                     ) : (
-                      <Text fw={500}>{editedData.content?.actionInfo?.assignedTo || '-'}</Text>
+                      <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
                     )}
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Supervising Lawyer</Text>
-                    {editMode ? (
+                    {state.editMode ? (
                       <TextInput
-                        value={editedData.content?.actionInfo?.supervisingLawyer || ''}
+                        value={state.editedData.content?.actionInfo?.supervisingLawyer || ''}
                         onChange={(e) => updateEditedData('content.actionInfo.supervisingLawyer', e.target.value)}
                       />
                     ) : (
-                      <Text fw={500}>{editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
+                      <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
                     )}
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Director's Signature</Text>
-                    {editMode ? (
+                    {state.editMode ? (
                       <TextInput
-                        value={editedData.content?.actionInfo?.directorSignature || ''}
+                        value={state.editedData.content?.actionInfo?.directorSignature || ''}
                         onChange={(e) => updateEditedData('content.actionInfo.directorSignature', e.target.value)}
                       />
                     ) : (
-                      <Text fw={500}>{editedData.content?.actionInfo?.directorSignature || '-'}</Text>
+                      <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
                     )}
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Signature Date</Text>
-                    {editMode ? (
+                    {state.editMode ? (
                       <TextInput
                         type="date"
-                        value={editedData.content?.actionInfo?.signatureDate || ''}
+                        value={state.editedData.content?.actionInfo?.signatureDate || ''}
                         onChange={(e) => updateEditedData('content.actionInfo.signatureDate', e.target.value)}
                       />
                     ) : (
-                      <Text fw={500}>{editedData.content?.actionInfo?.signatureDate || '-'}</Text>
+                      <Text fw={500}>{state.editedData.content?.actionInfo?.signatureDate || '-'}</Text>
                     )}
                   </Box>
                 </SimpleGrid>
@@ -608,11 +830,11 @@ export default function FinalizedCases() {
               {/* Navigation Buttons */}
               <Divider />
               <Group justify="space-between">
-                {activeStep > 0 ? (
+                {state.activeStep > 0 ? (
                   <Button 
                     variant="outline" 
                     leftSection={<IconChevronLeft size={20} />}
-                    onClick={() => setActiveStep(activeStep - 1)}
+                    onClick={() => dispatch({ type: 'SET_ACTIVE_STEP', payload: state.activeStep - 1 })}
                     size="sm"
                     styles={{
                       root: { borderColor: '#E0E0E0', color: MUTED_OLIVE, '&:hover': { backgroundColor: THEMED_LIGHT_BG } },
@@ -624,10 +846,10 @@ export default function FinalizedCases() {
                   <Box />
                 )}
                 
-                {activeStep < 1 && (
+                {state.activeStep < 1 && (
                   <Button 
                     rightSection={<IconChevronRight size={20} />}
-                    onClick={() => setActiveStep(activeStep + 1)}
+                    onClick={() => dispatch({ type: 'SET_ACTIVE_STEP', payload: state.activeStep + 1 })}
                     size="sm"
                     style={{ backgroundColor: PRIMARY_BROWN }}
                   >
@@ -661,13 +883,89 @@ export default function FinalizedCases() {
 
         {/* Tabbed Content */}
         <Paper shadow="xs" p="xl" radius="lg" bg="white">
-          <Tabs value={activeTab} onChange={setActiveTab}>
+          {/* Search and Filter Bar */}
+          <Group mb="xl" align="flex-start" grow>
+            <TextInput
+              placeholder="Search by Case ID (e.g., case-26-0001) or Client Name"
+              size="md"
+              value={state.searchTerm}
+              onChange={(e) => dispatch({ type: 'SET_SEARCH_TERM', payload: e.target.value })}
+              leftSection={
+                <Box style={{ display: 'flex', alignItems: 'center', color: MUTED_OLIVE }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                </Box>
+              }
+              rightSection={
+                state.searchTerm && (
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    onClick={() => dispatch({ type: 'SET_SEARCH_TERM', payload: '' })}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </ActionIcon>
+                )
+              }
+              styles={{
+                input: {
+                  borderRadius: '8px',
+                  border: '1px solid #E6D9CC',
+                  '&:focus': {
+                    borderColor: PRIMARY_BROWN,
+                  }
+                }
+              }}
+            />
+            <Select
+              placeholder="Filter by Category"
+              size="md"
+              value={state.categoryFilter}
+              onChange={(val) => dispatch({ type: 'SET_CATEGORY_FILTER', payload: val })}
+              data={[
+                { value: 'all', label: 'All Categories' },
+                ...NATURE_OF_CASE_OPTIONS.map(cat => ({ value: cat, label: cat }))
+              ]}
+              clearable
+              onClear={() => dispatch({ type: 'SET_CATEGORY_FILTER', payload: 'all' })}
+              leftSection={
+                <Box style={{ display: 'flex', alignItems: 'center', color: MUTED_OLIVE }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+                  </svg>
+                </Box>
+              }
+              styles={{
+                input: {
+                  borderRadius: '8px',
+                  border: '1px solid #E6D9CC',
+                  '&:focus': {
+                    borderColor: PRIMARY_BROWN,
+                  }
+                }
+              }}
+            />
+          </Group>
+          
+          <Tabs value={state.activeTab} onChange={(val) => dispatch({ type: 'SET_ACTIVE_TAB', payload: val })}>
             <Tabs.List mb="xl" style={{ borderBottom: '1px solid #e9ecef' }}>
               <Tabs.Tab
                 value="accepted"
-                rightSection={<Badge size="sm" color="green" variant="light">{acceptedCases.length}</Badge>}
+                rightSection={<Badge size="sm" color="green" variant="light">{acceptedWithRecord.length}</Badge>}
               >
-                Accepted
+                With Record
+              </Tabs.Tab>
+              <Tabs.Tab
+                value="without-record"
+                rightSection={<Badge size="sm" color="blue" variant="light">{acceptedWithoutRecord.length}</Badge>}
+              >
+                Without Record
               </Tabs.Tab>
               <Tabs.Tab
                 value="rejected"
@@ -685,11 +983,23 @@ export default function FinalizedCases() {
 
             <Tabs.Panel value="accepted" pb="md">
               <Stack>
-                {loadingFinalized ? (
+                {state.loadingFinalized ? (
                   <Center><Loader /></Center>
                 ) : (
-                  acceptedCases.length ? acceptedCases.map(renderCaseCard) : (
-                    <Text size="sm" c={MUTED_OLIVE}>No accepted cases found</Text>
+                  acceptedWithRecord.length ? acceptedWithRecord.map(renderCaseCard) : (
+                    <Text size="sm" c={MUTED_OLIVE}>No accepted cases with case records found</Text>
+                  )
+                )}
+              </Stack>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="without-record" pb="md">
+              <Stack>
+                {state.loadingFinalized ? (
+                  <Center><Loader /></Center>
+                ) : (
+                  acceptedWithoutRecord.length ? acceptedWithoutRecord.map(renderCaseCard) : (
+                    <Text size="sm" c={MUTED_OLIVE}>No accepted cases without case records found</Text>
                   )
                 )}
               </Stack>
@@ -697,7 +1007,7 @@ export default function FinalizedCases() {
 
             <Tabs.Panel value="rejected" pb="md">
               <Stack>
-                {loadingFinalized ? (
+                {state.loadingFinalized ? (
                   <Center><Loader /></Center>
                 ) : (
                   rejectedCases.length ? rejectedCases.map(renderCaseCard) : (
@@ -709,7 +1019,7 @@ export default function FinalizedCases() {
 
             <Tabs.Panel value="pending" pb="md">
               <Stack>
-                {loadingFinalized ? (
+                {state.loadingFinalized ? (
                   <Center><Loader /></Center>
                 ) : (
                   pendingCases.length ? pendingCases.map(renderCaseCard) : (

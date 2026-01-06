@@ -14,7 +14,7 @@ import { NATURE_OF_CASE_OPTIONS } from '@utils/constants';
 // Constants
 const PRIMARY_BROWN = '#5C4033';
 
-export const CaseInformationSection = React.memo(({ value = {}, onChange = () => {} }) => (
+export const CaseInformationSection = React.memo(({ value = {}, onChange = () => {}, readOnly = false }) => (
     <Paper shadow="md" p="xl" radius="lg" bg="white">
         <Stack gap="xl">
             <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Reconstructed Case Record Table</Title>
@@ -27,7 +27,7 @@ export const CaseInformationSection = React.memo(({ value = {}, onChange = () =>
                 <Grid.Col span={{ base: 12, md: 6 }}>
                     <Stack>
                         <TextInput label="Title" placeholder="e.g., Juan dela Cruz vs. Pedro Reyes"
-                            value={value.title || ''} onChange={(e) => onChange({ ...value, title: e.target.value })} />
+                            value={value.title || ''} onChange={(e) => onChange({ ...value, title: e.target.value })} readOnly={readOnly} />
                         <Select 
                             label="Nature of the Case" 
                             placeholder="Select nature of case"
@@ -36,32 +36,33 @@ export const CaseInformationSection = React.memo(({ value = {}, onChange = () =>
                             onChange={(val) => onChange({ ...value, nature: val })}
                             searchable
                             clearable
+                            readOnly={readOnly}
                         />
                         <TextInput label="Tribunal" placeholder="e.g., Regional Trial Court, MTC, SC"
-                            value={value.tribunal || ''} onChange={(e) => onChange({ ...value, tribunal: e.target.value })} />
+                            value={value.tribunal || ''} onChange={(e) => onChange({ ...value, tribunal: e.target.value })} readOnly={readOnly} />
                         <TextInput label="Branch" placeholder="e.g., Branch 123"
-                            value={value.branch || ''} onChange={(e) => onChange({ ...value, branch: e.target.value })} />
+                            value={value.branch || ''} onChange={(e) => onChange({ ...value, branch: e.target.value })} readOnly={readOnly} />
                         <TextInput label="Presiding Judge" placeholder="Hon. [Judge Name]"
-                            value={value.presidingJudge || ''} onChange={(e) => onChange({ ...value, presidingJudge: e.target.value })} />
+                            value={value.presidingJudge || ''} onChange={(e) => onChange({ ...value, presidingJudge: e.target.value })} readOnly={readOnly} />
                         <TextInput label="Tel/Email of Clerk of Court" placeholder="Contact details"
-                            value={value.telEmail || ''} onChange={(e) => onChange({ ...value, telEmail: e.target.value })} />
+                            value={value.telEmail || ''} onChange={(e) => onChange({ ...value, telEmail: e.target.value })} readOnly={readOnly} />
                     </Stack>
                 </Grid.Col>
 
                 <Grid.Col span={{ base: 12, md: 6 }}>
                     <Stack>
                         <TextInput label="Contact Details (Case)" placeholder="Relevant phone/email"
-                            value={value.contactDetails || ''} onChange={(e) => onChange({ ...value, contactDetails: e.target.value })} />
+                            value={value.contactDetails || ''} onChange={(e) => onChange({ ...value, contactDetails: e.target.value })} readOnly={readOnly} />
                         <TextInput label="Counsel/s on Record" placeholder="Name/s of counsel"
-                            value={value.counsels || ''} onChange={(e) => onChange({ ...value, counsels: e.target.value })} />
+                            value={value.counsels || ''} onChange={(e) => onChange({ ...value, counsels: e.target.value })} readOnly={readOnly} />
                         <TextInput label="Public Prosecutor" placeholder="Name of prosecutor (if applicable)"
-                            value={value.publicProsecutor || ''} onChange={(e) => onChange({ ...value, publicProsecutor: e.target.value })} />
+                            value={value.publicProsecutor || ''} onChange={(e) => onChange({ ...value, publicProsecutor: e.target.value })} readOnly={readOnly} />
                         <TextInput label="Opposing Counsel" placeholder="Name of opposing counsel"
-                            value={value.opposingCounsel || ''} onChange={(e) => onChange({ ...value, opposingCounsel: e.target.value })} />
+                            value={value.opposingCounsel || ''} onChange={(e) => onChange({ ...value, opposingCounsel: e.target.value })} readOnly={readOnly} />
                         <Textarea label="Client/s Address" placeholder="Full client address" autosize minRows={2}
-                            value={value.clientAddress || ''} onChange={(e) => onChange({ ...value, clientAddress: e.target.value })} />
+                            value={value.clientAddress || ''} onChange={(e) => onChange({ ...value, clientAddress: e.target.value })} readOnly={readOnly} />
                         <Textarea label="Others (Contact Details)" placeholder="Any other relevant contacts" autosize minRows={2}
-                            value={value.others || ''} onChange={(e) => onChange({ ...value, others: e.target.value })} />
+                            value={value.others || ''} onChange={(e) => onChange({ ...value, others: e.target.value })} readOnly={readOnly} />
                     </Stack>
                 </Grid.Col>
             </Grid>
@@ -75,6 +76,7 @@ export const CaseInformationSection = React.memo(({ value = {}, onChange = () =>
                 autosize 
                 minRows={3}
                 value={value.parties || ''} onChange={(e) => onChange({ ...value, parties: e.target.value })} 
+                readOnly={readOnly}
             />
 
             <Divider />
@@ -88,6 +90,7 @@ export const CaseInformationSection = React.memo(({ value = {}, onChange = () =>
                         autosize 
                         minRows={5}
                         value={value.caseHistory || ''} onChange={(e) => onChange({ ...value, caseHistory: e.target.value })}
+                        readOnly={readOnly}
                     />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, md: 6 }}>
@@ -97,6 +100,7 @@ export const CaseInformationSection = React.memo(({ value = {}, onChange = () =>
                         autosize 
                         minRows={5}
                         value={value.remarks || ''} onChange={(e) => onChange({ ...value, remarks: e.target.value })}
+                        readOnly={readOnly}
                     />
                 </Grid.Col>
             </Grid>

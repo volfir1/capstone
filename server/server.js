@@ -8,6 +8,7 @@ import reviewRoutes from './routes/reviewRoutes.js'
 import finalizeRoutes from './routes/finalizeRoutes.js'
 import clientsinfoRoutes from './routes/clientsinfoRoutes.js'
 import eventRoutes from './routes/eventRoutes.js'
+import caseRecordRoutes from './routes/caseRecordRoutes.js'
 import dotenv from 'dotenv'
 import cors from "cors"
 import helmet from 'helmet'
@@ -62,6 +63,7 @@ app.use('/api/reviews', reviewRoutes)
 app.use('/api/finalize', finalizeRoutes)
 app.use('/api/clientsinfo', clientsinfoRoutes)
 app.use('/api/events', eventRoutes)
+app.use('/api/caserecords', caseRecordRoutes)
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URL)
