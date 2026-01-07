@@ -43,3 +43,28 @@ export const listAllReviews = async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 }
+
+export const deleteReviewByCaseId = async (req, res) => {
+  try {
+    const { caseId } = req.params
+    const result = await Review.deleteMany({ caseId })
+    res.json({ success: true, deletedCount: result.deletedCount })
+  } catch (err) {
+    console.error('deleteReviewByCaseId error', err)
+    res.status(500).json({ error: err.message })
+  }
+}
+
+export const deleteReviewById = async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await Review.findByIdAndDelete(id)
+    if (!result) {
+      return res.status(404).json({ error: 'Review not found' })
+    }
+    res.json({ success: true, deletedReview: result })
+  } catch (err) {
+    console.error('deleteReviewById error', err)
+    res.status(500).json({ error: err.message })
+  }
+}

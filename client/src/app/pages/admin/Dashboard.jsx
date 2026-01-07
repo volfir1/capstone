@@ -316,11 +316,13 @@ export default function AdminDashboard() {
                       <IconFiles size={20} />
                     </Box>
                     <Box style={{ flex: 1 }}>
-                      <Text fw={700}>{r.content?.caseInfo?.title || r.caseTitle || r.caseId}</Text>
-                      <Text size="xs" c={MUTED_OLIVE}>{r.content?.interviewInfo?.clientName || r.clientName || ''}</Text>
+                      <Text fw={700}>
+                        {r.content?.interviewInfo?.clientName || r.clientName || 'Unknown Client'} - {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'No Date'}
+                      </Text>
                       <Group spacing="xs" mt={6}>
                         {r.priority && <Badge size="sm" color="yellow">{r.priority.toUpperCase()}</Badge>}
-                        <Text size="xs" c="dimmed">Submitted: {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}</Text>
+                        {(r.content?.caseInfo?.title || r.caseTitle) && 
+                          <Badge size="sm" variant="light" color="gray">{r.content?.caseInfo?.title || r.caseTitle}</Badge>}
                       </Group>
                     </Box>
                     <ActionIcon>

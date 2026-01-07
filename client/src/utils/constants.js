@@ -53,3 +53,49 @@ export const PHILIPPINES_REGIONS = [
 
 export const DEFAULT_COUNTRY_CODE = '+63';
 export const DEFAULT_CITIZENSHIP = 'Filipino';
+
+export const NATURE_OF_CASE_OPTIONS = [
+  'Civil Case',
+  'Criminal Case',
+  'Family Law',
+  'Labor and Employment',
+  'Land and Property Disputes',
+  'Contract Disputes',
+  'Personal Injury',
+  'Debt Collection',
+  'Inheritance and Estate',
+  'Business and Commercial Law',
+  'Consumer Protection',
+  'Tax Law',
+  'Immigration',
+  'Intellectual Property',
+  'Environmental Law',
+  'Administrative Law',
+  'Human Rights Violation',
+  'Cybercrime',
+  'Election Law',
+  'Other'
+];
+
+export const CATEGORY_COLORS = {
+  'Civil Case': 'blue',
+  'Criminal Case': 'red',
+  'Family Law': 'pink',
+  'Labor and Employment': 'orange',
+  'Land and Property Disputes': 'teal',
+  'Contract Disputes': 'cyan',
+  'Personal Injury': 'grape',
+  'Debt Collection': 'yellow',
+  'Inheritance and Estate': 'lime',
+  'Business and Commercial Law': 'indigo',
+  'Consumer Protection': 'green',
+  'Tax Law': 'violet',
+  'Immigration': 'blue',
+  'Intellectual Property': 'grape',
+  'Environmental Law': 'green',
+  'Administrative Law': 'gray',
+  'Human Rights Violation': 'red',
+  'Cybercrime': 'dark',
+  'Election Law': 'indigo',
+  'Other': 'gray'
+};
