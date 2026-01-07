@@ -41,6 +41,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
+  const [finalized, setFinalized] = useState([]);
+  const [loadingFinalized, setLoadingFinalized] = useState(false);
   const { userData } = useAuth();
   const location = useLocation();
 
@@ -72,6 +74,7 @@ export default function AdminDashboard() {
     // only fetch reviews for attorney and secretary roles
     if (userData && (userData.role === 'attorney' || userData.role === 'secretary')) {
       fetchReviews();
+      fetchFinalized();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userData, location]);
@@ -91,6 +94,19 @@ export default function AdminDashboard() {
     }
   }
 
+  const fetchFinalized = async () => {
+    try {
+      setLoadingFinalized(true);
+      const resp = await apiClient.get('/finalize');
+      const data = resp.data?.data ?? resp.data ?? [];
+      setFinalized(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching finalized records', err);
+      setFinalized([]);
+    } finally {
+      setLoadingFinalized(false);
+    }
+  }
 
   const features = [
     {
@@ -319,6 +335,51 @@ export default function AdminDashboard() {
           </Stack>
         </Paper>
 
+        {/* Finalized Records */}
+        <Paper shadow="xs" p="xl" radius="lg" bg="white" mt="xl">
+          <Group position="apart" mb="md">
+            <Box>
+              <Title order={4}>Finalized Records</Title>
+              <Text size="sm" c={MUTED_OLIVE}>Recently finalized case records (click to open)</Text>
+            </Box>
+          </Group>
+
+          <Stack>
+            {loadingFinalized ? (
+              <Center><Loader /></Center>
+            ) : (
+              finalized.length ? finalized.map((f) => (
+                <Paper
+                  key={f._id || f.id || f.caseId}
+                  p="md"
+                  radius="md"
+                  withBorder
+                  style={{ cursor: 'pointer', borderRadius: 12, border: '1px solid #E6D9CC', background: '#F7FBF9' }}
+                  onClick={() => navigate('/admin/recommendation', { state: { review: f } })}
+                >
+                  <Group noWrap align="flex-start">
+                    <Box style={{ width: 52, height: 52, borderRadius: 12, background: MUTED_OLIVE, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                      <IconBriefcase size={20} />
+                    </Box>
+                    <Box style={{ flex: 1 }}>
+                      <Text fw={700}>{f.caseTitle || f.content?.caseInfo?.title || f.caseId}</Text>
+                      <Text size="xs" c={MUTED_OLIVE}>{f.clientName || f.content?.interviewInfo?.clientName || ''}</Text>
+                      <Group spacing="xs" mt={6}>
+                        <Text size="xs" c="dimmed">Finalized: {f.createdAt ? new Date(f.createdAt).toLocaleDateString() : ''}</Text>
+                        <Text size="xs" c="dimmed">By: {f.finalizedRole || f.finalizedBy}</Text>
+                      </Group>
+                    </Box>
+                    <ActionIcon>
+                      <IconChevronRight />
+                    </ActionIcon>
+                  </Group>
+                </Paper>
+              )) : (
+                <Text size="sm" c={MUTED_OLIVE}>No finalized records found</Text>
+              )
+            )}
+          </Stack>
+        </Paper>
 
         {/* Quick Actions */}
         <Paper shadow="xs" p="xl" mt="xl" radius="lg" bg="white">
