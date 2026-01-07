@@ -23,6 +23,7 @@ const Home = lazy(() => import("./pages/user/Home"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
 const PageNotFound = lazy(() => import("./pages/other/PageNotFound"));
+const AIChatbot = lazy(() => import("./pages/other/AIChatbot"));
 
 const LandingPage = lazy(()=> import("./pages/LandingPage"))
 const AboutPage = lazy(()=> import('./pages/About'))
@@ -202,6 +203,7 @@ function AppRoutes() {
         
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/" element={<LandingPage />} />
+        <Route path="/ai-chatbot" element={<AIChatbot />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/features" element={<FeaturesPage />} />
         <Route path="/how" element={<HowItWorks/>} />

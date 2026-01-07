@@ -13,10 +13,13 @@ import {
   rem,
   Center,
 } from "@mantine/core";
-import { IconScale, IconCheck } from "@tabler/icons-react";
+import { IconScale, IconCheck, IconRobot } from "@tabler/icons-react";
 import { PRIMARY_GOLD, PRIMARY_BROWN } from "../../../../utils/constants"; // Adjust path if needed
+import { useNavigate } from "react-router";
 
-export default function Hero() {    
+export default function Hero() {
+  const navigate = useNavigate();
+    
   return (
     <Box
       style={{
@@ -91,11 +94,19 @@ export default function Hero() {
                 radius="xl"
                 variant="gradient"
                 gradient={{ from: PRIMARY_GOLD, to: PRIMARY_BROWN }}
+                onClick={() => navigate('/auth/signup')}
               >
                 Get Legal Assistance
               </Button>
-              <Button size="lg" radius="xl" variant="outline" style={{ color: 'white', borderColor: 'white' }}>
-                Learn More
+              <Button 
+                size="lg" 
+                radius="xl" 
+                variant="outline" 
+                style={{ color: 'white', borderColor: 'white' }}
+                leftSection={<IconRobot size={20} />}
+                onClick={() => navigate('/ai-chatbot')}
+              >
+                Try AI Chatbot
               </Button>
             </Group>
 
