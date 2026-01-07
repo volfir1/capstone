@@ -64,11 +64,8 @@ const Layout = ({
   // Determine which navigation to show based on current route
   let displayRole = actualUserRole;
   if (currentPath.startsWith('/admin')) {
-    displayRole = 'secretary';
-  } else if (currentPath.startsWith('/attorney')) {
-    displayRole = 'attorney';
-  } else if (currentPath.startsWith('/intern')) {
-    displayRole = 'intern';
+    // All admin roles use the same navigation
+    displayRole = actualUserRole === 'secretary' || actualUserRole === 'attorney' || actualUserRole === 'intern' || actualUserRole === 'pao_lawyer' || actualUserRole === 'legal_volunteer' ? actualUserRole : 'secretary';
   } else if (currentPath.startsWith('/user')) {
     displayRole = 'client';
   }
@@ -226,12 +223,11 @@ const Layout = ({
                 Welcome back, {userData?.firstName}
               </Text>
               
-              {/* Switch Dashboard for Attorney Roles */}
-              {(actualUserRole === 'attorney' || actualUserRole === 'pao_lawyer' || actualUserRole === 'legal_volunteer') && (
+              {/* Dashboard info - all admin roles use unified /admin */}
+              {false && (actualUserRole === 'attorney' || actualUserRole === 'pao_lawyer' || actualUserRole === 'legal_volunteer') && (
                 <UnstyledButton
                   onClick={() => {
-                    const isOnAdminPage = currentPath.startsWith('/admin');
-                    navigate(isOnAdminPage ? '/attorney' : '/admin');
+                    navigate('/admin');
                     setOpened(false);
                   }}
                   style={{

@@ -55,6 +55,30 @@ export const deleteReviewByCaseId = async (req, res) => {
   }
 }
 
+export const updateReview = async (req, res) => {
+  try {
+    const { id } = req.params
+    const payload = req.body
+    
+    // extract denormalized readable fields when available
+    const caseTitle = payload?.content?.caseInfo?.title || payload.caseTitle || null
+    const clientName = payload?.content?.interviewInfo?.clientName || payload.clientName || null
+
+    const toUpdate = { ...payload }
+    if (caseTitle) toUpdate.caseTitle = caseTitle
+    if (clientName) toUpdate.clientName = clientName
+
+    const updated = await Review.findByIdAndUpdate(id, toUpdate, { new: true })
+    if (!updated) {
+      return res.status(404).json({ error: 'Review not found' })
+    }
+    res.json(updated)
+  } catch (err) {
+    console.error('updateReview error', err)
+    res.status(500).json({ error: err.message })
+  }
+}
+
 export const deleteReviewById = async (req, res) => {
   try {
     const { id } = req.params

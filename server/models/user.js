@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
     default: "user"},
   username: { type: String, required: true, unique: true },
   firebaseUid: {type: String, required: true, unique: true},
+  disabled: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 
 });

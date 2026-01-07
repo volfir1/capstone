@@ -97,16 +97,13 @@ export default function AttorneyLogin() {
 
         console.log('Step 3: Attorney verified, logging in');
         
-        // Navigate based on role immediately
-        if (attorney.role === 'secretary') {
-          console.log('Secretary role detected, navigating to admin dashboard');
+        // Navigate based on role immediately - all admin roles go to /admin
+        if (attorney.role === 'secretary' || attorney.role === 'intern' || attorney.role === 'attorney' || attorney.role === 'pao_lawyer' || attorney.role === 'legal_volunteer') {
+          console.log(`${attorney.role} role detected, navigating to admin dashboard`);
           navigate('/admin');
-        } else if (attorney.role === 'intern') {
-          console.log('Intern role detected, navigating to intern dashboard');
-          navigate('/intern');
         } else {
-          console.log('Attorney role detected, navigating to attorney dashboard');
-          navigate('/attorney');
+          console.log('Navigating to user home');
+          navigate('/user/home');
         }
         
         setLoading(false);

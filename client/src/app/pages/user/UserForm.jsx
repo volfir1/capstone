@@ -18,7 +18,11 @@ export default function UserForm() {
   const [formData, setFormData] = useState({});
   
   const { register, handleSubmit, formState: { errors }, trigger, getValues, setValue, watch, reset } = useForm({
-    mode: 'onChange'
+    mode: 'onChange',
+    defaultValues: {
+      appointedDate: '',
+      appointmentTime: '',
+    }
   });
   
   const totalSteps = 4;
@@ -100,7 +104,11 @@ export default function UserForm() {
   };
   
   const onSubmit = async (data) => {
-    const finalData = { ...formData, ...data };
+    // Get all current form values including those set by setValue
+    const currentFormValues = getValues();
+    const finalData = { ...formData, ...currentFormValues, ...data };
+    
+    console.log('Final data before normalization:', finalData);
 
     // Normalize key names to ensure DB gets these fields
     const fullName =
@@ -118,19 +126,30 @@ export default function UserForm() {
     const appointedDate =
       finalData.appointedDate ||
       finalData.appointmentDate ||
-      finalData.dateSubmitted ||
-      new Date().toISOString();
+      finalData.dateSubmitted;
+    
+    // Only use current date as fallback if NO date was provided at all
+    const finalAppointedDate = appointedDate || new Date().toISOString();
+    
+    const appointmentTime =
+      finalData.appointmentTime || '';
+    
+    console.log('appointedDate extracted:', appointedDate);
+    console.log('finalAppointedDate:', finalAppointedDate);
 
     // Build payload sent to server (include full form for completeness)
     const payloadToSave = {
       ...finalData,
       fullName,
       caseNumber,
-      appointedDate,
+      appointedDate: finalAppointedDate,
+      appointmentTime,
       submittedAt: new Date().toISOString(),
     };
 
     console.log('Form submitted payload:', payloadToSave);
+    console.log('Appointment Date:', finalAppointedDate);
+    console.log('Appointment Time:', appointmentTime);
 
     try {
       const resp = await apiClient.post('/clientsinfo', payloadToSave);
@@ -188,6 +207,12 @@ export default function UserForm() {
   };
   
   const handleFormSubmit = () => {
+    // Get current values before submitting
+    const currentValues = getValues();
+    console.log('Current form values before submit:', currentValues);
+    console.log('appointedDate from getValues:', currentValues.appointedDate);
+    console.log('appointmentTime from getValues:', currentValues.appointmentTime);
+    
     handleSubmit(onSubmit)();
   };
   
@@ -200,7 +225,7 @@ export default function UserForm() {
       case 2:
         return <CaseDetailsForm register={register} errors={errors} />;
       case 3:
-        return <ReviewForm formData={formData} getValues={getValues} />;
+        return <ReviewForm formData={formData} getValues={getValues} setValue={setValue} />;
       default:
         return null;
     }

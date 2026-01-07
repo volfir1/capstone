@@ -42,7 +42,7 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.'
 });
 
-app.use('/api/', limiter);
+app.use('/api', limiter);
 
 // CORS Configuration
 const corsOptions = {
@@ -54,6 +54,12 @@ const corsOptions = {
 app.use(express.json({ limit: '10mb' })) // Limit payload size
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cors(corsOptions))
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
 
 // Public Routes (no auth required)
 app.use("/api/ai-assistant", chatbotRoutes); // AI Chatbot - public access

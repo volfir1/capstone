@@ -9,7 +9,7 @@ import client from "../apiClient";
 
 export async function fetchUsers () {
     try{
-        const response = await client.get('/users/fetchUsers')
+        const response = await client.get('/users/fetchusers')
 
         return response.data.data
     }catch (error) {

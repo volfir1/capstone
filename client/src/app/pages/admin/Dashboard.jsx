@@ -71,8 +71,8 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    // only fetch reviews for attorney and secretary roles
-    if (userData && (userData.role === 'attorney' || userData.role === 'secretary')) {
+    // Fetch reviews for all admin roles
+    if (userData && (userData.role === 'attorney' || userData.role === 'secretary' || userData.role === 'intern' || userData.role === 'pao_lawyer' || userData.role === 'legal_volunteer')) {
       fetchReviews();
       fetchFinalized();
     }
@@ -85,7 +85,28 @@ export default function AdminDashboard() {
       // fetch all reviews (server can filter by query if needed)
       const resp = await apiClient.get('/reviews');
       const data = resp.data?.data ?? resp.data ?? [];
-      setReviews(Array.isArray(data) ? data : []);
+      const reviewsArray = Array.isArray(data) ? data : [];
+      
+      // Fetch user details for each review to get reviewer names
+      const reviewsWithNames = await Promise.all(
+        reviewsArray.map(async (review) => {
+          if (review.reviewerId) {
+            try {
+              const userResp = await apiClient.get(`/users/${review.reviewerId}`);
+              const user = userResp.data?.data ?? userResp.data;
+              // Priority: displayName (Google) → fullName (manual) → role fallback
+              const reviewerName = user?.displayName || user?.fullName || user?.username || review.reviewerRole || 'Staff';
+              return { ...review, reviewerName };
+            } catch (err) {
+              console.error(`Failed to fetch user ${review.reviewerId}:`, err);
+              return { ...review, reviewerName: review.reviewerRole || 'Staff' };
+            }
+          }
+          return { ...review, reviewerName: review.reviewerRole || 'Staff' };
+        })
+      );
+      
+      setReviews(reviewsWithNames);
     } catch (err) {
       console.error('Error fetching reviews', err);
       setReviews([]);
@@ -289,53 +310,87 @@ export default function AdminDashboard() {
           </SimpleGrid>
         )}
 
-        {/* can you make a section here, to retrieve all the for reviews in mongodb ? */}
-        <Paper shadow="xs" p="xl" radius="lg" bg="white" mt="xl">
-          <Group position="apart" mb="5">
-            <Box>
-              <Title order={4}>Submitted For Review</Title>
-              <Text size="sm" c={MUTED_OLIVE}>Recent review submissions (click to open)</Text>
-            </Box>
-          </Group>
+        {/* Submitted For Review - Visible to all admin roles */}
+        {userData && (userData.role === 'attorney' || userData.role === 'secretary' || userData.role === 'pao_lawyer' || userData.role === 'legal_volunteer' || userData.role === 'intern') && (
+          <Paper shadow="xs" p="xl" radius="lg" bg="white" mt="xl">
+            <Group position="apart" mb="5">
+              <Box>
+                <Title order={4}>Submitted For Review</Title>
+                <Text size="sm" c={MUTED_OLIVE}>
+                  {userData.role === 'intern' 
+                    ? 'Your submissions awaiting review by attorney/secretary (view only)'
+                    : 'Recent review submissions from interns (click to finalize)'}
+                </Text>
+              </Box>
+            </Group>
 
-          <Stack>
-            {loading ? (
-              <Center><Loader /></Center>
-            ) : (
-              reviews.length ? reviews.map((r) => (
-                <Paper
-                  key={r._id || r.id || r.caseId}
-                  p="md"
-                  radius="md"
-                  withBorder
-                  style={{ cursor: 'pointer', borderRadius: 12, border: '1px solid #E6D9CC', background: '#FBF7F4' }}
-                  onClick={() => navigate('/admin/recommendation', { state: { review: r } })}
-                >
-                  <Group noWrap align="flex-start">
-                    <Box style={{ width: 52, height: 52, borderRadius: 12, background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                      <IconFiles size={20} />
-                    </Box>
-                    <Box style={{ flex: 1 }}>
-                      <Text fw={700}>
-                        {r.content?.interviewInfo?.clientName || r.clientName || 'Unknown Client'} - {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'No Date'}
-                      </Text>
-                      <Group spacing="xs" mt={6}>
-                        {r.priority && <Badge size="sm" color="yellow">{r.priority.toUpperCase()}</Badge>}
-                        {(r.content?.caseInfo?.title || r.caseTitle) && 
-                          <Badge size="sm" variant="light" color="gray">{r.content?.caseInfo?.title || r.caseTitle}</Badge>}
+            <Stack>
+              {loadingReviews ? (
+                <Center><Loader /></Center>
+              ) : (
+                reviews.length ? reviews.map((r) => {
+                  // Get submitter name with priority: displayName (Google) -> fullName (manual) -> clientName (fallback)
+                  const submitterName = r.content?.interviewInfo?.clientName || r.clientName || 'Unknown Client';
+                  const submittedBy = r.reviewerName || 'Staff';
+                  
+                  return (
+                    <Paper
+                      key={r._id || r.id || r.caseId}
+                      p="md"
+                      radius="md"
+                      withBorder
+                      style={{ 
+                        cursor: 'pointer', 
+                        borderRadius: 12, 
+                        border: '1px solid #E6D9CC', 
+                        background: '#FBF7F4'
+                      }}
+                      onClick={() => navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } })}
+                    >
+                      <Group wrap="nowrap" align="flex-start">
+                        <Box style={{ width: 52, height: 52, borderRadius: 12, background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                          <IconFiles size={20} />
+                        </Box>
+                        <Box style={{ flex: 1 }}>
+                          <Text fw={700} mb={4}>
+                            {submitterName}
+                          </Text>
+                          <Text size="xs" c={MUTED_OLIVE} mb={6}>
+                            Submitted by: {submittedBy} ({r.reviewerRole || 'Intern'})
+                          </Text>
+                          <Group spacing="xs">
+                            <Badge size="sm" variant="light" color="gray">
+                              {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'No Date'}
+                            </Badge>
+                            {r.caseId && r.caseId !== 'new-case' && (
+                              <Badge size="sm" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
+                                {r.caseId}
+                              </Badge>
+                            )}
+                            {userData.role === 'intern' && (
+                              <Badge size="sm" variant="light" color="blue">
+                                Can Edit
+                              </Badge>
+                            )}
+                          </Group>
+                        </Box>
+                        <ActionIcon>
+                          <IconChevronRight />
+                        </ActionIcon>
                       </Group>
-                    </Box>
-                    <ActionIcon>
-                      <IconChevronRight />
-                    </ActionIcon>
-                  </Group>
-                </Paper>
-              )) : (
-                <Text size="sm" c={MUTED_OLIVE}>No reviews found</Text>
-              )
-            )}
-          </Stack>
-        </Paper>
+                    </Paper>
+                  );
+                }) : (
+                  <Text size="sm" c={MUTED_OLIVE}>
+                    {userData.role === 'intern' 
+                      ? 'You have no submissions pending review'
+                      : 'No reviews pending finalization'}
+                  </Text>
+                )
+              )}
+            </Stack>
+          </Paper>
+        )}
 
         {/* Finalized Records */}
         <Paper shadow="xs" p="xl" radius="lg" bg="white" mt="xl">
