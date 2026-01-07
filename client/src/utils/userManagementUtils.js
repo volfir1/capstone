@@ -29,8 +29,8 @@ export function filterUsers(users, searchQuery, statusFilter) {
       item.email.toLowerCase().includes(searchQuery.toLowerCase());
 
     // Condition 2: Check if the user matches the status filter
-    // This passes if no filter is selected OR if the status matches
-    const matchesStatus = !statusFilter || item.status === statusFilter;
+    // This passes if no filter is selected OR if statusFilter is "All" OR if the status matches
+    const matchesStatus = !statusFilter || statusFilter === "All" || item.status === statusFilter;
 
     // The user must match both conditions to be included
     return matchesSearch && matchesStatus;

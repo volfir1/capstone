@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { 
   Tabs, Card, Text, Badge, Group, Button, SimpleGrid, Container, Title,
   Paper, Box, Stack, Avatar, Menu, ActionIcon, Select, TextInput, Modal, Loader, Center,
+  Grid, Divider,
 } from '@mantine/core';
 import ClientFormStatusCalendar from '@components/calendar/ClientFormCalendar';
 import { DatePickerInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
+import { useNavigate } from 'react-router-dom';
 import { 
   IconCalendarEvent, IconMessage2, IconFileDescription, IconClock, IconCheck, 
   IconMapPin, IconScale, IconUser, IconCheckbox, IconPhone, IconMail, IconDots,
-  IconEdit, IconX, IconSearch, IconFilter, IconGavel,
+  IconEdit, IconX, IconSearch, IconFilter, IconGavel, IconFileText, IconEye,
 } from '@tabler/icons-react';
 
 const PRIMARY_GOLD = '#D4A574';
@@ -44,6 +46,7 @@ export default function StaffAppointmentManager() {
     priority: 'Medium',
   });
   const [newDate, setNewDate] = useState(null);
+  const [newTime, setNewTime] = useState('');
   const [pendingAppointments, setPendingAppointments] = useState([]);
   const [scheduledAppointments, setScheduledAppointments] = useState([]);
   const [adviceRequests, setAdviceRequests] = useState([]);
@@ -52,6 +55,12 @@ export default function StaffAppointmentManager() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const navigate = useNavigate();
+  
+  // Appointment Details Modal states
+  const [appointmentModalOpened, setAppointmentModalOpened] = useState(false);
+  const [appointmentDetails, setAppointmentDetails] = useState(null);
+  const [loadingAppointment, setLoadingAppointment] = useState(false);
 
   // Fetch all data function
   const loadAllData = async () => {
@@ -70,7 +79,8 @@ export default function StaffAppointmentManager() {
           submittedDate: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
           scheduledDate: d.appointedDate ? new Date(d.appointedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD',
           rawAppointedDate: d.appointedDate || null,
-          status: 'Auto-Scheduled',
+          appointmentTime: d.appointmentTime || '',
+          status: d.status || 'auto-scheduled',
           contactNumber: d.personal?.contactNumber || '+63 000 000 0000',
           email: d.personal?.email || 'email@sola.com',
           assignedTo: d.assignedTo || 'Atty. Maria Cruz',
@@ -280,6 +290,8 @@ export default function StaffAppointmentManager() {
     } else {
       setNewDate(null);
     }
+    // Set existing appointment time if available
+    setNewTime(appointment?.appointmentTime || '');
     setRescheduleModal(true);
   };
 
@@ -287,15 +299,35 @@ export default function StaffAppointmentManager() {
     if (!newDate || !selectedAppointment?.id) {
       notifications.show({
         title: 'Error',
-        message: 'Please select a valid date.',
+        message: 'Please select a valid date and time.',
         color: 'red',
       });
       return;
     }
 
     setIsUpdating(true);
-    const iso = newDate.toISOString();
-    const payload = { appointedDate: iso };
+    
+    // Ensure newDate is a valid Date object
+    let dateObj = newDate;
+    if (!(newDate instanceof Date)) {
+      try {
+        dateObj = new Date(newDate);
+      } catch (e) {
+        notifications.show({
+          title: 'Error',
+          message: 'Invalid date format.',
+          color: 'red',
+        });
+        setIsUpdating(false);
+        return;
+      }
+    }
+    
+    const iso = dateObj.toISOString();
+    const payload = { 
+      appointedDate: iso,
+      appointmentTime: newTime || ''
+    };
     console.log('Updating appointment:', selectedAppointment.id, 'with payload:', payload);
 
     try {
@@ -306,6 +338,7 @@ export default function StaffAppointmentManager() {
       console.log('Update response:', response);
       
       if (response?.data) {
+        setIsUpdating(false);
         updateLocalAppointment(iso);
         return;
       }
@@ -318,6 +351,7 @@ export default function StaffAppointmentManager() {
         console.log('Update response:', response);
         
         if (response?.data) {
+          setIsUpdating(false);
           updateLocalAppointment(iso);
           return;
         }
@@ -345,13 +379,14 @@ export default function StaffAppointmentManager() {
     setPendingAppointments((prev) =>
       prev.map((apt) =>
         apt.id === selectedAppointment.id
-          ? { ...apt, scheduledDate: formattedDate, rawAppointedDate: iso }
+          ? { ...apt, scheduledDate: formattedDate, rawAppointedDate: iso, appointmentTime: newTime }
           : apt
       )
     );
 
     setRescheduleModal(false);
     setNewDate(null);
+    setNewTime('');
     setSelectedAppointment(null);
 
     notifications.show({
@@ -361,6 +396,23 @@ export default function StaffAppointmentManager() {
       icon: <IconCheck size={18} />,
       autoClose: 5000,
     });
+  };
+
+  // Function to fetch and display appointment details
+  const openAppointmentModal = async (appointmentId) => {
+    setAppointmentModalOpened(true);
+    setLoadingAppointment(true);
+    
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      const response = await apiClient.get(`/clientsinfo/${appointmentId}`);
+      console.log('Appointment details:', response.data);
+      setAppointmentDetails(response.data);
+    } catch (error) {
+      console.error('Error fetching appointment details:', error);
+    } finally {
+      setLoadingAppointment(false);
+    }
   };
 
   const PendingAppointmentCard = ({ item }) => (
@@ -387,7 +439,19 @@ export default function StaffAppointmentManager() {
         <Stack gap="sm">
           <Group gap="xs">
             <IconCalendarEvent size={14} color={PRIMARY_BROWN} />
-            <Text size="sm" fw={600} c={CHARCOAL}>{item.scheduledDate}</Text>
+            <Text size="sm" fw={600} c={CHARCOAL}>
+              {item.scheduledDate}
+              {item.appointmentTime && ` at ${
+                // Convert 24-hour to 12-hour format
+                (() => {
+                  const [hours, minutes] = item.appointmentTime.split(':');
+                  const hour = parseInt(hours);
+                  const ampm = hour >= 12 ? 'PM' : 'AM';
+                  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                  return `${displayHour}:${minutes} ${ampm}`;
+                })()
+              }`}
+            </Text>
           </Group>
           <Group gap="xs">
             <IconMapPin size={14} color={ACCENT_TAN} />
@@ -422,8 +486,81 @@ export default function StaffAppointmentManager() {
         </Badge>
       </Group>
 
-      <Button fullWidth size="md" variant="light" leftSection={<IconEdit size={18} />} onClick={() => handleOpenEditAppointment(item)} style={{ backgroundColor: THEMED_LIGHT_BG, color: PRIMARY_BROWN }}>
-        Edit Appointment
+      {/* Show buttons based on status */}
+      {item.status === 'auto-scheduled' ? (
+        <SimpleGrid cols={2} spacing="sm">
+          <Button 
+            size="md" 
+            variant="filled" 
+            leftSection={<IconFileText size={18} />} 
+            onClick={() => {
+              // Update status to confirmed and navigate
+              (async () => {
+                try {
+                  const { default: apiClient } = await import('@config/api/apiClient');
+                  await apiClient.put(`/clientsinfo/${item.id}`, { status: 'confirmed' });
+                  notifications.show({
+                    title: 'Status Updated',
+                    message: 'Appointment status set to Confirmed',
+                    color: 'green',
+                    icon: <IconCheck size={18} />,
+                  });
+                  // Reload data to reflect status change
+                  await loadAllData();
+                  // Navigate to recommendation page
+                  navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } });
+                } catch (error) {
+                  console.error('Failed to update status:', error);
+                  notifications.show({
+                    title: 'Error',
+                    message: 'Failed to update status',
+                    color: 'red',
+                  });
+                }
+              })();
+            }}
+            style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+          >
+            Recommend
+          </Button>
+          <Button 
+            size="md" 
+            variant="light" 
+            leftSection={<IconEdit size={18} />} 
+            onClick={() => handleOpenEditAppointment(item)} 
+            style={{ backgroundColor: THEMED_LIGHT_BG, color: PRIMARY_BROWN }}
+          >
+            Edit
+          </Button>
+        </SimpleGrid>
+      ) : (
+        <Button 
+          fullWidth 
+          size="md" 
+          variant="outline" 
+          leftSection={<IconFileText size={18} />}
+          onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } })}
+          style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+        >
+          View Recommendation
+        </Button>
+      )}
+      
+      {/* View Full Details Button */}
+      <Button
+        fullWidth
+        size="md"
+        variant="light"
+        mt="sm"
+        leftSection={<IconEye size={18} />}
+        onClick={() => openAppointmentModal(item.id)}
+        style={{
+          backgroundColor: THEMED_LIGHT_BG,
+          color: PRIMARY_BROWN,
+          fontWeight: 600,
+        }}
+      >
+        View Full Receipt
       </Button>
     </Card>
   );
@@ -506,28 +643,41 @@ export default function StaffAppointmentManager() {
           <Avatar size={48} radius="md" color={PRIMARY_BROWN}><IconGavel size={24} /></Avatar>
           <Box>
             <Text fw={700} size="md" c={CHARCOAL}>{item.clientName}</Text>
-            <Text size="xs" c={MUTED_OLIVE}>{item.caseType}</Text>
+            <Text size="xs" c={MUTED_OLIVE}>{item.type || item.caseType || 'Court Case'}</Text>
           </Box>
         </Group>
       </Group>
       <Paper p="md" radius="md" mb="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
-        <Text size="xs" c={MUTED_OLIVE} mb={4}>Case Title</Text>
-        <Text size="sm" fw={600} c={CHARCOAL}>{item.caseTitle}</Text>
-        <Badge size="sm" variant="light" color={PRIMARY_BROWN} style={{ fontFamily: 'monospace', marginTop: '8px' }}>
-          {item.caseNumber}
-        </Badge>
+        <Text size="xs" c={MUTED_OLIVE} mb={4}>Case Information</Text>
+        <Text size="sm" fw={600} c={CHARCOAL}>{item.purpose || item.caseTitle || 'Case Details'}</Text>
+        {item.caseNumber && (
+          <Badge size="sm" variant="light" color={PRIMARY_BROWN} style={{ fontFamily: 'monospace', marginTop: '8px' }}>
+            {item.caseNumber}
+          </Badge>
+        )}
       </Paper>
       <Stack gap="sm" mb="md">
-        <Group gap="xs">
-          <IconCalendarEvent size={14} color={CHARCOAL} />
-          <Text size="sm" c={CHARCOAL}>{item.nextHearingDate}</Text>
-        </Group>
+        {item.scheduledDate && (
+          <Group gap="xs">
+            <IconCalendarEvent size={14} color={CHARCOAL} />
+            <Text size="sm" c={CHARCOAL}>{item.scheduledDate}</Text>
+          </Group>
+        )}
         <Group gap="xs">
           <IconMapPin size={14} color={CHARCOAL} />
           <Text size="sm" c={CHARCOAL}>{item.location}</Text>
         </Group>
       </Stack>
-      <Button fullWidth size="md" style={{ backgroundColor: MUTED_OLIVE }}>View Case Details</Button>
+      <Button 
+        fullWidth 
+        size="md" 
+        variant="outline"
+        leftSection={<IconFileText size={18} />}
+        onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } })}
+        style={{ borderColor: PRIMARY_BROWN, color: PRIMARY_BROWN }}
+      >
+        View Case Details
+      </Button>
     </Card>
   );
 
@@ -593,17 +743,28 @@ export default function StaffAppointmentManager() {
 
         <Tabs defaultValue="pending" variant="pills" styles={{ tab: { padding: '12px 24px', fontWeight: 600, '&[data-active]': { background: PRIMARY_BROWN, color: 'white' } } }}>
           <Tabs.List mb="xl">
-            <Tabs.Tab value="pending" leftSection={<IconClock size={20} />}>Auto-Scheduled ({pendingAppointments.length})</Tabs.Tab>
-            <Tabs.Tab value="scheduled" leftSection={<IconCalendarEvent size={20} />}>Confirmed ({scheduledAppointments.length})</Tabs.Tab>
-            <Tabs.Tab value="advice" leftSection={<IconMessage2 size={20} />}>Legal Advice ({adviceRequests.length})</Tabs.Tab>
-            <Tabs.Tab value="representation" leftSection={<IconScale size={20} />}>Court Cases ({caseRepresentation.length})</Tabs.Tab>
+            <Tabs.Tab value="pending" leftSection={<IconClock size={20} />}>
+              Auto-Scheduled ({pendingAppointments.filter(a => a.status === 'auto-scheduled').length})
+            </Tabs.Tab>
+            <Tabs.Tab value="scheduled" leftSection={<IconCalendarEvent size={20} />}>
+              Confirmed ({pendingAppointments.filter(a => a.status === 'confirmed').length})
+            </Tabs.Tab>
+            <Tabs.Tab value="advice" leftSection={<IconMessage2 size={20} />}>
+              Legal Advice ({pendingAppointments.filter(a => a.status === 'legal-advice').length})
+            </Tabs.Tab>
+            <Tabs.Tab value="representation" leftSection={<IconScale size={20} />}>
+              Court Cases ({pendingAppointments.filter(a => a.status === 'court-case').length})
+            </Tabs.Tab>
+            <Tabs.Tab value="rejected" leftSection={<IconX size={20} />}>
+              Rejected ({pendingAppointments.filter(a => a.status === 'rejected').length})
+            </Tabs.Tab>
             <Tabs.Tab value="documents" leftSection={<IconFileDescription size={20} />}>Documents ({documentRequests.length})</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="pending">
-            {pendingAppointments.length > 0 ? (
+            {pendingAppointments.filter(a => a.status === 'auto-scheduled').length > 0 ? (
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+                {pendingAppointments.filter(a => a.status === 'auto-scheduled').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
               </SimpleGrid>
             ) : (
               <Center mih={300}><Text c={MUTED_OLIVE}>No auto-scheduled appointments</Text></Center>
@@ -611,9 +772,9 @@ export default function StaffAppointmentManager() {
           </Tabs.Panel>
 
           <Tabs.Panel value="scheduled">
-            {scheduledAppointments.length > 0 ? (
+            {pendingAppointments.filter(a => a.status === 'confirmed').length > 0 ? (
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {scheduledAppointments.map((item) => (<ScheduledAppointmentCard key={item.id} item={item} />))}
+                {pendingAppointments.filter(a => a.status === 'confirmed').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
               </SimpleGrid>
             ) : (
               <Center mih={300}><Text c={MUTED_OLIVE}>No confirmed appointments</Text></Center>
@@ -621,22 +782,32 @@ export default function StaffAppointmentManager() {
           </Tabs.Panel>
 
           <Tabs.Panel value="advice">
-            {adviceRequests.length > 0 ? (
+            {pendingAppointments.filter(a => a.status === 'legal-advice').length > 0 ? (
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {adviceRequests.map((item) => (<AdviceRequestCard key={item.id} item={item} />))}
+                {pendingAppointments.filter(a => a.status === 'legal-advice').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
               </SimpleGrid>
             ) : (
-              <Center mih={300}><Text c={MUTED_OLIVE}>No advice requests</Text></Center>
+              <Center mih={300}><Text c={MUTED_OLIVE}>No legal advice cases</Text></Center>
             )}
           </Tabs.Panel>
 
           <Tabs.Panel value="representation">
-            {caseRepresentation.length > 0 ? (
+            {pendingAppointments.filter(a => a.status === 'court-case').length > 0 ? (
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {caseRepresentation.map((item) => (<CaseRepresentationCard key={item.id} item={item} />))}
+                {pendingAppointments.filter(a => a.status === 'court-case').map((item) => (<CaseRepresentationCard key={item.id} item={item} />))}
               </SimpleGrid>
             ) : (
-              <Center mih={300}><Text c={MUTED_OLIVE}>No active cases</Text></Center>
+              <Center mih={300}><Text c={MUTED_OLIVE}>No active court cases</Text></Center>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="rejected">
+            {pendingAppointments.filter(a => a.status === 'rejected').length > 0 ? (
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+                {pendingAppointments.filter(a => a.status === 'rejected').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+              </SimpleGrid>
+            ) : (
+              <Center mih={300}><Text c={MUTED_OLIVE}>No rejected cases</Text></Center>
             )}
           </Tabs.Panel>
 
@@ -667,25 +838,84 @@ export default function StaffAppointmentManager() {
               <Box>
                 <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={8}>Current Schedule</Text>
                 <Paper p="md" radius="md" style={{ backgroundColor: `${ACCENT_TAN}10`, border: `1px solid ${ACCENT_TAN}` }}>
-                  <Group gap="xs">
-                    <IconCalendarEvent size={16} color={ACCENT_TAN} />
-                    <Text size="sm" fw={600} c={CHARCOAL}>{selectedAppointment.scheduledDate}</Text>
-                  </Group>
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <IconCalendarEvent size={16} color={ACCENT_TAN} />
+                      <Text size="sm" fw={600} c={CHARCOAL}>{selectedAppointment.scheduledDate}</Text>
+                    </Group>
+                    {selectedAppointment.appointmentTime && (
+                      <Group gap="xs">
+                        <IconClock size={16} color={ACCENT_TAN} />
+                        <Text size="sm" fw={600} c={CHARCOAL}>
+                          {(() => {
+                            const [hours, minutes] = selectedAppointment.appointmentTime.split(':');
+                            const hour = parseInt(hours);
+                            const ampm = hour >= 12 ? 'PM' : 'AM';
+                            const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                            return `${displayHour}:${minutes} ${ampm}`;
+                          })()}
+                        </Text>
+                      </Group>
+                    )}
+                  </Stack>
                 </Paper>
               </Box>
 
-              <Box>
-                <Group gap={8} mb={8}>
-                  <Text size="sm" fw={600} c={CHARCOAL}>New Date</Text>
-                  <Text size="sm" c="red">*</Text>
-                </Group>
-                <DatePickerInput placeholder="Select new date" value={newDate} onChange={setNewDate} size="md" minDate={new Date()} styles={{ input: { borderColor: '#E0E0E0', '&:focus': { borderColor: PRIMARY_BROWN } } }} />
-                <Text size="xs" c={MUTED_OLIVE} mt={4}>Select a new date for the appointment</Text>
-              </Box>
+              <SimpleGrid cols={2} spacing="md">
+                <Box>
+                  <Group gap={8} mb={8}>
+                    <Text size="sm" fw={600} c={CHARCOAL}>New Date</Text>
+                    <Text size="sm" c="red">*</Text>
+                  </Group>
+                  <DatePickerInput 
+                    placeholder="Select new date" 
+                    value={newDate} 
+                    onChange={setNewDate} 
+                    size="md" 
+                    minDate={new Date()} 
+                    leftSection={<IconCalendarEvent size={18} color={PRIMARY_BROWN} />}
+                    styles={{ input: { borderColor: '#E0E0E0', '&:focus': { borderColor: PRIMARY_BROWN } } }} 
+                  />
+                </Box>
+
+                <Box>
+                  <Group gap={8} mb={8}>
+                    <Text size="sm" fw={600} c={CHARCOAL}>New Time</Text>
+                    <Text size="sm" c="red">*</Text>
+                  </Group>
+                  <Select
+                    placeholder="Select time"
+                    value={newTime}
+                    onChange={setNewTime}
+                    size="md"
+                    leftSection={<IconClock size={18} color={PRIMARY_BROWN} />}
+                    data={[
+                      { value: '09:00', label: '9:00 AM' },
+                      { value: '09:30', label: '9:30 AM' },
+                      { value: '10:00', label: '10:00 AM' },
+                      { value: '10:30', label: '10:30 AM' },
+                      { value: '11:00', label: '11:00 AM' },
+                      { value: '11:30', label: '11:30 AM' },
+                      { value: '13:00', label: '1:00 PM' },
+                      { value: '13:30', label: '1:30 PM' },
+                      { value: '14:00', label: '2:00 PM' },
+                      { value: '14:30', label: '2:30 PM' },
+                      { value: '15:00', label: '3:00 PM' },
+                      { value: '15:30', label: '3:30 PM' },
+                      { value: '16:00', label: '4:00 PM' },
+                      { value: '16:30', label: '4:30 PM' },
+                      { value: '17:00', label: '5:00 PM' },
+                    ]}
+                    styles={{ input: { borderColor: '#E0E0E0', '&:focus': { borderColor: PRIMARY_BROWN } } }}
+                  />
+                </Box>
+              </SimpleGrid>
+
+              <Text size="xs" c={MUTED_OLIVE}>Select a new date and time for the appointment</Text>
 
               <Group justify="flex-end" gap="md" mt="md">
                 <Button variant="outline" size="md" onClick={() => setRescheduleModal(false)} styles={{ root: { borderColor: '#E0E0E0', color: MUTED_OLIVE } }}>Cancel</Button>
-                <Button size="md" onClick={handleUpdateAppointment} disabled={!newDate || isUpdating} loading={isUpdating} leftSection={<IconCheck size={18} />} style={{ backgroundColor: PRIMARY_BROWN }}>
+                <Button size="md" onClick={handleUpdateAppointment} disabled={!newDate || !newTime || isUpdating} loading={isUpdating} leftSection={<IconCheck size={18} />} style={{ backgroundColor: PRIMARY_BROWN }}>
                   {isUpdating ? 'Saving...' : 'Save'}
                 </Button>
               </Group>
@@ -1060,6 +1290,175 @@ export default function StaffAppointmentManager() {
               </Button>
             </Group>
           </Stack>
+        </Modal>
+
+        {/* Appointment Details Modal */}
+        <Modal
+          opened={appointmentModalOpened}
+          onClose={() => setAppointmentModalOpened(false)}
+          title={
+            <Text fw={700} size="xl" c={PRIMARY_BROWN}>
+              Appointment Receipt
+            </Text>
+          }
+          size="lg"
+          radius="lg"
+        >
+          {loadingAppointment ? (
+            <Center py="xl">
+              <Loader size="lg" color={PRIMARY_BROWN} />
+            </Center>
+          ) : appointmentDetails ? (
+            <Stack gap="lg" mt="lg">
+              {/* Header Badge */}
+              <Paper p="md" radius="md" style={{ backgroundColor: `${PRIMARY_GOLD}15`, border: `1px solid ${PRIMARY_GOLD}` }}>
+                <Group justify="space-between" align="center">
+                  <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+                    {appointmentDetails.caseDetails?.appointmentType || appointmentDetails.personal?.legalMatter || 'Appointment'}
+                  </Text>
+                  <Badge size="lg" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
+                    {appointmentDetails.status || 'For Appointment'}
+                  </Badge>
+                </Group>
+                <Text size="sm" c={MUTED_OLIVE} mt="xs">
+                  Case #{appointmentDetails.caseNumber || 'N/A'}
+                </Text>
+              </Paper>
+
+              {/* Personal Details */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Personal Details</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.fullName || appointmentDetails.name || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.age || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.birthday || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.sex || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.civilStatus || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.contactNumber || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Email</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.email || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presentAddress || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.permanentAddress || 'N/A'}</Text>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Schedule Details */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Schedule Details</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>
+                      {appointmentDetails.appointedDate ? new Date(appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      }) : 'N/A'}
+                    </Text>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Financial Details */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Financial Details</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income Source</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>
+                      {appointmentDetails.monthlyIncome ? `₱${Number(appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
+                    </Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.natureOfWork || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.employerName || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.employerAddress || 'N/A'}</Text>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Case Details */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Case Details</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.partyRepresented || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Number</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.caseNumber || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.venue || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presentStage || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Division</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtDivision || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Address</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtAddress || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presidingOfficer || 'N/A'}</Text>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+            </Stack>
+          ) : (
+            <Text c="dimmed" ta="center" py="xl">
+              No appointment details available
+            </Text>
+          )}
         </Modal>
       </Container>
     </Box>

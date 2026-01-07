@@ -29,35 +29,35 @@ import {
 export const NAVIGATION_CONFIG = {
   secretary: [
     { icon: IconDashboard, label: "Dashboard", path: '/admin' },
-    { icon: IconUsers, label: "Users Management", badge: "12", path: 'users' },
+    { icon: IconUsers, label: "Users Management", path: 'users' },
     { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
-    // { icon: IconBriefcase2, label: "Assign Case", path: 'assigncase' },
-    { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
-    // { icon: IconClipboardText, label: "Case Record", path: 'caserecord' },
+    { icon: IconMessageCircle, label: "Client Messages", path: 'chat' },
+    // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
+    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
-    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientstats' },
   ],
   
   attorney: [
-    { icon: IconDashboard, label: "Dashboard", path: '/attorney' },
-    { icon: IconUserCircle, label: "Profile", path: 'profile' },
-    { icon: IconFolder, label: "My Cases", badge: "8", path: 'cases' },
-    { icon: IconBriefcase2, label: "Assigned Cases", path: 'assigned'  },
-    { icon: IconCalendar, label: "Schedule", path: 'schedule' },
+    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
+    { icon: IconUsers, label: "Users Management", path: 'users' },
+    { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
     { icon: IconMessageCircle, label: "Client Messages", path: 'chat' },
-    // { icon: IconClipboardText, label: "Case Record", path: 'caserecord' },
+    // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
-    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientstats' },
+    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
+    { icon: IconUserCircle, label: "Profile", path: 'profile' },
   ],
   
   intern: [
-    { icon: IconDashboard, label: "Dashboard", path: '/intern' },
-    { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
-    // { icon: IconClipboardText, label: "Case Record", path: 'caserecord' },
+    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
+    { icon: IconUsers, label: "Users Management", path: 'users' },
+    { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
+    { icon: IconMessageCircle, label: "Client Messages", path: 'chat' },
+    // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
+    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
-    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientstats' },
   ],
   
   client: [
@@ -73,11 +73,11 @@ export const NAVIGATION_CONFIG = {
 export const getNavigationByRole = (role, currentPath) => {
   const items = NAVIGATION_CONFIG[role] || NAVIGATION_CONFIG.client;
   
-  // Map role to base path
+  // Map role to base path - all admin roles use 'admin' base path
   const rolePathMap = {
     secretary: 'admin',
-    attorney: 'attorney',
-    intern: 'intern',
+    attorney: 'admin',
+    intern: 'admin',
     client: 'user'
   };
   
@@ -116,8 +116,8 @@ export const PAGE_TITLES = {
 export const LAYOUT_CONFIG = {
   // Pages with custom layout settings (no header/sidebar or custom)
   '/user/chat': { showHeader: false, showNavbar: true },
-  '/attorney/chat': { showHeader: false, showNavbar: true },
-  '/attorney/chat/:caseId': { showHeader: false, showNavbar: false },
+  '/admin/chat': { showHeader: false, showNavbar: true },
+  '/admin/chat/:caseId': { showHeader: false, showNavbar: false },
   
   // Add more custom pages here as needed
   // Example: '/user/profile': { showHeader: true, showNavbar: false },

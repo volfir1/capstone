@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Paper,
   Text,
@@ -31,6 +31,7 @@ import apiClient from '@config/api/apiClient';
 
 export default function AttorneyMessenger() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser, userData } = useAuth();
   
   const [chatList, setChatList] = useState([]);
@@ -53,6 +54,25 @@ export default function AttorneyMessenger() {
     const interval = setInterval(fetchChatList, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Handle navigation from Finalized Cases
+  useEffect(() => {
+    const targetId = location.state?.caseId;
+    const targetNumber = location.state?.caseNumber;
+    
+    if ((targetId || targetNumber) && chatList.length > 0) {
+      const targetChat = chatList.find(chat => 
+        chat.case._id === targetId || 
+        chat.case.caseNumber === targetNumber ||
+        chat.case.caseNumber === targetId
+      );
+      if (targetChat) {
+        setSelectedChat(targetChat);
+        // Clear the state
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [location.state, chatList, navigate, location.pathname]);
 
   useEffect(() => {
     if (selectedChat) {
@@ -194,6 +214,10 @@ export default function AttorneyMessenger() {
                         message.senderId._id === userData?._id ||
                         message.senderId.email === userData?.email;
     const senderName = `${message.senderId.firstName} ${message.senderId.lastName}`;
+    const senderRole = message.senderId.role || message.senderRole;
+    const displayName = senderRole && senderRole !== 'user' ? 
+      `${senderName} (${senderRole.charAt(0).toUpperCase() + senderRole.slice(1)})` : 
+      senderName;
     const time = formatMessageTime(message.createdAt);
 
     return (
@@ -211,7 +235,7 @@ export default function AttorneyMessenger() {
       >
         {!isMyMessage && (
           <Text size="xs" weight={600} mb={4} ml={12} style={{ color: PRIMARY_BROWN }}>
-            {senderName}
+            {displayName}
           </Text>
         )}
         <Paper
@@ -346,9 +370,13 @@ export default function AttorneyMessenger() {
                         {chatItem.case.caseTitle}
                       </Text>
                       <Group spacing="xs">
-                        {chatItem.lastMessage && (
+                        {chatItem.lastMessage ? (
                           <Text size="xs" color="dimmed" lineClamp={1} style={{ flex: 1 }}>
                             {chatItem.lastMessage.message}
+                          </Text>
+                        ) : (
+                          <Text size="xs" color="dimmed" lineClamp={1} style={{ flex: 1, fontStyle: 'italic' }}>
+                            No messages yet - Click to start conversation
                           </Text>
                         )}
                         {chatItem.unreadCount > 0 && (
@@ -405,9 +433,23 @@ export default function AttorneyMessenger() {
                   <IconUser size={20} />
                 </Avatar>
                 <Box>
-                  <Text weight={700} size="md" style={{ color: CHARCOAL }}>
-                    {selectedChat.case.userId.firstName} {selectedChat.case.userId.lastName}
-                  </Text>
+                  <Group spacing="xs" align="center">
+                    <Text weight={700} size="md" style={{ color: CHARCOAL }}>
+                      {selectedChat.case.userId.firstName} {selectedChat.case.userId.lastName}
+                    </Text>
+                    {selectedChat.roleThread && (
+                      <Badge 
+                        size="sm" 
+                        style={{ 
+                          backgroundColor: PRIMARY_GOLD, 
+                          color: CHARCOAL,
+                          textTransform: 'capitalize'
+                        }}
+                      >
+                        {selectedChat.roleThread} Thread
+                      </Badge>
+                    )}
+                  </Group>
                   <Group spacing="xs">
                     <Text size="xs" color="dimmed">
                       {selectedChat.case.caseTitle}

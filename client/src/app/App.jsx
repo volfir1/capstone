@@ -44,7 +44,6 @@ const FinalizedCases = lazy(() => import('./pages/admin/FinalizedCases'))
 
 
 // Attorney
-const AttorneyDashboard = lazy(() => import('./pages/attorney/AttorneyDashboard'))
 const AttorneyMessenger = lazy(() => import('./pages/attorney/Messenger.jsx'))
 
 // Intern
@@ -94,15 +93,10 @@ function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false, int
     return <Navigate to="/auth/login" replace />;
   }
 
-  if (!adminOnly && !attorneyOnly && !internOnly && userData?.role === "secretary") {
-    console.log('ProtectedRoute: Redirecting to /admin - is secretary');
+  if (!adminOnly && !attorneyOnly && !internOnly && (userData?.role === "secretary" || userData?.role === "attorney" || userData?.role === "pao_lawyer" || userData?.role === "legal_volunteer" || userData?.role === "intern")) {
+    console.log('ProtectedRoute: Redirecting to /admin - is admin role');
     return <Navigate to="/admin" replace />;
   }
-  if (!adminOnly && !attorneyOnly && !internOnly && userData?.role === "intern") {
-    console.log('ProtectedRoute: Redirecting to /intern - is intern');
-    return <Navigate to="/intern" replace />;
-  }
-  // Note: Attorneys can access both attorney and admin routes, so no redirect needed here
 
   console.log('ProtectedRoute: Rendering children');
   return children;
@@ -150,7 +144,7 @@ function AppRoutes() {
           <Route path="track" element={<TrackAppointment />} />
         </Route>
 
-        {/* Admin */}
+        {/* Admin - Unified for Secretary, Attorney, and Intern */}
         <Route
           path="/admin"
           element={
@@ -164,48 +158,12 @@ function AppRoutes() {
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="attorneys" element={<ManageAttorney />} />
-          < Route path="assigncase" element={<AssignCase />}/>
-          <Route path="recommendation" element={<RecommendationForAction />} />
-          <Route path="caserecord" element={<CaseRecord />} />
-          <Route path="finalized" element={<FinalizedCases />} />
-          <Route path="profile" element={<AdminProfile />} />
-          <Route path="clientstats" element={<ClientApplicationStatus />} />
-        </Route>
-      
-      {/* Attorney */}
-        <Route
-          path="attorney"
-          element={
-            <ProtectedRoute attorneyOnly>
-              <Layout>
-                <Outlet />
-              </Layout>
-            </ProtectedRoute> 
-          }
-        >
-          <Route index element={<AttorneyDashboard />} />
           <Route path="chat" element={<AttorneyMessenger />} />
-          <Route path="profile" element={<AttorneyProfile />} />
+          <Route path="recommendation/:caseId?" element={<RecommendationForAction />} />
           <Route path="caserecord" element={<CaseRecord />} />
           <Route path="finalized" element={<FinalizedCases />} />
-          <Route path="clientstats" element={<ClientApplicationStatus />} />
-        </Route>
-      
-      {/* Intern */}
-        <Route
-          path="/intern"
-          element={
-            <ProtectedRoute internOnly>
-              <Layout>
-                <Outlet />
-              </Layout>
-            </ProtectedRoute> 
-          }
-        >
-          <Route path="recommendation" element={<RecommendationForAction />} />
-          <Route path="caserecord" element={<CaseRecord />} />
-          <Route path="finalized" element={<FinalizedCases />} />
-          <Route path="clientstats" element={<ClientApplicationStatus />} />
+          <Route path="clientformstatus" element={<ClientApplicationStatus />} />
+          <Route path="profile" element={<AdminProfile />} />
         </Route>
         
         <Route path="/forgot-password" element={<ForgotPassword />} />

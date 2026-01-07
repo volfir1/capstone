@@ -17,6 +17,14 @@ const messageSchema = new mongoose.Schema({
     required: true,
     enum: ["User", "Attorney"],
   },
+  senderRole: {
+    type: String,
+    enum: ["user", "attorney", "intern", "secretary"],
+    default: function() {
+      return this.senderModel === "User" ? "user" : "attorney";
+    },
+    index: true,
+  },
   message: {
     type: String,
     required: true,
@@ -34,6 +42,7 @@ const messageSchema = new mongoose.Schema({
 
 // Index for efficient querying
 messageSchema.index({ caseId: 1, createdAt: -1 });
+messageSchema.index({ caseId: 1, senderRole: 1, createdAt: -1 });
 
 const Message = mongoose.model("Message", messageSchema);
 

@@ -71,12 +71,9 @@ export const useLogin = () => {
         NProgress.set(0.7);
         welcomeNotif(userData.firstName);
 
-        if (userData.role === "secretary") {
+        if (userData.role === "secretary" || userData.role === "intern" || userData.role === "attorney" || userData.role === "pao_lawyer" || userData.role === "legal_volunteer") {
           console.log('Navigating to /admin');
           navigate("/admin", { replace: true });
-        } else if (userData.role === "intern") {
-          console.log('Navigating to /intern');
-          navigate("/intern", { replace: true });
         } else {
           console.log('Navigating to /user/home');
           navigate("/user/home", { replace: true });

@@ -38,8 +38,8 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    // Determine if sender is user or attorney
-    let senderId, senderModel;
+    // Determine if sender is user or attorney/admin
+    let senderId, senderModel, senderRole;
     
     const user = await User.findOne({ email: userEmail });
     if (user) {
@@ -52,30 +52,42 @@ export const sendMessage = async (req, res) => {
       }
       senderId = user._id;
       senderModel = "User";
+      senderRole = "user";
     } else {
-      const attorney = await Attorney.findOne({ email: userEmail });
-      if (!attorney) {
-        return res.status(404).json({
-          success: false,
-          message: "User or Attorney not found",
-        });
+      // Check if sender is admin (attorney, intern, secretary)
+      const adminUser = await User.findOne({ email: userEmail, role: { $in: ['attorney', 'intern', 'secretary'] } });
+      if (adminUser) {
+        // Admin users can message any accepted case
+        senderId = adminUser._id;
+        senderModel = "Attorney"; // Keep as Attorney for compatibility
+        senderRole = adminUser.role; // attorney, intern, or secretary
+      } else {
+        const attorney = await Attorney.findOne({ email: userEmail });
+        if (!attorney) {
+          return res.status(404).json({
+            success: false,
+            message: "User or authorized person not found",
+          });
+        }
+        // Verify attorney is assigned to this case
+        if (!caseData.attorneyId || caseData.attorneyId.toString() !== attorney._id.toString()) {
+          return res.status(403).json({
+            success: false,
+            message: "You are not assigned to this case",
+          });
+        }
+        senderId = attorney._id;
+        senderModel = "Attorney";
+        senderRole = "attorney";
       }
-      // Verify attorney is assigned to this case
-      if (!caseData.attorneyId || caseData.attorneyId.toString() !== attorney._id.toString()) {
-        return res.status(403).json({
-          success: false,
-          message: "You are not assigned to this case",
-        });
-      }
-      senderId = attorney._id;
-      senderModel = "Attorney";
     }
 
-    // Create message
+    // Create message with role
     const newMessage = await Message.create({
       caseId,
       senderId,
       senderModel,
+      senderRole,
       message,
     });
 
@@ -130,20 +142,30 @@ export const getMessagesByCase = async (req, res) => {
     const user = await User.findOne({ email: userEmail });
     const attorney = await Attorney.findOne({ email: userEmail });
 
-    const isAuthorized = 
-      (user && caseData.userId.toString() === user._id.toString()) ||
-      (attorney && caseData.attorneyId && caseData.attorneyId.toString() === attorney._id.toString());
+    let messageFilter = { caseId };
+    let currentUserRole = null;
 
-    if (!isAuthorized) {
+    // Check if user is client
+    if (user && caseData.userId.toString() === user._id.toString()) {
+      // Client can see all messages (we'll group by role on frontend)
+      currentUserRole = "user";
+    } else if (user && ['attorney', 'intern', 'secretary'].includes(user.role)) {
+      // Admin users only see messages in their role thread
+      currentUserRole = user.role;
+      messageFilter.senderRole = { $in: [user.role, 'user'] }; // Only messages from their role or client
+    } else if (attorney && caseData.attorneyId && caseData.attorneyId.toString() === attorney._id.toString()) {
+      currentUserRole = "attorney";
+      messageFilter.senderRole = { $in: ['attorney', 'user'] };
+    } else {
       return res.status(403).json({
         success: false,
         message: "You are not authorized to view messages for this case",
       });
     }
 
-    // Get messages
-    const messages = await Message.find({ caseId })
-      .populate("senderId", "firstName lastName email")
+    // Get messages with role filter
+    const messages = await Message.find(messageFilter)
+      .populate("senderId", "firstName lastName email role")
       .sort({ createdAt: 1 });
 
     res.status(200).json({
@@ -182,6 +204,7 @@ export const markMessagesAsRead = async (req, res) => {
     const attorney = await Attorney.findOne({ email: userEmail });
 
     const currentUserId = user?._id || attorney?._id;
+    let currentUserRole = null;
 
     if (!currentUserId) {
       return res.status(404).json({
@@ -190,15 +213,27 @@ export const markMessagesAsRead = async (req, res) => {
       });
     }
 
-    // Mark all messages in this case as read (except messages sent by current user)
-    await Message.updateMany(
-      { 
-        caseId, 
-        senderId: { $ne: currentUserId },
-        isRead: false 
-      },
-      { isRead: true }
-    );
+    // Determine current user's role
+    if (user && ['attorney', 'intern', 'secretary'].includes(user.role)) {
+      currentUserRole = user.role;
+    } else if (attorney) {
+      currentUserRole = "attorney";
+    }
+
+    // Build filter for marking messages as read
+    const readFilter = { 
+      caseId, 
+      senderId: { $ne: currentUserId },
+      isRead: false 
+    };
+
+    // If admin user, only mark messages in their role thread
+    if (currentUserRole && currentUserRole !== 'user') {
+      readFilter.senderRole = { $in: [currentUserRole, 'user'] };
+    }
+
+    // Mark messages as read
+    await Message.updateMany(readFilter, { isRead: true });
 
     res.status(200).json({
       success: true,
@@ -229,36 +264,58 @@ export const getChatList = async (req, res) => {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const userEmail = decodedToken.email;
 
-    const attorney = await Attorney.findOne({ email: userEmail });
-    if (!attorney) {
+    // Check if user is admin (attorney, intern, secretary from User model)
+    const adminUser = await User.findOne({ 
+      email: userEmail, 
+      role: { $in: ['attorney', 'intern', 'secretary'] } 
+    });
+    
+    const attorney = !adminUser ? await Attorney.findOne({ email: userEmail }) : null;
+    
+    if (!adminUser && !attorney) {
       return res.status(404).json({
         success: false,
-        message: "Attorney not found",
+        message: "Authorized user not found",
       });
     }
 
-    // Get all cases assigned to this attorney
-    const cases = await Case.find({ attorneyId: attorney._id })
+    const currentUserId = adminUser?._id || attorney?._id;
+    const currentUserRole = adminUser?.role || "attorney";
+
+    // Get all accepted cases (admin can chat with any accepted case)
+    const cases = await Case.find({ 
+      $or: [
+        { attorneyId: attorney?._id },
+        { status: 'Accepted' } // Admin users can access any accepted case
+      ]
+    })
       .populate("userId", "firstName lastName email")
       .sort({ updatedAt: -1 });
 
-    // For each case, get the last message and unread count
+    // For each case, get the last message and unread count for this role's thread
     const chatsWithLastMessage = await Promise.all(
       cases.map(async (caseItem) => {
-        const lastMessage = await Message.findOne({ caseId: caseItem._id })
+        // Only get messages in this role's thread
+        const lastMessage = await Message.findOne({ 
+          caseId: caseItem._id,
+          senderRole: { $in: [currentUserRole, 'user'] }
+        })
           .sort({ createdAt: -1 })
-          .populate("senderId", "firstName lastName");
+          .populate("senderId", "firstName lastName role");
 
         const unreadCount = await Message.countDocuments({
           caseId: caseItem._id,
-          senderId: { $ne: attorney._id },
+          senderId: { $ne: currentUserId },
+          senderRole: { $in: [currentUserRole, 'user'] },
           isRead: false,
         });
 
+        // Include all accepted cases, even without messages (to allow initiating conversations)
         return {
           case: caseItem,
-          lastMessage,
+          lastMessage: lastMessage || null,
           unreadCount,
+          roleThread: currentUserRole,
         };
       })
     );

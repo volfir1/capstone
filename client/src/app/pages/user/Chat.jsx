@@ -14,6 +14,7 @@ import {
   Avatar,
   Badge,
   TextInput,
+  Tabs,
 } from '@mantine/core';
 import {
   IconSend,
@@ -34,9 +35,12 @@ export default function UserChat() {
   
   const [cases, setCases] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [allMessages, setAllMessages] = useState([]); // Store all messages
+  const [messages, setMessages] = useState([]); // Filtered messages for current role tab
   const [messageText, setMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeRoleTab, setActiveRoleTab] = useState('attorney'); // attorney, intern, secretary
+  const [availableRoles, setAvailableRoles] = useState([]); // Roles that have initiated chat
   
   const [loading, setLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -101,7 +105,28 @@ export default function UserChat() {
       const response = await apiClient.get(`/chat/case/${caseId}`);
       
       if (response.data.success) {
-        setMessages(response.data.data);
+        const msgs = response.data.data;
+        setAllMessages(msgs);
+        
+        // Detect which roles have initiated chat (sent at least one message)
+        const rolesWithMessages = new Set();
+        msgs.forEach(msg => {
+          const role = msg.senderRole || (msg.senderId?.role);
+          if (role && ['attorney', 'intern', 'secretary'].includes(role)) {
+            rolesWithMessages.add(role);
+          }
+        });
+        
+        const availableRolesList = Array.from(rolesWithMessages);
+        setAvailableRoles(availableRolesList);
+        
+        // Set active tab to first available role, or attorney if none
+        if (availableRolesList.length > 0 && !availableRolesList.includes(activeRoleTab)) {
+          setActiveRoleTab(availableRolesList[0]);
+        }
+        
+        // Filter messages for current role tab
+        filterMessagesByRole(msgs, activeRoleTab);
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -117,6 +142,23 @@ export default function UserChat() {
       isFetchingRef.current = false;
     }
   };
+
+  // Filter messages by selected role tab
+  const filterMessagesByRole = (msgs, role) => {
+    const filtered = msgs.filter(msg => {
+      const msgRole = msg.senderRole || msg.senderId?.role;
+      // Show messages from selected admin role OR from user
+      return msgRole === role || msgRole === 'user';
+    });
+    setMessages(filtered);
+  };
+
+  // Update messages when role tab changes
+  useEffect(() => {
+    if (allMessages.length > 0) {
+      filterMessagesByRole(allMessages, activeRoleTab);
+    }
+  }, [activeRoleTab]);
 
   const handleSend = async () => {
     if (!messageText.trim() || sending || !selectedCase) return;
@@ -181,6 +223,7 @@ export default function UserChat() {
                         message.senderId._id === userData?._id ||
                         message.senderId.email === userData?.email;
     const senderName = `${message.senderId.firstName} ${message.senderId.lastName}`;
+    const senderRole = message.senderRole || message.senderId?.role;
     const time = formatMessageTime(message.createdAt);
 
     return (
@@ -197,9 +240,23 @@ export default function UserChat() {
         }}
       >
         {!isMyMessage && (
-          <Text size="xs" weight={600} mb={4} ml={12} style={{ color: PRIMARY_BROWN }}>
-            {senderName}
-          </Text>
+          <Group spacing={4} mb={4} ml={12}>
+            <Text size="xs" weight={600} style={{ color: PRIMARY_BROWN }}>
+              {senderName}
+            </Text>
+            {senderRole && senderRole !== 'user' && (
+              <Badge 
+                size="xs" 
+                style={{ 
+                  backgroundColor: PRIMARY_GOLD, 
+                  color: CHARCOAL,
+                  textTransform: 'capitalize'
+                }}
+              >
+                {senderRole}
+              </Badge>
+            )}
+          </Group>
         )}
         <Paper
           p="md"
@@ -406,6 +463,56 @@ export default function UserChat() {
                 </Box>
               </Group>
             </Paper>
+
+            {/* Role Tabs - Only show if multiple roles have initiated chat */}
+            {availableRoles.length > 0 && (
+              <Paper
+                p="sm"
+                style={{
+                  borderBottom: `1px solid #E0E0E0`,
+                  backgroundColor: 'white',
+                  flexShrink: 0,
+                }}
+              >
+                <Tabs value={activeRoleTab} onChange={setActiveRoleTab}>
+                  <Tabs.List>
+                    {availableRoles.includes('attorney') && (
+                      <Tabs.Tab 
+                        value="attorney"
+                        style={{
+                          fontWeight: activeRoleTab === 'attorney' ? 600 : 400,
+                          color: activeRoleTab === 'attorney' ? PRIMARY_BROWN : MUTED_OLIVE,
+                        }}
+                      >
+                        Attorney
+                      </Tabs.Tab>
+                    )}
+                    {availableRoles.includes('intern') && (
+                      <Tabs.Tab 
+                        value="intern"
+                        style={{
+                          fontWeight: activeRoleTab === 'intern' ? 600 : 400,
+                          color: activeRoleTab === 'intern' ? PRIMARY_BROWN : MUTED_OLIVE,
+                        }}
+                      >
+                        Intern
+                      </Tabs.Tab>
+                    )}
+                    {availableRoles.includes('secretary') && (
+                      <Tabs.Tab 
+                        value="secretary"
+                        style={{
+                          fontWeight: activeRoleTab === 'secretary' ? 600 : 400,
+                          color: activeRoleTab === 'secretary' ? PRIMARY_BROWN : MUTED_OLIVE,
+                        }}
+                      >
+                        Secretary
+                      </Tabs.Tab>
+                    )}
+                  </Tabs.List>
+                </Tabs>
+              </Paper>
+            )}
 
             {/* Messages Area - Scrollable */}
             <Box style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

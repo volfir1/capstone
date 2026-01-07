@@ -1,12 +1,62 @@
-import React, { useState } from 'react';
-import { IconCircleCheck, IconInfoCircle, IconCalendar } from '@tabler/icons-react';
-import { Text, Group, Title, Paper, Grid, Stack, Box, Divider, Alert } from '@mantine/core';
+import React, { useState, useEffect } from 'react';
+import { IconCircleCheck, IconInfoCircle, IconCalendar, IconClock } from '@tabler/icons-react';
+import { Text, Group, Title, Paper, Grid, Stack, Box, Divider, Alert, Select } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG, CHARCOAL, MUTED_OLIVE } from '@utils/constants';
 
-export default function ReviewForm({ formData, getValues }) {
+export default function ReviewForm({ formData, getValues, setValue }) {
   const allData = { ...formData, ...getValues() };
-  const [appointmentDate, setAppointmentDate] = useState(null);
+  const [appointmentDate, setAppointmentDate] = useState(allData.appointedDate ? new Date(allData.appointedDate) : null);
+  const [appointmentTime, setAppointmentTime] = useState(allData.appointmentTime || '09:00');
+  
+  // Generate time options (9 AM to 5 PM)
+  const timeOptions = [
+    { value: '09:00', label: '9:00 AM' },
+    { value: '09:30', label: '9:30 AM' },
+    { value: '10:00', label: '10:00 AM' },
+    { value: '10:30', label: '10:30 AM' },
+    { value: '11:00', label: '11:00 AM' },
+    { value: '11:30', label: '11:30 AM' },
+    { value: '13:00', label: '1:00 PM' },
+    { value: '13:30', label: '1:30 PM' },
+    { value: '14:00', label: '2:00 PM' },
+    { value: '14:30', label: '2:30 PM' },
+    { value: '15:00', label: '3:00 PM' },
+    { value: '15:30', label: '3:30 PM' },
+    { value: '16:00', label: '4:00 PM' },
+    { value: '16:30', label: '4:30 PM' },
+    { value: '17:00', label: '5:00 PM' },
+  ];
+  
+  // Update parent form when appointment date or time changes
+  useEffect(() => {
+    console.log('ReviewForm useEffect - appointmentDate:', appointmentDate);
+    console.log('ReviewForm useEffect - typeof:', typeof appointmentDate);
+    
+    if (appointmentDate) {
+      // Handle both Date objects and strings
+      let dateToSave;
+      if (appointmentDate instanceof Date) {
+        dateToSave = appointmentDate.toISOString();
+      } else if (typeof appointmentDate === 'string') {
+        // If it's already a string (like "2026-01-08"), convert to Date then to ISO
+        const dateObj = new Date(appointmentDate);
+        if (!isNaN(dateObj.getTime())) {
+          dateToSave = dateObj.toISOString();
+        }
+      }
+      
+      if (dateToSave) {
+        console.log('ReviewForm - Setting appointedDate to:', dateToSave);
+        setValue('appointedDate', dateToSave);
+      }
+    }
+    
+    if (appointmentTime) {
+      console.log('ReviewForm - Setting appointmentTime to:', appointmentTime);
+      setValue('appointmentTime', appointmentTime);
+    }
+  }, [appointmentDate, appointmentTime, setValue]);
   
   return (
     <Stack gap="lg" mt="lg">
@@ -178,38 +228,70 @@ export default function ReviewForm({ formData, getValues }) {
         </Grid>
       </Paper>
       
-      {/* Appointment Date */}
+      {/* Appointment Date & Time */}
       <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-        <Title order={4} mb="md" c={CHARCOAL}>Preferred Appointment Date</Title>
+        <Title order={4} mb="md" c={CHARCOAL}>Preferred Appointment Date & Time</Title>
         <Divider mb="md" color="#F0F0F0" />
         <Text size="sm" c={MUTED_OLIVE} mb="md">
-          Select your preferred date for the consultation appointment. The office will confirm availability and contact you.
+          Select your preferred date and time for the consultation appointment. The office will confirm availability and contact you.
         </Text>
-        <DateInput
-          value={appointmentDate}
-          onChange={setAppointmentDate}
-          label="Appointment Date"
-          placeholder="Select a date"
-          leftSection={<IconCalendar size={18} color={PRIMARY_BROWN} />}
-          valueFormat="MMMM DD, YYYY"
-          minDate={new Date()}
-          clearable
-          required
-          styles={{
-            input: {
-              borderColor: '#E0E0E0',
-              '&:focus': {
-                borderColor: PRIMARY_BROWN,
-              },
-            },
-            label: {
-              color: CHARCOAL,
-              fontWeight: 600,
-              marginBottom: '8px',
-            },
-          }}
-        />
-        {appointmentDate && (
+        
+        <Grid gutter="md">
+          <Grid.Col span={6}>
+            <DateInput
+              value={appointmentDate}
+              onChange={setAppointmentDate}
+              label="Appointment Date"
+              placeholder="Select a date"
+              leftSection={<IconCalendar size={18} color={PRIMARY_BROWN} />}
+              valueFormat="MMMM DD, YYYY"
+              minDate={new Date()}
+              clearable
+              required
+              styles={{
+                input: {
+                  borderColor: '#E0E0E0',
+                  '&:focus': {
+                    borderColor: PRIMARY_BROWN,
+                  },
+                },
+                label: {
+                  color: CHARCOAL,
+                  fontWeight: 600,
+                  marginBottom: '8px',
+                },
+              }}
+            />
+          </Grid.Col>
+          
+          <Grid.Col span={6}>
+            <Select
+              value={appointmentTime}
+              onChange={setAppointmentTime}
+              label="Appointment Time"
+              placeholder="Select a time"
+              data={timeOptions}
+              leftSection={<IconClock size={18} color={PRIMARY_BROWN} />}
+              clearable
+              required
+              styles={{
+                input: {
+                  borderColor: '#E0E0E0',
+                  '&:focus': {
+                    borderColor: PRIMARY_BROWN,
+                  },
+                },
+                label: {
+                  color: CHARCOAL,
+                  fontWeight: 600,
+                  marginBottom: '8px',
+                },
+              }}
+            />
+          </Grid.Col>
+        </Grid>
+        
+        {appointmentDate && appointmentDate instanceof Date && !isNaN(appointmentDate) && appointmentTime && (
           <Alert
             mt="md"
             icon={<IconInfoCircle size={18} />}
@@ -224,12 +306,12 @@ export default function ReviewForm({ formData, getValues }) {
             }}
           >
             <Text size="sm" c={CHARCOAL}>
-              <strong>Selected Date:</strong> {new Date(appointmentDate).toLocaleDateString('en-US', { 
+              <strong>Selected Date & Time:</strong> {appointmentDate.toLocaleDateString('en-US', { 
                 weekday: 'long', 
                 year: 'numeric', 
                 month: 'long', 
                 day: 'numeric' 
-              })}
+              })} at {timeOptions.find(t => t.value === appointmentTime)?.label || appointmentTime}
             </Text>
           </Alert>
         )}

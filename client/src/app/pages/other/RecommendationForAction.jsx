@@ -18,7 +18,7 @@ import {
     Button,
     Stepper
 } from '@mantine/core';
-import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText } from '@tabler/icons-react'; // Added icons
+import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconArrowLeft } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 
@@ -183,7 +183,7 @@ ClientInterviewSection.displayName = 'ClientInterviewSection';
 // ====================================================================================
 // 3. Supervising Lawyer's Comment & Director's Action (Based on image_588e92.png)
 // ====================================================================================
-export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange = () => {} }) => (
+export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange = () => {}, forLegalAdvice = false, userRole = '' }) => (
     <Paper shadow="md" p="xl" radius="lg" bg="white">
         <Stack gap="xl">
             <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Supervising Lawyer & Director Action</Title>
@@ -201,8 +201,14 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
 
             <Divider />
 
+            {/* Director's Action - Always visible, disabled for interns */}
             <Title order={3} c={PRIMARY_BROWN}>Director's Action</Title>
-            <Radio.Group label="Decision" value={value.decision || ''} onChange={(val) => onChange({ ...value, decision: val })}>
+            <Radio.Group 
+                label="Decision" 
+                value={value.decision || ''} 
+                onChange={(val) => onChange({ ...value, decision: val })}
+                disabled={userRole === 'intern'}
+            >
                 <Group>
                     <Radio value="accepted" label="Accepted" />
                     <Radio value="rejected" label="Rejected" />
@@ -217,7 +223,10 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                 minRows={4}
                 value={value.decisionNote || ''}
                 onChange={(e) => onChange({ ...value, decisionNote: e.target.value })}
+                disabled={userRole === 'intern'}
             />
+
+            <Divider />
 
             <Divider />
 
@@ -274,6 +283,8 @@ export default function CaseRecordFormsDisplay() {
     const [reviews, setReviews] = useState([])
     const [saving, setSaving] = useState(false)
     const [isFromDashboard, setIsFromDashboard] = useState(false)
+    const [isViewingExistingReview, setIsViewingExistingReview] = useState(false)
+    const [reviewId, setReviewId] = useState(null)
 
     // controlled state for interview + action
     const [interviewInfo, setInterviewInfo] = useState({});
@@ -299,9 +310,13 @@ export default function CaseRecordFormsDisplay() {
 
     useEffect(() => {
         const review = location?.state?.review;
+        const isViewingFlag = location?.state?.isViewingExistingReview;
+        
         if (review && review.content) {
             // Mark that this is opened from dashboard (has review in location state)
             setIsFromDashboard(true);
+            setIsViewingExistingReview(isViewingFlag || false);
+            setReviewId(review._id || review.id || null);
             
             // Load review data from location.state
             const ii = review.content.interviewInfo || review.interviewInfo || {};
@@ -319,6 +334,8 @@ export default function CaseRecordFormsDisplay() {
         } else {
             // If no review in location state, it's opened from sidebar - reset to clean state
             setIsFromDashboard(false);
+            setIsViewingExistingReview(false);
+            setReviewId(null);
             setInterviewInfo({});
             setActionInfo({});
         }
@@ -358,8 +375,65 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            // If secretary finalizes record on last step, create a finalized record
-            if (userData?.role === 'secretary' && active === totalSteps - 1) {
+            
+            // Intern behavior on Step 1 - check which button was clicked via a flag
+            // This will be set by the button click handler
+            const isInternFinalize = window.__internFinalizeClicked;
+            delete window.__internFinalizeClicked; // Clean up flag
+            
+            if (userData?.role === 'intern' && active === totalSteps - 1) {
+                if (isInternFinalize && interviewInfo.forLegalAdvice === true) {
+                    // Intern finalizing a legal advice case
+                    try {
+                        const { default: apiClient } = await import('@config/api/apiClient');
+                        await apiClient.put(`/clientsinfo/${caseId}`, { status: 'legal-advice' });
+                        console.log('Status updated to legal-advice for intern finalize');
+                        
+                        alert('Legal advice case finalized successfully!');
+                        
+                        // Redirect to Client Form Status
+                        navigate('/admin/clientformstatus');
+                        return;
+                    } catch (statusErr) {
+                        console.error('Failed to update status:', statusErr);
+                    }
+                } else {
+                    // Intern submitting for review (or finalizing non-legal-advice)
+                    try {
+                        const { default: apiClient } = await import('@config/api/apiClient');
+                        await apiClient.put(`/clientsinfo/${caseId}`, { status: 'confirmed' });
+                        console.log('Status updated to confirmed for intern review');
+                    } catch (statusErr) {
+                        console.error('Failed to update status:', statusErr);
+                    }
+                }
+            }
+            
+            // If attorney/secretary finalizes record on last step, create a finalized record
+            if ((userData?.role === 'attorney' || userData?.role === 'secretary' || userData?.role === 'pao_lawyer' || userData?.role === 'legal_volunteer') && active === totalSteps - 1) {
+                // Determine final status based on forLegalAdvice checkbox and decision
+                let finalStatus = 'confirmed'; // default if no selection
+                
+                // Priority 1: Check forLegalAdvice checkbox
+                if (interviewInfo.forLegalAdvice === true) {
+                    finalStatus = 'legal-advice';
+                } else {
+                    // Priority 2: Check decision radio button - all decisions lead to court-case
+                    if (actionInfo.decision === 'accepted' || actionInfo.decision === 'rejected' || actionInfo.decision === 'pending') {
+                        finalStatus = 'court-case';
+                    }
+                    // No selection: keep as 'confirmed'
+                }
+                
+                // Update clientsinfo status
+                try {
+                    const { default: apiClient } = await import('@config/api/apiClient');
+                    await apiClient.put(`/clientsinfo/${caseId}`, { status: finalStatus });
+                    console.log('Final status updated to:', finalStatus);
+                } catch (statusErr) {
+                    console.error('Failed to update final status:', statusErr);
+                }
+                
                 const finalizePayload = {
                     caseId: caseId,
                     finalizedBy: userData?.id || userData?._id || null,
@@ -426,10 +500,11 @@ export default function CaseRecordFormsDisplay() {
             // Redirect to dashboard based on user role
             const getDashboardPath = () => {
                 const role = userData?.role;
-                if (role === 'intern') return '/intern';
-                if (role === 'secretary') return '/admin';
-                if (role === 'attorney') return '/attorney';
-                return '/admin'; // Default fallback
+                // All admin roles use /admin path
+                if (role === 'intern' || role === 'secretary' || role === 'attorney' || role === 'pao_lawyer' || role === 'legal_volunteer') {
+                    return '/admin';
+                }
+                return '/user/home'; // Default fallback for clients
             };
             
             navigate(getDashboardPath());
@@ -463,6 +538,56 @@ export default function CaseRecordFormsDisplay() {
         }
     }
 
+    const handleSaveChanges = async () => {
+        if (!reviewId) {
+            alert('No review ID found');
+            return;
+        }
+
+        // Filter out completely empty evidence rows before saving
+        const filterEmptyEvidence = (evidenceArray) => {
+            if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
+            return evidenceArray.filter(row => 
+                row && (row.type || row.author || row.purpose || row.issues)
+            );
+        };
+
+        const completeInterviewInfo = {
+            ...interviewInfo,
+            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
+            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+        };
+
+        const updatePayload = {
+            content: { 
+                interviewInfo: completeInterviewInfo,
+                actionInfo 
+            }
+        };
+
+        try {
+            setSaving(true);
+            const response = await fetch(`/api/reviews/${reviewId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatePayload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Update failed: ${response.status}`);
+            }
+
+            const updated = await response.json();
+            console.log('Successfully updated review:', updated);
+            alert('Changes saved successfully!');
+        } catch (err) {
+            console.error('handleSaveChanges error:', err);
+            alert(`Failed to save changes: ${err.message}`);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     useEffect(() => {
         // Only fetch reviews list if opened from dashboard (to populate reviews state)
         // Don't auto-load form data - that should only come from location.state
@@ -477,7 +602,14 @@ export default function CaseRecordFormsDisplay() {
             case 0:
                 return <ClientInterviewSection value={interviewInfo} onChange={setInterviewInfo} />;
             case 1:
-                return <SupervisingLawyerActionSection value={actionInfo} onChange={setActionInfo} />;
+                return (
+                    <SupervisingLawyerActionSection 
+                        value={actionInfo} 
+                        onChange={setActionInfo} 
+                        forLegalAdvice={interviewInfo.forLegalAdvice}
+                        userRole={userData?.role}
+                    />
+                );
             default:
                 return null;
         }
@@ -507,15 +639,34 @@ export default function CaseRecordFormsDisplay() {
                     radius="lg"
                     style={{ background: PRIMARY_BROWN, border: 'none' }}
                 >
-                    <Group gap="md" align="center">
-                        <Box
-                            style={{ width: 48, height: 48, borderRadius: '12px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    <Group gap="md" align="center" justify="space-between">
+                        <Group gap="md" align="center">
+                            <Box
+                                style={{ width: 48, height: 48, borderRadius: '12px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                                <IconFileText size={24} color={PRIMARY_BROWN} stroke={2.5} />
+                            </Box>
+                            <Title order={2} c="white">
+                                Case Documentation Process
+                            </Title>
+                        </Group>
+                        <Button
+                            variant="white"
+                            leftSection={<IconArrowLeft size={18} />}
+                            onClick={() => navigate('/admin/clientformstatus')}
+                            size="md"
+                            styles={{
+                                root: {
+                                    color: PRIMARY_BROWN,
+                                    fontWeight: 600,
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                    },
+                                },
+                            }}
                         >
-                            <IconFileText size={24} color={PRIMARY_BROWN} stroke={2.5} />
-                        </Box>
-                        <Title order={2} c="white">
-                            Case Documentation Process
-                        </Title>
+                            Back to Appointments
+                        </Button>
                     </Group>
                 </Paper>
 
@@ -563,42 +714,103 @@ export default function CaseRecordFormsDisplay() {
                             )}
                             
                             <Group gap="md">
-                                {/* Show Submit for Review or Next Step button on step 0 (Interview) */}
-                                {active === 0 ? (
-                                    isFromDashboard ? (
-                                        // If opened from dashboard (existing review), show Next Step button
-                                        <Button 
-                                            rightSection={<IconChevronRight size={20} />}
-                                            onClick={nextStep}
-                                            size="md"
-                                            style={{ backgroundColor: PRIMARY_BROWN }}
-                                        >
-                                            Next Step
-                                        </Button>
-                                    ) : (
-                                        // If opened from sidebar (fresh/new), show Submit for Review button
-                                        <Button 
-                                            leftSection={<IconCircleCheck size={20} />}
-                                            onClick={handleSubmit}
-                                            size="md"
-                                            variant="filled"
-                                            style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                            disabled={saving}
-                                        >
-                                            {saving ? 'Saving...' : 'Submit for Review'}
-                                        </Button>
-                                    )
-                                ) : (
-                                    /* Show Finalize button on step 1 (Action) */
+                                {/* Step 0: Always show Next Step button */}
+                                {active === 0 && (
                                     <Button 
-                                        leftSection={<IconCircleCheck size={20} />}
-                                        onClick={handleSubmit}
+                                        rightSection={<IconChevronRight size={20} />}
+                                        onClick={nextStep}
                                         size="md"
                                         style={{ backgroundColor: PRIMARY_BROWN }}
-                                        disabled={saving}
                                     >
-                                        {saving ? 'Saving...' : 'Finalize Record'}
+                                        Next Step
                                     </Button>
+                                )}
+                                
+                                {/* Step 1: Show role-based buttons */}
+                                {active === 1 && (
+                                    <>
+                                        {isViewingExistingReview ? (
+                                            // Viewing existing review - show different buttons based on role
+                                            isIntern ? (
+                                                // Intern: Only Save Changes
+                                                <Button 
+                                                    leftSection={<IconCircleCheck size={20} />}
+                                                    onClick={handleSaveChanges}
+                                                    size="md"
+                                                    variant="filled"
+                                                    style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                    disabled={saving}
+                                                >
+                                                    {saving ? 'Saving...' : 'Save Changes'}
+                                                </Button>
+                                            ) : (
+                                                // Attorney/Secretary: Both Save Changes and Finalize Record
+                                                <Group gap="md">
+                                                    <Button 
+                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        onClick={handleSaveChanges}
+                                                        size="md"
+                                                        variant="outline"
+                                                        style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                        disabled={saving}
+                                                    >
+                                                        {saving ? 'Saving...' : 'Save Changes'}
+                                                    </Button>
+                                                    <Button 
+                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        onClick={handleSubmit}
+                                                        size="md"
+                                                        variant="filled"
+                                                        style={{ backgroundColor: PRIMARY_BROWN }}
+                                                        disabled={saving}
+                                                    >
+                                                        {saving ? 'Finalizing...' : 'Finalize Record'}
+                                                    </Button>
+                                                </Group>
+                                            )
+                                        ) : isIntern ? (
+                                            // Intern creating new review: Both buttons
+                                            <Group gap="md">
+                                                <Button 
+                                                    leftSection={<IconCircleCheck size={20} />}
+                                                    onClick={() => {
+                                                        window.__internFinalizeClicked = false;
+                                                        handleSubmit();
+                                                    }}
+                                                    size="md"
+                                                    variant="outline"
+                                                    style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                    disabled={saving}
+                                                >
+                                                    {saving ? 'Saving...' : 'Submit for Review'}
+                                                </Button>
+                                                <Button 
+                                                    leftSection={<IconCircleCheck size={20} />}
+                                                    onClick={() => {
+                                                        window.__internFinalizeClicked = true;
+                                                        handleSubmit();
+                                                    }}
+                                                    size="md"
+                                                    variant="filled"
+                                                    style={{ backgroundColor: PRIMARY_BROWN }}
+                                                    disabled={saving}
+                                                >
+                                                    {saving ? 'Saving...' : 'Finalize Record'}
+                                                </Button>
+                                            </Group>
+                                        ) : (
+                                            // Attorney/Secretary creating new: Finalize Record button only
+                                            <Button 
+                                                leftSection={<IconCircleCheck size={20} />}
+                                                onClick={handleSubmit}
+                                                size="md"
+                                                style={{ backgroundColor: PRIMARY_BROWN }}
+                                                disabled={saving}
+                                            >
+                                                {saving ? 'Saving...' : 'Finalize Record'}
+                                            </Button>
+                                        )}
+                                    </>
                                 )}
                             </Group>
                         </Group>

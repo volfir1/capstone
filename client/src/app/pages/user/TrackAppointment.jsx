@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Tabs, 
   Card, 
@@ -16,6 +17,15 @@ import {
   Box,
   Stack,
   ActionIcon,
+  Modal,
+  Loader,
+  Center,
+  Alert,
+  Grid,
+  Stepper,
+  Textarea,
+  Table,
+  TextInput,
 } from '@mantine/core';
 import { 
   IconGavel, 
@@ -32,7 +42,14 @@ import {
   IconAlertCircle,
   IconCheckbox,
   IconArrowRight,
+  IconX,
+  IconFileText,
+  IconChevronLeft,
+  IconChevronRight,
+  IconCircleCheck,
 } from '@tabler/icons-react';
+import { useAuth } from '@/context/authContext';
+import { CaseInformationSection } from '@/app/pages/other/CaseInformationSection';
 
 // Importing your colors
 import { 
@@ -45,10 +62,37 @@ import {
 } from '@utils/constants';
 
 export default function AppointmentTracker() {
+  const navigate = useNavigate();
+  const { currentUser, userData, loading: authLoading } = useAuth();
   const [forAppointmentData, setForAppointmentData] = useState([])
+  const [legalAdviceData, setLegalAdviceData] = useState([])
+  const [representationData, setRepresentationData] = useState([])
+  const [rejectedData, setRejectedData] = useState([])
   const [loadingAppointments, setLoadingAppointments] = useState(false)
+  
+  // Case Record Modal states
+  const [caseRecordModalOpened, setCaseRecordModalOpened] = useState(false)
+  const [caseRecordData, setCaseRecordData] = useState({})
+  const [loadingCaseRecord, setLoadingCaseRecord] = useState(false)
+  const [caseRecordError, setCaseRecordError] = useState(null)
+  
+  // Appointment Details Modal states
+  const [appointmentModalOpened, setAppointmentModalOpened] = useState(false)
+  const [appointmentDetails, setAppointmentDetails] = useState(null)
+  const [loadingAppointment, setLoadingAppointment] = useState(false)
+  
+  // Review Modal states
+  const [reviewModalOpened, setReviewModalOpened] = useState(false)
+  const [reviewData, setReviewData] = useState(null)
+  const [loadingReview, setLoadingReview] = useState(false)
+  const [activeStep, setActiveStep] = useState(0)
 
   useEffect(() => {
+    // Wait for auth to load and user to be available
+    if (authLoading || !currentUser) {
+      return;
+    }
+
     let mounted = true
     const load = async () => {
       setLoadingAppointments(true)
@@ -56,22 +100,115 @@ export default function AppointmentTracker() {
         const { default: apiClient } = await import('@config/api/apiClient')
         const resp = await apiClient.get('/clientsinfo')
         const docs = resp?.data || []
-        const mapped = (Array.isArray(docs) ? docs : []).map((d, idx) => {
+        
+        console.log('Fetched appointments for current user:', docs.length, 'records');
+        console.log('First appointment data:', docs[0]);
+        
+        const appointmentsList = []
+        const legalAdviceList = []
+        const courtCasesList = []
+        const rejectedList = []
+        
+        const docsArray = Array.isArray(docs) ? docs : [];
+        docsArray.forEach((d, idx) => {
           const appointed = d.appointedDate || d.appointmentDate || d.caseDetails?.appointedDate
           const dateOnly = appointed ? new Date(appointed).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD'
-          return {
+          const timeOnly = d.appointmentTime || d.appointedTime || ''
+          
+          // Convert 24-hour time to 12-hour format with AM/PM
+          let displayTime = timeOnly;
+          if (timeOnly && typeof timeOnly === 'string' && timeOnly.match(/^\d{2}:\d{2}$/)) {
+            const timeParts = timeOnly.split(':');
+            const hours = timeParts[0];
+            const minutes = timeParts[1];
+            const hour = parseInt(hours, 10);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+            displayTime = `${displayHour}:${minutes} ${ampm}`;
+          }
+          
+          const status = d.status || 'auto-scheduled'
+          
+          console.log(`Processing appointment ${idx + 1}:`, { 
+            id: d._id, 
+            status, 
+            appointed, 
+            timeOnly,
+            displayTime,
+            fullData: d
+          });
+          
+          // Priority for name: displayName (Google) → fullName (manual) → clientName (appointment form)
+          const displayName = userData?.displayName || userData?.fullName || d.fullName || (d.personal && (d.personal.fullName || `${d.personal.firstName || ''} ${d.personal.lastName || ''}`.trim())) || 'Client';
+          
+          const baseItem = {
             id: d._id || idx,
             type: 'Initial Interview',
             submittedDate: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
-            status: appointed ? 'Scheduled' : 'Pending',
             appointmentDate: dateOnly,
-            appointmentTime: '',
+            appointmentTime: displayTime,
             location: d.caseDetails?.location || 'SOLA (Sebastian Office Legal Aid)',
-            purpose: d.caseDetails?.purpose || `Appointment for ${d.fullName || ''}`,
-            clientName: d.fullName || (d.personal && (d.personal.fullName || `${d.personal.firstName || ''} ${d.personal.lastName || ''}`.trim())) || '',
+            purpose: d.caseDetails?.purpose || `Appointment for ${displayName}`,
+            clientName: displayName,
+            submittedBy: displayName,
+          }
+          
+          // Filter by status
+          if (status === 'auto-scheduled' || status === 'confirmed') {
+            appointmentsList.push({
+              ...baseItem,
+              status: appointed ? 'Scheduled' : 'Pending'
+            })
+          } else if (status === 'legal-advice') {
+            legalAdviceList.push({
+              ...baseItem,
+              topic: baseItem.type,
+              date: baseItem.submittedDate,
+              status: 'Completed',
+              description: baseItem.purpose,
+              internDraft: false,
+              completedDate: baseItem.appointmentDate,
+              caseId: d.caseId || d._id
+            })
+          } else if (status === 'court-case') {
+            courtCasesList.push({
+              ...baseItem,
+              caseTitle: baseItem.purpose || 'Court Case',
+              caseNumber: d.caseNumber || 'TBD',
+              caseId: d.caseId || d._id,
+              stage: 'Pre-Trial',
+              nextDate: baseItem.appointmentDate,
+              attorney: d.assignedTo || 'TBD',
+              isRejected: false
+            })
+          } else if (status === 'rejected') {
+            rejectedList.push({
+              ...baseItem,
+              status: 'Rejected',
+              rejectionReason: d.rejectionReason || 'Case was reviewed and rejected by the director',
+              caseId: d.caseId || d._id
+            })
+            // Also add to court cases list with rejected flag for viewing recommendation
+            courtCasesList.push({
+              ...baseItem,
+              caseTitle: baseItem.purpose || 'Rejected Case',
+              caseNumber: d.caseNumber || 'TBD',
+              caseId: d.caseId || d._id,
+              stage: 'Rejected',
+              nextDate: 'N/A',
+              attorney: 'N/A',
+              isRejected: true,
+              rejectionReason: d.rejectionReason || 'Case was reviewed and rejected by the director'
+            })
           }
         })
-        if (mounted) setForAppointmentData(mapped)
+        
+        if (mounted) {
+          setForAppointmentData(appointmentsList)
+          setLegalAdviceData(legalAdviceList)
+          setRepresentationData(courtCasesList)
+          setRejectedData(rejectedList)
+        }
       } catch (err) {
         console.error('Failed to load clientsinfo for appointments', err)
       } finally {
@@ -80,72 +217,162 @@ export default function AppointmentTracker() {
     }
     load()
     return () => { mounted = false }
-  }, [])
+  }, [currentUser, authLoading])
 
-  const legalAdviceData = [
-    {
-      id: 1,
-      topic: "Land Dispute Inquiry",
-      date: "Oct 24, 2025",
-      status: "Scheduled",
-      description: "Face-to-face consultation regarding neighbor encroaching on property line.",
-      internDraft: false,
-      appointment: {
-        date: "Nov 12, 2025",
-        time: "2:00 PM",
-        handler: "Atty. Maria Cruz",
-        role: "Senior Attorney",
-        location: "SOLA (Sebastian Office Legal Aid)"
+  // Function to fetch case record
+  const fetchCaseRecord = async (caseIdString) => {
+    setLoadingCaseRecord(true)
+    setCaseRecordError(null)
+    setCaseRecordData({})
+    
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient')
+      console.log('Fetching finalize document for caseId:', caseIdString)
+      
+      // First, get the finalize document by caseId to get its _id
+      const finalizeResponse = await apiClient.get(`/finalize/case/${caseIdString}`)
+      console.log('Finalize document response:', finalizeResponse.data)
+      
+      if (!finalizeResponse.data || !finalizeResponse.data._id) {
+        console.log('No finalize document found for this case')
+        setCaseRecordError('Case record is still being processed')
+        return
       }
-    },
-    {
-      id: 2,
-      topic: "Labor Law Question",
-      date: "Oct 10, 2025",
-      status: "Completed",
-      description: "Unfair termination validation inquiry.",
-      internDraft: false,
-      completedDate: "Oct 28, 2025"
-    },
-    {
-      id: 3,
-      topic: "Small Claims",
-      date: "Nov 01, 2025",
-      status: "Pending Review",
-      description: "Collection of unpaid loans amounting to 50k.",
-      internDraft: true
+      
+      const finalizeId = finalizeResponse.data._id
+      console.log('Got finalizeId:', finalizeId)
+      console.log('Now fetching case record for finalizeId:', finalizeId)
+      
+      // Now fetch the case record using the finalize document's _id (note: endpoint is /caserecords not /case-records)
+      const caseRecordResponse = await apiClient.get(`/caserecords/finalize/${finalizeId}`)
+      
+      console.log('Case record API full response:', caseRecordResponse)
+      console.log('Case record response.data:', caseRecordResponse.data)
+      console.log('Is response.data truthy?', !!caseRecordResponse.data)
+      console.log('response.data type:', typeof caseRecordResponse.data)
+      
+      if (caseRecordResponse && caseRecordResponse.data && Object.keys(caseRecordResponse.data).length > 0) {
+        console.log('Setting case record data:', caseRecordResponse.data)
+        setCaseRecordData(caseRecordResponse.data)
+        setCaseRecordError(null)
+      } else {
+        console.log('No case record data in response, showing processing message')
+        setCaseRecordError('Case record is still being processed')
+      }
+    } catch (error) {
+      console.error('Error fetching case record:', error)
+      console.error('Error status:', error.response?.status)
+      console.error('Error data:', error.response?.data)
+      
+      // If it's a 404, the case record doesn't exist yet
+      if (error.response?.status === 404) {
+        setCaseRecordError('Case record is still being processed')
+      } else {
+        setCaseRecordError('Unable to load case record. Please try again later.')
+      }
+    } finally {
+      setLoadingCaseRecord(false)
     }
-  ];
+  }
 
-  const representationData = [
-    {
-      id: 1,
-      caseTitle: "People of the PH vs. Santos",
-      caseNumber: "CR-2025-001",
-      stage: "Pre-Trial",
-      nextDate: "Nov 15, 2025",
-      location: "Parañaque RTC Branch 10",
-      attorney: "Atty. Rodriguez"
-    },
-    {
-      id: 2,
-      caseTitle: "Civil Case: Land Title",
-      caseNumber: "CV-2024-882",
-      stage: "Presentation of Evidence",
-      nextDate: "Dec 02, 2025",
-      location: "Muntinlupa RTC",
-      attorney: "Atty. Santos"
-    },
-    {
-      id: 3,
-      caseTitle: "Custody Hearing",
-      caseNumber: "SP-2025-112",
-      stage: "Mediation",
-      nextDate: "Nov 20, 2025",
-      location: "Family Court Branch 2",
-      attorney: "Atty. Mendoza"
+  const openCaseRecordModal = async (caseItem) => {
+    console.log('Opening case record modal for case:', caseItem)
+    setCaseRecordModalOpened(true)
+    await fetchCaseRecord(caseItem.caseId)
+  }
+
+  // Function to fetch and display appointment details
+  const openAppointmentModal = async (appointmentId) => {
+    setAppointmentModalOpened(true)
+    setLoadingAppointment(true)
+    
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient')
+      const response = await apiClient.get(`/clientsinfo/${appointmentId}`)
+      console.log('=== APPOINTMENT DETAILS FETCHED ===')
+      console.log('Full response.data:', response.data)
+      console.log('Keys in response.data:', Object.keys(response.data))
+      console.log('age:', response.data.age)
+      console.log('birthday:', response.data.birthday)
+      console.log('sex:', response.data.sex)
+      console.log('civilStatus:', response.data.civilStatus)
+      console.log('contactNumber:', response.data.contactNumber)
+      console.log('===================================')
+      setAppointmentDetails(response.data)
+    } catch (error) {
+      console.error('Error fetching appointment details:', error)
+    } finally {
+      setLoadingAppointment(false)
     }
-  ];
+  }
+
+  // Function to fetch and display review data for finalized cases
+  const openReviewModal = async (caseId) => {
+    try {
+      setLoadingReview(true)
+      setActiveStep(0)
+      
+      // First try to fetch by caseId
+      let response = await fetch(`/api/finalize/case/${caseId}`)
+      
+      // If not found, try to fetch all finalized and find by MongoDB _id
+      if (!response.ok && response.status === 404) {
+        console.log('CaseId not found, searching by MongoDB ID...')
+        const allResponse = await fetch('/api/finalize')
+        if (allResponse.ok) {
+          const allFinalized = await allResponse.json()
+          const found = allFinalized.find(f => 
+            f._id === caseId || 
+            f.caseId === caseId ||
+            f.content?.interviewInfo?.clientId === caseId
+          )
+          if (found) {
+            console.log('=== REVIEW DATA FETCHED (by search) ===')
+            console.log('Full review:', found)
+            setReviewData(found)
+            setReviewModalOpened(true)
+            setLoadingReview(false)
+            return
+          }
+        }
+        throw new Error('No finalized review found for this case')
+      }
+      
+      if (!response.ok) throw new Error('Failed to fetch review data')
+      
+      const data = await response.json()
+      console.log('=== REVIEW DATA FETCHED ===')
+      console.log('Full review:', data)
+      setReviewData(data)
+      setReviewModalOpened(true)
+    } catch (error) {
+      console.error('Error fetching review data:', error)
+      alert('Failed to load review details. This case may not have a finalized review yet.')
+    } finally {
+      setLoadingReview(false)
+    }
+  }
+
+  // Keep one dummy example for Legal Advice
+  const dummyLegalAdvice = {
+    id: 'dummy-1',
+    topic: "Example: Land Dispute Inquiry",
+    date: "Oct 24, 2025",
+    status: "Pending Review",
+    description: "This is a sample legal advice request. Your actual requests will appear here.",
+    internDraft: true
+  };
+
+  // Keep one dummy example for Court Cases
+  const dummyCourtCase = {
+    id: 'dummy-2',
+    caseTitle: "Example: Sample vs. Example",
+    caseNumber: "CV-2025-SAMPLE",
+    stage: "Example Stage",
+    nextDate: "TBD",
+    location: "Example Court",
+    attorney: "Atty. Example"
+  };
 
   const documentData = [
     {
@@ -532,6 +759,40 @@ export default function AppointmentTracker() {
           </Group>
         </Paper>
       )}
+
+      {/* View Details Button for all appointments */}
+      <Group gap="xs" mt="md">
+        <Button
+          flex={1}
+          size="md"
+          variant="light"
+          leftSection={<IconEye size={18} />}
+          onClick={() => openAppointmentModal(item.id)}
+          style={{
+            backgroundColor: THEMED_LIGHT_BG,
+            color: PRIMARY_BROWN,
+            fontWeight: 600,
+          }}
+        >
+          View Full Details
+        </Button>
+        {item.status === "Rejected" && item.caseId && (
+          <Button 
+            variant="outline"
+            onClick={() => openReviewModal(item.caseId)}
+            flex={1}
+            size="md"
+            leftSection={<IconFileText size={18} />}
+            style={{ 
+              borderColor: PRIMARY_BROWN,
+              color: PRIMARY_BROWN,
+              fontWeight: 600,
+            }}
+          >
+            View Review
+          </Button>
+        )}
+      </Group>
     </Card>
   );
 
@@ -760,19 +1021,42 @@ export default function AppointmentTracker() {
               </Box>
             </Group>
           </Paper>
-          <Button 
-            variant="light" 
-            fullWidth
-            size="md"
-            leftSection={<IconEye size={18} />}
-            style={{ 
-              backgroundColor: THEMED_LIGHT_BG,
-              color: PRIMARY_BROWN,
-              fontWeight: 600,
-            }}
-          >
-            View Legal Opinion
-          </Button>
+          <Group gap="xs">
+            <Button 
+              variant="light" 
+              onClick={() => {
+                if (item.id) {
+                  openAppointmentModal(item.id)
+                }
+              }}
+              flex={1}
+              size="md"
+              leftSection={<IconEye size={18} />}
+              style={{ 
+                backgroundColor: THEMED_LIGHT_BG,
+                color: PRIMARY_BROWN,
+                fontWeight: 600,
+              }}
+            >
+              View Full Details
+            </Button>
+            {item.caseId && (
+              <Button 
+                variant="outline"
+                onClick={() => openReviewModal(item.caseId)}
+                flex={1}
+                size="md"
+                leftSection={<IconFileText size={18} />}
+                style={{ 
+                  borderColor: PRIMARY_BROWN,
+                  color: PRIMARY_BROWN,
+                  fontWeight: 600,
+                }}
+              >
+                View Review
+              </Button>
+            )}
+          </Group>
         </>
       )}
     </Card>
@@ -882,18 +1166,45 @@ export default function AppointmentTracker() {
         </Group>
       </Stack>
       
-      <Button 
-        variant="filled" 
-        fullWidth
-        size="md"
-        rightSection={<IconArrowRight size={18} />}
-        style={{ 
-          background: `linear-gradient(135deg, ${MUTED_OLIVE} 0%, #6B8E4E 100%)`,
-          fontWeight: 600,
-        }}
-      >
-        View Case Folder
-      </Button>
+      <Group gap="xs">
+        <Button 
+          variant="filled" 
+          flex={1}
+          size="md"
+          rightSection={<IconArrowRight size={18} />}
+          onClick={() => {
+            if (!item.isRejected && item.caseId) {
+              // For accepted cases, fetch and display case record modal
+              openCaseRecordModal(item)
+            }
+            // For rejected cases, do nothing (just show in rejected tab)
+          }}
+          disabled={item.isRejected}
+          style={{ 
+            background: item.isRejected ? '#999' : `linear-gradient(135deg, ${MUTED_OLIVE} 0%, #6B8E4E 100%)`,
+            fontWeight: 600,
+            cursor: item.isRejected ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {item.isRejected ? 'Case Rejected' : 'View Case Folder'}
+        </Button>
+        {item.caseId && !item.isRejected && (
+          <Button 
+            variant="outline"
+            onClick={() => openReviewModal(item.caseId)}
+            flex={1}
+            size="md"
+            leftSection={<IconFileText size={18} />}
+            style={{ 
+              borderColor: PRIMARY_BROWN,
+              color: PRIMARY_BROWN,
+              fontWeight: 600,
+            }}
+          >
+            View Review
+          </Button>
+        )}
+      </Group>
     </Card>
   );
 
@@ -1129,7 +1440,45 @@ export default function AppointmentTracker() {
   // --- MAIN RENDER ---
 
   return (
-    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+    <>
+      {/* Case Record Modal */}
+      <Modal
+        opened={caseRecordModalOpened}
+        onClose={() => {
+          setCaseRecordModalOpened(false)
+          setCaseRecordData({})
+          setCaseRecordError(null)
+        }}
+        title={
+          <Title order={3} c={PRIMARY_BROWN}>
+            Case Record
+          </Title>
+        }
+        size="xl"
+        styles={{
+          title: { fontWeight: 700, width: '100%' },
+          body: { maxHeight: '70vh', overflowY: 'auto' },
+        }}
+      >
+        {loadingCaseRecord ? (
+          <Center p="xl">
+            <Loader size="lg" color={PRIMARY_BROWN} />
+          </Center>
+        ) : caseRecordData && Object.keys(caseRecordData).length > 0 ? (
+          <CaseInformationSection 
+            value={caseRecordData} 
+            onChange={() => {}} 
+            readOnly={true}
+          />
+        ) : caseRecordError ? (
+          <Alert color="blue" title="Case Record In Progress" icon={<IconAlertCircle size={20} />}>
+            The case record for this case is still being processed by the legal team. 
+            Please check back later.
+          </Alert>
+        ) : null}
+      </Modal>
+
+      <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
       <Container size="xl">
         <Box mb="xl">
           <Title order={1} mb="xs" c={PRIMARY_BROWN}>
@@ -1153,10 +1502,6 @@ export default function AppointmentTracker() {
               '&:hover': {
                 backgroundColor: THEMED_LIGHT_BG,
               },
-              '&[data-active]': {
-                background: `linear-gradient(135deg, ${PRIMARY_BROWN} 0%, #8B5A2B 100%)`,
-                color: 'white',
-              },
             },
             tabLabel: {
               display: 'flex',
@@ -1175,6 +1520,9 @@ export default function AppointmentTracker() {
             <Tabs.Tab value="representation" leftSection={<IconScale size={20} />}>
               Track Case
             </Tabs.Tab>
+            <Tabs.Tab value="rejected" leftSection={<IconX size={20} />}>
+              Rejected Cases
+            </Tabs.Tab>
             <Tabs.Tab value="documents" leftSection={<IconFileDescription size={20} />}>
               Documents
             </Tabs.Tab>
@@ -1190,11 +1538,30 @@ export default function AppointmentTracker() {
                 </Text>
               </Group>
             </Paper>
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
-              {forAppointmentData.map((item) => (
-                <ForAppointmentCard key={item.id} item={item} />
-              ))}
-            </SimpleGrid>
+            
+            {loadingAppointments ? (
+              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center' }}>
+                <Text c={MUTED_OLIVE}>Loading your appointments...</Text>
+              </Paper>
+            ) : forAppointmentData.length === 0 ? (
+              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center', border: `1px solid #F0F0F0` }}>
+                <Box mb="md">
+                  <IconCalendarEvent size={48} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.5 }} />
+                </Box>
+                <Text size="lg" fw={600} c={CHARCOAL} mb="xs">
+                  No Appointments Yet
+                </Text>
+                <Text size="sm" c={MUTED_OLIVE}>
+                  You don't have any appointments scheduled at the moment.
+                </Text>
+              </Paper>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+                {forAppointmentData.map((item) => (
+                  <ForAppointmentCard key={item.id} item={item} />
+                ))}
+              </SimpleGrid>
+            )}
           </Tabs.Panel>
 
           {/* --- TAB 2: LEGAL ADVICE --- */}
@@ -1207,11 +1574,28 @@ export default function AppointmentTracker() {
                 </Text>
               </Group>
             </Paper>
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
-              {legalAdviceData.map((item) => (
-                <AdviceCard key={item.id} item={item} />
-              ))}
-            </SimpleGrid>
+            {legalAdviceData.length === 0 ? (
+              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center', border: `1px solid #F0F0F0` }}>
+                <Box mb="md">
+                  <IconMessage2 size={48} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.5 }} />
+                </Box>
+                <Text size="lg" fw={600} c={CHARCOAL} mb="xs">
+                  No Legal Advice Requests
+                </Text>
+                <Text size="sm" c={MUTED_OLIVE} mb="lg">
+                  Cases marked for legal advice only will appear here.
+                </Text>
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+                  <AdviceCard key={dummyLegalAdvice.id} item={dummyLegalAdvice} />
+                </SimpleGrid>
+              </Paper>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+                {legalAdviceData.map((item) => (
+                  <AdviceCard key={item.id} item={item} />
+                ))}
+              </SimpleGrid>
+            )}
           </Tabs.Panel>
 
           {/* --- TAB 3: REPRESENTATION (TRACK CASE) --- */}
@@ -1230,14 +1614,67 @@ export default function AppointmentTracker() {
               </Group>
             </Paper>
             
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
-              {representationData.map((item) => (
-                <RepresentationCard key={item.id} item={item} />
-              ))}
-            </SimpleGrid>
+            {representationData.length === 0 ? (
+              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center', border: `1px solid #F0F0F0` }}>
+                <Box mb="md">
+                  <IconScale size={48} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.5 }} />
+                </Box>
+                <Text size="lg" fw={600} c={CHARCOAL} mb="xs">
+                  No Active Court Cases
+                </Text>
+                <Text size="sm" c={MUTED_OLIVE} mb="lg">
+                  Accepted court representation cases will appear here.
+                </Text>
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+                  <RepresentationCard key={dummyCourtCase.id} item={dummyCourtCase} />
+                </SimpleGrid>
+              </Paper>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+                {representationData.map((item) => (
+                  <RepresentationCard key={item.id} item={item} />
+                ))}
+              </SimpleGrid>
+            )}
           </Tabs.Panel>
 
-          {/* --- TAB 4: DOCUMENTS --- */}
+          {/* --- TAB 4: REJECTED CASES --- */}
+          <Tabs.Panel value="rejected">
+            <Paper shadow="xs" p="md" mb="xl" radius="lg" style={{ border: `1px solid #F0F0F0`, backgroundColor: '#FEE2E2' }}>
+              <Group gap="sm">
+                <IconAlertCircle size={20} color="#DC2626" />
+                <Text size="sm" c="#991B1B" fw={500}>
+                  Cases that were reviewed and rejected by the director
+                </Text>
+              </Group>
+            </Paper>
+            
+            {loadingAppointments ? (
+              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center' }}>
+                <Text c={MUTED_OLIVE}>Loading rejected cases...</Text>
+              </Paper>
+            ) : rejectedData.length === 0 ? (
+              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center', border: `1px solid #F0F0F0` }}>
+                <Box mb="md">
+                  <IconX size={48} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.5 }} />
+                </Box>
+                <Text size="lg" fw={600} c={CHARCOAL} mb="xs">
+                  No Rejected Cases
+                </Text>
+                <Text size="sm" c={MUTED_OLIVE}>
+                  Cases rejected by the director will appear here.
+                </Text>
+              </Paper>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+                {rejectedData.map((item) => (
+                  <ForAppointmentCard key={item.id} item={item} />
+                ))}
+              </SimpleGrid>
+            )}
+          </Tabs.Panel>
+
+          {/* --- TAB 5: DOCUMENTS --- */}
           <Tabs.Panel value="documents">
             <Paper shadow="xs" p="md" mb="xl" radius="lg" style={{ border: `1px solid #F0F0F0` }}>
               <Group gap="sm">
@@ -1255,6 +1692,379 @@ export default function AppointmentTracker() {
           </Tabs.Panel>
         </Tabs>
       </Container>
-    </Box>
+      </Box>
+
+      {/* Appointment Details Modal */}
+      <Modal
+        opened={appointmentModalOpened}
+        onClose={() => setAppointmentModalOpened(false)}
+        title={
+          <Text fw={700} size="xl" c={PRIMARY_BROWN}>
+            Appointment Receipt
+          </Text>
+        }
+        size="lg"
+        radius="lg"
+      >
+        {loadingAppointment ? (
+          <Center py="xl">
+            <Loader size="lg" color={PRIMARY_BROWN} />
+          </Center>
+        ) : appointmentDetails ? (
+          <Stack gap="lg" mt="lg">
+            {/* Header Badge */}
+            <Paper p="md" radius="md" style={{ backgroundColor: `${PRIMARY_GOLD}15`, border: `1px solid ${PRIMARY_GOLD}` }}>
+              <Group justify="space-between" align="center">
+                <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+                  {appointmentDetails.caseDetails?.appointmentType || appointmentDetails.personal?.legalMatter || 'Appointment'}
+                </Text>
+                <Badge size="lg" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
+                  {appointmentDetails.status || 'For Appointment'}
+                </Badge>
+              </Group>
+              <Text size="sm" c={MUTED_OLIVE} mt="xs">
+                Case #{appointmentDetails.caseNumber || 'N/A'}
+              </Text>
+            </Paper>
+
+            {/* Personal Details */}
+            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+              <Title order={4} mb="md" c={CHARCOAL}>Personal Details</Title>
+              <Divider mb="md" color="#F0F0F0" />
+              <Grid gutter="md">
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.fullName || appointmentDetails.name || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.age || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.birthday || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.sex || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.civilStatus || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.contactNumber || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presentAddress || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.permanentAddress || 'N/A'}</Text>
+                </Grid.Col>
+              </Grid>
+            </Paper>
+
+            {/* Schedule Details */}
+            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+              <Title order={4} mb="md" c={CHARCOAL}>Schedule Details</Title>
+              <Divider mb="md" color="#F0F0F0" />
+              <Grid gutter="md">
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>
+                    {appointmentDetails.appointedDate ? new Date(appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    }) : 'N/A'}
+                  </Text>
+                </Grid.Col>
+              </Grid>
+            </Paper>
+
+            {/* Financial Details */}
+            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+              <Title order={4} mb="md" c={CHARCOAL}>Financial Details</Title>
+              <Divider mb="md" color="#F0F0F0" />
+              <Grid gutter="md">
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income Source</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>
+                    {appointmentDetails.monthlyIncome ? `₱${Number(appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
+                  </Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.natureOfWork || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.employerName || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.employerAddress || 'N/A'}</Text>
+                </Grid.Col>
+              </Grid>
+            </Paper>
+
+            {/* Case Details */}
+            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+              <Title order={4} mb="md" c={CHARCOAL}>Case Details</Title>
+              <Divider mb="md" color="#F0F0F0" />
+              <Grid gutter="md">
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.partyRepresented || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Number</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.caseNumber || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.venue || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presentStage || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Division</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtDivision || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Address</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtAddress || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presidingOfficer || 'N/A'}</Text>
+                </Grid.Col>
+              </Grid>
+            </Paper>
+          </Stack>
+        ) : (
+          <Text c="dimmed" ta="center" py="xl">
+            No appointment details available
+          </Text>
+        )}
+      </Modal>
+
+      {/* Review Modal */}
+      <Modal
+        opened={reviewModalOpened}
+        onClose={() => setReviewModalOpened(false)}
+        title={<Title order={3} c={PRIMARY_BROWN}>Recommendation for Action</Title>}
+        size="xl"
+        styles={{
+          title: { fontWeight: 700 },
+          body: { maxHeight: '70vh', overflowY: 'auto' },
+        }}
+      >
+        {loadingReview ? (
+          <Center py="xl">
+            <Loader size="lg" color={PRIMARY_BROWN} />
+          </Center>
+        ) : reviewData ? (
+          <Stack gap="lg">
+            <Stepper 
+              active={activeStep} 
+              color={PRIMARY_BROWN}
+              completedIcon={<IconCircleCheck size={20} />}
+              styles={{
+                stepLabel: { fontWeight: 600, fontSize: '14px' },
+                stepDescription: { fontSize: '12px', color: MUTED_OLIVE },
+              }}
+            >
+              <Stepper.Step label="Interview" description="Client & Evidence" />
+              <Stepper.Step label="Action" description="Lawyer & Director" />
+            </Stepper>
+
+            <Divider />
+
+            {/* Step 0: Interview Info */}
+            {activeStep === 0 && (
+              <Paper p="md" withBorder>
+                <Title order={4} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
+                <SimpleGrid cols={2} spacing="sm" mb="md">
+                  <Box>
+                    <Text size="xs" c="dimmed">Date of Interview</Text>
+                    <Text fw={500}>{reviewData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Date Submitted</Text>
+                    <Text fw={500}>{reviewData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Client's Name</Text>
+                    <Text fw={500}>{reviewData.content?.interviewInfo?.clientName || '-'}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
+                    <Text fw={500}>{reviewData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
+                  </Box>
+                </SimpleGrid>
+                <Divider my="md" />
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Fast Facts</Text>
+                  <Text size="sm">{reviewData.content?.interviewInfo?.fastFacts || '-'}</Text>
+                </Box>
+                <Divider my="md" />
+                {/* Evidence tables */}
+                {reviewData.content?.interviewInfo?.clientEvidence && reviewData.content.interviewInfo.clientEvidence.length > 0 && (
+                  <Box mb="md">
+                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Evidence on Hand / Available for the Client(s)</Text>
+                    <Table withTableBorder withColumnBorders>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Type/Description</Table.Th>
+                          <Table.Th>Author/Source</Table.Th>
+                          <Table.Th>Purpose</Table.Th>
+                          <Table.Th>Issues</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {reviewData.content.interviewInfo.clientEvidence.map((ev, idx) => (
+                          <Table.Tr key={idx}>
+                            <Table.Td>{ev.type || '-'}</Table.Td>
+                            <Table.Td>{ev.author || '-'}</Table.Td>
+                            <Table.Td>{ev.purpose || '-'}</Table.Td>
+                            <Table.Td>{ev.issues || '-'}</Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </Box>
+                )}
+                {reviewData.content?.interviewInfo?.adversePartyEvidence && reviewData.content.interviewInfo.adversePartyEvidence.length > 0 && (
+                  <Box mb="md">
+                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Evidence on Hand / Available for the Adverse Party(ies)</Text>
+                    <Table withTableBorder withColumnBorders>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Type/Description</Table.Th>
+                          <Table.Th>Author/Source</Table.Th>
+                          <Table.Th>Purpose</Table.Th>
+                          <Table.Th>Issues</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {reviewData.content.interviewInfo.adversePartyEvidence.map((ev, idx) => (
+                          <Table.Tr key={idx}>
+                            <Table.Td>{ev.type || '-'}</Table.Td>
+                            <Table.Td>{ev.author || '-'}</Table.Td>
+                            <Table.Td>{ev.purpose || '-'}</Table.Td>
+                            <Table.Td>{ev.issues || '-'}</Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </Box>
+                )}
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
+                  <Text size="sm">{reviewData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                </Box>
+                <Box>
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
+                  <Text size="sm">{reviewData.content?.interviewInfo?.legalOpinion || '-'}</Text>
+                </Box>
+              </Paper>
+            )}
+
+            {/* Step 1: Action Info */}
+            {activeStep === 1 && (
+              <Paper p="md" withBorder>
+                <Title order={4} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
+                  <Text size="sm">{reviewData.content?.actionInfo?.supervisingComment || '-'}</Text>
+                </Box>
+                <Divider my="md" />
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
+                  <Badge 
+                    size="lg" 
+                    color={
+                      reviewData.decision === 'accepted' ? 'green' : 
+                      reviewData.decision === 'rejected' ? 'red' : 
+                      'yellow'
+                    }
+                  >
+                    {(reviewData.decision || 'pending').toUpperCase()}
+                  </Badge>
+                </Box>
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
+                  <Text size="sm">{reviewData.content?.actionInfo?.decisionNote || '-'}</Text>
+                </Box>
+                <Divider my="md" />
+                <SimpleGrid cols={2} spacing="sm">
+                  <Box>
+                    <Text size="xs" c="dimmed">Assigned To</Text>
+                    <Text fw={500}>{reviewData.content?.actionInfo?.assignedTo || '-'}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Supervising Lawyer</Text>
+                    <Text fw={500}>{reviewData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Director's Signature</Text>
+                    <Text fw={500}>{reviewData.content?.actionInfo?.directorSignature || '-'}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Signature Date</Text>
+                    <Text fw={500}>{reviewData.content?.actionInfo?.signatureDate || '-'}</Text>
+                  </Box>
+                </SimpleGrid>
+              </Paper>
+            )}
+
+            <Divider />
+            <Group justify="space-between">
+              {activeStep > 0 ? (
+                <Button 
+                  variant="outline" 
+                  leftSection={<IconChevronLeft size={20} />}
+                  onClick={() => setActiveStep(activeStep - 1)}
+                  size="sm"
+                  styles={{
+                    root: { borderColor: '#E0E0E0', color: MUTED_OLIVE, '&:hover': { backgroundColor: THEMED_LIGHT_BG } },
+                  }}
+                >
+                  Previous
+                </Button>
+              ) : (
+                <Box />
+              )}
+              
+              {activeStep < 1 && (
+                <Button 
+                  rightSection={<IconChevronRight size={20} />}
+                  onClick={() => setActiveStep(activeStep + 1)}
+                  size="sm"
+                  style={{ backgroundColor: PRIMARY_BROWN }}
+                >
+                  Next Step
+                </Button>
+              )}
+            </Group>
+          </Stack>
+        ) : (
+          <Text c="dimmed" ta="center" py="xl">
+            No review data available
+          </Text>
+        )}
+      </Modal>
+    </>
   );
 }

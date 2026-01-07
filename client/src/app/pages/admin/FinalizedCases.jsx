@@ -24,7 +24,7 @@ import {
   Stepper,
   Select,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN, NATURE_OF_CASE_OPTIONS, CATEGORY_COLORS } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
@@ -436,18 +436,33 @@ export default function FinalizedCases() {
             View Review
           </Button>
           {f.decision === 'accepted' && (
-            <Button
-              size="xs"
-              variant="filled"
-              style={{ backgroundColor: PRIMARY_BROWN }}
-              leftSection={<IconFileText size={16} />}
-              onClick={(e) => {
-                e.stopPropagation();
-                openCaseRecordModal(f);
-              }}
-            >
-              Case Record
-            </Button>
+            <>
+              <Button
+                size="xs"
+                variant="filled"
+                style={{ backgroundColor: PRIMARY_BROWN }}
+                leftSection={<IconFileText size={16} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openCaseRecordModal(f);
+                }}
+              >
+                Case Record
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                leftSection={<IconMessageCircle size={16} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Pass the caseId string (e.g., "case-26-0001") to find the case in messenger
+                  navigate('/admin/chat', { state: { caseNumber: f.caseId } });
+                }}
+              >
+                Chat
+              </Button>
+            </>
           )}
           <IconChevronRight size={16} color="#999" />
         </Group>
