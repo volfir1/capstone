@@ -70,20 +70,20 @@ const landingStyles = StyleSheet.create({
   hero: {
     paddingHorizontal: 20,
     paddingVertical: 40,
-    backgroundColor: '#FFFFFF',
   },
   heroTitle: {
     fontSize: isSmallDevice ? 28 : 34,
     fontWeight: '700',
-    color: CHARCOAL,
+    color: '#FFFFFF',
     marginBottom: 12,
     lineHeight: isSmallDevice ? 34 : 42,
   },
   heroSubtitle: {
     fontSize: 16,
-    color: MUTED_OLIVE,
+    color: '#FFFFFF',
     marginBottom: 28,
     lineHeight: 24,
+    opacity: 0.9,
   },
   ctaButton: {
     backgroundColor: PRIMARY_BROWN,
@@ -113,13 +113,13 @@ const landingStyles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: PRIMARY_GOLD,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     flexDirection: 'row',
     gap: 8,
   },
   secondaryButtonText: {
-    color: PRIMARY_GOLD,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -361,6 +361,223 @@ const landingStyles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  // Hero Background & Overlay
+  heroBackground: {
+    minHeight: 600,
+  },
+  heroOverlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    minHeight: 600,
+    justifyContent: 'center',
+  },
+  sdgBadge: {
+    backgroundColor: PRIMARY_GOLD,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginBottom: 16,
+  },
+  sdgBadgeText: {
+    color: PRIMARY_BROWN,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  heroTitleAccent: {
+    color: PRIMARY_GOLD,
+  },
+  heroButtons: {
+    gap: 12,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 32,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  heroStatItem: {
+    alignItems: 'center',
+  },
+  heroStatNumber: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: PRIMARY_GOLD,
+    marginBottom: 4,
+  },
+  heroStatLabel: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+
+  // Section Badge
+  sectionBadge: {
+    backgroundColor: PRIMARY_GOLD,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  sectionBadgeText: {
+    color: PRIMARY_BROWN,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  sectionDescription: {
+    fontSize: 15,
+    color: MUTED_OLIVE,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
+    paddingHorizontal: 10,
+  },
+
+  // How It Works Section
+  howItWorksSection: {
+    backgroundColor: THEMED_LIGHT_BG,
+  },
+  stepsContainer: {
+    gap: 16,
+  },
+  stepCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  stepBadge: {
+    backgroundColor: PRIMARY_GOLD,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  stepNumber: {
+    color: PRIMARY_BROWN,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stepIconContainer: {
+    width: 56,
+    height: 56,
+    backgroundColor: THEMED_LIGHT_BG,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  stepTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: CHARCOAL,
+    marginBottom: 8,
+  },
+  stepDescription: {
+    fontSize: 14,
+    color: MUTED_OLIVE,
+    lineHeight: 21,
+  },
+
+  // Impact Section
+  impactList: {
+    gap: 16,
+    marginBottom: 32,
+  },
+  impactItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  impactCheckIcon: {
+    width: 24,
+    height: 24,
+    backgroundColor: THEMED_LIGHT_BG,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  impactContent: {
+    flex: 1,
+  },
+  impactTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: CHARCOAL,
+    marginBottom: 4,
+  },
+  impactDescription: {
+    fontSize: 14,
+    color: MUTED_OLIVE,
+    lineHeight: 21,
+  },
+  impactStats: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  impactStatCard: {
+    flex: 1,
+    backgroundColor: THEMED_LIGHT_BG,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  impactStatNumber: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: PRIMARY_GOLD,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  impactStatLabel: {
+    fontSize: 12,
+    color: MUTED_OLIVE,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+
+  // CTA Section Updates
+  ctaIconContainer: {
+    marginBottom: 16,
+  },
+  ctaButtonSecondary: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 2,
+    borderColor: PRIMARY_GOLD,
+    marginTop: 12,
+  },
+  ctaButtonSecondaryText: {
+    color: PRIMARY_GOLD,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Footer Updates
+  footerDescription: {
+    fontSize: 14,
+    color: THEMED_LIGHT_BG,
+    textAlign: 'center',
+    marginBottom: 28,
+    lineHeight: 22,
   },
 });
 

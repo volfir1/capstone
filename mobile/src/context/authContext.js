@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }) => {
                 setUserData(newUserData.data);
                 console.log("New user created and loaded:", newUserData.data);
               } catch (registerError) {
-                console.error("Failed to register user:", registerError);
+                console.log("Registration attempt failed (this may be expected):", registerError.response?.status);
                 if (
                   registerError.response?.data?.message ===
                   "User already exists"

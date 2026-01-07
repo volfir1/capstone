@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ImageBackground } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import styles from '@assets/styles/landingStyles';
@@ -15,13 +15,28 @@ const FeatureCard = memo(({ icon, title, description }) => (
   </View>
 ));
 
-const ServiceCard = memo(({ icon, title, description }) => (
-  <View style={styles.serviceCard}>
-    <View style={styles.serviceIconContainer}>
-      <Ionicons name={icon} size={24} color="#FFFFFF" />
+const StepCard = memo(({ icon, title, description, stepNumber }) => (
+  <View style={styles.stepCard}>
+    <View style={styles.stepBadge}>
+      <Text style={styles.stepNumber}>Step {stepNumber}</Text>
     </View>
-    <Text style={styles.serviceTitle}>{title}</Text>
-    <Text style={styles.serviceDescription}>{description}</Text>
+    <View style={styles.stepIconContainer}>
+      <Ionicons name={icon} size={28} color="#C4AB7D" />
+    </View>
+    <Text style={styles.stepTitle}>{title}</Text>
+    <Text style={styles.stepDescription}>{description}</Text>
+  </View>
+));
+
+const ImpactItem = memo(({ title, description }) => (
+  <View style={styles.impactItem}>
+    <View style={styles.impactCheckIcon}>
+      <Ionicons name="checkmark" size={16} color="#5D4E37" />
+    </View>
+    <View style={styles.impactContent}>
+      <Text style={styles.impactTitle}>{title}</Text>
+      <Text style={styles.impactDescription}>{description}</Text>
+    </View>
   </View>
 ));
 
@@ -35,27 +50,77 @@ const StatCard = memo(({ number, label }) => (
 export default function LandingPage() {
   const features = [
     {
-      icon: "shield-checkmark-outline",
-      title: "Expert Legal Advice",
-      description: "Professional consultation from experienced attorneys"
-    },
-    {
-      icon: "document-text-outline",
-      title: "Document Preparation",
-      description: "Comprehensive legal document drafting services"
+      icon: "language-outline",
+      title: "Multilingual & Accessible",
+      description: "Access legal forms and guidance in English, Filipino, and major regional languages"
     },
     {
       icon: "people-outline",
-      title: "Client-Focused",
-      description: "Personalized legal solutions for your needs"
+      title: "Connect with PAO Lawyers",
+      description: "Schedule remote consultations with Public Attorney's Office volunteer lawyers"
+    },
+    {
+      icon: "bulb-outline",
+      title: "AI-Powered Legal Guidance",
+      description: "Our intelligent system suggests applicable laws and assesses case severity"
+    },
+    {
+      icon: "document-text-outline",
+      title: "Secure Case Tracking",
+      description: "Monitor your case status in real-time through our secure platform"
+    },
+    {
+      icon: "folder-outline",
+      title: "Digital Document Submission",
+      description: "Safely digitize and submit legal documents with certified e-submission"
+    },
+    {
+      icon: "wifi-outline",
+      title: "Offline-Capable Platform",
+      description: "Access core features including legal forms and case tracking even without stable internet"
     }
   ];
 
-  const services = [
-    { id: 1, title: "Family Law", icon: "home-outline", description: "Divorce, custody & family matters" },
-    { id: 2, title: "Business Law", icon: "briefcase-outline", description: "Corporate & commercial services" },
-    { id: 3, title: "Real Estate", icon: "business-outline", description: "Property transactions & disputes" },
-    { id: 4, title: "Criminal Defense", icon: "shield-outline", description: "Professional defense representation" }
+  const steps = [
+    {
+      icon: "document-text-outline",
+      title: "File Your Report",
+      description: "Start by reporting your legal concern through our integrated barangay-level blotter system"
+    },
+    {
+      icon: "people-outline",
+      title: "Connect & Consult",
+      description: "Get matched with a verified PAO volunteer lawyer based on your case type"
+    },
+    {
+      icon: "shield-checkmark-outline",
+      title: "Track Progress",
+      description: "Monitor your case through our secure platform with real-time updates"
+    },
+    {
+      icon: "hammer-outline",
+      title: "Receive Resolution",
+      description: "Access AI-powered guidance while your lawyer works toward resolving your case"
+    }
+  ];
+
+  const impactItems = [
+    {
+      title: "Eliminates Geographic Barriers",
+      description: "No need to travel to urban centers for legal consultations"
+    },
+    {
+      title: "Reduces Legal Costs",
+      description: "Free consultations and digital document processing"
+    },
+    {
+      title: "Increases Legal Awareness",
+      description: "Educational resources in multiple languages"
+    },
+    {
+      title: "Strengthens Local Governance",
+      description: "Barangay-level integration for transparent justice"
+    }
   ];
 
   return (
@@ -65,11 +130,11 @@ export default function LandingPage() {
       removeClippedSubviews={true}
       maxToRenderPerBatch={10}
     >
-      {/* Compact Header */}
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.logoContainer}>
-            <Ionicons name="library-outline" size={24} color="#C4AB7D" />
+            <Ionicons name="scale-outline" size={24} color="#C4AB7D" />
             <Text style={styles.logo}>
               Just<Text style={styles.logoAccent}>Reach</Text>
             </Text>
@@ -82,36 +147,73 @@ export default function LandingPage() {
         </View>
       </View>
 
-      {/* Hero Section */}
-      <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Professional Legal Services</Text>
-        <Text style={styles.heroSubtitle}>
-          Connect with experienced attorneys and get the legal help you need
-        </Text>
-        <Link href="/auth/signup" asChild>
-          <TouchableOpacity style={styles.ctaButton}>
-            <Text style={styles.ctaButtonText}>Get Started</Text>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        </Link>
-        <Link href="/auth/attorneyLogin" asChild>
-          <TouchableOpacity style={styles.secondaryButton}>
-            <Ionicons name="briefcase-outline" size={18} color="#C4AB7D" />
-            <Text style={styles.secondaryButtonText}>Attorney Login</Text>
-          </TouchableOpacity>
-        </Link>
-      </View>
+      {/* Hero Section with Background Image */}
+      <ImageBackground 
+        source={{ uri: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=1920&q=80' }}
+        style={styles.heroBackground}
+        resizeMode="cover"
+      >
+        <View style={styles.heroOverlay}>
+          <View style={styles.hero}>
+            <View style={styles.sdgBadge}>
+              <Text style={styles.sdgBadgeText}>Supporting SDG 16: Peace, Justice & Strong Institutions</Text>
+            </View>
+            
+            <Text style={styles.heroTitle}>
+              Bridging the Justice Gap for{' '}
+              <Text style={styles.heroTitleAccent}>Rural Filipinos</Text>
+            </Text>
+            
+            <Text style={styles.heroSubtitle}>
+              JUSTREACH brings legal services directly to underserved communities across the Philippines. 
+              Access multilingual legal guidance, connect with PAO lawyers, and track your case progress—all 
+              from your mobile device, even with limited internet connectivity.
+            </Text>
+            
+            <View style={styles.heroButtons}>
+              <Link href="/auth/signup" asChild>
+                <TouchableOpacity style={styles.ctaButton}>
+                  <Text style={styles.ctaButtonText}>Get Legal Assistance</Text>
+                </TouchableOpacity>
+              </Link>
+              <TouchableOpacity 
+                style={styles.secondaryButton}
+                onPress={() => router.push('/ai-chatbot')}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.secondaryButtonText}>Try AI Chatbot</Text>
+              </TouchableOpacity>
+            </View>
 
-      {/* Stats Section */}
-      <View style={styles.statsSection}>
-        <StatCard number="500+" label="Cases Won" />
-        <StatCard number="1000+" label="Happy Clients" />
-        <StatCard number="25+" label="Expert Lawyers" />
-      </View>
+            {/* Stats Row */}
+            <View style={styles.heroStats}>
+              <View style={styles.heroStatItem}>
+                <Text style={styles.heroStatNumber}>50K+</Text>
+                <Text style={styles.heroStatLabel}>Users Served</Text>
+              </View>
+              <View style={styles.heroStatItem}>
+                <Text style={styles.heroStatNumber}>24/7</Text>
+                <Text style={styles.heroStatLabel}>Platform Access</Text>
+              </View>
+              <View style={styles.heroStatItem}>
+                <Text style={styles.heroStatNumber}>3+</Text>
+                <Text style={styles.heroStatLabel}>Languages</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </ImageBackground>
 
       {/* Features Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Why Choose Us</Text>
+        <View style={styles.sectionBadge}>
+          <Text style={styles.sectionBadgeText}>Platform Features</Text>
+        </View>
+        <Text style={styles.sectionTitle}>Comprehensive Legal Services Designed for Filipino Communities</Text>
+        <Text style={styles.sectionDescription}>
+          JUSTREACH combines technology and legal expertise to overcome traditional barriers to 
+          justice—cost, distance, language, and complexity.
+        </Text>
         <View style={styles.featuresContainer}>
           {features.map((feature, index) => (
             <FeatureCard key={index} {...feature} />
@@ -119,58 +221,99 @@ export default function LandingPage() {
         </View>
       </View>
 
-      {/* Services Section */}
-      <View style={[styles.section, styles.servicesSection]}>
-        <Text style={styles.sectionTitle}>Our Services</Text>
-        <View style={styles.servicesGrid}>
-          {services.map((service) => (
-            <ServiceCard key={service.id} {...service} />
+      {/* How It Works Section */}
+      <View style={[styles.section, styles.howItWorksSection]}>
+        <View style={styles.sectionBadge}>
+          <Text style={styles.sectionBadgeText}>Simple Process</Text>
+        </View>
+        <Text style={styles.sectionTitle}>Get Justice in 4 Simple Steps</Text>
+        <Text style={styles.sectionDescription}>
+          We've streamlined the legal assistance process to make it accessible, 
+          transparent, and efficient for everyone.
+        </Text>
+        <View style={styles.stepsContainer}>
+          {steps.map((step, index) => (
+            <StepCard key={index} {...step} stepNumber={index + 1} />
           ))}
+        </View>
+      </View>
+
+      {/* Impact Section */}
+      <View style={styles.section}>
+        <View style={styles.sectionBadge}>
+          <Text style={styles.sectionBadgeText}>Our Impact</Text>
+        </View>
+        <Text style={styles.sectionTitle}>Empowering Communities Through Technology</Text>
+        <Text style={styles.sectionDescription}>
+          JUSTREACH addresses the critical justice gap in rural Philippines by decentralizing 
+          legal services through mobile and web platforms.
+        </Text>
+        <View style={styles.impactList}>
+          {impactItems.map((item, index) => (
+            <ImpactItem key={index} {...item} />
+          ))}
+        </View>
+        
+        {/* Impact Stats */}
+        <View style={styles.impactStats}>
+          <View style={styles.impactStatCard}>
+            <Text style={styles.impactStatNumber}>63%</Text>
+            <Text style={styles.impactStatLabel}>Of PDLs lack timely trials—we're changing that</Text>
+          </View>
+          <View style={styles.impactStatCard}>
+            <Text style={styles.impactStatNumber}>85%</Text>
+            <Text style={styles.impactStatLabel}>Reduction in travel costs for rural clients</Text>
+          </View>
         </View>
       </View>
 
       {/* CTA Section */}
       <View style={styles.ctaSection}>
-        <Ionicons name="hammer-outline" size={48} color="#C4AB7D" style={styles.ctaIcon} />
-        <Text style={styles.ctaTitle}>Ready to Get Legal Help?</Text>
+        <View style={styles.ctaIconContainer}>
+          <Ionicons name="hammer-outline" size={48} color="#C4AB7D" />
+        </View>
+        <Text style={styles.ctaTitle}>Ready to Access Justice?</Text>
         <Text style={styles.ctaDescription}>
-          Join hundreds of satisfied clients today
+          Join thousands of Filipinos who have accessed legal services through JUSTREACH
         </Text>
         <Link href="/auth/signup" asChild>
           <TouchableOpacity style={styles.ctaButtonLarge}>
-            <Text style={styles.ctaButtonLargeText}>Start Your Case</Text>
-            <Ionicons name="arrow-forward" size={20} color="#2C2C2C" />
+            <Text style={styles.ctaButtonLargeText}>Get Started Now</Text>
+            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </Link>
+        <Link href="/auth/attorneyLogin" asChild>
+          <TouchableOpacity style={styles.ctaButtonSecondary}>
+            <Ionicons name="briefcase-outline" size={18} color="#C4AB7D" />
+            <Text style={styles.ctaButtonSecondaryText}>Attorney Login</Text>
           </TouchableOpacity>
         </Link>
       </View>
 
-      {/* Compact Footer */}
+      {/* Footer */}
       <View style={styles.footer}>
         <View style={styles.footerHeader}>
-          <Ionicons name="library-outline" size={24} color="#C4AB7D" />
+          <Ionicons name="scale-outline" size={24} color="#C4AB7D" />
           <Text style={styles.footerLogo}>
             Just<Text style={styles.footerLogoAccent}>Reach</Text>
           </Text>
         </View>
         
+        <Text style={styles.footerDescription}>
+          Accessible Legal Services Network for Rural Philippines
+        </Text>
+        
         <View style={styles.footerLinks}>
           <View style={styles.footerColumn}>
-            <Text style={styles.footerTitle}>Services</Text>
-            <Text style={styles.footerLink}>Family Law</Text>
-            <Text style={styles.footerLink}>Business Law</Text>
-            <Text style={styles.footerLink}>Real Estate</Text>
-            <Text style={styles.footerLink}>Criminal Defense</Text>
-          </View>
-          <View style={styles.footerColumn}>
-            <Text style={styles.footerTitle}>Company</Text>
+            <Text style={styles.footerTitle}>Quick Links</Text>
             <Text style={styles.footerLink}>About Us</Text>
-            <Text style={styles.footerLink}>Contact</Text>
-            <Text style={styles.footerLink}>Careers</Text>
+            <Text style={styles.footerLink}>How It Works</Text>
+            <Text style={styles.footerLink}>Impact</Text>
           </View>
           <View style={styles.footerColumn}>
             <Text style={styles.footerTitle}>Legal</Text>
-            <Text style={styles.footerLink}>Privacy</Text>
-            <Text style={styles.footerLink}>Terms</Text>
+            <Text style={styles.footerLink}>Privacy Policy</Text>
+            <Text style={styles.footerLink}>Terms of Service</Text>
             <Text style={styles.footerLink}>Disclaimer</Text>
           </View>
         </View>
