@@ -113,13 +113,6 @@ const Home = () => {
       color: PRIMARY_GOLD,
     },
     {
-      icon: IconMessageCircle,
-      title: "Chat with Attorney",
-      description: "Get instant support",
-      path: "/chat",
-      color: ACCENT_TAN,
-    },
-    {
       icon: IconSettings,
       title: "Account Settings",
       description: "Manage your profile",
@@ -280,64 +273,8 @@ const Home = () => {
         </SimpleGrid>
 
         <Grid>
-          {/* Quick Actions */}
-          <Grid.Col span={{ base: 12, md: 7 }}>
-            <Paper shadow="xs" p="xl" radius="lg" bg="white" h="100%">
-              <Group mb="xl" justify="space-between">
-                <Box>
-                  <Title order={3} c={CHARCOAL} mb={4}>Quick Actions</Title>
-                  <Text size="sm" c={MUTED_OLIVE}>Get started with common tasks</Text>
-                </Box>
-              </Group>
-              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                {quickActions.map((action, index) => (
-                  <Paper
-                    key={index}
-                    p="lg"
-                    radius="md"
-                    style={{
-                      border: '1px solid #F0F0F0',
-                      cursor: 'pointer',
-                      background: 'white',
-                    }}
-                    onClick={() => navigate(action.path)}
-                  >
-                    <Group justify="space-between" mb="sm">
-                      <Box
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: '10px',
-                          background: action.color,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <action.icon size={20} color="white" stroke={2.5} />
-                      </Box>
-                      <ActionIcon 
-                        variant="subtle" 
-                        color="gray"
-                        size="sm"
-                      >
-                        <IconChevronRight size={18} />
-                      </ActionIcon>
-                    </Group>
-                    <Text fw={600} c={CHARCOAL} mb={4}>
-                      {action.title}
-                    </Text>
-                    <Text size="xs" c={MUTED_OLIVE}>
-                      {action.description}
-                    </Text>
-                  </Paper>
-                ))}
-              </SimpleGrid>
-            </Paper>
-          </Grid.Col>
-
           {/* Account Information */}
-          <Grid.Col span={{ base: 12, md: 5 }}>
+          <Grid.Col span={{ base: 12, md: 12 }}>
             <Paper shadow="xs" p="xl" radius="lg" bg="white" h="100%">
               <Group mb="xl" justify="space-between">
                 <Box>

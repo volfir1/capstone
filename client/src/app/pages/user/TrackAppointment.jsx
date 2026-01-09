@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   Tabs, 
   Card, 
   Text, 
@@ -26,6 +26,8 @@ import {
   Textarea,
   Table,
   TextInput,
+  ScrollArea,
+  Avatar,
 } from '@mantine/core';
 import { 
   IconGavel, 
@@ -47,6 +49,8 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconCircleCheck,
+  IconMessageCircle,
+  IconSend,
 } from '@tabler/icons-react';
 import { useAuth } from '@/context/authContext';
 import { CaseInformationSection } from '@/app/pages/other/CaseInformationSection';
@@ -86,6 +90,15 @@ export default function AppointmentTracker() {
   const [reviewData, setReviewData] = useState(null)
   const [loadingReview, setLoadingReview] = useState(false)
   const [activeStep, setActiveStep] = useState(0)
+  
+  // Chat Modal states
+  const [chatModalOpened, setChatModalOpened] = useState(false)
+  const [currentChatCase, setCurrentChatCase] = useState(null)
+  const [chatMessages, setChatMessages] = useState([])
+  const [newMessage, setNewMessage] = useState('')
+  const [loadingChat, setLoadingChat] = useState(false)
+  const [sendingMessage, setSendingMessage] = useState(false)
+  const chatViewportRef = useRef(null)
 
   useEffect(() => {
     // Wait for auth to load and user to be available
@@ -171,6 +184,7 @@ export default function AppointmentTracker() {
               caseId: d.caseId || d._id
             })
           } else if (status === 'court-case') {
+            console.log('Processing court-case item:', d._id, 'with caseId:', d.caseId);
             courtCasesList.push({
               ...baseItem,
               caseTitle: baseItem.purpose || 'Court Case',
@@ -204,9 +218,51 @@ export default function AppointmentTracker() {
         })
         
         if (mounted) {
+          // Fetch all case records for court cases
+          const courtCasesWithRecords = await Promise.all(
+            courtCasesList.map(async (item) => {
+              if (item.caseId) {
+                try {
+                  // First, get the finalize document by caseId to get its _id
+                  console.log('Fetching finalize document for caseId:', item.caseId);
+                  const finalizeResp = await apiClient.get(`/finalize/case/${item.caseId}`);
+                  console.log('Finalize response:', finalizeResp.data);
+                  
+                  if (finalizeResp.data && finalizeResp.data._id) {
+                    const finalizeId = finalizeResp.data._id;
+                    console.log('Got finalize _id:', finalizeId);
+                    
+                    // Now fetch the case record using the finalize document's _id
+                    const recordResp = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
+                    console.log(`Raw response for finalize ${finalizeId}:`, recordResp);
+                    const caseRecord = recordResp?.data?.data || recordResp?.data || null;
+                    console.log(`Case record for ${finalizeId}:`, caseRecord);
+                    if (caseRecord) {
+                      console.log(`Case record title: ${caseRecord.title}, nature: ${caseRecord.nature}`);
+                    }
+                    return { ...item, caseRecord };
+                  }
+                } catch (err) {
+                  console.error(`Error fetching case record for caseId ${item.caseId}:`, err);
+                  return { ...item, caseRecord: null };
+                }
+              }
+              return item;
+            })
+          );
+          
+          console.log('Court cases with records (final):', courtCasesWithRecords);
+          console.log('First court case item:', courtCasesWithRecords[0]);
+          if (courtCasesWithRecords[0]?.caseRecord) {
+            console.log('First case record details:', {
+              title: courtCasesWithRecords[0].caseRecord.title,
+              nature: courtCasesWithRecords[0].caseRecord.nature
+            });
+          }
+          
           setForAppointmentData(appointmentsList)
           setLegalAdviceData(legalAdviceList)
-          setRepresentationData(courtCasesList)
+          setRepresentationData(courtCasesWithRecords)
           setRejectedData(rejectedList)
         }
       } catch (err) {
@@ -373,6 +429,138 @@ export default function AppointmentTracker() {
     location: "Example Court",
     attorney: "Atty. Example"
   };
+
+  // Chat functions
+  const openChatModal = async (caseItem) => {
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      let caseDoc = null;
+
+      // The caseItem.caseId is actually the linkedCaseId from finalize document
+      // We need to find the Case document where linkedCaseId matches this value
+      if (caseItem.caseId) {
+        try {
+          // First, try to get the finalize document to find the actual Case _id
+          const finalizeResp = await apiClient.get(`/finalize/case/${caseItem.caseId}`);
+          if (finalizeResp.data && finalizeResp.data.linkedCaseId) {
+            // If finalize has linkedCaseId, fetch that Case document
+            const caseResp = await apiClient.get(`/cases/${finalizeResp.data.linkedCaseId}`);
+            if (caseResp.data) {
+              caseDoc = caseResp.data.data || caseResp.data;
+              console.log('Found existing case via finalize:', caseDoc);
+            }
+          }
+        } catch (err) {
+          console.log('Case not found:', err.message);
+        }
+      }
+
+      // If no case exists, we can't create it from customer side
+      // Only admin should create cases
+      if (!caseDoc) {
+        console.error('Case document not found. Admin must open chat first.');
+        const { notifications } = await import('@mantine/notifications');
+        notifications.show({
+          title: 'Chat Not Available',
+          message: 'The attorney must initiate the chat first. Please wait for them to contact you.',
+          color: 'yellow',
+        });
+        return;
+      }
+
+      // Open chat modal with the case
+      setCurrentChatCase({ ...caseItem, ...caseDoc });
+      setChatModalOpened(true);
+      await fetchChatMessages(caseDoc._id);
+      
+    } catch (error) {
+      console.error('Error opening chat:', error);
+      const { notifications } = await import('@mantine/notifications');
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to open chat',
+        color: 'red',
+      });
+    }
+  };
+
+  const fetchChatMessages = async (caseId) => {
+    if (!caseId) return;
+    
+    setLoadingChat(true);
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      console.log('Fetching messages for caseId:', caseId);
+      const response = await apiClient.get(`/chat/case/${caseId}`);
+      
+      console.log('Fetched messages response:', response.data);
+      if (response.data.success) {
+        console.log('Setting messages:', response.data.data);
+        console.log('First message:', response.data.data[0]);
+        setChatMessages(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      setChatMessages([]);
+    } finally {
+      setLoadingChat(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    // Use _id (the actual Case document ID) instead of caseId (the finalize linkedCaseId)
+    const actualCaseId = currentChatCase?._id || currentChatCase?.caseId;
+    if (!newMessage.trim() || !actualCaseId) return;
+    
+    setSendingMessage(true);
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      const response = await apiClient.post('/chat/send', {
+        caseId: actualCaseId,
+        message: newMessage.trim()
+      });
+      
+      if (response.data.success) {
+        setNewMessage('');
+        await fetchChatMessages(actualCaseId);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const closeChatModal = () => {
+    setChatModalOpened(false);
+    setCurrentChatCase(null);
+    setChatMessages([]);
+    setNewMessage('');
+  };
+
+  // Auto-refresh chat messages
+  useEffect(() => {
+    if (chatModalOpened && currentChatCase) {
+      const actualCaseId = currentChatCase._id || currentChatCase.caseId;
+      if (actualCaseId) {
+        const interval = setInterval(() => {
+          fetchChatMessages(actualCaseId);
+        }, 10000); // Refresh every 10 seconds
+        
+        return () => clearInterval(interval);
+      }
+    }
+  }, [chatModalOpened, currentChatCase]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (chatViewportRef.current && chatMessages.length > 0) {
+      chatViewportRef.current.scrollTo({ 
+        top: chatViewportRef.current.scrollHeight, 
+        behavior: 'smooth' 
+      });
+    }
+  }, [chatMessages]);
 
   const documentData = [
     {
@@ -1099,7 +1287,7 @@ export default function AppointmentTracker() {
         </Box>
         <Box style={{ flex: 1, minWidth: 0 }}>
           <Text fw={700} size="lg" c={CHARCOAL} mb={4} lineClamp={1}>
-            {item.caseTitle}
+            {item.caseRecord?.title || `Appointment for ${item.clientName || 'Case'}`}
           </Text>
           <Badge 
             size="sm" 
@@ -1115,7 +1303,7 @@ export default function AppointmentTracker() {
       <Paper 
         p="md" 
         radius="md" 
-        mb="md" 
+        mb="lg" 
         style={{ 
           background: `linear-gradient(135deg, ${THEMED_LIGHT_BG} 0%, white 100%)`,
           border: `1px solid ${PRIMARY_GOLD}30`,
@@ -1137,39 +1325,18 @@ export default function AppointmentTracker() {
             <IconGavel size={18} color={MUTED_OLIVE} />
           </Box>
           <Box style={{ flex: 1 }}>
-            <Text size="xs" c={MUTED_OLIVE} mb={2}>Current Stage</Text>
+            <Text size="xs" c={MUTED_OLIVE} mb={2}>Nature of the Case</Text>
             <Text fw={600} c={PRIMARY_BROWN} size="sm">
-              {item.stage}
+              {item.caseRecord?.nature || 'N/A'}
             </Text>
           </Box>
         </Group>
       </Paper>
-
-      <Stack gap="sm" mb="lg">
-        <Group gap="sm" wrap="nowrap">
-          <IconCalendarEvent size={16} color={CHARCOAL} style={{ flexShrink: 0 }} />
-          <Box>
-            <Text size="xs" c={MUTED_OLIVE}>Next Hearing</Text>
-            <Text size="sm" fw={600} c={CHARCOAL}>{item.nextDate}</Text>
-          </Box>
-        </Group>
-        <Group gap="sm" wrap="nowrap">
-          <IconMapPin size={16} color={CHARCOAL} style={{ flexShrink: 0 }} />
-          <Text size="sm" c={CHARCOAL}>{item.location}</Text>
-        </Group>
-        <Group gap="sm" wrap="nowrap">
-          <IconUser size={16} color={CHARCOAL} style={{ flexShrink: 0 }} />
-          <Box>
-            <Text size="xs" c={MUTED_OLIVE}>Handling Attorney</Text>
-            <Text size="sm" fw={600} c={CHARCOAL}>{item.attorney}</Text>
-          </Box>
-        </Group>
-      </Stack>
       
-      <Group gap="xs">
+      <Stack gap="sm">
         <Button 
           variant="filled" 
-          flex={1}
+          fullWidth
           size="md"
           rightSection={<IconArrowRight size={18} />}
           onClick={() => {
@@ -1189,22 +1356,38 @@ export default function AppointmentTracker() {
           {item.isRejected ? 'Case Rejected' : 'View Case Folder'}
         </Button>
         {item.caseId && !item.isRejected && (
-          <Button 
-            variant="outline"
-            onClick={() => openReviewModal(item.caseId)}
-            flex={1}
-            size="md"
-            leftSection={<IconFileText size={18} />}
-            style={{ 
-              borderColor: PRIMARY_BROWN,
-              color: PRIMARY_BROWN,
-              fontWeight: 600,
-            }}
-          >
-            View Review
-          </Button>
+          <>
+            <Button 
+              variant="outline"
+              fullWidth
+              onClick={() => openReviewModal(item.caseId)}
+              size="md"
+              leftSection={<IconFileText size={18} />}
+              style={{ 
+                borderColor: PRIMARY_BROWN,
+                color: PRIMARY_BROWN,
+                fontWeight: 600,
+              }}
+            >
+              View Review
+            </Button>
+            <Button 
+              variant="outline"
+              fullWidth
+              onClick={() => openChatModal(item)}
+              size="md"
+              leftSection={<IconMessageCircle size={18} />}
+              style={{ 
+                borderColor: PRIMARY_GOLD,
+                color: PRIMARY_GOLD,
+                fontWeight: 600,
+              }}
+            >
+              Chat with Attorney
+            </Button>
+          </>
         )}
-      </Group>
+      </Stack>
     </Card>
   );
 
@@ -2064,6 +2247,158 @@ export default function AppointmentTracker() {
             No review data available
           </Text>
         )}
+      </Modal>
+
+      {/* Chat Modal */}
+      <Modal
+        opened={chatModalOpened}
+        onClose={closeChatModal}
+        title={
+          <Group gap="sm">
+            <IconMessageCircle size={24} color={PRIMARY_BROWN} />
+            <Box>
+              <Text size="lg" fw={700} c={PRIMARY_BROWN}>
+                Chat with Attorney
+              </Text>
+              <Text size="xs" c="dimmed">
+                {currentChatCase?.caseRecord?.title || currentChatCase?.caseTitle || 'Case Discussion'}
+              </Text>
+            </Box>
+          </Group>
+        }
+        size="lg"
+        centered
+        styles={{
+          content: {
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+          },
+          body: {
+            padding: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            overflow: 'hidden',
+          },
+        }}
+      >
+        <Stack style={{ height: '60vh', display: 'flex', flexDirection: 'column' }} gap={0}>
+          {/* Messages Area */}
+          <ScrollArea 
+            viewportRef={chatViewportRef}
+            style={{ flex: 1, padding: '1rem' }}
+            type="auto"
+          >
+            {loadingChat ? (
+              <Center style={{ minHeight: '200px' }}>
+                <Loader size="md" color={PRIMARY_BROWN} />
+              </Center>
+            ) : chatMessages.length === 0 ? (
+              <Center style={{ minHeight: '200px' }}>
+                <Stack align="center" gap="sm">
+                  <IconMessageCircle size={48} color={MUTED_OLIVE} opacity={0.5} />
+                  <Text c="dimmed" size="sm">No messages yet. Start the conversation!</Text>
+                </Stack>
+              </Center>
+            ) : (
+              <Stack gap="md">
+                {chatMessages.map((msg) => {
+                  // Client messages have senderRole undefined or 'user'
+                  const isCurrentUser = !msg.senderRole || msg.senderRole === 'user';
+                  const senderName = msg.senderId?.firstName && msg.senderId?.lastName 
+                    ? `${msg.senderId.firstName} ${msg.senderId.lastName}`
+                    : msg.senderId?.email || 'Unknown';
+                  
+                  return (
+                    <Group
+                      key={msg._id}
+                      gap="sm"
+                      align="flex-start"
+                      style={{
+                        flexDirection: isCurrentUser ? 'row-reverse' : 'row',
+                      }}
+                    >
+                      <Avatar
+                        size="sm"
+                        radius="xl"
+                        color={isCurrentUser ? PRIMARY_GOLD : PRIMARY_BROWN}
+                      >
+                        <IconUser size={16} />
+                      </Avatar>
+                      <Paper
+                        p="sm"
+                        radius="md"
+                        style={{
+                          backgroundColor: isCurrentUser ? `${PRIMARY_GOLD}15` : `${THEMED_LIGHT_BG}`,
+                          border: `1px solid ${isCurrentUser ? PRIMARY_GOLD : '#E0E0E0'}30`,
+                          maxWidth: '70%',
+                        }}
+                      >
+                        <Text size="xs" c="dimmed" mb={4}>
+                          {senderName} • {new Date(msg.createdAt).toLocaleString()}
+                        </Text>
+                        <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                          {msg.message}
+                        </Text>
+                      </Paper>
+                    </Group>
+                  );
+                })}
+              </Stack>
+            )}
+          </ScrollArea>
+
+          {/* Input Area */}
+          <Box
+            p="md"
+            style={{
+              borderTop: `1px solid #E0E0E0`,
+              backgroundColor: 'white',
+            }}
+          >
+            <Group gap="sm" align="flex-end">
+              <Textarea
+                placeholder="Type your message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                minRows={1}
+                maxRows={4}
+                autosize
+                style={{ flex: 1 }}
+                styles={{
+                  input: {
+                    borderColor: `${PRIMARY_BROWN}30`,
+                    '&:focus': {
+                      borderColor: PRIMARY_BROWN,
+                    },
+                  },
+                }}
+              />
+              <Button
+                onClick={handleSendMessage}
+                loading={sendingMessage}
+                disabled={!newMessage.trim()}
+                style={{
+                  backgroundColor: PRIMARY_BROWN,
+                  minWidth: '100px',
+                }}
+                rightSection={<IconSend size={18} />}
+              >
+                Send
+              </Button>
+            </Group>
+            <Text size="xs" c="dimmed" mt="xs">
+              Press Enter to send, Shift+Enter for new line
+            </Text>
+          </Box>
+        </Stack>
       </Modal>
     </>
   );

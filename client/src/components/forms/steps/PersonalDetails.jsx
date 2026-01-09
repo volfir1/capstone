@@ -20,20 +20,23 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
   const [sameAsPresent, setSameAsPresent] = React.useState(false);
   const [showRelator, setShowRelator] = React.useState(false);
 
-  // Auto-format phone number
+  // Auto-format phone number with fixed +63
   const formatPhoneNumber = (value) => {
     if (!value) return '';
+    // Remove all non-digits
     const cleaned = value.replace(/\D/g, '');
-    if (cleaned.startsWith('63')) {
-      const number = cleaned.substring(2);
-      if (number.length <= 10) {
-        const match = number.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
-        if (match) {
-          return `+63 ${match[1]}${match[2] ? ' ' + match[2] : ''}${match[3] ? ' ' + match[3] : ''}`.trim();
-        }
-      }
+    // Remove leading 63 if present to avoid duplication
+    const number = cleaned.startsWith('63') ? cleaned.substring(2) : cleaned;
+    // Limit to 10 digits after +63
+    const limited = number.substring(0, 10);
+    // Format as +63 XXX XXX XXXX
+    if (limited.length <= 3) {
+      return `+63 ${limited}`;
+    } else if (limited.length <= 6) {
+      return `+63 ${limited.slice(0, 3)} ${limited.slice(3)}`;
+    } else {
+      return `+63 ${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6)}`;
     }
-    return value;
   };
 
   // Calculate age from birthday
@@ -214,16 +217,23 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
           <Text size="sm" c="red">*</Text>
         </Group>
         <TextInput
-          placeholder="+63 912 345 6789"
+          placeholder="912 345 6789"
           type="tel"
           size="md"
           {...register('contactNumber', validationRules.contactNumber)}
           error={errors.contactNumber?.message}
+          value={watch('contactNumber') || '+63 '}
           onChange={(e) => {
             const formatted = formatPhoneNumber(e.target.value);
             setValue('contactNumber', formatted);
           }}
-          description="Format: +63 912 345 6789"
+          onFocus={(e) => {
+            // Ensure +63 prefix is always present
+            if (!e.target.value || e.target.value === '') {
+              setValue('contactNumber', '+63 ');
+            }
+          }}
+          description="Philippine mobile number (10 digits)"
           styles={{
             input: {
               borderColor: errors.contactNumber ? '#E74C3C' : '#E0E0E0',

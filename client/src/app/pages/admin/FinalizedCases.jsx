@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useReducer } from 'react';
+import React, { useState, useEffect, useReducer, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -23,12 +23,215 @@ import {
   Radio,
   Stepper,
   Select,
+  Grid,
+  ScrollArea,
+  Avatar,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN, NATURE_OF_CASE_OPTIONS, CATEGORY_COLORS } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { CaseInformationSection } from '../other/CaseInformationSection';
+
+// Chat Modal Component
+function ChatModal({ opened, onClose, caseData, messages, loading, sending, onSendMessage, onRefresh, userData }) {
+  const [messageText, setMessageText] = useState('');
+  const viewport = useRef(null);
+
+  useEffect(() => {
+    if (viewport.current && messages.length > 0) {
+      viewport.current.scrollTo({ top: viewport.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  // Auto-refresh messages every 10 seconds
+  useEffect(() => {
+    if (opened && caseData) {
+      const interval = setInterval(() => {
+        onRefresh();
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [opened, caseData, onRefresh]);
+
+  const handleSend = () => {
+    if (messageText.trim() && !sending) {
+      onSendMessage(messageText);
+      setMessageText('');
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  if (!caseData) return null;
+
+  const clientName = caseData.userId ? 
+    `${caseData.userId.firstName || ''} ${caseData.userId.lastName || ''}`.trim() : 
+    'Client';
+
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={
+        <Group>
+          <Avatar color={PRIMARY_BROWN} radius="xl">
+            <IconUser size={24} />
+          </Avatar>
+          <Box>
+            <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+              {clientName}
+            </Text>
+            <Text size="xs" c={MUTED_OLIVE}>
+              {caseData.caseNumber} • {caseData.caseType}
+            </Text>
+          </Box>
+        </Group>
+      }
+      size="lg"
+      padding={0}
+      styles={{
+        body: { padding: 0 },
+        header: { borderBottom: `1px solid #F0F0F0`, padding: '16px 24px', margin: 0 },
+        content: { display: 'flex', flexDirection: 'column', maxHeight: '80vh' },
+      }}
+    >
+      <Box style={{ display: 'flex', flexDirection: 'column', height: '600px', maxHeight: '70vh' }}>
+        {/* Messages Area */}
+        <ScrollArea
+          viewportRef={viewport}
+          style={{ flex: 1, padding: '16px 24px' }}
+          styles={{
+            viewport: { '& > div': { display: 'block !important' } }
+          }}
+        >
+          {loading ? (
+            <Center py="xl">
+              <Loader size="lg" color={PRIMARY_BROWN} />
+            </Center>
+          ) : messages.length === 0 ? (
+            <Center py="xl">
+              <Stack align="center" gap="sm">
+                <IconMessageCircle size={48} color={MUTED_OLIVE} />
+                <Text c={MUTED_OLIVE} size="sm">
+                  No messages yet. Start the conversation!
+                </Text>
+              </Stack>
+            </Center>
+          ) : (
+            <Stack gap="md">
+              {messages.map((msg, idx) => {
+                // Admin messages have senderRole as attorney/intern/secretary
+                // Client messages have senderRole as undefined or 'user'
+                const isCurrentUser = msg.senderRole && ['attorney', 'intern', 'secretary'].includes(msg.senderRole);
+                const senderName = msg.senderId?.firstName && msg.senderId?.lastName 
+                  ? `${msg.senderId.firstName} ${msg.senderId.lastName}`
+                  : msg.senderId?.email || 'Unknown';
+                
+                console.log('Message:', {
+                  message: msg.message,
+                  senderRole: msg.senderRole,
+                  senderId: msg.senderId,
+                  senderName,
+                  isCurrentUser
+                });
+                
+                return (
+                  <Box
+                    key={idx}
+                    style={{
+                      alignSelf: isCurrentUser ? 'flex-end' : 'flex-start',
+                      maxWidth: '70%',
+                    }}
+                  >
+                    <Paper
+                      p="md"
+                      radius="lg"
+                      style={{
+                        backgroundColor: isCurrentUser ? PRIMARY_BROWN : THEMED_LIGHT_BG,
+                        color: isCurrentUser ? 'white' : CHARCOAL,
+                      }}
+                    >
+                      {!isCurrentUser && (
+                        <Text size="xs" fw={600} mb={4} style={{ opacity: 0.8 }}>
+                          {msg.senderId?.firstName || msg.senderId?.lastName ? 
+                            `${msg.senderId.firstName || ''} ${msg.senderId.lastName || ''}`.trim() : 
+                            clientName}
+                          {msg.senderRole && ` (${msg.senderRole})`}
+                        </Text>
+                      )}
+                      <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {msg.message}
+                      </Text>
+                      <Text
+                        size="xs"
+                        mt={4}
+                        style={{ opacity: 0.7, textAlign: 'right' }}
+                      >
+                        {new Date(msg.createdAt).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    </Paper>
+                  </Box>
+                );
+              })}
+            </Stack>
+          )}
+        </ScrollArea>
+
+        {/* Message Input */}
+        <Box
+          style={{
+            padding: '16px 24px',
+            borderTop: `1px solid #F0F0F0`,
+            backgroundColor: 'white',
+          }}
+        >
+          <Group gap="sm" align="flex-end">
+            <Textarea
+              placeholder="Type your message..."
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              onKeyPress={handleKeyPress}
+              minRows={1}
+              maxRows={4}
+              autosize
+              style={{ flex: 1 }}
+              styles={{
+                input: {
+                  borderRadius: '20px',
+                  border: `1px solid ${PRIMARY_GOLD}`,
+                  '&:focus': { borderColor: PRIMARY_BROWN },
+                },
+              }}
+            />
+            <ActionIcon
+              size="lg"
+              radius="xl"
+              variant="filled"
+              style={{ backgroundColor: PRIMARY_BROWN }}
+              onClick={handleSend}
+              loading={sending}
+              disabled={!messageText.trim() || sending}
+            >
+              <IconSend size={18} />
+            </ActionIcon>
+          </Group>
+        </Box>
+      </Box>
+    </Modal>
+  );
+}
 
 // Initial state
 const initialState = {
@@ -56,6 +259,18 @@ const initialState = {
   caseRecordData: {},
   selectedCaseId: null,
   caseRecordEditMode: false,
+  
+  // Appointment Receipt Modal
+  appointmentModalOpened: false,
+  appointmentDetails: null,
+  loadingAppointment: false,
+  
+  // Chat Modal
+  chatModalOpened: false,
+  selectedCaseForChat: null,
+  chatMessages: [],
+  loadingMessages: false,
+  sendingMessage: false,
 };
 
 // Reducer function
@@ -94,6 +309,30 @@ function stateReducer(state, action) {
       return { ...state, editedData: action.payload };
     case 'SET_ACTIVE_STEP':
       return { ...state, activeStep: action.payload };
+    
+    // Appointment Receipt Modal actions
+    case 'OPEN_APPOINTMENT_MODAL':
+      return { ...state, appointmentModalOpened: true, loadingAppointment: true };
+    case 'CLOSE_APPOINTMENT_MODAL':
+      return { ...state, appointmentModalOpened: false, appointmentDetails: null };
+    case 'SET_APPOINTMENT_DETAILS':
+      return { ...state, appointmentDetails: action.payload, loadingAppointment: false };
+    case 'SET_LOADING_APPOINTMENT':
+      return { ...state, loadingAppointment: action.payload };
+    
+    // Chat Modal actions
+    case 'OPEN_CHAT_MODAL':
+      return { ...state, chatModalOpened: true, selectedCaseForChat: action.payload, loadingMessages: true };
+    case 'CLOSE_CHAT_MODAL':
+      return { ...state, chatModalOpened: false, selectedCaseForChat: null, chatMessages: [] };
+    case 'SET_CHAT_MESSAGES':
+      return { ...state, chatMessages: action.payload, loadingMessages: false };
+    case 'SET_LOADING_MESSAGES':
+      return { ...state, loadingMessages: action.payload };
+    case 'SET_SENDING_MESSAGE':
+      return { ...state, sendingMessage: action.payload };
+    case 'ADD_CHAT_MESSAGE':
+      return { ...state, chatMessages: [...state.chatMessages, action.payload] };
     
     // Case Record Modal actions
     case 'OPEN_CASE_RECORD_MODAL':
@@ -223,6 +462,202 @@ export default function FinalizedCases() {
     } catch (err) {
       console.error('Error opening case record:', err);
       dispatch({ type: 'OPEN_CASE_RECORD_MODAL', payload: { caseId: caseData._id, data: caseData.content?.caseInfo || {} } });
+    }
+  };
+
+  // Function to fetch and display appointment details
+  const openAppointmentModal = async (caseData) => {
+    dispatch({ type: 'OPEN_APPOINTMENT_MODAL' });
+    
+    try {
+      // Get the clientsinfo ID - it's stored as caseId in the finalize document
+      // This caseId is actually the _id of the clientsinfo document (the appointment form)
+      const clientInfoId = caseData.caseId;
+      
+      console.log('Fetching appointment details for clientInfoId:', clientInfoId);
+      console.log('Case data:', caseData);
+      
+      if (!clientInfoId) {
+        console.error('No client info ID found in case data');
+        dispatch({ type: 'SET_LOADING_APPOINTMENT', payload: false });
+        return;
+      }
+      
+      const response = await apiClient.get(`/clientsinfo/${clientInfoId}`);
+      console.log('Appointment details:', response.data);
+      dispatch({ type: 'SET_APPOINTMENT_DETAILS', payload: response.data });
+    } catch (error) {
+      console.error('Error fetching appointment details:', error);
+      dispatch({ type: 'SET_LOADING_APPOINTMENT', payload: false });
+    }
+  };
+
+  // Function to handle chat navigation - creates case if needed
+  const handleChatNavigation = async (finalizedCase) => {
+    try {
+      let caseDoc = null;
+
+      // Check if this finalized case already has a linked Case document
+      if (finalizedCase.linkedCaseId) {
+        try {
+          const caseResponse = await apiClient.get(`/cases/${finalizedCase.linkedCaseId}`);
+          caseDoc = caseResponse.data.data;
+        } catch (err) {
+          console.log('Linked case not found, will create new one');
+        }
+      }
+
+      // If no linked case exists, create a new one
+      if (!caseDoc) {
+        const clientInfoId = finalizedCase.caseId; // The MongoDB _id of clientsinfo
+        
+        if (!clientInfoId) {
+          notifications.show({
+            title: 'Error',
+            message: 'Cannot open chat: No client information found',
+            color: 'red',
+          });
+          return;
+        }
+
+        // Get client info to find userId
+        const clientResponse = await apiClient.get(`/clientsinfo/${clientInfoId}`);
+        const clientData = clientResponse.data;
+        
+        if (!clientData.userId) {
+          notifications.show({
+            title: 'Error',
+            message: 'Cannot open chat: Client not linked to user account',
+            color: 'red',
+          });
+          return;
+        }
+
+        // Create a new case for this finalized case
+        const caseTitle = finalizedCase.caseTitle || 
+                         finalizedCase.content?.caseInfo?.title || 
+                         `Case for ${finalizedCase.clientName}`;
+        
+        // Map finalized case category to Case model enum
+        const categoryToTypeMap = {
+          'Civil Case': 'Civil Law',
+          'Criminal Case': 'Criminal Law',
+          'Family Law': 'Family Law',
+          'Labor and Employment': 'Labor Law',
+          'Land and Property Disputes': 'Land and Property Law',
+          'Contract Disputes': 'Commercial Law',
+          'Personal Injury': 'Civil Law',
+          'Debt Collection': 'Commercial Law',
+          'Inheritance and Estate': 'Family Law',
+          'Business and Commercial Law': 'Commercial Law',
+          'Consumer Protection': 'Commercial Law',
+          'Tax Law': 'Tax Law',
+          'Immigration': 'Immigration Law',
+          'Intellectual Property': 'Intellectual Property',
+          'Environmental Law': 'Environmental Law',
+          'Administrative Law': 'Administrative Law',
+          'Human Rights Violation': 'Human Rights',
+          'Cybercrime': 'Criminal Law',
+          'Election Law': 'Administrative Law',
+          'Other': 'Other'
+        };
+        
+        const rawCategory = finalizedCase.content?.caseInfo?.nature || 
+                           finalizedCase.category || 
+                           'Other';
+        
+        const caseType = categoryToTypeMap[rawCategory] || 'Other';
+        
+        const newCasePayload = {
+          userId: clientData.userId,
+          caseTitle: caseTitle,
+          caseType: caseType,
+          shortDescription: finalizedCase.content?.interviewInfo?.natureOfLegalMatter || 
+                           finalizedCase.content?.caseInfo?.nature || 
+                           'Finalized case',
+          detailedDescription: finalizedCase.content?.interviewInfo?.caseDescription || 
+                              finalizedCase.content?.caseInfo?.description ||
+                              'Case created from finalized case',
+        };
+
+        const createResponse = await apiClient.post('/cases/admin/create-case', newCasePayload);
+        
+        if (createResponse.data.success) {
+          const newCaseId = createResponse.data.data.id;
+          
+          // Link this case to the finalized document
+          await apiClient.put(`/finalize/${finalizedCase._id}`, {
+            ...finalizedCase,
+            linkedCaseId: newCaseId
+          });
+          
+          // Get the full case object with user populated
+          const newCaseResponse = await apiClient.get(`/cases/${newCaseId}`);
+          caseDoc = newCaseResponse.data.data;
+          
+          // Update local state
+          finalizedCase.linkedCaseId = newCaseId;
+        } else {
+          throw new Error('Failed to create case');
+        }
+      }
+
+      // Open chat modal with the case
+      dispatch({ type: 'OPEN_CHAT_MODAL', payload: caseDoc });
+      fetchChatMessages(caseDoc._id);
+      
+    } catch (error) {
+      console.error('Error handling chat navigation:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to open chat: ' + (error.response?.data?.message || error.message),
+        color: 'red',
+      });
+    }
+  };
+
+  // Fetch chat messages for a case
+  const fetchChatMessages = async (caseId) => {
+    try {
+      dispatch({ type: 'SET_LOADING_MESSAGES', payload: true });
+      console.log('Admin fetching messages for caseId:', caseId);
+      const response = await apiClient.get(`/chat/case/${caseId}`);
+      
+      console.log('Admin fetched messages:', response.data);
+      if (response.data.success) {
+        dispatch({ type: 'SET_CHAT_MESSAGES', payload: response.data.data });
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      dispatch({ type: 'SET_LOADING_MESSAGES', payload: false });
+    }
+  };
+
+  // Send a message
+  const handleSendMessage = async (messageText) => {
+    if (!messageText.trim() || !state.selectedCaseForChat) return;
+
+    try {
+      dispatch({ type: 'SET_SENDING_MESSAGE', payload: true });
+      
+      const response = await apiClient.post('/chat/send', {
+        caseId: state.selectedCaseForChat._id,
+        message: messageText.trim(),
+      });
+
+      if (response.data.success) {
+        // Refresh messages
+        fetchChatMessages(state.selectedCaseForChat._id);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to send message',
+        color: 'red',
+      });
+    } finally {
+      dispatch({ type: 'SET_SENDING_MESSAGE', payload: false });
     }
   };
 
@@ -423,24 +858,41 @@ export default function FinalizedCases() {
             </Group>
           </Box>
         </Group>
-        <Group noWrap align="center" spacing="xs">
-          <Button
-            size="xs"
-            variant="outline"
-            leftSection={<IconEye size={16} />}
-            onClick={(e) => {
-              e.stopPropagation();
-              openModal(f);
-            }}
-          >
-            View Review
-          </Button>
-          {f.decision === 'accepted' && (
-            <>
+        <Stack spacing="xs" align="stretch" style={{ minWidth: '300px' }}>
+          <Group spacing="xs" grow>
+            <Button
+              size="sm"
+              variant="outline"
+              leftSection={<IconEye size={16} />}
+              onClick={(e) => {
+                e.stopPropagation();
+                openModal(f);
+              }}
+              style={{ flex: 1 }}
+            >
+              View Review
+            </Button>
+            {f.decision === 'accepted' && (
               <Button
-                size="xs"
+                size="sm"
+                variant="outline"
+                style={{ borderColor: ACCENT_TAN, color: PRIMARY_BROWN, flex: 1 }}
+                leftSection={<IconReceipt size={16} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAppointmentModal(f);
+                }}
+              >
+                Full Receipt
+              </Button>
+            )}
+          </Group>
+          {f.decision === 'accepted' && (
+            <Group spacing="xs" grow>
+              <Button
+                size="sm"
                 variant="filled"
-                style={{ backgroundColor: PRIMARY_BROWN }}
+                style={{ backgroundColor: PRIMARY_BROWN, flex: 1 }}
                 leftSection={<IconFileText size={16} />}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -450,22 +902,20 @@ export default function FinalizedCases() {
                 Case Record
               </Button>
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
-                style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN, flex: 1 }}
                 leftSection={<IconMessageCircle size={16} />}
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Pass the caseId string (e.g., "case-26-0001") to find the case in messenger
-                  navigate('/admin/chat', { state: { caseNumber: f.caseId } });
+                  handleChatNavigation(f);
                 }}
               >
                 Chat
               </Button>
-            </>
+            </Group>
           )}
-          <IconChevronRight size={16} color="#999" />
-        </Group>
+        </Stack>
       </Group>
     </Paper>
   );
@@ -516,10 +966,10 @@ export default function FinalizedCases() {
               </Group>
             </Group>
           }
-          size="xl"
+          size="calc(90vw)"
           styles={{
             title: { fontWeight: 700, width: '100%' },
-            body: { maxHeight: '70vh', overflowY: 'auto' },
+            body: { maxHeight: '80vh', overflowY: 'auto' },
           }}
         >
           <CaseInformationSection 
@@ -527,6 +977,188 @@ export default function FinalizedCases() {
             onChange={(data) => dispatch({ type: 'SET_CASE_RECORD_DATA', payload: data })}
             readOnly={!state.caseRecordEditMode}
           />
+        </Modal>
+
+        {/* Chat Modal */}
+        <ChatModal 
+          opened={state.chatModalOpened}
+          onClose={() => dispatch({ type: 'CLOSE_CHAT_MODAL' })}
+          caseData={state.selectedCaseForChat}
+          messages={state.chatMessages}
+          loading={state.loadingMessages}
+          sending={state.sendingMessage}
+          onSendMessage={handleSendMessage}
+          onRefresh={() => state.selectedCaseForChat && fetchChatMessages(state.selectedCaseForChat._id)}
+          userData={userData}
+        />
+
+        {/* Appointment Receipt Modal */}
+        <Modal
+          opened={state.appointmentModalOpened}
+          onClose={() => dispatch({ type: 'CLOSE_APPOINTMENT_MODAL' })}
+          title={
+            <Text fw={700} size="xl" c={PRIMARY_BROWN}>
+              Appointment Receipt
+            </Text>
+          }
+          size="lg"
+          radius="lg"
+        >
+          {state.loadingAppointment ? (
+            <Center py="xl">
+              <Loader size="lg" color={PRIMARY_BROWN} />
+            </Center>
+          ) : state.appointmentDetails ? (
+            <Stack gap="lg" mt="lg">
+              {/* Header Badge */}
+              <Paper p="md" radius="md" style={{ backgroundColor: `${PRIMARY_GOLD}15`, border: `1px solid ${PRIMARY_GOLD}` }}>
+                <Group justify="space-between" align="center">
+                  <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+                    {state.appointmentDetails.caseDetails?.appointmentType || state.appointmentDetails.personal?.legalMatter || 'Appointment'}
+                  </Text>
+                  <Badge size="lg" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
+                    {state.appointmentDetails.status || 'For Appointment'}
+                  </Badge>
+                </Group>
+                <Text size="sm" c={MUTED_OLIVE} mt="xs">
+                  Case #{state.appointmentDetails.caseNumber || 'N/A'}
+                </Text>
+              </Paper>
+
+              {/* Personal Details */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Personal Details</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.fullName || state.appointmentDetails.name || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.age || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.birthday || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.sex || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.civilStatus || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.contactNumber || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Email</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.email || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentAddress || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddress || 'N/A'}</Text>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Schedule Details */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Schedule Details</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>
+                      {state.appointmentDetails.appointedDate ? new Date(state.appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      }) : 'N/A'}
+                    </Text>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Financial Details */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Financial Details</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income Source</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>
+                      {state.appointmentDetails.monthlyIncome ? `₱${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
+                    </Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.natureOfWork || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerName || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerAddress || 'N/A'}</Text>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Case Details */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Case Details</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.partyRepresented || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Number</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNumber || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.venue || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentStage || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Division</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtDivision || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Address</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtAddress || 'N/A'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Description</Text>
+                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseDescription || 'N/A'}</Text>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+            </Stack>
+          ) : (
+            <Center py="xl">
+              <Text c={MUTED_OLIVE}>No appointment details available</Text>
+            </Center>
+          )}
         </Modal>
 
         {/* Modal for viewing recommendation */}
@@ -726,14 +1358,12 @@ export default function FinalizedCases() {
                     <Radio.Group
                       value={state.editedData.decision || ''}
                       onChange={(val) => {
-                        dispatch({ type: 'UPDATE_EDITED_DATA', payload: (prev) => {
-                          const updated = { ...prev, decision: val };
-                          // Also update the nested path for consistency
-                          if (!updated.content) updated.content = {};
-                          if (!updated.content.actionInfo) updated.content.actionInfo = {};
-                          updated.content.actionInfo.decision = val;
-                          return updated;
-                        }});
+                        const updated = { ...state.editedData, decision: val };
+                        // Also update the nested path for consistency
+                        if (!updated.content) updated.content = {};
+                        if (!updated.content.actionInfo) updated.content.actionInfo = {};
+                        updated.content.actionInfo.decision = val;
+                        dispatch({ type: 'SET_EDITED_DATA', payload: updated });
                       }}
                     >
                       <Group>

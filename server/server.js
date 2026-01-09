@@ -35,11 +35,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// Rate Limiting
+// Rate Limiting - More generous for admin operations
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: 500, // Increased from 100 to 500 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 app.use('/api', limiter);
@@ -54,6 +56,24 @@ const corsOptions = {
 app.use(express.json({ limit: '10mb' })) // Limit payload size
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cors(corsOptions))
+
+// Request timeout middleware - prevents hanging requests
+app.use((req, res, next) => {
+  // Set timeout for all requests (30 seconds)
+  req.setTimeout(30000);
+  res.setTimeout(30000);
+  
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(408).json({ error: 'Request timeout' });
+    }
+  }, 30000);
+  
+  res.on('finish', () => clearTimeout(timeout));
+  res.on('close', () => clearTimeout(timeout));
+  
+  next();
+});
 
 // Debug middleware to log all requests
 app.use((req, res, next) => {
@@ -80,18 +100,74 @@ app.use('/api/clientsinfo', clientsinfoRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/caserecords', caseRecordRoutes)
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGO_URL)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// MongoDB Connection with improved configuration
+const mongoOptions = {
+  maxPoolSize: 10, // Maximum connection pool size
+  minPoolSize: 2, // Minimum connection pool size
+  serverSelectionTimeoutMS: 5000, // Timeout for server selection
+  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+  family: 4, // Use IPv4, skip trying IPv6
+};
+
+mongoose.connect(process.env.MONGO_URL, mongoOptions)
+  .then(() => {
+    console.log('MongoDB connected successfully');
+    console.log('Connection pool configured: min 2, max 10 connections');
+  })
+  .catch(err => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1); // Exit if database connection fails
+  });
+
+// Handle MongoDB connection events
+mongoose.connection.on('error', err => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('MongoDB disconnected. Attempting to reconnect...');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('MongoDB reconnected');
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
+  console.error('Error:', err.stack);
+  
+  // Handle specific error types
+  if (err.name === 'MongoTimeoutError' || err.name === 'MongoNetworkError') {
+    return res.status(503).json({ 
+      error: 'Database temporarily unavailable',
+      message: 'Please try again in a moment'
+    });
+  }
+  
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({ 
+      error: 'Validation error',
+      message: err.message
+    });
+  }
+  
+  res.status(err.status || 500).json({ 
     error: 'Something went wrong!',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
   });
+});
+
+// Handle graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, closing server gracefully...');
+  await mongoose.connection.close();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, closing server gracefully...');
+  await mongoose.connection.close();
+  process.exit(0);
 });
 
 const PORT = process.env.PORT || 5000;

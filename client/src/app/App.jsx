@@ -41,10 +41,6 @@ const AssignCase = lazy(() => import('./pages/admin/AssingCase'))
 const UserManagement = lazy(() => import('./pages/admin/userManagement'))
 const RecommendationForAction = lazy(() => import('./pages/other/RecommendationForAction'))
 const FinalizedCases = lazy(() => import('./pages/admin/FinalizedCases'))
-const CaseRecord = lazy(() => import('./pages/admin/CaseRecord'))
-
-// Attorney
-const AttorneyMessenger = lazy(() => import('./pages/attorney/Messenger.jsx'))
 
 // Intern
 
@@ -158,9 +154,7 @@ function AppRoutes() {
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="attorneys" element={<ManageAttorney />} />
-          <Route path="chat" element={<AttorneyMessenger />} />
           <Route path="recommendation/:caseId?" element={<RecommendationForAction />} />
-          <Route path="caserecord" element={<CaseRecord />} />
           <Route path="finalized" element={<FinalizedCases />} />
           <Route path="clientformstatus" element={<ClientApplicationStatus />} />
           <Route path="profile" element={<AdminProfile />} />
@@ -168,6 +162,8 @@ function AppRoutes() {
         
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+        <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
         <Route path="/ai-chatbot" element={<AIChatbot />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/features" element={<FeaturesPage />} />

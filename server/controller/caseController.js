@@ -317,3 +317,59 @@ export const getAttorneyCases = async (req, res) => {
     });
   }
 };
+
+// Admin: Create case for a user (for finalized cases)
+export const createCaseForUser = async (req, res) => {
+  try {
+    const { userId, caseTitle, caseType, shortDescription, detailedDescription } = req.body;
+
+    // Validate required fields
+    if (!userId || !caseTitle || !caseType || !shortDescription || !detailedDescription) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: userId, caseTitle, caseType, shortDescription, detailedDescription",
+      });
+    }
+
+    // Verify user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Create case
+    const newCase = await Case.create({
+      userId: user._id,
+      caseTitle,
+      caseType,
+      shortDescription,
+      detailedDescription,
+      attorneyId: null,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: newCase._id,
+        caseNumber: newCase.caseNumber,
+        caseTitle: newCase.caseTitle,
+        caseType: newCase.caseType,
+        shortDescription: newCase.shortDescription,
+        detailedDescription: newCase.detailedDescription,
+        userId: newCase.userId,
+        attorneyId: newCase.attorneyId,
+        createdAt: newCase.createdAt,
+      },
+      message: "Case created successfully",
+    });
+  } catch (error) {
+    console.error("Create case for user error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to create case",
+    });
+  }
+};

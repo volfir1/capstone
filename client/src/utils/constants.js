@@ -8,19 +8,7 @@ export const ACCENT_TAN = "#A68A64";
 // Form Options
 export const GENDER_OPTIONS = [
   'Male',
-  'Female',
-  'Non-binary',
-  'Transgender Male',
-  'Transgender Female',
-  'Genderqueer',
-  'Gender Fluid',
-  'Agender',
-  'Bigender',
-  'Two-Spirit',
-  'Intersex',
-  'Questioning',
-  'Prefer not to say',
-  'Other'
+  'Female'
 ];
 
 export const CIVIL_STATUS_OPTIONS = [

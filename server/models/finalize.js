@@ -5,6 +5,7 @@ const FinalizeSchema = new mongoose.Schema({
   caseId: { type: String, unique: true, index: true },
   caseTitle: { type: String, index: true },
   clientName: { type: String, index: true },
+  linkedCaseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Case' }, // Reference to the Case document for chat
   category: { 
     type: String, 
     enum: [

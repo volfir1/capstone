@@ -59,17 +59,43 @@ export default function AttorneyMessenger() {
   useEffect(() => {
     const targetId = location.state?.caseId;
     const targetNumber = location.state?.caseNumber;
+    const targetClientName = location.state?.clientName;
+    const forceRefresh = location.state?.forceRefresh;
     
-    if ((targetId || targetNumber) && chatList.length > 0) {
-      const targetChat = chatList.find(chat => 
-        chat.case._id === targetId || 
-        chat.case.caseNumber === targetNumber ||
-        chat.case.caseNumber === targetId
-      );
+    // If forceRefresh is set, refetch the chat list first
+    if (forceRefresh && (targetId || targetNumber || targetClientName)) {
+      fetchChatList().then(() => {
+        // After fetching, the chatList will update and trigger the selection below
+      });
+      // Clear forceRefresh flag
+      navigate(location.pathname, { 
+        replace: true, 
+        state: { caseId: targetId, caseNumber: targetNumber, clientName: targetClientName } 
+      });
+      return;
+    }
+    
+    if ((targetId || targetNumber || targetClientName) && chatList.length > 0) {
+      const targetChat = chatList.find(chat => {
+        const caseMatch = chat.case._id === targetId || 
+                         chat.case.caseNumber === targetNumber ||
+                         chat.case.caseNumber === targetId;
+        
+        // Also try matching by client name as fallback
+        const clientMatch = targetClientName && chat.case.userId && (
+          `${chat.case.userId.firstName} ${chat.case.userId.lastName}`.toLowerCase().includes(targetClientName.toLowerCase())
+        );
+        
+        return caseMatch || clientMatch;
+      });
+      
       if (targetChat) {
         setSelectedChat(targetChat);
         // Clear the state
         navigate(location.pathname, { replace: true, state: {} });
+      } else {
+        console.log('No matching chat found for:', { targetId, targetNumber, targetClientName });
+        console.log('Available chats:', chatList.map(c => ({ id: c.case._id, number: c.case.caseNumber })));
       }
     }
   }, [location.state, chatList, navigate, location.pathname]);

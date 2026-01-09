@@ -7,7 +7,8 @@ import {
   getAllAttorneys, 
   assignAttorney,
   getDashboardStats,
-  getAttorneyCases
+  getAttorneyCases,
+  createCaseForUser
 } from "../controller/caseController.js";
 
 const router = express.Router();
@@ -29,5 +30,6 @@ router.get("/admin/all-cases", getAllCases);
 router.get("/admin/attorneys", getAllAttorneys);
 router.get("/admin/stats", getDashboardStats);
 router.put("/admin/assign/:caseId", assignAttorney);
+router.post("/admin/create-case", createCaseForUser);
 
 export default router;

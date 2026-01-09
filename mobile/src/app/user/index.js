@@ -127,7 +127,7 @@ export default function UserDashboard() {
       icon: "location-outline",
       title: "Track Appointment",
       description: "Monitor your appointments",
-      path: "track-appointment",
+      path: "track",
       color: PRIMARY_GOLD,
     },
     {

@@ -341,6 +341,49 @@ export default function CaseRecordFormsDisplay() {
         }
     }, [location]);
 
+    // Auto-fill client information when opening from appointment status
+    useEffect(() => {
+        const fetchClientInfo = async () => {
+            const caseId = getCaseId();
+            
+            // Only fetch if we have a valid caseId, we're not viewing an existing review, 
+            // and the form is empty (no client name yet)
+            if (caseId && caseId !== 'new-case' && !isViewingExistingReview && !interviewInfo.clientName) {
+                try {
+                    const { default: apiClient } = await import('@config/api/apiClient');
+                    const response = await apiClient.get(`/clientsinfo/${caseId}`);
+                    const clientData = response.data;
+                    
+                    // Format the date to YYYY-MM-DD for date input
+                    const formatDate = (date) => {
+                        if (!date) return '';
+                        const d = new Date(date);
+                        const year = d.getFullYear();
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const day = String(d.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                    };
+                    
+                    // Get current date for dateSubmitted
+                    const today = new Date();
+                    const currentDate = formatDate(today);
+                    
+                    // Set interview info with client data
+                    setInterviewInfo(prev => ({
+                        ...prev,
+                        clientName: clientData.fullName || clientData.name || '',
+                        dateOfInterview: formatDate(clientData.appointedDate || clientData.createdAt),
+                        dateSubmitted: currentDate
+                    }));
+                } catch (error) {
+                    console.error('Error fetching client info for auto-fill:', error);
+                }
+            }
+        };
+
+        fetchClientInfo();
+    }, [getCaseId, isViewingExistingReview, interviewInfo.clientName]);
+
     const nextStep = () => setActive((current) => (current < totalSteps - 1 ? current + 1 : current));
     const prevStep = () => setActive((current) => (current > 0 ? current - 1 : current));
     
@@ -368,7 +411,10 @@ export default function CaseRecordFormsDisplay() {
             reviewerId: userData?.id || userData?._id || null,
             reviewerRole: userData?.role || null,
             step: active,
-            content: { interviewInfo: completeInterviewInfo }
+            content: { 
+                interviewInfo: completeInterviewInfo,
+                actionInfo: actionInfo 
+            }
         };
 
         console.log('Saving review with payload:', reviewPayload);

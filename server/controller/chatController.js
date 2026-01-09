@@ -57,7 +57,7 @@ export const sendMessage = async (req, res) => {
       // Check if sender is admin (attorney, intern, secretary)
       const adminUser = await User.findOne({ email: userEmail, role: { $in: ['attorney', 'intern', 'secretary'] } });
       if (adminUser) {
-        // Admin users can message any accepted case
+        // Admin users can message any accepted/finalized case
         senderId = adminUser._id;
         senderModel = "Attorney"; // Keep as Attorney for compatibility
         senderRole = adminUser.role; // attorney, intern, or secretary
@@ -69,13 +69,7 @@ export const sendMessage = async (req, res) => {
             message: "User or authorized person not found",
           });
         }
-        // Verify attorney is assigned to this case
-        if (!caseData.attorneyId || caseData.attorneyId.toString() !== attorney._id.toString()) {
-          return res.status(403).json({
-            success: false,
-            message: "You are not assigned to this case",
-          });
-        }
+        // Attorney can message any case (for finalized cases)
         senderId = attorney._id;
         senderModel = "Attorney";
         senderRole = "attorney";
@@ -150,10 +144,12 @@ export const getMessagesByCase = async (req, res) => {
       // Client can see all messages (we'll group by role on frontend)
       currentUserRole = "user";
     } else if (user && ['attorney', 'intern', 'secretary'].includes(user.role)) {
-      // Admin users only see messages in their role thread
+      // Admin users can view all accepted/finalized cases
+      // They only see messages in their role thread
       currentUserRole = user.role;
       messageFilter.senderRole = { $in: [user.role, 'user'] }; // Only messages from their role or client
-    } else if (attorney && caseData.attorneyId && caseData.attorneyId.toString() === attorney._id.toString()) {
+    } else if (attorney) {
+      // Attorney can view any case (for finalized cases viewing)
       currentUserRole = "attorney";
       messageFilter.senderRole = { $in: ['attorney', 'user'] };
     } else {
