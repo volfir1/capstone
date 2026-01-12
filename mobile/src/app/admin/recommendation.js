@@ -7,11 +7,15 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import apiClient from '../../api/apiClient';
+import { useAuth } from '../../context/authContext';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Alert as RNAlert } from 'react-native';
 
 const PRIMARY_BROWN = '#7D5A3B';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -21,122 +25,595 @@ const THEMED_LIGHT_BG = '#FAF8F3';
 export default function RecommendationForAction() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const caseId = params.caseId;
-  const [reviews, setReviews] = useState([]);
+  const caseIdParam = params.caseId;
+  const isViewOnly = params.viewOnly === 'true' || params.mode === 'view';
+  const passedReview = (() => {
+    if (!params.review) return null;
+    try {
+      return JSON.parse(params.review);
+    } catch (e) {
+      return null;
+    }
+  })();
+  // Prefer explicit caseId; avoid falling back to review _id to keep finalize records consistent
+  const derivedCaseId = caseIdParam || passedReview?.caseId || 'new-case';
+  const { userData } = useAuth();
+  const normalizedRole = (userData?.role || '').toLowerCase().trim();
+  const isIntern = normalizedRole === 'intern';
+  const isAttorneyRole = ['attorney', 'secretary', 'pao_lawyer', 'legal_volunteer', 'admin'].includes(normalizedRole);
   const [loading, setLoading] = useState(true);
-  const [selectedReview, setSelectedReview] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [reviewId, setReviewId] = useState(null);
+  const [showSignatureDatePicker, setShowSignatureDatePicker] = useState(false);
+  
+  // Form data - matches website structure exactly
+  const [interviewInfo, setInterviewInfo] = useState({
+    dateOfInterview: '',
+    dateSubmitted: '',
+    clientName: '',
+    interviewingInterns: '',
+    fastFacts: '',
+    clientEvidence: [
+      { type: '', author: '', purpose: '', issues: '' },
+      { type: '', author: '', purpose: '', issues: '' },
+      { type: '', author: '', purpose: '', issues: '' }
+    ],
+    adversePartyEvidence: [
+      { type: '', author: '', purpose: '', issues: '' },
+      { type: '', author: '', purpose: '', issues: '' },
+      { type: '', author: '', purpose: '', issues: '' }
+    ],
+    internAdvice: '',
+    forLegalAdvice: false,
+    legalOpinion: '',
+  });
+  
+  const [actionInfo, setActionInfo] = useState({
+    supervisingComment: '',
+    decision: '',
+    decisionNote: '',
+    assignedTo: '',
+    supervisingLawyer: '',
+    directorSignature: '',
+    signatureDate: '',
+  });
+
+  // Website has 2 steps: Client Interview and Evidence, then Supervising Lawyer & Director Action
+  const steps = [
+    { label: 'Interview & Evidence', description: 'Client details and documents' },
+    { label: 'Supervising & Director', description: 'Final action' },
+  ];
 
   useEffect(() => {
-    if (caseId) {
-      fetchReviews(caseId);
-    } else {
-      // If no caseId, fetch all reviews
-      fetchAllReviews();
-    }
-  }, [caseId]);
-
-  const fetchReviews = async (id) => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get(`/reviews/case/${id}`);
-      const data = response.data?.data ?? response.data ?? [];
-      setReviews(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching reviews:', error);
-      setReviews([]);
-    } finally {
+    if (passedReview && passedReview.content) {
+      const review = passedReview;
+      setReviewId(review._id || review.id);
+      if (review.content.interviewInfo) {
+        setInterviewInfo(prev => ({
+          ...prev,
+          ...review.content.interviewInfo,
+          clientEvidence: review.content.interviewInfo.clientEvidence?.length > 0 
+            ? review.content.interviewInfo.clientEvidence 
+            : prev.clientEvidence,
+          adversePartyEvidence: review.content.interviewInfo.adversePartyEvidence?.length > 0 
+            ? review.content.interviewInfo.adversePartyEvidence 
+            : prev.adversePartyEvidence,
+        }));
+      }
+      if (review.content.actionInfo) {
+        setActionInfo(prev => ({ ...prev, ...review.content.actionInfo }));
+      }
       setLoading(false);
+    } else if (passedReview) {
+      // If a review was passed but had no content, don't stay stuck on loading
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (derivedCaseId && !passedReview) {
+      loadExistingReview();
+      loadClientInfo();
+    }
+  }, [derivedCaseId, passedReview]);
+
+  const loadClientInfo = async () => {
+    try {
+      const response = await apiClient.get(`/clientsinfo/${derivedCaseId}`);
+      const clientData = response.data;
+      
+      const formatDate = (date) => {
+        if (!date) return '';
+        const d = new Date(date);
+        return d.toISOString().split('T')[0];
+      };
+      
+      setInterviewInfo(prev => ({
+        ...prev,
+        clientName: prev.clientName || clientData.fullName || clientData.name || '',
+        dateOfInterview: prev.dateOfInterview || formatDate(clientData.appointedDate || clientData.createdAt),
+        dateSubmitted: prev.dateSubmitted || formatDate(new Date()),
+      }));
+    } catch (error) {
+      console.error('Error loading client info:', error);
     }
   };
 
-  const fetchAllReviews = async () => {
+  const loadExistingReview = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/reviews');
-      const data = response.data?.data ?? response.data ?? [];
-      setReviews(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching all reviews:', error);
-      setReviews([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEditReview = (review) => {
-    Alert.alert(
-      'Edit Recommendation',
-      'For complex form editing, please use the website version.',
-      [
-        { text: 'OK' },
-        {
-          text: 'View Details',
-          onPress: () => setSelectedReview(review)
+      const response = await apiClient.get(`/reviews/case/${derivedCaseId}`);
+      const reviews = Array.isArray(response.data) ? response.data : response.data?.data || [];
+      
+      if (reviews.length > 0) {
+        const review = reviews[0];
+        setReviewId(review._id || review.id);
+        
+        if (review.content) {
+          if (review.content.interviewInfo) {
+            setInterviewInfo(prev => ({
+              ...prev,
+              ...review.content.interviewInfo,
+              clientEvidence: review.content.interviewInfo.clientEvidence?.length > 0 
+                ? review.content.interviewInfo.clientEvidence 
+                : prev.clientEvidence,
+              adversePartyEvidence: review.content.interviewInfo.adversePartyEvidence?.length > 0 
+                ? review.content.interviewInfo.adversePartyEvidence 
+                : prev.adversePartyEvidence,
+            }));
+          }
+          if (review.content.actionInfo) {
+            setActionInfo(prev => ({
+              ...prev,
+              ...review.content.actionInfo,
+            }));
+          }
         }
-      ]
+      }
+    } catch (error) {
+      // 404 is expected for new cases - only log other errors
+      if (error.response?.status !== 404) {
+        console.error('Error loading review:', error);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter out empty evidence rows before saving (matches website logic)
+  const filterEmptyEvidence = (evidenceArray) => {
+    if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
+    return evidenceArray.filter(row => 
+      row && (row.type || row.author || row.purpose || row.issues)
     );
   };
 
-  const renderReviewCard = (review) => {
-    const clientName = review.content?.interviewInfo?.clientName || 'Unknown Client';
-    const reviewerName = review.reviewerName || review.reviewerRole || 'Staff';
-    const caseNature = review.content?.caseInfo?.nature || review.content?.interviewInfo?.caseNature || 'N/A';
+  const handleSave = async () => {
+    if (isViewOnly) {
+      return;
+    }
+    setSaving(true);
 
-    return (
-      <TouchableOpacity
-        key={review._id || review.id}
-        style={styles.reviewCard}
-        onPress={() => handleEditReview(review)}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderLeft}>
-            <Ionicons name="document-text" size={24} color={PRIMARY_GOLD} />
-            <View style={styles.reviewInfo}>
-              <Text style={styles.clientName}>{clientName}</Text>
-              <Text style={styles.caseId}>Case: {review.caseId}</Text>
+    try {
+      const completeInterviewInfo = {
+        ...interviewInfo,
+        clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
+        adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+      };
+
+      const reviewPayload = {
+        caseId: derivedCaseId,
+        reviewerId: userData?._id || userData?.id || null,
+        reviewerRole: normalizedRole || 'staff',
+        step: currentStep,
+        content: {
+          interviewInfo: completeInterviewInfo,
+          actionInfo: actionInfo,
+        },
+      };
+
+      if (reviewId) {
+        await apiClient.put(`/reviews/${reviewId}`, reviewPayload);
+      } else {
+        const response = await apiClient.post('/reviews', reviewPayload);
+        setReviewId(response.data._id || response.data.id);
+      }
+
+      if (isIntern) {
+        // Interns submit for review only; status marked confirmed and no finalization
+        try {
+          await apiClient.put(`/clientsinfo/${derivedCaseId}`, { status: 'confirmed' });
+        } catch (statusErr) {
+          console.error('Error updating status for intern submission:', statusErr);
+        }
+        Alert.alert('Submitted', 'Review sent to the attorney for finalization.');
+        router.back();
+        return;
+      }
+
+      if (isAttorneyRole) {
+        if (!derivedCaseId || derivedCaseId === 'new-case') {
+          Alert.alert('Missing case', 'Cannot finalize without a valid case id.');
+          setSaving(false);
+          return;
+        }
+        let finalStatus = 'confirmed';
+        if (completeInterviewInfo.forLegalAdvice === true) {
+          finalStatus = 'legal-advice';
+        } else if (actionInfo.decision === 'accepted' || actionInfo.decision === 'rejected' || actionInfo.decision === 'pending') {
+          finalStatus = 'court-case';
+        }
+
+        try {
+          await apiClient.put(`/clientsinfo/${derivedCaseId}`, { status: finalStatus });
+        } catch (statusErr) {
+          console.error('Error updating final status:', statusErr);
+        }
+
+        let finalizeCreated = null;
+        try {
+          const res = await apiClient.post('/finalize', {
+            caseId: derivedCaseId,
+            finalizedBy: userData?._id || userData?.id || null,
+            finalizedRole: normalizedRole,
+            decision: actionInfo.decision || 'pending',
+            content: {
+              interviewInfo: completeInterviewInfo,
+              actionInfo,
+            },
+          });
+          finalizeCreated = res.data;
+        } catch (finalizeErr) {
+          console.error('Error saving finalization:', finalizeErr);
+          RNAlert.alert('Finalize Failed', 'Could not create finalized record.');
+          throw finalizeErr;
+        }
+
+        try {
+          const toDeleteId = reviewId || passedReview?._id || passedReview?.id;
+          if (toDeleteId) {
+            await apiClient.delete(`/reviews/${toDeleteId}`);
+          }
+          await apiClient.delete(`/reviews/case/${derivedCaseId}`);
+        } catch (deleteErr) {
+          console.error('Error deleting review after finalization:', deleteErr);
+          RNAlert.alert('Cleanup Warning', 'Finalized, but could not remove review record.');
+        }
+
+        Alert.alert('Finalized', 'Case finalized successfully.');
+        router.back();
+        return;
+      }
+
+      Alert.alert('Saved', 'Recommendation saved successfully.');
+      router.back();
+    } catch (error) {
+      console.error('Error saving review:', error);
+      Alert.alert('Error', 'Failed to save recommendation');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Update evidence helper
+  const updateClientEvidence = (index, field, value) => {
+    const updated = [...(interviewInfo.clientEvidence || [])];
+    if (!updated[index]) {
+      updated[index] = { type: '', author: '', purpose: '', issues: '' };
+    }
+    updated[index] = { ...updated[index], [field]: value };
+    setInterviewInfo({ ...interviewInfo, clientEvidence: updated });
+  };
+
+  const updateAdverseEvidence = (index, field, value) => {
+    const updated = [...(interviewInfo.adversePartyEvidence || [])];
+    if (!updated[index]) {
+      updated[index] = { type: '', author: '', purpose: '', issues: '' };
+    }
+    updated[index] = { ...updated[index], [field]: value };
+    setInterviewInfo({ ...interviewInfo, adversePartyEvidence: updated });
+  };
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 0: // Client Interview and Evidence Record (matches website Section 2)
+        return (
+          <View style={styles.formSection}>
+            {/* Section Title */}
+            <Text style={styles.mainTitle}>Client Interview and Evidence Record</Text>
+            
+            <View style={styles.divider} />
+
+            {/* Date and Name Fields */}
+            <Text style={styles.inputLabel}>Date of Interview</Text>
+            <TextInput
+              style={styles.input}
+              value={interviewInfo.dateOfInterview}
+              onChangeText={(text) => setInterviewInfo({...interviewInfo, dateOfInterview: text})}
+              placeholder="YYYY-MM-DD"
+            />
+            
+            <Text style={styles.inputLabel}>Date Submitted</Text>
+            <TextInput
+              style={styles.input}
+              value={interviewInfo.dateSubmitted}
+              onChangeText={(text) => setInterviewInfo({...interviewInfo, dateSubmitted: text})}
+              placeholder="YYYY-MM-DD"
+            />
+            
+            <Text style={styles.inputLabel}>Client's Name</Text>
+            <TextInput
+              style={styles.input}
+              value={interviewInfo.clientName}
+              onChangeText={(text) => setInterviewInfo({...interviewInfo, clientName: text})}
+              placeholder="Full Name"
+            />
+            
+            <Text style={styles.inputLabel}>Interviewing Intern/s Duty Day</Text>
+            <TextInput
+              style={styles.input}
+              value={interviewInfo.interviewingInterns}
+              onChangeText={(text) => setInterviewInfo({...interviewInfo, interviewingInterns: text})}
+              placeholder="Intern Name/s and Duty Day"
+            />
+
+            <View style={styles.divider} />
+            
+            {/* Fast Facts */}
+            <Text style={styles.sectionTitle}>Fast Facts</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={interviewInfo.fastFacts}
+              onChangeText={(text) => setInterviewInfo({...interviewInfo, fastFacts: text})}
+              placeholder="A brief summary of the client's story and the core legal issue/s."
+              multiline
+              numberOfLines={4}
+            />
+
+            <View style={styles.divider} />
+
+            {/* Evidence on Hand for Client(s) */}
+            <Text style={styles.sectionTitle}>Evidence on Hand / Available for the Client(s)</Text>
+            {(interviewInfo.clientEvidence || []).map((evidence, index) => (
+              <View key={`client-${index}`} style={styles.evidenceCard}>
+                <Text style={styles.evidenceCardTitle}>Evidence #{index + 1}</Text>
+                
+                <Text style={styles.inputLabel}>Type / Description</Text>
+                <TextInput
+                  style={styles.input}
+                  value={evidence.type || ''}
+                  onChangeText={(text) => updateClientEvidence(index, 'type', text)}
+                  placeholder="Type/Desc"
+                />
+                
+                <Text style={styles.inputLabel}>Author / Custodian</Text>
+                <TextInput
+                  style={styles.input}
+                  value={evidence.author || ''}
+                  onChangeText={(text) => updateClientEvidence(index, 'author', text)}
+                  placeholder="Author/Custodian"
+                />
+                
+                <Text style={styles.inputLabel}>Purpose</Text>
+                <TextInput
+                  style={styles.input}
+                  value={evidence.purpose || ''}
+                  onChangeText={(text) => updateClientEvidence(index, 'purpose', text)}
+                  placeholder="Purpose"
+                />
+                
+                <Text style={styles.inputLabel}>Admissibility Issues</Text>
+                <TextInput
+                  style={styles.input}
+                  value={evidence.issues || ''}
+                  onChangeText={(text) => updateClientEvidence(index, 'issues', text)}
+                  placeholder="Admissibility Issues"
+                />
+              </View>
+            ))}
+
+            <View style={styles.divider} />
+
+            {/* Evidence on Hand for Adverse Party(ies) */}
+            <Text style={styles.sectionTitle}>Evidence on Hand / Available for the Adverse Party(ies)</Text>
+            {(interviewInfo.adversePartyEvidence || []).map((evidence, index) => (
+              <View key={`adverse-${index}`} style={styles.evidenceCard}>
+                <Text style={styles.evidenceCardTitle}>Evidence #{index + 1}</Text>
+                
+                <Text style={styles.inputLabel}>Type / Description</Text>
+                <TextInput
+                  style={styles.input}
+                  value={evidence.type || ''}
+                  onChangeText={(text) => updateAdverseEvidence(index, 'type', text)}
+                  placeholder="Type/Desc"
+                />
+                
+                <Text style={styles.inputLabel}>Author / Custodian</Text>
+                <TextInput
+                  style={styles.input}
+                  value={evidence.author || ''}
+                  onChangeText={(text) => updateAdverseEvidence(index, 'author', text)}
+                  placeholder="Author/Custodian"
+                />
+                
+                <Text style={styles.inputLabel}>Purpose</Text>
+                <TextInput
+                  style={styles.input}
+                  value={evidence.purpose || ''}
+                  onChangeText={(text) => updateAdverseEvidence(index, 'purpose', text)}
+                  placeholder="Purpose"
+                />
+                
+                <Text style={styles.inputLabel}>Admissibility Issues</Text>
+                <TextInput
+                  style={styles.input}
+                  value={evidence.issues || ''}
+                  onChangeText={(text) => updateAdverseEvidence(index, 'issues', text)}
+                  placeholder="Admissibility Issues"
+                />
+              </View>
+            ))}
+
+            <View style={styles.divider} />
+
+            {/* Interviewing Intern's Initial Advice to the Client(s) */}
+            <Text style={styles.sectionTitle}>Interviewing Intern's Initial Advice to the Client(s)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={interviewInfo.internAdvice}
+              onChangeText={(text) => setInterviewInfo({...interviewInfo, internAdvice: text})}
+              placeholder="Brief summary of the initial legal advice given to the client."
+              multiline
+              numberOfLines={3}
+            />
+            
+            {/* For legal advice only checkbox */}
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setInterviewInfo({...interviewInfo, forLegalAdvice: !interviewInfo.forLegalAdvice})}
+            >
+              <View style={[styles.checkbox, interviewInfo.forLegalAdvice && styles.checkboxChecked]}>
+                {interviewInfo.forLegalAdvice && <Ionicons name="checkmark" size={16} color="white" />}
+              </View>
+              <Text style={styles.checkboxLabel}>For legal advice only</Text>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* Legal Opinion */}
+            <Text style={styles.sectionTitle}>Legal Opinion</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={interviewInfo.legalOpinion}
+              onChangeText={(text) => setInterviewInfo({...interviewInfo, legalOpinion: text})}
+              placeholder="The intern's assessment of the case's merits and possible legal strategy."
+              multiline
+              numberOfLines={5}
+            />
+          </View>
+        );
+      
+      case 1: // Supervising Lawyer & Director Action (matches website Section 3)
+        return (
+          <View style={styles.formSection}>
+            {/* Section Title */}
+            <Text style={styles.mainTitle}>Supervising Lawyer & Director Action</Text>
+            
+            <View style={styles.divider} />
+
+            {/* Supervising Lawyer's Comment */}
+            <Text style={styles.sectionTitle}>Supervising Lawyer's Comment</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={actionInfo.supervisingComment}
+              onChangeText={(text) => setActionInfo({...actionInfo, supervisingComment: text})}
+              placeholder="Comments, corrections, or additional instructions from the Supervising Lawyer."
+              multiline
+              numberOfLines={4}
+            />
+
+            <View style={styles.divider} />
+
+            {/* Director's Action */}
+            <Text style={styles.sectionTitle}>Director's Action</Text>
+            
+            <Text style={styles.inputLabel}>Decision</Text>
+            <View style={styles.radioGroup}>
+              {['accepted', 'rejected', 'pending'].map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[styles.radioRow, isIntern && styles.disabledRow]}
+                  onPress={() => {
+                    if (isIntern) return;
+                    setActionInfo({...actionInfo, decision: option});
+                  }}
+                  disabled={isIntern}
+                >
+                  <View style={[styles.radio, actionInfo.decision === option && styles.radioSelected]}>
+                    {actionInfo.decision === option && <View style={styles.radioInner} />}
+                  </View>
+                  <Text style={styles.radioLabel}>{option.charAt(0).toUpperCase() + option.slice(1)}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={PRIMARY_BROWN} />
-        </View>
+            
+            <Text style={styles.inputLabel}>If accepted/pending, instruction(s); if rejected, reason(s):</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={actionInfo.decisionNote}
+              onChangeText={(text) => setActionInfo({...actionInfo, decisionNote: text})}
+              placeholder="Specific instructions or reason for rejection"
+              multiline
+              numberOfLines={4}
+              editable={!isIntern}
+              selectTextOnFocus={!isIntern}
+              placeholderTextColor={isIntern ? '#999' : undefined}
+            />
 
-        <View style={styles.cardDetails}>
-          <View style={styles.detailRow}>
-            <Ionicons name="briefcase-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>{caseNature}</Text>
-          </View>
+            <View style={styles.divider} />
 
-          <View style={styles.detailRow}>
-            <Ionicons name="person-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>Reviewed by: {reviewerName}</Text>
-          </View>
-
-          {review.createdAt && (
-            <View style={styles.detailRow}>
-              <Ionicons name="calendar-outline" size={16} color="#666" />
-              <Text style={styles.detailText}>
-                {new Date(review.createdAt).toLocaleDateString()}
+            {/* Assignment & Signatures */}
+            <Text style={styles.sectionTitle}>Assignment & Signatures</Text>
+            
+            <Text style={styles.inputLabel}>Assigned to: Law Interns</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={actionInfo.assignedTo}
+              onChangeText={(text) => setActionInfo({...actionInfo, assignedTo: text})}
+              placeholder="List of interns assigned to the case"
+              multiline
+              numberOfLines={3}
+            />
+            
+            <Text style={styles.inputLabel}>Supervising Lawyer</Text>
+            <TextInput
+              style={styles.input}
+              value={actionInfo.supervisingLawyer}
+              onChangeText={(text) => setActionInfo({...actionInfo, supervisingLawyer: text})}
+              placeholder="Signature/Name of Supervising Lawyer"
+            />
+            
+            <Text style={styles.inputLabel}>Director's Signature</Text>
+            <TextInput
+              style={styles.input}
+              value={actionInfo.directorSignature}
+              onChangeText={(text) => setActionInfo({...actionInfo, directorSignature: text})}
+              placeholder="Signature/Name of Director"
+            />
+            
+            <Text style={styles.inputLabel}>Date</Text>
+            <TouchableOpacity
+              onPress={() => setShowSignatureDatePicker(true)}
+              style={styles.dateInputWrapper}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.input, styles.dateDisplay]}>
+                {actionInfo.signatureDate || 'Select date'}
               </Text>
-            </View>
-          )}
-        </View>
+              <Ionicons name="calendar" size={18} color={PRIMARY_BROWN} style={styles.dateIcon} />
+            </TouchableOpacity>
 
-        {review.content?.actionInfo?.decision && (
-          <View style={styles.cardFooter}>
-            <View style={[
-              styles.decisionBadge,
-              review.content.actionInfo.decision === 'accepted' ? styles.acceptedBadge :
-              review.content.actionInfo.decision === 'rejected' ? styles.rejectedBadge :
-              styles.pendingBadge
-            ]}>
-              <Text style={styles.decisionText}>
-                {review.content.actionInfo.decision.charAt(0).toUpperCase() + 
-                 review.content.actionInfo.decision.slice(1)}
-              </Text>
-            </View>
+            {showSignatureDatePicker && (
+              <DateTimePicker
+                value={actionInfo.signatureDate ? new Date(actionInfo.signatureDate) : new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowSignatureDatePicker(false);
+                  if (event.type === 'dismissed') return;
+                  const iso = selectedDate?.toISOString().split('T')[0];
+                  setActionInfo({ ...actionInfo, signatureDate: iso || '' });
+                }}
+              />
+            )}
           </View>
-        )}
-      </TouchableOpacity>
-    );
+        );
+      
+      default:
+        return null;
+    }
   };
 
   if (loading) {
@@ -146,115 +623,11 @@ export default function RecommendationForAction() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={CHARCOAL} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Recommendations</Text>
+          <Text style={styles.headerTitle}>Case Documentation</Text>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={PRIMARY_BROWN} />
         </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (selectedReview) {
-    const content = selectedReview.content || {};
-    const interviewInfo = content.interviewInfo || {};
-    const actionInfo = content.actionInfo || {};
-
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSelectedReview(null)} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={CHARCOAL} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Review Details</Text>
-        </View>
-
-        <ScrollView style={styles.detailsContainer}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Interview Information</Text>
-            
-            {interviewInfo.clientName && (
-              <>
-                <Text style={styles.label}>Client Name</Text>
-                <Text style={styles.value}>{interviewInfo.clientName}</Text>
-              </>
-            )}
-
-            {interviewInfo.caseNature && (
-              <>
-                <Text style={styles.label}>Case Nature</Text>
-                <Text style={styles.value}>{interviewInfo.caseNature}</Text>
-              </>
-            )}
-
-            {interviewInfo.clientStatement && (
-              <>
-                <Text style={styles.label}>Client Statement</Text>
-                <Text style={styles.value}>{interviewInfo.clientStatement}</Text>
-              </>
-            )}
-
-            {interviewInfo.adversePartyStatement && (
-              <>
-                <Text style={styles.label}>Adverse Party Statement</Text>
-                <Text style={styles.value}>{interviewInfo.adversePartyStatement}</Text>
-              </>
-            )}
-          </View>
-
-          {actionInfo.decision && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Director's Action</Text>
-              
-              <Text style={styles.label}>Decision</Text>
-              <View style={[
-                styles.decisionBadge,
-                actionInfo.decision === 'accepted' ? styles.acceptedBadge :
-                actionInfo.decision === 'rejected' ? styles.rejectedBadge :
-                styles.pendingBadge,
-                { alignSelf: 'flex-start', marginTop: 8 }
-              ]}>
-                <Text style={styles.decisionText}>
-                  {actionInfo.decision.charAt(0).toUpperCase() + actionInfo.decision.slice(1)}
-                </Text>
-              </View>
-
-              {actionInfo.decisionNote && (
-                <>
-                  <Text style={styles.label}>Notes</Text>
-                  <Text style={styles.value}>{actionInfo.decisionNote}</Text>
-                </>
-              )}
-            </View>
-          )}
-
-          {(actionInfo.assignedTo || actionInfo.supervisingLawyer) && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Assignment</Text>
-              
-              {actionInfo.assignedTo && (
-                <>
-                  <Text style={styles.label}>Assigned To</Text>
-                  <Text style={styles.value}>{actionInfo.assignedTo}</Text>
-                </>
-              )}
-
-              {actionInfo.supervisingLawyer && (
-                <>
-                  <Text style={styles.label}>Supervising Lawyer</Text>
-                  <Text style={styles.value}>{actionInfo.supervisingLawyer}</Text>
-                </>
-              )}
-            </View>
-          )}
-
-          <View style={styles.noteBox}>
-            <Ionicons name="information-circle" size={20} color={PRIMARY_BROWN} />
-            <Text style={styles.noteText}>
-              For detailed editing and form completion, please use the website version.
-            </Text>
-          </View>
-        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -265,28 +638,82 @@ export default function RecommendationForAction() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={CHARCOAL} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Recommendations</Text>
+        <Text style={styles.headerTitle}>Case Documentation</Text>
       </View>
 
-      {reviews.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="document-text-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyText}>No recommendations found</Text>
-          <Text style={styles.emptySubtext}>
-            {caseId ? 'No reviews for this case yet' : 'No pending reviews'}
-          </Text>
-        </View>
-      ) : (
-        <ScrollView style={styles.reviewList}>
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={20} color={PRIMARY_BROWN} />
-            <Text style={styles.infoText}>
-              Tap a recommendation to view details. Use the website for full editing.
-            </Text>
+      {/* Step Indicator */}
+      <View style={styles.stepperContainer}>
+        {steps.map((step, index) => (
+          <View key={index} style={styles.stepItem}>
+            <View style={[
+              styles.stepCircle,
+              index <= currentStep ? styles.stepCircleActive : styles.stepCircleInactive
+            ]}>
+              {index < currentStep ? (
+                <Ionicons name="checkmark" size={16} color="white" />
+              ) : (
+                <Text style={[
+                  styles.stepNumber,
+                  index <= currentStep ? styles.stepNumberActive : styles.stepNumberInactive
+                ]}>{index + 1}</Text>
+              )}
+            </View>
+            <Text style={styles.stepLabel}>{step.label}</Text>
+            {index < steps.length - 1 && <View style={styles.stepLine} />}
           </View>
-          {reviews.map(renderReviewCard)}
-        </ScrollView>
-      )}
+        ))}
+      </View>
+
+      <ScrollView style={styles.formContainer}>
+        {renderStepContent()}
+      </ScrollView>
+
+      {/* Navigation Buttons */}
+      <View style={styles.buttonContainer}>
+        {currentStep > 0 && (
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => setCurrentStep(currentStep - 1)}
+          >
+            <Ionicons name="chevron-back" size={20} color={PRIMARY_BROWN} />
+            <Text style={styles.secondaryButtonText}>Previous</Text>
+          </TouchableOpacity>
+        )}
+        
+        {currentStep < steps.length - 1 ? (
+          <TouchableOpacity
+            style={[styles.primaryButton, isViewOnly && styles.primaryButtonDisabled]}
+            onPress={() => setCurrentStep(currentStep + 1)}
+            disabled={isViewOnly && saving}
+          >
+            <Text style={styles.primaryButtonText}>{isViewOnly ? 'Next' : 'Next'}</Text>
+            <Ionicons name="chevron-forward" size={20} color="white" />
+          </TouchableOpacity>
+        ) : isViewOnly ? (
+          <TouchableOpacity
+            style={[styles.primaryButton, styles.primaryButtonDisabled]}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.primaryButtonText}>Close</Text>
+            <Ionicons name="close" size={20} color="white" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={20} color="white" />
+                <Text style={styles.primaryButtonText}>{isIntern ? 'Save Changes' : 'Finalize'}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -317,163 +744,229 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 64,
-    paddingHorizontal: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#ccc',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEMED_LIGHT_BG,
-    padding: 12,
-    marginHorizontal: 16,
-    marginVertical: 16,
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: PRIMARY_BROWN,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#666',
-    marginLeft: 8,
-  },
-  reviewList: {
-    flex: 1,
-  },
-  reviewCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  cardHeader: {
+  stepperContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  reviewInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  clientName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: CHARCOAL,
-  },
-  caseId: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  cardDetails: {
-    marginBottom: 12,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 8,
-  },
-  cardFooter: {
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  decisionBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  acceptedBadge: {
-    backgroundColor: '#E8F5E9',
-  },
-  rejectedBadge: {
-    backgroundColor: '#FFEBEE',
-  },
-  pendingBadge: {
-    backgroundColor: '#FFF3E0',
-  },
-  decisionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: CHARCOAL,
-  },
-  detailsContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  section: {
-    marginBottom: 24,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
     backgroundColor: THEMED_LIGHT_BG,
-    borderRadius: 8,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: PRIMARY_BROWN,
-    marginBottom: 16,
+  stepItem: {
+    flex: 1,
+    alignItems: 'center',
+    position: 'relative',
   },
-  label: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 12,
-    marginBottom: 4,
-    fontWeight: '600',
-  },
-  value: {
-    fontSize: 16,
-    color: CHARCOAL,
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  noteBox: {
+  stepCircleActive: {
+    backgroundColor: PRIMARY_BROWN,
+  },
+  stepCircleInactive: {
+    backgroundColor: '#E0E0E0',
+  },
+  stepNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  stepNumberActive: {
+    color: 'white',
+  },
+  stepNumberInactive: {
+    color: '#999',
+  },
+  stepLabel: {
+    fontSize: 11,
+    color: CHARCOAL,
+    textAlign: 'center',
+  },
+  stepLine: {
+    position: 'absolute',
+    top: 16,
+    left: '50%',
+    right: '-50%',
+    height: 2,
+    backgroundColor: '#E0E0E0',
+    zIndex: -1,
+  },
+  formContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  formSection: {
+    marginBottom: 20,
+  },
+  mainTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: PRIMARY_BROWN,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: PRIMARY_BROWN,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: CHARCOAL,
+    backgroundColor: 'white',
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF3E0',
-    padding: 12,
-    borderRadius: 8,
     marginTop: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: '#FF9800',
+    justifyContent: 'flex-end',
   },
-  noteText: {
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: PRIMARY_BROWN,
+    borderRadius: 4,
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: PRIMARY_BROWN,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: CHARCOAL,
+  },
+  radioGroup: {
+    marginTop: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  radioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: PRIMARY_BROWN,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioSelected: {
+    borderColor: PRIMARY_BROWN,
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: PRIMARY_BROWN,
+  },
+  radioLabel: {
+    fontSize: 15,
+    color: CHARCOAL,
+  },
+  disabledRow: {
+    opacity: 0.5,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    backgroundColor: 'white',
+    gap: 12,
+  },
+  primaryButton: {
     flex: 1,
-    fontSize: 13,
-    color: '#666',
-    marginLeft: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PRIMARY_BROWN,
+    padding: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.85,
+  },
+  primaryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dateInputWrapper: {
+    position: 'relative',
+  },
+  dateDisplay: {
+    paddingRight: 40,
+  },
+  dateIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 14,
+  },
+  secondaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'white',
+    borderWidth: 1.5,
+    borderColor: PRIMARY_BROWN,
+    padding: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  secondaryButtonText: {
+    color: PRIMARY_BROWN,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  evidenceCard: {
+    backgroundColor: THEMED_LIGHT_BG,
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  evidenceCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PRIMARY_BROWN,
+    marginBottom: 8,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 20,
   },
 });

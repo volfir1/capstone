@@ -76,13 +76,25 @@ export const AuthProvider = ({ children }) => {
 
            
             if (userError.response?.status === 404) {
-              console.log("User not found in MongoDB, creating new user...");
+              console.log("User not found in MongoDB, creating new user if possible...");
 
-              const displayName = user.displayName || "";
+              const displayName = (user.displayName || "").trim();
+              if (!displayName) {
+                console.log("Display name empty; skipping auto-register (likely attorney account created elsewhere)");
+                setUserData(null);
+                return;
+              }
+
               const nameParts = displayName.split(" ");
               const firstName = nameParts[0] || "";
               const lastName = nameParts.slice(1).join(" ") || "";
               const username = user.email;
+
+              if (!firstName || !username) {
+                console.log("Missing firstName or email; skipping auto-register");
+                setUserData(null);
+                return;
+              }
 
               try {
                 const { registerUser } = await import(

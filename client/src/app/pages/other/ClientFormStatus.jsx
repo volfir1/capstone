@@ -337,7 +337,7 @@ export default function StaffAppointmentManager() {
       const response = await apiClient.put(`/clientsinfo/${selectedAppointment.id}`, payload);
       console.log('Update response:', response);
       
-      if (response?.data) {
+      if (response && (response.status >= 200 && response.status < 300)) {
         setIsUpdating(false);
         updateLocalAppointment(iso);
         return;
@@ -350,7 +350,7 @@ export default function StaffAppointmentManager() {
         const response = await apiClient.put(`/api/clientsinfo/${selectedAppointment.id}`, payload);
         console.log('Update response:', response);
         
-        if (response?.data) {
+        if (response && (response.status >= 200 && response.status < 300)) {
           setIsUpdating(false);
           updateLocalAppointment(iso);
           return;

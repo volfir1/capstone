@@ -123,6 +123,16 @@ export default function AppointmentTracker() {
         const rejectedList = []
         
         const docsArray = Array.isArray(docs) ? docs : [];
+        const filteredStatuses = new Set([
+          'submitted-for-review',
+          'submitted for review',
+          'for-review',
+          'review',
+          'pending review',
+          'finalized',
+          'finalised'
+        ]);
+
         docsArray.forEach((d, idx) => {
           const appointed = d.appointedDate || d.appointmentDate || d.caseDetails?.appointedDate
           const dateOnly = appointed ? new Date(appointed).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD'
@@ -141,6 +151,9 @@ export default function AppointmentTracker() {
           }
           
           const status = d.status || 'auto-scheduled'
+          if (filteredStatuses.has(String(status).toLowerCase())) {
+            return; // Hide items already submitted for review or finalized
+          }
           
           console.log(`Processing appointment ${idx + 1}:`, { 
             id: d._id, 

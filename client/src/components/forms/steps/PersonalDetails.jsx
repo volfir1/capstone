@@ -39,6 +39,19 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
     }
   };
 
+  // Auto-format Philippine landline as (0A) XXXX-XXXX
+  const formatTelephoneNumber = (value) => {
+    if (!value) return '';
+    const digitsOnly = value.replace(/\D/g, '');
+    const withLeadingZero = digitsOnly.startsWith('0') ? digitsOnly : `0${digitsOnly}`;
+    const limited = withLeadingZero.slice(0, 10); // e.g., 0 + 1-2 digit area + 7-8 digit line
+
+    if (limited.length <= 2) return `(${limited}`;
+    if (limited.length <= 4) return `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+    if (limited.length <= 8) return `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6)}`;
+    return `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6, 10)}`;
+  };
+
   // Calculate age from birthday
   const calculateAge = (birthday) => {
     if (!birthday) return '';
@@ -358,9 +371,16 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
           size="md"
           {...register('cellphoneNumber', validationRules.cellphoneNumber)}
           error={errors.cellphoneNumber?.message}
+          value={watch('cellphoneNumber') || '+63 '}
           onChange={(e) => {
             const formatted = formatPhoneNumber(e.target.value);
             setValue('cellphoneNumber', formatted);
+          }}
+          onFocus={(e) => {
+            // Keep +63 prefix consistent with primary contact number
+            if (!e.target.value || e.target.value === '') {
+              setValue('cellphoneNumber', '+63 ');
+            }
           }}
           description="Optional alternate contact number"
           styles={{
@@ -408,6 +428,16 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
           size="md"
           {...register('telephoneNumber', validationRules.telephoneNumber)}
           error={errors.telephoneNumber?.message}
+          value={watch('telephoneNumber') || ''}
+          onChange={(e) => {
+            const formatted = formatTelephoneNumber(e.target.value);
+            setValue('telephoneNumber', formatted);
+          }}
+          onFocus={(e) => {
+            if (!e.target.value || e.target.value === '') {
+              setValue('telephoneNumber', '(');
+            }
+          }}
           styles={{
             input: {
               borderColor: errors.telephoneNumber ? '#E74C3C' : '#E0E0E0',

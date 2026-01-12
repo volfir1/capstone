@@ -16,6 +16,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import styles from '../../assets/styles/appointmentFormStyles';
 import { PRIMARY_BROWN, PRIMARY_GOLD, MUTED_OLIVE, CHARCOAL } from '../../utils/constants';
+import apiClient from '../../api/apiClient';
 
 const FORM_STORAGE_KEY = '@justreach_appointment_draft';
 
@@ -23,6 +24,8 @@ export default function AppointmentForm() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showPreferredDatePicker, setShowPreferredDatePicker] = useState(false);
+  const [showPreferredTimePicker, setShowPreferredTimePicker] = useState(false);
   const [showRelator, setShowRelator] = useState(false);
   const [sameAsPresent, setSameAsPresent] = useState(false);
 
@@ -57,6 +60,10 @@ export default function AppointmentForm() {
     courtDivision: '',
     courtAddress: '',
     presidingOfficer: '',
+
+    // Preferred schedule
+    preferredDate: null,
+    preferredTime: null,
   });
 
   const [errors, setErrors] = useState({});
@@ -127,6 +134,8 @@ export default function AppointmentForm() {
         courtDivision: '',
         courtAddress: '',
         presidingOfficer: '',
+        preferredDate: null,
+        preferredTime: null,
       });
       setCurrentStep(0);
       Alert.alert('Form Cleared', 'All saved form data has been cleared');
@@ -202,6 +211,8 @@ export default function AppointmentForm() {
       if (!formData.courtDivision.trim()) newErrors.courtDivision = 'Court division is required';
       if (!formData.courtAddress.trim()) newErrors.courtAddress = 'Court address is required';
       if (!formData.presidingOfficer.trim()) newErrors.presidingOfficer = 'Presiding officer is required';
+      if (!formData.preferredDate) newErrors.preferredDate = 'Preferred date is required';
+      if (!formData.preferredTime) newErrors.preferredTime = 'Preferred time is required';
     }
 
     setErrors(newErrors);
@@ -220,6 +231,18 @@ export default function AppointmentForm() {
     setCurrentStep(prev => Math.max(prev - 1, 0));
   };
 
+  const formatPreferredDate = (date) => {
+    if (!date) return 'Select Date';
+    const d = new Date(date);
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
+  const formatPreferredTime = (time) => {
+    if (!time) return 'Select Time';
+    const d = new Date(time);
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  };
+
   const handleSubmit = async () => {
     Alert.alert(
       'Submit Application',
@@ -230,8 +253,23 @@ export default function AppointmentForm() {
           text: 'Submit',
           onPress: async () => {
             try {
-              // TODO: Submit to API
-              console.log('Submitting form:', formData);
+              const finalErrors = { ...errors };
+              if (!formData.preferredDate) finalErrors.preferredDate = 'Preferred date is required';
+              if (!formData.preferredTime) finalErrors.preferredTime = 'Preferred time is required';
+              setErrors(finalErrors);
+              if (finalErrors.preferredDate || finalErrors.preferredTime) {
+                Alert.alert('Missing Schedule', 'Please select a preferred appointment date and time.');
+                return;
+              }
+
+              const payload = {
+                ...formData,
+                appointedDate: formData.preferredDate,
+                appointmentTime: formData.preferredTime,
+                status: 'auto-scheduled',
+              };
+
+              await apiClient.post('/clientsinfo', payload);
               
               Alert.alert(
                 'Success',
@@ -309,6 +347,38 @@ export default function AppointmentForm() {
             }
           }}
           maximumDate={new Date()}
+        />
+      )}
+
+      {showPreferredDatePicker && (
+        <DateTimePicker
+          value={formData.preferredDate ? new Date(formData.preferredDate) : new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowPreferredDatePicker(false);
+            if (selectedDate) {
+              updateField('preferredDate', selectedDate.toISOString());
+            }
+          }}
+          minimumDate={new Date()}
+        />
+      )}
+
+      {showPreferredTimePicker && (
+        <DateTimePicker
+          value={formData.preferredTime ? new Date(formData.preferredTime) : new Date()}
+          mode="time"
+          display="default"
+          onChange={(event, selectedTime) => {
+            setShowPreferredTimePicker(false);
+            if (selectedTime) {
+              const normalized = new Date();
+              normalized.setHours(selectedTime.getHours());
+              normalized.setMinutes(selectedTime.getMinutes());
+              updateField('preferredTime', normalized.toISOString());
+            }
+          }}
         />
       )}
 
@@ -641,6 +711,35 @@ export default function AppointmentForm() {
         />
         {errors.presidingOfficer && <Text style={styles.errorText}>{errors.presidingOfficer}</Text>}
       </View>
+
+      <View style={styles.divider} />
+      <Text style={styles.sectionTitle}>Preferred Appointment Schedule</Text>
+
+      <View style={styles.row}>
+        <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+          <Text style={styles.label}>Preferred Date <Text style={styles.required}>*</Text></Text>
+          <TouchableOpacity
+            style={[styles.input, errors.preferredDate && styles.inputError]}
+            onPress={() => setShowPreferredDatePicker(true)}
+          >
+            <Text style={styles.inputText}>{formatPreferredDate(formData.preferredDate)}</Text>
+            <Ionicons name="calendar-outline" size={20} color={MUTED_OLIVE} />
+          </TouchableOpacity>
+          {errors.preferredDate && <Text style={styles.errorText}>{errors.preferredDate}</Text>}
+        </View>
+
+        <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+          <Text style={styles.label}>Preferred Time <Text style={styles.required}>*</Text></Text>
+          <TouchableOpacity
+            style={[styles.input, errors.preferredTime && styles.inputError]}
+            onPress={() => setShowPreferredTimePicker(true)}
+          >
+            <Text style={styles.inputText}>{formatPreferredTime(formData.preferredTime)}</Text>
+            <Ionicons name="time-outline" size={20} color={MUTED_OLIVE} />
+          </TouchableOpacity>
+          {errors.preferredTime && <Text style={styles.errorText}>{errors.preferredTime}</Text>}
+        </View>
+      </View>
     </View>
   );
 
@@ -717,6 +816,14 @@ export default function AppointmentForm() {
         <View style={styles.reviewItem}>
           <Text style={styles.reviewLabel}>Presiding Officer:</Text>
           <Text style={styles.reviewValue}>{formData.presidingOfficer}</Text>
+        </View>
+        <View style={styles.reviewItem}>
+          <Text style={styles.reviewLabel}>Preferred Date:</Text>
+          <Text style={styles.reviewValue}>{formatPreferredDate(formData.preferredDate)}</Text>
+        </View>
+        <View style={styles.reviewItem}>
+          <Text style={styles.reviewLabel}>Preferred Time:</Text>
+          <Text style={styles.reviewValue}>{formatPreferredTime(formData.preferredTime)}</Text>
         </View>
       </View>
 

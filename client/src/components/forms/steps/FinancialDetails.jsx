@@ -4,7 +4,27 @@ import { TextInput, Group, Title, Paper, Stack, Text, Box } from '@mantine/core'
 import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG, MUTED_OLIVE, CHARCOAL } from '@utils/constants';
 import { validationRules } from '@utils/validation';
 
-export default function FinancialDetailsForm({ register, errors }) {
+export default function FinancialDetailsForm({ register, errors, watch, setValue }) {
+  const parseIncome = (value) => {
+    if (value === undefined || value === null || value === '') return 0;
+    const cleaned = value.toString().replace(/,/g, '');
+    const parsed = parseFloat(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const monthlyIncome = watch?.('monthlyIncome');
+  const spouseMonthlyIncome = watch?.('spouseMonthlyIncome');
+  const currentTotal = watch?.('totalCombinedIncome');
+
+  React.useEffect(() => {
+    const total = parseIncome(monthlyIncome) + parseIncome(spouseMonthlyIncome);
+    const existing = parseIncome(currentTotal);
+
+    if (Number.isFinite(total) && total !== existing) {
+      setValue?.('totalCombinedIncome', total ? total.toString() : '');
+    }
+  }, [monthlyIncome, spouseMonthlyIncome, currentTotal, setValue]);
+
   return (
     <Stack gap="lg" mt="lg">
       {/* Section Header */}

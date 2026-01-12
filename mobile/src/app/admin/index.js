@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,104 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from 'context/authContext';
 import { useAdminDashboard } from '../../hooks/admin/useAdminDashboard';
+import apiClient from '../../api/apiClient';
 
 const AdminDashboard = () => {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, userData } = useAuth();
+  const isIntern = userData?.role === 'intern';
   const { stats, loading, refreshStats } = useAdminDashboard();
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [finalized, setFinalized] = useState([]);
+  const [loadingFinalized, setLoadingFinalized] = useState(false);
+  const [caseRecordsMap, setCaseRecordsMap] = useState({});
+
+  useEffect(() => {
+    fetchReviews();
+    fetchFinalized();
+  }, []);
+
+  // Refresh whenever this screen regains focus (e.g., after finalize/back)
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchReviews();
+      fetchFinalized();
+    }, [])
+  );
+
+  const fetchReviews = async () => {
+    try {
+      setLoadingReviews(true);
+      // Interns should see their own submissions; other roles see latest 5 overall
+      const query = isIntern && userData?._id ? `?reviewerId=${encodeURIComponent(userData._id)}` : '';
+      const resp = await apiClient.get(`/reviews${query}`);
+      const data = resp.data?.data ?? resp.data ?? [];
+      const reviewsArray = Array.isArray(data) ? data : [];
+      
+      // Fetch user details for reviewer names
+      const reviewsWithNames = await Promise.all(
+        reviewsArray.map(async (review) => {
+          if (review.reviewerId) {
+            try {
+              const userResp = await apiClient.get(`/users/${review.reviewerId}`);
+              const user = userResp.data?.data ?? userResp.data;
+              const reviewerName = user?.displayName || user?.fullName || user?.username || review.reviewerRole || 'Staff';
+              return { ...review, reviewerName };
+            } catch (err) {
+              return { ...review, reviewerName: review.reviewerRole || 'Staff' };
+            }
+          }
+          return { ...review, reviewerName: review.reviewerRole || 'Staff' };
+        })
+      );
+      
+      setReviews(reviewsWithNames.slice(0, 5)); // Show only 5 most recent (or all intern submissions)
+    } catch (err) {
+      console.error('Error fetching reviews', err);
+      setReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const fetchFinalized = async () => {
+    try {
+      setLoadingFinalized(true);
+      const resp = await apiClient.get('/finalize');
+      const data = resp.data?.data ?? resp.data ?? [];
+      const finalizedArray = Array.isArray(data) ? data : [];
+
+      // Detect accepted cases that already have case records
+      const accepted = finalizedArray.filter(f => f.decision === 'accepted');
+      const recordsMap = {};
+
+      await Promise.all(
+        accepted.map(async (caseData) => {
+          const key = caseData._id || caseData.id;
+          if (!key) return;
+          try {
+            const caseRecordResp = await apiClient.get(`/caserecords/finalize/${key}`);
+            recordsMap[key] = !!caseRecordResp.data;
+          } catch (err) {
+            recordsMap[key] = false;
+          }
+        })
+      );
+
+      setCaseRecordsMap(recordsMap);
+      setFinalized(finalizedArray.slice(0, 5)); // Show only 5 most recent
+    } catch (err) {
+      console.error('Error fetching finalized records', err);
+      setFinalized([]);
+      setCaseRecordsMap({});
+    } finally {
+      setLoadingFinalized(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -85,11 +176,11 @@ const AdminDashboard = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.nameText}>Administrator</Text>
+          <Text style={styles.nameText}>{isIntern ? 'Intern' : 'Administrator'}</Text>
           <Text style={styles.subtitle}>Manage your legal services platform</Text>
         </View>
 
@@ -119,63 +210,175 @@ const AdminDashboard = () => {
                   style={[
                     styles.featureCard,
                     { backgroundColor: feature.bgColor },
-                    !feature.route && styles.featureCardDisabled,
                   ]}
-                  onPress={() => feature.route && router.push(feature.route)}
-                  disabled={!feature.route}
-                  activeOpacity={feature.route ? 0.7 : 1}
+                  onPress={() => {
+                    if (isIntern) return; // interns view-only on stats
+                    if (feature.route) {
+                      router.push(feature.route);
+                    } else if (feature.id === 'cases') {
+                      router.push('/admin/finalized');
+                    } else if (feature.id === 'users') {
+                      router.push('/admin/users');
+                    }
+                  }}
+                  activeOpacity={isIntern ? 1 : 0.7}
                 >
                   <View style={[styles.iconContainer, { backgroundColor: feature.color }]}>
                     <Ionicons name={feature.icon} size={28} color="#FFFFFF" />
                   </View>
                   <Text style={styles.featureCount}>{feature.count}</Text>
                   <Text style={styles.featureTitle}>{feature.title}</Text>
-                  {feature.route && (
-                    <View style={styles.clickableIndicator}>
-                      <Ionicons name="arrow-forward" size={16} color={feature.color} />
-                    </View>
-                  )}
+                  <View style={styles.clickableIndicator}>
+                    <Ionicons name="arrow-forward" size={16} color={feature.color} />
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
           )}
 
+          {/* Submitted For Review */}
+          <Text style={styles.sectionTitle}>Submitted For Review</Text>
+          <Text style={styles.sectionSubtitle}>
+            {userData?.role === 'intern' 
+              ? 'Your submissions awaiting review (view only)'
+              : 'Recent submissions from interns'}
+          </Text>
+          {loadingReviews ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#8B6F47" />
+            </View>
+          ) : reviews.length > 0 ? (
+            <View style={styles.reviewsList}>
+              {reviews.map((review) => {
+                const submitterName = review.content?.interviewInfo?.clientName || review.clientName || 'Unknown Client';
+                const submittedBy = review.reviewerName || 'Staff';
+                const caseId = review.caseId || 'new-case';
+                return (
+                  <TouchableOpacity
+                    key={review._id || review.id || review.caseId}
+                    style={styles.reviewCard}
+                    onPress={() => {
+                      const reviewParam = encodeURIComponent(JSON.stringify(review));
+                      router.push(`/admin/recommendation?caseId=${caseId}&review=${reviewParam}`);
+                    }}
+                  >
+                    <View style={styles.reviewIconContainer}>
+                      <Ionicons name="document-text" size={24} color="#8B6F47" />
+                    </View>
+                    <View style={styles.reviewContent}>
+                      <Text style={styles.reviewClientName}>{submitterName}</Text>
+                      <Text style={styles.reviewSubmitter}>Submitted by: {submittedBy} ({review.reviewerRole || 'Intern'})</Text>
+                      <View style={styles.reviewBadges}>
+                        <View style={styles.reviewBadge}>
+                          <Text style={styles.reviewBadgeText}>
+                            {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'No Date'}
+                          </Text>
+                        </View>
+                        {caseId && caseId !== 'new-case' && (
+                          <View style={[styles.reviewBadge, styles.reviewBadgePrimary]}>
+                            <Text style={styles.reviewBadgeTextPrimary}>{caseId}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#8B6F47" />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>
+              {userData?.role === 'intern' 
+                ? 'You have no submissions pending review'
+                : 'No reviews pending finalization'}
+            </Text>
+          )}
+
+          {/* Finalized Records */}
+          <Text style={styles.sectionTitle}>Finalized Records</Text>
+          <Text style={styles.sectionSubtitle}>Recently finalized case records</Text>
+          {loadingFinalized ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#8B6F47" />
+            </View>
+          ) : finalized.length > 0 ? (
+            <View style={styles.finalizedList}>
+              {finalized.map((record) => {
+                const recordId = record._id || record.id;
+                const hasRecord = recordId ? caseRecordsMap[recordId] : false;
+                const clientName = record.clientName || record.content?.interviewInfo?.clientName || 'Unknown Client';
+                const displayTitle = hasRecord
+                  ? (record.caseTitle || record.content?.caseInfo?.caseTitle || record.caseId || clientName)
+                  : clientName;
+
+                return (
+                <TouchableOpacity
+                  key={record._id || record.id || record.caseId}
+                  style={styles.finalizedCard}
+                  onPress={() => router.push('/admin/recommendation')}
+                >
+                  <View style={styles.finalizedIconContainer}>
+                    <Ionicons name="briefcase" size={24} color="#9BA17B" />
+                  </View>
+                  <View style={styles.finalizedContent}>
+                    <Text style={styles.finalizedTitle}>
+                      {displayTitle}
+                    </Text>
+                    <Text style={styles.finalizedClient}>
+                      {record.clientName || record.content?.interviewInfo?.clientName || ''}
+                    </Text>
+                    <Text style={styles.finalizedMeta}>
+                      Finalized: {record.createdAt ? new Date(record.createdAt).toLocaleDateString() : ''} • By: {record.finalizedRole || record.finalizedBy}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9BA17B" />
+                </TouchableOpacity>
+              );})}
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>No finalized records found</Text>
+          )}
+
           {/* Quick Actions */}
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionsContainer}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push('/admin/assignCases')}
-            >
-              <View style={styles.actionIconContainer}>
-                <Ionicons name="person-add-outline" size={24} color="#8B6F47" />
-              </View>
-              <Text style={styles.actionButtonText}>Assign Cases</Text>
-              <Text style={styles.actionDescription}>Assign cases to attorneys</Text>
-            </TouchableOpacity>
+          {!isIntern && (
+            <>
+              <Text style={styles.sectionTitle}>Quick Actions</Text>
+              <View style={styles.actionsContainer}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => router.push('/admin/assignCases')}
+                >
+                  <View style={styles.actionIconContainer}>
+                    <Ionicons name="person-add-outline" size={24} color="#8B6F47" />
+                  </View>
+                  <Text style={styles.actionButtonText}>Assign Cases</Text>
+                  <Text style={styles.actionDescription}>Assign cases to attorneys</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push('/admin/manageAttorneys')}
-            >
-              <View style={styles.actionIconContainer}>
-                <Ionicons name="checkmark-done-outline" size={24} color="#8B6F47" />
-              </View>
-              <Text style={styles.actionButtonText}>Manage Attorneys</Text>
-              <Text style={styles.actionDescription}>Review attorney applications</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => router.push('/admin/manageAttorneys')}
+                >
+                  <View style={styles.actionIconContainer}>
+                    <Ionicons name="checkmark-done-outline" size={24} color="#8B6F47" />
+                  </View>
+                  <Text style={styles.actionButtonText}>Manage Attorneys</Text>
+                  <Text style={styles.actionDescription}>Review attorney applications</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push('/admin/users')}
-            >
-              <View style={styles.actionIconContainer}>
-                <Ionicons name="people-outline" size={24} color="#8B6F47" />
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => router.push('/admin/recommendation')}
+                >
+                  <View style={styles.actionIconContainer}>
+                    <Ionicons name="star-outline" size={24} color="#8B6F47" />
+                  </View>
+                  <Text style={styles.actionButtonText}>Recommendations</Text>
+                  <Text style={styles.actionDescription}>View case recommendations</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={styles.actionButtonText}>Manage Users</Text>
-              <Text style={styles.actionDescription}>View and manage users</Text>
-            </TouchableOpacity>
-          </View>
+            </>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -192,7 +395,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 50,
+    paddingTop: 16,
     paddingBottom: 20,
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
@@ -243,6 +446,9 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 20,
+  },
   welcomeSection: {
     paddingHorizontal: 24,
     paddingTop: 28,
@@ -283,8 +489,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#2D2D2D',
-    marginBottom: 20,
+    marginBottom: 8,
     letterSpacing: -0.3,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 16,
   },
   loadingContainer: {
     paddingVertical: 40,
@@ -307,9 +518,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
     position: 'relative',
-  },
-  featureCardDisabled: {
-    opacity: 0.9,
   },
   iconContainer: {
     width: 56,
@@ -375,6 +583,111 @@ const styles = StyleSheet.create({
   actionDescription: {
     fontSize: 13,
     color: '#666',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    paddingVertical: 20,
+    marginBottom: 20,
+  },
+  reviewsList: {
+    marginBottom: 24,
+  },
+  reviewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FBF7F4',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E6D9CC',
+  },
+  reviewIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#8B6F47',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  reviewContent: {
+    flex: 1,
+  },
+  reviewClientName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2D2D2D',
+    marginBottom: 4,
+  },
+  reviewSubmitter: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+  },
+  reviewBadges: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  reviewBadge: {
+    backgroundColor: '#E0E0E0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  reviewBadgeText: {
+    fontSize: 11,
+    color: '#666',
+  },
+  reviewBadgePrimary: {
+    backgroundColor: '#C4AB7D',
+  },
+  reviewBadgeTextPrimary: {
+    fontSize: 11,
+    color: '#2D2D2D',
+    fontWeight: '600',
+  },
+  finalizedList: {
+    marginBottom: 24,
+  },
+  finalizedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7FBF9',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E6D9CC',
+  },
+  finalizedIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#9BA17B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  finalizedContent: {
+    flex: 1,
+  },
+  finalizedTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2D2D2D',
+    marginBottom: 2,
+  },
+  finalizedClient: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  finalizedMeta: {
+    fontSize: 11,
+    color: '#999',
   },
   rotating: {
     transform: [{ rotate: '180deg' }],

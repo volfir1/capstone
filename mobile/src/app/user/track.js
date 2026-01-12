@@ -156,6 +156,11 @@ export default function TrackAppointment() {
     }
   };
 
+  const blockedStatuses = new Set(['pending review', 'submitted for review', 'for-review', 'review', 'finalized', 'finalised']);
+  const filteredForAppointmentData = forAppointmentData.filter((item) => !blockedStatuses.has(item.status?.toLowerCase?.() || ''));
+  const filteredLegalAdviceData = legalAdviceData.filter((item) => !blockedStatuses.has(item.status?.toLowerCase?.() || ''));
+  const filteredRepresentationData = representationData.filter((item) => !blockedStatuses.has(item.status?.toLowerCase?.() || ''));
+
   const renderAppointmentCard = (item) => (
     <View key={item.id} style={styles.card}>
       <View style={styles.cardHeader}>
@@ -331,8 +336,8 @@ export default function TrackAppointment() {
   const renderContent = () => {
     switch (activeTab) {
       case 'appointment':
-        return forAppointmentData.length > 0 ? (
-          forAppointmentData.map(renderAppointmentCard)
+        return filteredForAppointmentData.length > 0 ? (
+          filteredForAppointmentData.map(renderAppointmentCard)
         ) : (
           <View style={styles.emptyState}>
             <Ionicons name="calendar-outline" size={64} color="#CCC" />
@@ -340,8 +345,8 @@ export default function TrackAppointment() {
           </View>
         );
       case 'advice':
-        return legalAdviceData.length > 0 ? (
-          legalAdviceData.map(renderLegalAdviceCard)
+        return filteredLegalAdviceData.length > 0 ? (
+          filteredLegalAdviceData.map(renderLegalAdviceCard)
         ) : (
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={64} color="#CCC" />
@@ -349,8 +354,8 @@ export default function TrackAppointment() {
           </View>
         );
       case 'representation':
-        return representationData.length > 0 ? (
-          representationData.map(renderRepresentationCard)
+        return filteredRepresentationData.length > 0 ? (
+          filteredRepresentationData.map(renderRepresentationCard)
         ) : (
           <View style={styles.emptyState}>
             <Ionicons name="briefcase-outline" size={64} color="#CCC" />

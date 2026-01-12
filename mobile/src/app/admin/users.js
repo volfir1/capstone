@@ -155,9 +155,6 @@ const UsersManagement = () => {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Users Management</Text>
         <TouchableOpacity onPress={fetchUsers} style={styles.refreshButton}>
           <Ionicons name="refresh" size={24} color="white" />
@@ -213,6 +210,7 @@ const UsersManagement = () => {
       {/* Users List */}
       <ScrollView
         style={styles.content}
+        contentContainerStyle={styles.contentContainer}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -423,6 +421,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  contentContainer: {
+    paddingBottom: 20,
   },
   statsCard: {
     backgroundColor: 'white',

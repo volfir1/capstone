@@ -37,7 +37,7 @@ import { CASE_STATUS_STEPS } from '@utils/caseStatusSteps';
 import { getCaseTypeLabel } from '@utils/caseTypes';
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@context/authContext/authContext';
-import { CaseInformationSection } from '@app/pages/other/CaseInformationSection';
+import { CaseInformationSection } from '../other/CaseInformationSection';
 
 export default function TrackCasePage() {
   const navigate = useNavigate();

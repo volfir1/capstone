@@ -36,7 +36,8 @@ export const useNativeLogin = () => {
   }, [userLoggedIn, userData]);
 
   const navigateByRole = (role) => {
-    if (role === "admin") {
+    const adminLikeRoles = ["admin", "attorney", "secretary", "pao_lawyer", "legal_volunteer", "intern"];
+    if (adminLikeRoles.includes(role)) {
       router.replace("/admin");
     } else {
       router.replace("/user");

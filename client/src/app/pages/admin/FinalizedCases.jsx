@@ -27,7 +27,8 @@ import {
   ScrollArea,
   Avatar,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload } from '@tabler/icons-react';
+import jsPDF from 'jspdf';
 import { notifications } from '@mantine/notifications';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN, NATURE_OF_CASE_OPTIONS, CATEGORY_COLORS } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
@@ -365,6 +366,284 @@ export default function FinalizedCases() {
   const [state, dispatch] = useReducer(stateReducer, initialState);
   const { userData } = useAuth();
 
+  const formatDate = (value) => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString('en-US', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+  };
+
+  const formatText = (value) => {
+    if (value === null || value === undefined || value === '') return '-';
+    return String(value).replace(/\n/g, '<br/>');
+  };
+
+  const renderSectionRows = (doc, startY, title, rows) => {
+    if (!rows || rows.length === 0) return startY;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let y = startY;
+
+    const addPageIfNeeded = (extra = 0) => {
+      if (y + extra > pageHeight - 15) {
+        doc.addPage();
+        y = 20;
+      }
+    };
+
+    doc.setFontSize(14);
+    doc.setTextColor(74, 53, 31);
+    addPageIfNeeded(10);
+    doc.text(title, 14, y);
+    y += 6;
+
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    const startX = 12;
+    const labelBoxW = 55;
+    const valueBoxW = 125;
+    const lineHeight = 6;
+    rows.forEach(({ label, value }) => {
+      const v = value === undefined || value === null || value === '' ? '-' : String(value);
+      const splitLabel = doc.splitTextToSize(label, 50);
+      const splitValue = doc.splitTextToSize(v, 160);
+      const blockHeight = Math.max(splitLabel.length, splitValue.length) * lineHeight;
+      const rowHeight = blockHeight + 4;
+      addPageIfNeeded(rowHeight + 6);
+      const rowTop = y - 2;
+      // draw table cells
+      doc.rect(startX, rowTop, labelBoxW, rowHeight + 2);
+      doc.rect(startX + labelBoxW, rowTop, valueBoxW, rowHeight + 2);
+      // text with small padding
+      doc.text(splitLabel, startX + 3, y + 2);
+      doc.text(splitValue, startX + labelBoxW + 3, y + 2);
+      y += rowHeight + 2;
+    });
+
+    return y + 4;
+  };
+
+  const renderEvidenceToPdf = (doc, startY, title, evidence = []) => {
+    if (!evidence || evidence.length === 0) return startY;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const colWidths = [45, 50, 55, 45];
+    const startX = 12;
+    let y = startY;
+
+    const addPageIfNeeded = (extra = 0) => {
+      if (y + extra > pageHeight - 15) {
+        doc.addPage();
+        y = 20;
+      }
+    };
+
+    // Section title
+    doc.setFontSize(14);
+    doc.setTextColor(74, 53, 31);
+    addPageIfNeeded(10);
+    doc.text(title, startX + 2, y);
+    y += 6;
+
+    // Header
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    const headers = ['Type / Description', 'Author / Custodian', 'Purpose', 'Admissibility Issues'];
+    const headerHeight = 8;
+    addPageIfNeeded(headerHeight + 4);
+    let xCursor = startX;
+    headers.forEach((h, idx) => {
+      doc.rect(xCursor, y, colWidths[idx], headerHeight);
+      doc.text(doc.splitTextToSize(h, colWidths[idx] - 4), xCursor + 2, y + 5);
+      xCursor += colWidths[idx];
+    });
+    y += headerHeight;
+
+    // Rows
+    evidence.forEach((row) => {
+      const cells = [row?.type || '-', row?.author || '-', row?.purpose || '-', row?.issues || '-'];
+      const wrappedHeights = cells.map((cell, idx) => {
+        const lines = doc.splitTextToSize(String(cell || '-'), colWidths[idx] - 4);
+        return { lines, height: lines.length * 6 };
+      });
+      const rowHeight = Math.max(...wrappedHeights.map(h => h.height)) + 4;
+      addPageIfNeeded(rowHeight + 4);
+      let x = startX;
+      wrappedHeights.forEach((cell, idx) => {
+        doc.rect(x, y, colWidths[idx], rowHeight);
+        doc.text(cell.lines, x + 2, y + 6);
+        x += colWidths[idx];
+      });
+      y += rowHeight;
+    });
+
+    return y + 6;
+  };
+
+  const downloadPdfDocument = (title, sections = []) => {
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    let y = 20;
+    doc.setFont('times', 'normal');
+    doc.setFontSize(18);
+    doc.setTextColor(74, 53, 31);
+    doc.text(title, 14, y);
+    y += 10;
+
+    sections.forEach(({ heading, rows, evidence }) => {
+      if (rows) {
+        y = renderSectionRows(doc, y, heading, rows);
+      }
+      if (evidence) {
+        y = renderEvidenceToPdf(doc, y, heading, evidence);
+      }
+      y += 2;
+    });
+
+    doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
+  };
+
+  const exportCaseRecordPdf = () => {
+    if (!state.caseRecordData || Object.keys(state.caseRecordData).length === 0) {
+      notifications.show({ title: 'Nothing to export', message: 'No case record data loaded.', color: 'yellow' });
+      return;
+    }
+
+    const summaryRows = [
+      { label: 'Case Title', value: formatText(state.caseRecordData.title) },
+      { label: 'Case ID', value: formatText(state.caseRecordData.caseId) },
+      { label: 'Nature of Case', value: formatText(state.caseRecordData.nature) },
+      { label: 'Tribunal', value: formatText(state.caseRecordData.tribunal) },
+      { label: 'Branch', value: formatText(state.caseRecordData.branch) },
+      { label: 'Presiding Judge', value: formatText(state.caseRecordData.presidingJudge) },
+      { label: 'Contact Details', value: formatText(state.caseRecordData.contactDetails || state.caseRecordData.telEmail) },
+      { label: 'Created By', value: formatText(state.caseRecordData.createdBy) },
+      { label: 'Last Modified By', value: formatText(state.caseRecordData.lastModifiedBy) },
+    ];
+
+    const partiesRows = [
+      { label: 'Parties', value: formatText(state.caseRecordData.parties) },
+      { label: 'Opposing Counsel', value: formatText(state.caseRecordData.opposingCounsel) },
+      { label: 'Public Prosecutor', value: formatText(state.caseRecordData.publicProsecutor) },
+      { label: 'Counsels', value: formatText(state.caseRecordData.counsels) },
+    ];
+
+    const addressesRows = [
+      { label: 'Client Address', value: formatText(state.caseRecordData.clientAddress) },
+      { label: 'Other Notes', value: formatText(state.caseRecordData.others) },
+    ];
+
+    const historyRows = [
+      { label: 'Case History', value: formatText(state.caseRecordData.caseHistory) },
+      { label: 'Remarks', value: formatText(state.caseRecordData.remarks) },
+    ];
+
+    downloadPdfDocument('Case Record', [
+      { heading: 'Case Record Summary', rows: summaryRows },
+      { heading: 'Parties & Representation', rows: partiesRows },
+      { heading: 'Addresses & Contact', rows: addressesRows },
+      { heading: 'Case History & Remarks', rows: historyRows },
+    ]);
+  };
+
+  const exportAppointmentPdf = () => {
+    if (!state.appointmentDetails) {
+      notifications.show({ title: 'Nothing to export', message: 'No appointment details loaded.', color: 'yellow' });
+      return;
+    }
+
+    const a = state.appointmentDetails;
+    const personalRows = [
+      { label: 'Full Name', value: formatText(a.fullName || a.name) },
+      { label: 'Age', value: formatText(a.age) },
+      { label: 'Birthday', value: formatDate(a.birthday) },
+      { label: 'Sex', value: formatText(a.sex) },
+      { label: 'Civil Status', value: formatText(a.civilStatus) },
+      { label: 'Contact Number', value: formatText(a.contactNumber) },
+      { label: 'Email', value: formatText(a.email) },
+      { label: 'Present Address', value: formatText(a.presentAddress) },
+      { label: 'Permanent Address', value: formatText(a.permanentAddress) },
+    ];
+
+    const scheduleRows = [
+      { label: 'Appointment Date', value: formatDate(a.appointedDate) },
+      { label: 'Case Number', value: formatText(a.caseNumber) },
+      { label: 'Status', value: formatText(a.status) },
+      { label: 'Appointment Type', value: formatText(a.caseDetails?.appointmentType || a.personal?.legalMatter || a.caseDetails?.legalMatter) },
+    ];
+
+    const financialRows = [
+      { label: 'Income Source', value: formatText(a.currentSourceOfIncome) },
+      { label: 'Monthly Income', value: a.monthlyIncome ? `₱${Number(a.monthlyIncome).toLocaleString()}` : '-' },
+      { label: 'Nature of Work', value: formatText(a.natureOfWork) },
+      { label: 'Employer', value: formatText(a.employerName) },
+      { label: 'Employer Address', value: formatText(a.employerAddress) },
+    ];
+
+    const caseRows = [
+      { label: 'Party Represented', value: formatText(a.partyRepresented) },
+      { label: 'Venue', value: formatText(a.venue) },
+      { label: 'Present Stage', value: formatText(a.presentStage) },
+      { label: 'Court Division', value: formatText(a.courtDivision) },
+      { label: 'Court Address', value: formatText(a.courtAddress) },
+      { label: 'Case Description', value: formatText(a.caseDescription) },
+    ];
+
+    downloadPdfDocument('Appointment Receipt', [
+      { heading: 'Personal Details', rows: personalRows },
+      { heading: 'Schedule Details', rows: scheduleRows },
+      { heading: 'Financial Details', rows: financialRows },
+      { heading: 'Case Details', rows: caseRows },
+    ]);
+  };
+
+  const exportRecommendationPdf = () => {
+    if (!state.editedData) {
+      notifications.show({ title: 'Nothing to export', message: 'No review data loaded.', color: 'yellow' });
+      return;
+    }
+
+    const d = state.editedData;
+    const interview = d.content?.interviewInfo || {};
+    const action = d.content?.actionInfo || {};
+
+    const summaryRows = [
+      { label: 'Client Name', value: formatText(d.clientName || interview.clientName) },
+      { label: 'Case Title', value: formatText(d.caseTitle || d.content?.caseInfo?.title) },
+      { label: 'Case ID', value: formatText(d.caseId) },
+      { label: 'Decision', value: formatText(d.decision ? d.decision.toUpperCase() : 'PENDING') },
+      { label: 'Finalized By', value: formatText(d.finalizedBy) },
+      { label: 'Role', value: formatText(d.finalizedRole) },
+      { label: 'Created At', value: formatDate(d.createdAt) },
+    ];
+
+    const interviewRows = [
+      { label: 'Date of Interview', value: formatDate(interview.dateOfInterview) },
+      { label: 'Date Submitted', value: formatDate(interview.dateSubmitted) },
+      { label: "Interviewing Intern(s)", value: formatText(interview.interviewingInterns) },
+      { label: 'Fast Facts', value: formatText(interview.fastFacts) },
+      { label: "Intern's Initial Advice", value: formatText(interview.internAdvice) },
+      { label: 'Legal Opinion', value: formatText(interview.legalOpinion) },
+    ];
+
+    const actionRows = [
+      { label: "Supervising Lawyer's Comment", value: formatText(action.supervisingComment) },
+      { label: 'Director Decision', value: formatText(d.decision ? d.decision.toUpperCase() : action.decision) },
+      { label: 'Case Category', value: formatText(d.content?.caseInfo?.nature || d.category) },
+      { label: 'Decision Note', value: formatText(action.decisionNote) },
+      { label: 'Assigned To', value: formatText(action.assignedTo) },
+      { label: 'Supervising Lawyer', value: formatText(action.supervisingLawyer) },
+      { label: "Director's Signature", value: formatText(action.directorSignature) },
+      { label: 'Signature Date', value: formatDate(action.signatureDate) },
+    ];
+
+    downloadPdfDocument('Recommendation for Action', [
+      { heading: 'Recommendation Summary', rows: summaryRows },
+      { heading: 'Interview Information', rows: interviewRows },
+      { heading: 'Evidence on Hand (Client)', evidence: interview.clientEvidence },
+      { heading: 'Evidence on Hand (Adverse Party)', evidence: interview.adversePartyEvidence },
+      { heading: 'Director & Supervising Lawyer Action', rows: actionRows },
+    ]);
+  };
+
   // Filter function
   const filterCases = (cases) => {
     let filtered = cases;
@@ -390,10 +669,17 @@ export default function FinalizedCases() {
     return filtered;
   };
 
+  const isLegalAdvice = (record) => {
+    const flag = record?.content?.interviewInfo?.forLegalAdvice;
+    return flag === true || flag === 'true' || flag === 1 || flag === '1';
+  };
+
   // Group finalized records by decision and apply search filter
   const acceptedCases = filterCases(state.finalized.filter(f => f.decision === 'accepted'));
-  const acceptedWithRecord = acceptedCases.filter(f => state.caseRecordsMap[f._id || f.id]);
-  const acceptedWithoutRecord = acceptedCases.filter(f => !state.caseRecordsMap[f._id || f.id]);
+  const legalAdviceCases = acceptedCases.filter(isLegalAdvice);
+  const acceptedNonLegal = acceptedCases.filter(f => !isLegalAdvice(f));
+  const acceptedWithRecord = acceptedNonLegal.filter(f => state.caseRecordsMap[f._id || f.id]);
+  const acceptedWithoutRecord = acceptedNonLegal.filter(f => !state.caseRecordsMap[f._id || f.id]);
   const rejectedCases = filterCases(state.finalized.filter(f => f.decision === 'rejected'));
   const pendingCases = filterCases(state.finalized.filter(f => f.decision === 'pending' || !f.decision));
 
@@ -403,10 +689,28 @@ export default function FinalizedCases() {
       const resp = await apiClient.get('/finalize');
       const data = resp.data?.data ?? resp.data ?? [];
       const finalizedData = Array.isArray(data) ? data : [];
-      dispatch({ type: 'SET_FINALIZED', payload: finalizedData });
+      const normalizedFinalized = finalizedData.map((item) => {
+        if (item?.content?.interviewInfo) {
+          const flag = item.content.interviewInfo.forLegalAdvice;
+          const normalizedFlag = flag === true || flag === 'true' || flag === 1 || flag === '1';
+          return {
+            ...item,
+            content: {
+              ...item.content,
+              interviewInfo: {
+                ...item.content.interviewInfo,
+                forLegalAdvice: normalizedFlag,
+              }
+            }
+          };
+        }
+        return item;
+      });
+
+      dispatch({ type: 'SET_FINALIZED', payload: normalizedFinalized });
       
       // Check which accepted cases have case records
-      const accepted = finalizedData.filter(f => f.decision === 'accepted');
+      const accepted = normalizedFinalized.filter(f => f.decision === 'accepted');
       const recordsMap = {};
       
       await Promise.all(
@@ -824,7 +1128,15 @@ export default function FinalizedCases() {
           </Box>
           <Box style={{ flex: 1 }}>
             <Group spacing="xs" align="center">
-              <Text fw={600} size="sm">{f.clientName || f.content?.interviewInfo?.clientName || 'Unknown Client'}</Text>
+              {(() => {
+                const recordId = f._id || f.id;
+                const hasRecord = recordId ? state.caseRecordsMap[recordId] : false;
+                const clientName = f.clientName || f.content?.interviewInfo?.clientName || 'Unknown Client';
+                const displayTitle = hasRecord
+                  ? (f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || f.caseId || clientName)
+                  : clientName;
+                return <Text fw={600} size="sm">{displayTitle}</Text>;
+              })()}
               {f.caseId && (
                 <Badge 
                   size="sm" 
@@ -963,6 +1275,14 @@ export default function FinalizedCases() {
                     </Button>
                   </>
                 )}
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  leftSection={<IconDownload size={16} />}
+                  onClick={exportCaseRecordPdf}
+                >
+                  Export PDF
+                </Button>
               </Group>
             </Group>
           }
@@ -997,9 +1317,19 @@ export default function FinalizedCases() {
           opened={state.appointmentModalOpened}
           onClose={() => dispatch({ type: 'CLOSE_APPOINTMENT_MODAL' })}
           title={
-            <Text fw={700} size="xl" c={PRIMARY_BROWN}>
-              Appointment Receipt
-            </Text>
+            <Group justify="space-between" style={{ width: '100%' }}>
+              <Text fw={700} size="xl" c={PRIMARY_BROWN}>
+                Appointment Receipt
+              </Text>
+              <Button
+                size="xs"
+                variant="subtle"
+                leftSection={<IconDownload size={16} />}
+                onClick={exportAppointmentPdf}
+              >
+                Export PDF
+              </Button>
+            </Group>
           }
           size="lg"
           radius="lg"
@@ -1200,6 +1530,14 @@ export default function FinalizedCases() {
                     </Button>
                   </>
                 )}
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  leftSection={<IconDownload size={16} />}
+                  onClick={exportRecommendationPdf}
+                >
+                  Export PDF
+                </Button>
               </Group>
             </Group>
           }
@@ -1613,6 +1951,12 @@ export default function FinalizedCases() {
                 Without Record
               </Tabs.Tab>
               <Tabs.Tab
+                value="legal-advice"
+                rightSection={<Badge size="sm" color="teal" variant="light">{legalAdviceCases.length}</Badge>}
+              >
+                Legal Advice Only
+              </Tabs.Tab>
+              <Tabs.Tab
                 value="rejected"
                 rightSection={<Badge size="sm" color="red" variant="light">{rejectedCases.length}</Badge>}
               >
@@ -1645,6 +1989,18 @@ export default function FinalizedCases() {
                 ) : (
                   acceptedWithoutRecord.length ? acceptedWithoutRecord.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE}>No accepted cases without case records found</Text>
+                  )
+                )}
+              </Stack>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="legal-advice" pb="md">
+              <Stack>
+                {state.loadingFinalized ? (
+                  <Center><Loader /></Center>
+                ) : (
+                  legalAdviceCases.length ? legalAdviceCases.map(renderCaseCard) : (
+                    <Text size="sm" c={MUTED_OLIVE}>No accepted legal advice cases found</Text>
                   )
                 )}
               </Stack>

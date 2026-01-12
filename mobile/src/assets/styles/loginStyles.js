@@ -205,6 +205,25 @@ const loginStyles = StyleSheet.create({
     color: "#ef4444",
     marginTop: 4,
   },
+  attorneyLinkContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#D4C5A9",
+  },
+  attorneyLinkText: {
+    fontSize: 14,
+    color: MUTED_OLIVE,
+    marginRight: 6,
+  },
+  attorneyLinkButton: {
+    fontSize: 14,
+    color: PRIMARY_BROWN,
+    fontWeight: "600",
+  },
 });
 
 export default loginStyles;

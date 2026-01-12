@@ -126,9 +126,6 @@ const AdminProfile = () => {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>My Profile</Text>
         {!isEditing ? (
           <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.editButton}>
@@ -139,7 +136,7 @@ const AdminProfile = () => {
         )}
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
@@ -402,6 +399,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: 20,
   },
   avatarSection: {
     alignItems: 'center',

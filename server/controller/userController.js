@@ -13,23 +13,31 @@ export const getProfile = async (req, res) =>{
         const idToken  = authHeader.split(' ')[1]
         const decodedToken = await admin.auth().verifyIdToken(idToken)
 
-        const user = await User.findOne({firebaseUid: decodedToken.uid})
+        // Check both User and Attorney collections so attorneys can load their profile
+        let profile = await User.findOne({firebaseUid: decodedToken.uid})
+        let isAttorney = false
 
-        if(!user){
+        if(!profile){
+            profile = await Attorney.findOne({firebaseUid: decodedToken.uid})
+            isAttorney = !!profile
+        }
+
+        if(!profile){
             return res.status(404).json({ success: false, message: 'User not found'})
         }
 
         res.json({
             success: true,
             data:{
-                id: user._id,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                username: user.username,
-                role: user.role,
-                isVerified: user.isVerified,
-                createdAt: user.createdAt
+                id: profile._id,
+                email: profile.email,
+                firstName: profile.firstName,
+                lastName: profile.lastName,
+                username: profile.username,
+                role: profile.role,
+                isVerified: profile.isVerified,
+                createdAt: profile.createdAt,
+                accountStatus: isAttorney ? profile.accountStatus : undefined,
             }
         })
 

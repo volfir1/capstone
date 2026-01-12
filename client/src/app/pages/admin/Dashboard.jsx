@@ -43,6 +43,7 @@ export default function AdminDashboard() {
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [finalized, setFinalized] = useState([]);
   const [loadingFinalized, setLoadingFinalized] = useState(false);
+  const [caseRecordsMap, setCaseRecordsMap] = useState({});
   const { userData } = useAuth();
   const location = useLocation();
 
@@ -120,10 +121,31 @@ export default function AdminDashboard() {
       setLoadingFinalized(true);
       const resp = await apiClient.get('/finalize');
       const data = resp.data?.data ?? resp.data ?? [];
-      setFinalized(Array.isArray(data) ? data : []);
+      const finalizedArray = Array.isArray(data) ? data : [];
+
+      // Determine which accepted finalized items already have case records
+      const accepted = finalizedArray.filter(f => f.decision === 'accepted');
+      const recordsMap = {};
+
+      await Promise.all(
+        accepted.map(async (caseData) => {
+          const key = caseData._id || caseData.id;
+          if (!key) return;
+          try {
+            const caseRecordResp = await apiClient.get(`/caserecords/finalize/${key}`);
+            recordsMap[key] = !!caseRecordResp.data;
+          } catch (err) {
+            recordsMap[key] = false;
+          }
+        })
+      );
+
+      setCaseRecordsMap(recordsMap);
+      setFinalized(finalizedArray);
     } catch (err) {
       console.error('Error fetching finalized records', err);
       setFinalized([]);
+      setCaseRecordsMap({});
     } finally {
       setLoadingFinalized(false);
     }
@@ -405,7 +427,15 @@ export default function AdminDashboard() {
             {loadingFinalized ? (
               <Center><Loader /></Center>
             ) : (
-              finalized.length ? finalized.map((f) => (
+              finalized.length ? finalized.map((f) => {
+                const recordId = f._id || f.id;
+                const hasRecord = recordId ? caseRecordsMap[recordId] : false;
+                const clientName = f.clientName || f.content?.interviewInfo?.clientName || '';
+                const displayTitle = hasRecord
+                  ? (f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || f.caseId || clientName)
+                  : (clientName || f.caseId || 'Without record');
+
+                return (
                 <Paper
                   key={f._id || f.id || f.caseId}
                   p="md"
@@ -419,8 +449,8 @@ export default function AdminDashboard() {
                       <IconBriefcase size={20} />
                     </Box>
                     <Box style={{ flex: 1 }}>
-                      <Text fw={700}>{f.caseTitle || f.content?.caseInfo?.title || f.caseId}</Text>
-                      <Text size="xs" c={MUTED_OLIVE}>{f.clientName || f.content?.interviewInfo?.clientName || ''}</Text>
+                      <Text fw={700}>{displayTitle}</Text>
+                      <Text size="xs" c={MUTED_OLIVE}>{clientName}</Text>
                       <Group spacing="xs" mt={6}>
                         <Text size="xs" c="dimmed">Finalized: {f.createdAt ? new Date(f.createdAt).toLocaleDateString() : ''}</Text>
                         <Text size="xs" c="dimmed">By: {f.finalizedRole || f.finalizedBy}</Text>
@@ -431,7 +461,7 @@ export default function AdminDashboard() {
                     </ActionIcon>
                   </Group>
                 </Paper>
-              )) : (
+              );}) : (
                 <Text size="sm" c={MUTED_OLIVE}>No finalized records found</Text>
               )
             )}

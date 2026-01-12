@@ -221,7 +221,7 @@ export default function UserForm() {
       case 0:
         return <PersonalDetailsForm register={register} errors={errors} setValue={setValue} watch={watch} />;
       case 1:
-        return <FinancialDetailsForm register={register} errors={errors} />;
+        return <FinancialDetailsForm register={register} errors={errors} setValue={setValue} watch={watch} />;
       case 2:
         return <CaseDetailsForm register={register} errors={errors} />;
       case 3:

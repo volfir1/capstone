@@ -49,6 +49,9 @@ export const upsertCaseRecord = async (req, res) => {
     // Also update the finalize content.caseInfo for consistency
     if (!finalizeRecord.content) finalizeRecord.content = {}
     finalizeRecord.content.caseInfo = payload
+    if (payload?.title || payload?.caseTitle) {
+      finalizeRecord.caseTitle = payload.title || payload.caseTitle
+    }
     finalizeRecord.markModified('content') // Explicitly mark as modified for Mixed type
     await finalizeRecord.save()
 
@@ -136,14 +139,17 @@ export const updateCaseRecord = async (req, res) => {
 
     if (!caseRecord) {
       return res.status(404).json({ error: 'Case record not found' })
-    }finalizeRecord.markModified('content') // Explicitly mark as modified
-      
+    }
 
     // Update finalize content.caseInfo as well
     const finalizeRecord = await Finalize.findById(caseRecord.finalizeId)
     if (finalizeRecord) {
       if (!finalizeRecord.content) finalizeRecord.content = {}
       finalizeRecord.content.caseInfo = payload
+      if (payload?.title || payload?.caseTitle) {
+        finalizeRecord.caseTitle = payload.title || payload.caseTitle
+      }
+      finalizeRecord.markModified('content')
       await finalizeRecord.save()
     }
 

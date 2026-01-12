@@ -201,11 +201,20 @@ export const verifyUser = async (req, res) => {
 
     const firebaseVerified = decodedToken.email_verified || false;
 
-    const user = await User.findOneAndUpdate(
+    // Update User first; if not found, try Attorney collection
+    let user = await User.findOneAndUpdate(
       { firebaseUid: decodedToken.uid },
       { isVerified: firebaseVerified },
       { new: true }
     );
+
+    if (!user) {
+      user = await Attorney.findOneAndUpdate(
+        { firebaseUid: decodedToken.uid },
+        { isVerified: firebaseVerified },
+        { new: true }
+      );
+    }
 
     if (!user) {
       return res.status(404).json({
