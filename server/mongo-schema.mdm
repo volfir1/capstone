@@ -1,0 +1,448 @@
+{
+  "collections": {
+    "attorneys": {
+      "ns": "attorneys",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "email",
+          "firstName",
+          "lastName",
+          "username",
+          "firebaseUid",
+          "prcLicenseNumber",
+          "ibrNumber",
+          "barAdmissionDate",
+          "phoneNumber"
+        ],
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "email": { "bsonType": "string" },
+          "firstName": { "bsonType": "string" },
+          "middleName": { "bsonType": "string" },
+          "lastName": { "bsonType": "string" },
+          "suffix": { "bsonType": "string" },
+          "username": { "bsonType": "string" },
+          "firebaseUid": { "bsonType": "string" },
+          "role": {
+            "bsonType": "string",
+            "enum": ["secretary", "attorney", "pao_lawyer", "legal_volunteer", "intern"]
+          },
+          "prcLicenseNumber": { "bsonType": "string" },
+          "ibrNumber": { "bsonType": "string" },
+          "barAdmissionDate": { "bsonType": "date" },
+          "isVerified": { "bsonType": "bool" },
+          "isBarMemberActive": { "bsonType": "bool" },
+          "phoneNumber": { "bsonType": "string" },
+          "officeAddress": {
+            "bsonType": "object",
+            "properties": {
+              "street": { "bsonType": "string" },
+              "barangay": { "bsonType": "string" },
+              "city": { "bsonType": "string" },
+              "province": { "bsonType": "string" },
+              "region": { "bsonType": "string" },
+              "zipCode": { "bsonType": "string" }
+            },
+            "required": ["city", "province", "region"]
+          },
+          "lawFirm": { "bsonType": "string" },
+          "isPAOLawyer": { "bsonType": "bool" },
+          "paoOffice": { "bsonType": "string" },
+          "specializations": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string",
+              "enum": [
+                "Criminal Law",
+                "Civil Law",
+                "Family Law",
+                "Labor Law",
+                "Commercial Law",
+                "Tax Law",
+                "Immigration Law",
+                "Land and Property Law",
+                "Human Rights",
+                "Environmental Law",
+                "Agrarian Law",
+                "Administrative Law",
+                "Corporate Law",
+                "Intellectual Property",
+                "Other"
+              ]
+            }
+          },
+          "languages": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string",
+              "enum": [
+                "English",
+                "Filipino/Tagalog",
+                "Cebuano",
+                "Ilocano",
+                "Hiligaynon",
+                "Waray",
+                "Kapampangan",
+                "Bikol",
+                "Pangasinan",
+                "Other"
+              ]
+            }
+          },
+          "serviceAreas": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "province": { "bsonType": "string" },
+                "cities": {
+                  "bsonType": "array",
+                  "items": { "bsonType": "string" }
+                }
+              }
+            }
+          },
+          "isAvailable": { "bsonType": "bool" },
+          "consultationMode": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string",
+              "enum": ["online", "in-person", "both"]
+            }
+          },
+          "biography": { "bsonType": "string" },
+          "education": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "degree": { "bsonType": "string" },
+                "school": { "bsonType": "string" },
+                "yearGraduated": { "bsonType": "int" }
+              }
+            }
+          },
+          "accountStatus": {
+            "bsonType": "string",
+            "enum": ["pending", "active", "suspended", "inactive"]
+          },
+          "createdAt": { "bsonType": "date" },
+          "updatedAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "cases": {
+      "ns": "cases",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "userId",
+          "caseTitle",
+          "caseType",
+          "shortDescription",
+          "detailedDescription"
+        ],
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "userId": { "bsonType": "objectId" },
+          "attorneyId": { "bsonType": ["objectId", "null"] },
+          "caseNumber": { "bsonType": "string" },
+          "caseTitle": { "bsonType": "string" },
+          "caseType": {
+            "bsonType": "string",
+            "enum": [
+              "Criminal Law",
+              "Civil Law",
+              "Family Law",
+              "Labor Law",
+              "Commercial Law",
+              "Tax Law",
+              "Immigration Law",
+              "Land and Property Law",
+              "Human Rights",
+              "Environmental Law",
+              "Agrarian Law",
+              "Administrative Law",
+              "Corporate Law",
+              "Intellectual Property",
+              "Other"
+            ]
+          },
+          "shortDescription": { "bsonType": "string" },
+          "detailedDescription": { "bsonType": "string" },
+          "createdAt": { "bsonType": "date" },
+          "updatedAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "caserecords": {
+      "ns": "caserecords",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": ["finalizeId"],
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "finalizeId": { "bsonType": "objectId" },
+          "caseId": { "bsonType": "string" },
+          "title": { "bsonType": "string" },
+          "nature": { "bsonType": "string" },
+          "tribunal": { "bsonType": "string" },
+          "branch": { "bsonType": "string" },
+          "presidingJudge": { "bsonType": "string" },
+          "telEmail": { "bsonType": "string" },
+          "contactDetails": { "bsonType": "string" },
+          "counsels": { "bsonType": "string" },
+          "publicProsecutor": { "bsonType": "string" },
+          "opposingCounsel": { "bsonType": "string" },
+          "clientAddress": { "bsonType": "string" },
+          "others": { "bsonType": "string" },
+          "parties": { "bsonType": "string" },
+          "caseHistory": { "bsonType": "string" },
+          "remarks": { "bsonType": "string" },
+          "createdBy": { "bsonType": "string" },
+          "lastModifiedBy": { "bsonType": "string" },
+          "createdAt": { "bsonType": "date" },
+          "updatedAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "chatbots": {
+      "ns": "chatbots",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": ["userId"],
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "userId": { "bsonType": "objectId" },
+          "conversationHistory": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "required": ["role", "message"],
+              "properties": {
+                "role": { "bsonType": "string", "enum": ["user", "model"] },
+                "message": { "bsonType": "string" },
+                "timestamp": { "bsonType": "date" }
+              }
+            }
+          },
+          "isActive": { "bsonType": "bool" },
+          "createdAt": { "bsonType": "date" },
+          "updatedAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "clientsinfos": {
+      "ns": "clientsinfos",
+      "jsonSchema": {
+        "bsonType": "object",
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "userId": { "bsonType": "objectId" },
+          "firebaseUid": { "bsonType": "string" },
+          "fullName": { "bsonType": "string" },
+          "caseNumber": { "bsonType": "string" },
+          "appointedDate": { "bsonType": "date" },
+          "appointmentTime": { "bsonType": "string" },
+          "status": {
+            "bsonType": "string",
+            "enum": ["auto-scheduled", "confirmed", "legal-advice", "court-case", "rejected"]
+          },
+          "name": { "bsonType": "string" },
+          "age": { "bsonType": "int" },
+          "birthday": { "bsonType": "string" },
+          "sex": { "bsonType": "string" },
+          "civilStatus": { "bsonType": "string" },
+          "citizenship": { "bsonType": "string" },
+          "contactNumber": { "bsonType": "string" },
+          "email": { "bsonType": "string" },
+          "presentAddress": { "bsonType": "string" },
+          "permanentAddress": { "bsonType": "string" },
+          "spouseName": { "bsonType": "string" },
+          "relatorName": { "bsonType": "string" },
+          "relatorContactNumber": { "bsonType": "string" },
+          "currentSourceOfIncome": { "bsonType": "string" },
+          "monthlyIncome": { "bsonType": "double" },
+          "natureOfWork": { "bsonType": "string" },
+          "employerName": { "bsonType": "string" },
+          "employerAddress": { "bsonType": "string" },
+          "dependents": { "bsonType": "int" },
+          "partyRepresented": { "bsonType": "string" },
+          "venue": { "bsonType": "string" },
+          "presentStage": { "bsonType": "string" },
+          "caseNature": { "bsonType": "string" },
+          "natureOfCase": { "bsonType": "string" },
+          "courtDivision": { "bsonType": "string" },
+          "courtAddress": { "bsonType": "string" },
+          "presidingOfficer": { "bsonType": "string" },
+          "caseDescription": { "bsonType": "string" },
+          "adverseParty": { "bsonType": "string" },
+          "legalMatter": { "bsonType": "string" },
+          "location": { "bsonType": "string" },
+          "appointmentType": { "bsonType": "string" },
+          "urgencyLevel": { "bsonType": "string" },
+          "personal": { "bsonType": ["object", "array", "string"] },
+          "financial": { "bsonType": ["object", "array", "string"] },
+          "caseDetails": { "bsonType": ["object", "array", "string"] },
+          "review": { "bsonType": ["object", "array", "string"] },
+          "createdAt": { "bsonType": "date" },
+          "updatedAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "counters": {
+      "ns": "counters",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": ["_id", "year"],
+        "properties": {
+          "_id": { "bsonType": "string" },
+          "year": { "bsonType": "int" },
+          "sequence": { "bsonType": "int" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "events": {
+      "ns": "events",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": ["title", "eventDate", "createdBy"],
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "title": { "bsonType": "string" },
+          "description": { "bsonType": "string" },
+          "eventDate": { "bsonType": "date" },
+          "eventType": {
+            "bsonType": "string",
+            "enum": ["appointment", "hearing", "consultation", "deadline", "other"]
+          },
+          "location": { "bsonType": "string" },
+          "clientName": { "bsonType": "string" },
+          "assignedTo": { "bsonType": "string" },
+          "status": {
+            "bsonType": "string",
+            "enum": ["scheduled", "completed", "cancelled", "rescheduled"]
+          },
+          "priority": {
+            "bsonType": "string",
+            "enum": ["Low", "Medium", "High"]
+          },
+          "createdBy": { "bsonType": "string" },
+          "createdAt": { "bsonType": "date" },
+          "updatedAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "finalizes": {
+      "ns": "finalizes",
+      "jsonSchema": {
+        "bsonType": "object",
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "caseId": { "bsonType": "string" },
+          "caseTitle": { "bsonType": "string" },
+          "clientName": { "bsonType": "string" },
+          "linkedCaseId": { "bsonType": "objectId" },
+          "category": {
+            "bsonType": "string",
+            "enum": [
+              "Civil Case",
+              "Criminal Case",
+              "Family Law",
+              "Labor and Employment",
+              "Land and Property Disputes",
+              "Contract Disputes",
+              "Personal Injury",
+              "Debt Collection",
+              "Inheritance and Estate",
+              "Business and Commercial Law",
+              "Consumer Protection",
+              "Tax Law",
+              "Immigration",
+              "Intellectual Property",
+              "Environmental Law",
+              "Administrative Law",
+              "Human Rights Violation",
+              "Cybercrime",
+              "Election Law",
+              "Other"
+            ]
+          },
+          "finalizedBy": { "bsonType": "string" },
+          "finalizedRole": { "bsonType": "string" },
+          "decision": { "bsonType": "string", "enum": ["accepted", "rejected", "pending"] },
+          "content": { "bsonType": ["object", "array", "string"] },
+          "createdAt": { "bsonType": "date" },
+          "updatedAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "messages": {
+      "ns": "messages",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": ["caseId", "senderId", "senderModel", "message"],
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "caseId": { "bsonType": "objectId" },
+          "senderId": { "bsonType": "objectId" },
+          "senderModel": { "bsonType": "string", "enum": ["User", "Attorney"] },
+          "senderRole": { "bsonType": "string", "enum": ["user", "attorney", "intern", "secretary"] },
+          "message": { "bsonType": "string" },
+          "isRead": { "bsonType": "bool" },
+          "createdAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "reviews": {
+      "ns": "reviews",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": ["caseId"],
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "caseId": { "bsonType": "string" },
+          "caseTitle": { "bsonType": "string" },
+          "clientName": { "bsonType": "string" },
+          "reviewerId": { "bsonType": "string" },
+          "reviewerRole": { "bsonType": "string" },
+          "step": { "bsonType": "int" },
+          "content": { "bsonType": ["object", "array", "string"] },
+          "createdAt": { "bsonType": "date" },
+          "updatedAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    },
+    "users": {
+      "ns": "users",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": ["email", "firstName", "lastName", "username", "firebaseUid"],
+        "properties": {
+          "_id": { "bsonType": "objectId" },
+          "email": { "bsonType": "string" },
+          "firstName": { "bsonType": "string" },
+          "lastName": { "bsonType": "string" },
+          "isVerified": { "bsonType": "bool" },
+          "role": { "bsonType": "string", "enum": ["user", "secretary", "intern"] },
+          "username": { "bsonType": "string" },
+          "firebaseUid": { "bsonType": "string" },
+          "disabled": { "bsonType": "bool" },
+          "createdAt": { "bsonType": "date" },
+          "__v": { "bsonType": "int" }
+        }
+      }
+    }
+  }
+}

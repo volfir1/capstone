@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
 import { createTheme, MantineProvider } from "@mantine/core";
+import { Notifications } from "@mantine/notifications";
+import "@mantine/notifications/styles.css";
 import { DatesProvider } from "@mantine/dates";
 import AuthProvider, { useAuth } from "../context/authContext";
 import { Outlet } from "react-router";
@@ -178,6 +180,7 @@ function AppRoutes() {
 function App() {
   return (
     <MantineProvider theme={theme}>
+      <Notifications position="top-right" zIndex={1000} />
       <DatesProvider settings={{ locale: 'en', firstDayOfWeek: 0, weekendDays: [0, 6] }}>
         <AuthProvider>
           <Router>

@@ -1058,6 +1058,23 @@ export default function AppointmentTracker() {
       <Text size="sm" c={CHARCOAL} mb="lg" style={{ lineHeight: 1.6 }}>
         {item.description}
       </Text>
+
+      {item.caseId && (
+        <Button 
+          variant="outline"
+          fullWidth
+          onClick={() => openChatModal(item)}
+          size="md"
+          leftSection={<IconMessageCircle size={18} />}
+          style={{ 
+            borderColor: PRIMARY_GOLD,
+            color: PRIMARY_GOLD,
+            fontWeight: 600,
+          }}
+        >
+          Chat with Attorney
+        </Button>
+      )}
       
       {/* Pending State */}
       {item.status === "Pending Review" && (

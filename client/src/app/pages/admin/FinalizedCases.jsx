@@ -376,7 +376,10 @@ export default function FinalizedCases() {
 
   const formatText = (value) => {
     if (value === null || value === undefined || value === '') return '-';
-    return String(value).replace(/\n/g, '<br/>');
+    // Normalize any HTML breaks into real newlines so PDF shows plain text
+    return String(value)
+      .replace(/<br\s*\/?>(\r?\n)?/gi, '\n')
+      .replace(/\n/g, '\n');
   };
 
   const renderSectionRows = (doc, startY, title, rows) => {
@@ -1201,18 +1204,20 @@ export default function FinalizedCases() {
           </Group>
           {f.decision === 'accepted' && (
             <Group spacing="xs" grow>
-              <Button
-                size="sm"
-                variant="filled"
-                style={{ backgroundColor: PRIMARY_BROWN, flex: 1 }}
-                leftSection={<IconFileText size={16} />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openCaseRecordModal(f);
-                }}
-              >
-                Case Record
-              </Button>
+              {!isLegalAdvice(f) && (
+                <Button
+                  size="sm"
+                  variant="filled"
+                  style={{ backgroundColor: PRIMARY_BROWN, flex: 1 }}
+                  leftSection={<IconFileText size={16} />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openCaseRecordModal(f);
+                  }}
+                >
+                  Case Record
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"

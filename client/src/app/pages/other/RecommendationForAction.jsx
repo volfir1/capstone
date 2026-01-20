@@ -419,6 +419,33 @@ export default function CaseRecordFormsDisplay() {
 
         console.log('Saving review with payload:', reviewPayload);
 
+        // Helper to ensure status updates actually persist before proceeding
+        const updateCaseStatus = async (status) => {
+            try {
+                const { default: apiClient } = await import('@config/api/apiClient');
+                const resp = await apiClient.put(`/clientsinfo/${caseId}`, { status });
+                if (resp?.status >= 200 && resp.status < 300) return true;
+                console.error('Primary status update failed', resp?.status, resp?.data);
+            } catch (err) {
+                console.error('Primary status update error', err);
+            }
+
+            try {
+                const fallback = await fetch(`/api/clientsinfo/${caseId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status }),
+                });
+                if (fallback.ok) return true;
+                const text = await fallback.text();
+                console.error('Fallback status update failed', fallback.status, text);
+            } catch (fallbackErr) {
+                console.error('Fallback status update error', fallbackErr);
+            }
+
+            return false;
+        };
+
         try {
             setSaving(true);
             
@@ -430,63 +457,63 @@ export default function CaseRecordFormsDisplay() {
             if (userData?.role === 'intern' && active === totalSteps - 1) {
                 if (isInternFinalize && interviewInfo.forLegalAdvice === true) {
                     // Intern finalizing a legal advice case
-                    try {
-                        const { default: apiClient } = await import('@config/api/apiClient');
-                        await apiClient.put(`/clientsinfo/${caseId}`, { status: 'legal-advice' });
-                        console.log('Status updated to legal-advice for intern finalize');
-                        
-                        alert('Legal advice case finalized successfully!');
-                        
-                        // Redirect to Client Form Status
-                        navigate('/admin/clientformstatus');
+                    const statusOk = await updateCaseStatus('legal-advice');
+                    if (!statusOk) {
+                        alert('Failed to update case status. Please try again.');
+                        setSaving(false);
                         return;
-                    } catch (statusErr) {
-                        console.error('Failed to update status:', statusErr);
                     }
+
+                    console.log('Status updated to legal-advice for intern finalize');
+                    alert('Legal advice case finalized successfully!');
+                    
+                    // Redirect to Client Form Status
+                    navigate('/admin/clientformstatus');
+                    return;
                 } else {
                     // Intern submitting for review (or finalizing non-legal-advice)
-                    try {
-                        const { default: apiClient } = await import('@config/api/apiClient');
-                        await apiClient.put(`/clientsinfo/${caseId}`, { status: 'confirmed' });
-                        console.log('Status updated to confirmed for intern review');
-                    } catch (statusErr) {
-                        console.error('Failed to update status:', statusErr);
+                    const statusOk = await updateCaseStatus('confirmed');
+                    if (!statusOk) {
+                        alert('Failed to update case status. Please try again.');
+                        setSaving(false);
+                        return;
                     }
+
+                    console.log('Status updated to confirmed for intern review');
                 }
             }
             
             // If attorney/secretary finalizes record on last step, create a finalized record
             if ((userData?.role === 'attorney' || userData?.role === 'secretary' || userData?.role === 'pao_lawyer' || userData?.role === 'legal_volunteer') && active === totalSteps - 1) {
                 // Determine final status based on forLegalAdvice checkbox and decision
-                let finalStatus = 'confirmed'; // default if no selection
-                
-                // Priority 1: Check forLegalAdvice checkbox
+                const finalDecision = actionInfo.decision || 'accepted'; // default to accepted when attorney finalizes
+                let finalStatus = 'confirmed';
+
                 if (interviewInfo.forLegalAdvice === true) {
                     finalStatus = 'legal-advice';
-                } else {
-                    // Priority 2: Check decision radio button - all decisions lead to court-case
-                    if (actionInfo.decision === 'accepted' || actionInfo.decision === 'rejected' || actionInfo.decision === 'pending') {
-                        finalStatus = 'court-case';
-                    }
-                    // No selection: keep as 'confirmed'
+                } else if (finalDecision === 'rejected') {
+                    finalStatus = 'rejected';
+                } else if (finalDecision === 'accepted' || finalDecision === 'pending') {
+                    finalStatus = 'court-case';
                 }
-                
-                // Update clientsinfo status
-                try {
-                    const { default: apiClient } = await import('@config/api/apiClient');
-                    await apiClient.put(`/clientsinfo/${caseId}`, { status: finalStatus });
-                    console.log('Final status updated to:', finalStatus);
-                } catch (statusErr) {
-                    console.error('Failed to update final status:', statusErr);
+
+                const statusOk = await updateCaseStatus(finalStatus);
+                if (!statusOk) {
+                    alert('Failed to update case status. Finalization halted. Please try again.');
+                    setSaving(false);
+                    return;
                 }
+
+                console.log('Final status updated to:', finalStatus);
                 
                 const finalizePayload = {
                     caseId: caseId,
                     finalizedBy: userData?.id || userData?._id || null,
                     finalizedRole: userData?.role || null,
+                    decision: finalDecision,
                     content: { 
                         interviewInfo: completeInterviewInfo, 
-                        actionInfo 
+                        actionInfo: { ...actionInfo, decision: finalDecision }
                     }
                 }
                 const resFinalize = await fetch('/api/finalize', {

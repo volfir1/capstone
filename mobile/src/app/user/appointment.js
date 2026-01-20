@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import styles from '../../assets/styles/appointmentFormStyles';
 import { PRIMARY_BROWN, PRIMARY_GOLD, MUTED_OLIVE, CHARCOAL } from '../../utils/constants';
@@ -176,6 +176,44 @@ export default function AppointmentForm() {
     // Sync permanent address if checked
     if (field === 'presentAddress' && sameAsPresent) {
       setFormData(prev => ({ ...prev, permanentAddress: value }));
+    }
+  };
+
+  const openPreferredDatePicker = () => {
+    const current = formData.preferredDate ? new Date(formData.preferredDate) : new Date();
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: current,
+        mode: 'date',
+        minimumDate: new Date(),
+        onChange: (event, selectedDate) => {
+          if (event.type === 'dismissed') return;
+          if (selectedDate) updateField('preferredDate', selectedDate.toISOString());
+        }
+      });
+    } else {
+      setShowPreferredDatePicker(true);
+    }
+  };
+
+  const openPreferredTimePicker = () => {
+    const current = formData.preferredTime ? new Date(formData.preferredTime) : new Date();
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: current,
+        mode: 'time',
+        onChange: (event, selectedTime) => {
+          if (event.type === 'dismissed') return;
+          if (selectedTime) {
+            const normalized = new Date();
+            normalized.setHours(selectedTime.getHours());
+            normalized.setMinutes(selectedTime.getMinutes());
+            updateField('preferredTime', normalized.toISOString());
+          }
+        }
+      });
+    } else {
+      setShowPreferredTimePicker(true);
     }
   };
 
@@ -720,7 +758,7 @@ export default function AppointmentForm() {
           <Text style={styles.label}>Preferred Date <Text style={styles.required}>*</Text></Text>
           <TouchableOpacity
             style={[styles.input, errors.preferredDate && styles.inputError]}
-            onPress={() => setShowPreferredDatePicker(true)}
+            onPress={openPreferredDatePicker}
           >
             <Text style={styles.inputText}>{formatPreferredDate(formData.preferredDate)}</Text>
             <Ionicons name="calendar-outline" size={20} color={MUTED_OLIVE} />
@@ -732,7 +770,7 @@ export default function AppointmentForm() {
           <Text style={styles.label}>Preferred Time <Text style={styles.required}>*</Text></Text>
           <TouchableOpacity
             style={[styles.input, errors.preferredTime && styles.inputError]}
-            onPress={() => setShowPreferredTimePicker(true)}
+            onPress={openPreferredTimePicker}
           >
             <Text style={styles.inputText}>{formatPreferredTime(formData.preferredTime)}</Text>
             <Ionicons name="time-outline" size={20} color={MUTED_OLIVE} />
