@@ -539,12 +539,52 @@ export default function FinalizedCases() {
       { label: 'Remarks', value: formatText(state.caseRecordData.remarks) },
     ];
 
-    downloadPdfDocument('Case Record', [
+    // Build the same Case Record PDF as before, but add a final landscape page
+    // that matches the printed form layout (CASE HISTORY / REMARKS).
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    let y = 20;
+    doc.setFont('times', 'normal');
+    doc.setFontSize(18);
+    doc.setTextColor(74, 53, 31);
+    doc.text('Case Record', 14, y);
+    y += 10;
+
+    const sections = [
       { heading: 'Case Record Summary', rows: summaryRows },
       { heading: 'Parties & Representation', rows: partiesRows },
       { heading: 'Addresses & Contact', rows: addressesRows },
       { heading: 'Case History & Remarks', rows: historyRows },
-    ]);
+    ];
+
+    sections.forEach(({ heading, rows }) => {
+      if (rows) {
+        y = renderSectionRows(doc, y, heading, rows);
+      }
+      y += 2;
+    });
+
+    // Landscape form page (matches your photo)
+    doc.addPage('a4', 'landscape');
+    drawCaseRecordHistoryRemarksPage(doc, {
+      title: formatText(state.caseRecordData.title),
+      caseId: formatText(state.caseRecordData.caseId),
+      nature: formatText(state.caseRecordData.nature),
+      tribunal: formatText(state.caseRecordData.tribunal),
+      branch: formatText(state.caseRecordData.branch),
+      presidingJudge: formatText(state.caseRecordData.presidingJudge),
+      telEmail: formatText(state.caseRecordData.contactDetails || state.caseRecordData.telEmail),
+      parties: formatText(state.caseRecordData.parties),
+      contactDetails: formatText(state.caseRecordData.contactDetails || state.caseRecordData.telEmail),
+      counsels: formatText(state.caseRecordData.counsels),
+      publicProsecutor: formatText(state.caseRecordData.publicProsecutor),
+      opposingCounsel: formatText(state.caseRecordData.opposingCounsel),
+      clientAddress: formatText(state.caseRecordData.clientAddress),
+      others: formatText(state.caseRecordData.others),
+      caseHistory: formatText(state.caseRecordData.caseHistory),
+      remarks: formatText(state.caseRecordData.remarks),
+    });
+
+    doc.save('Case_Record.pdf');
   };
 
   const exportAppointmentPdf = () => {
@@ -598,53 +638,624 @@ export default function FinalizedCases() {
     ]);
   };
 
-  const exportRecommendationPdf = () => {
-    if (!state.editedData) {
-      notifications.show({ title: 'Nothing to export', message: 'No review data loaded.', color: 'yellow' });
-      return;
+  const exportRecommendationPdf = async () => {
+    try {
+      if (!state.editedData) {
+        notifications.show({ title: 'Nothing to export', message: 'No review data loaded.', color: 'yellow' });
+        return;
+      }
+
+      const d = state.editedData;
+      const interview = d.content?.interviewInfo || {};
+      const action = d.content?.actionInfo || {};
+      const finalizeId = d._id || d.id;
+
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+      // Page 1
+      drawRecommendationForActionTemplate(doc, {
+        dateOfInterview: formatDate(interview.dateOfInterview || interview.dateInterview || d.dateOfInterview),
+        clientName: formatText(d.clientName || interview.clientName),
+        dateSubmitted: formatDate(action.signatureDate || d.updatedAt || d.createdAt),
+        interviewingInterns: formatText(interview.interviewingInterns || interview.interviewingIntern || interview.internName),
+        dutyDay: formatText(interview.dutyDay),
+
+        // --- fillable areas ---
+        fastFacts: formatText(interview.fastFacts),
+        clientEvidence: Array.isArray(interview.clientEvidence) ? interview.clientEvidence : [],
+        adversePartyEvidence: Array.isArray(interview.adversePartyEvidence) ? interview.adversePartyEvidence : [],
+        internAdvice: formatText(interview.internAdvice),
+        legalOpinion: formatText(interview.legalOpinion),
+        forLegalAdvice: interview.forLegalAdvice === true || interview.forLegalAdvice === 'true' || interview.forLegalAdvice === 1 || interview.forLegalAdvice === '1',
+      });
+
+      // Page 2
+      doc.addPage();
+      drawRecommendationForActionDirectorPage(doc, {
+        supervisingComment: formatText(action.supervisingComment),
+        decision: formatText(action.decision || d.decision),
+        decisionNote: formatText(action.decisionNote),
+        assignedTo: formatText(action.assignedTo),
+        supervisingLawyer: formatText(action.supervisingLawyer),
+        directorSignature: formatText(action.directorSignature),
+        signatureDate: formatDate(action.signatureDate),
+      });
+
+      // Page 3 (landscape Case Record form layout)
+      let caseRecord = state.caseRecordData;
+      const hasCaseRecordLoaded = caseRecord && Object.keys(caseRecord).length > 0;
+      const isSameFinalizeId = state.selectedCaseId && finalizeId && state.selectedCaseId === finalizeId;
+
+      if (!hasCaseRecordLoaded || !isSameFinalizeId) {
+        // Attempt to fetch the case record for this finalized record.
+        try {
+          if (finalizeId) {
+            const resp = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
+            caseRecord = resp?.data || resp?.data?.data || caseRecord;
+          }
+        } catch (err) {
+          // If no case record exists, we'll still add the page (blank-ish) rather than failing export.
+          console.warn('No case record found for third page:', err);
+        }
+      }
+
+      doc.addPage('a4', 'landscape');
+      drawCaseRecordHistoryRemarksPage(doc, {
+        title: formatText(caseRecord?.title || d.content?.caseInfo?.title || d.title),
+        caseId: formatText(caseRecord?.caseId || d.caseId),
+        nature: formatText(caseRecord?.nature || d.content?.caseInfo?.nature || d.category),
+        tribunal: formatText(caseRecord?.tribunal),
+        branch: formatText(caseRecord?.branch),
+        presidingJudge: formatText(caseRecord?.presidingJudge),
+        telEmail: formatText(caseRecord?.contactDetails || caseRecord?.telEmail || d.content?.interviewInfo?.contactNumber || d.content?.interviewInfo?.email),
+        parties: formatText(caseRecord?.parties),
+        contactDetails: formatText(caseRecord?.contactDetails || caseRecord?.telEmail),
+        counsels: formatText(caseRecord?.counsels),
+        publicProsecutor: formatText(caseRecord?.publicProsecutor),
+        opposingCounsel: formatText(caseRecord?.opposingCounsel),
+        clientAddress: formatText(caseRecord?.clientAddress || d.content?.interviewInfo?.presentAddress || d.content?.interviewInfo?.permanentAddress),
+        others: formatText(caseRecord?.others),
+        caseHistory: formatText(caseRecord?.caseHistory),
+        remarks: formatText(caseRecord?.remarks),
+      });
+
+      doc.save('Recommendation_For_Action.pdf');
+    } catch (err) {
+      console.error('exportRecommendationPdf failed:', err);
+      notifications.show({
+        title: 'PDF export failed',
+        message: String(err?.message || err),
+        color: 'red',
+      });
+    }
+  };
+
+  /**
+ * Draws a "Recommendation for Action" form + fills data.
+ * Coordinates are in mm.
+ */
+const drawRecommendationForActionTemplate = (doc, data = {}) => {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 12;
+
+  // Layout tuning (adjust these to fine-tune spacing)
+  const GAP_XS = 3;
+  const GAP_SM = 4;
+  const GAP_MD = 6;
+
+  const FAST_FACTS_H = 34;
+  const CLIENT_EVIDENCE_H = 50;
+  const ADVERSE_EVIDENCE_H = 36;
+  const ADVICE_H = 18;
+
+  const setFont = (size, style = "normal") => {
+    doc.setFont("times", style);
+    doc.setFontSize(size);
+  };
+
+  const mmPerPt = 0.3528;
+  const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
+
+  const safeText = (v) => (v == null ? "" : String(v));
+
+  const drawMultilineInRect = (text, x, y, w, h, fontSize = 9) => {
+    setFont(fontSize, "normal");
+    const padding = 2;
+    const maxW = Math.max(1, w - padding * 2);
+    const maxH = Math.max(1, h - padding * 2);
+
+    const lh = lineHeightMm(fontSize);
+    const maxLines = Math.max(1, Math.floor(maxH / lh));
+
+    const lines = doc.splitTextToSize(safeText(text), maxW).slice(0, maxLines);
+    doc.text(lines, x + padding, y + padding + lh * 0.75); // baseline tweak
+  };
+
+  const normalizeEvidence = (arr, minRows, shape) => {
+    const rows = Array.isArray(arr) ? arr.filter(Boolean) : [];
+    const filled = rows.map((r) => ({
+      ...shape,
+      ...(r || {}),
+    }));
+    while (filled.length < minRows) filled.push({ ...shape });
+    return filled.slice(0, minRows);
+  };
+
+  const drawTable = (x, y, w, h, headers, colRatios, rowData = [], bodyRows = 3) => {
+    doc.rect(x, y, w, h);
+
+    const headerH = 8;
+    doc.line(x, y + headerH, x + w, y + headerH);
+
+    // verticals + header text
+    let xCursor = x;
+    setFont(9, "bold");
+    headers.forEach((header, i) => {
+      const cw = w * colRatios[i];
+      const cx = xCursor + cw / 2;
+
+      if (i !== 0) doc.line(xCursor, y, xCursor, y + h);
+
+      doc.text(header, cx, y + 5.5, { align: "center", maxWidth: cw - 2 });
+      xCursor += cw;
+    });
+
+    // body row lines
+    const bodyH = h - headerH;
+    const rowH = bodyH / bodyRows;
+    for (let r = 1; r < bodyRows; r++) {
+      doc.line(x, y + headerH + r * rowH, x + w, y + headerH + r * rowH);
     }
 
-    const d = state.editedData;
-    const interview = d.content?.interviewInfo || {};
-    const action = d.content?.actionInfo || {};
+    // cell text
+    const fontSize = 8.5;
+    setFont(fontSize, "normal");
+    const lh = lineHeightMm(fontSize);
 
-    const summaryRows = [
-      { label: 'Client Name', value: formatText(d.clientName || interview.clientName) },
-      { label: 'Case Title', value: formatText(d.caseTitle || d.content?.caseInfo?.title) },
-      { label: 'Case ID', value: formatText(d.caseId) },
-      { label: 'Decision', value: formatText(d.decision ? d.decision.toUpperCase() : 'PENDING') },
-      { label: 'Finalized By', value: formatText(d.finalizedBy) },
-      { label: 'Role', value: formatText(d.finalizedRole) },
-      { label: 'Created At', value: formatDate(d.createdAt) },
+    for (let r = 0; r < bodyRows; r++) {
+      const rowTop = y + headerH + r * rowH;
+      const maxLines = Math.max(1, Math.floor((rowH - 2) / lh));
+
+      let cellX = x;
+      for (let c = 0; c < headers.length; c++) {
+        const cw = w * colRatios[c];
+        const padding = 2;
+
+        const cellText = safeText(rowData?.[r]?.[c] ?? "");
+        const lines = doc.splitTextToSize(cellText, Math.max(1, cw - padding * 2)).slice(0, maxLines);
+
+        if (lines.length) {
+          doc.text(lines, cellX + padding, rowTop + 4.5); // inside row
+        }
+
+        cellX += cw;
+      }
+    }
+  };
+
+  let y = margin;
+
+  // Top-left small header
+  setFont(9, "normal");
+  doc.text("SOLA FORM", margin, y);
+  doc.text("Revised September 2020", margin, y + 4);
+  y += 10;
+
+  // Header boxes
+  const headerH = 18;
+  const rightBoxW = 62;
+  const leftBoxW = pageW - margin * 2 - rightBoxW;
+
+  doc.rect(margin, y, leftBoxW, headerH);
+  doc.rect(margin + leftBoxW, y, rightBoxW, headerH);
+
+  setFont(10, "normal");
+  doc.text(
+    [
+      "San Sebastian Office of Legal Aid (SOLA)",
+      "College of Law",
+      "San Sebastian College - Recoletos, Manila",
+    ],
+    margin + 2,
+    y + 6
+  );
+
+  setFont(10, "bold");
+  doc.text("RECOMMENDATION FOR ACTION", margin + leftBoxW + rightBoxW / 2, y + 10, {
+    align: "center",
+    maxWidth: rightBoxW - 4,
+  });
+
+  y += headerH + GAP_SM;
+
+  // Info box
+  const infoH = 22;
+  const infoW = pageW - margin * 2;
+  const infoX = margin;
+  const midX = infoX + infoW / 2;
+
+  doc.rect(infoX, y, infoW, infoH);
+  doc.line(midX, y, midX, y + infoH);
+
+  setFont(10, "normal");
+  doc.text("Date of Interview:", infoX + 2, y + 6);
+  doc.text("Client's Name:", infoX + 2, y + 14);
+
+  doc.text("Date Submitted:", midX + 2, y + 6);
+  doc.text("Interviewing Intern/s:", midX + 2, y + 14);
+  doc.text("Duty Day:", midX + 2, y + 20);
+
+  // Values
+  setFont(10, "normal");
+  if (data.dateOfInterview) doc.text(safeText(data.dateOfInterview), infoX + 38, y + 6);
+  if (data.clientName) doc.text(safeText(data.clientName), infoX + 32, y + 14);
+  if (data.dateSubmitted) doc.text(safeText(data.dateSubmitted), midX + 34, y + 6);
+  if (data.interviewingInterns) doc.text(safeText(data.interviewingInterns), midX + 44, y + 14);
+  if (data.dutyDay) doc.text(safeText(data.dutyDay), midX + 18, y + 20);
+
+  y += infoH + GAP_MD;
+
+  // Fast Facts
+  setFont(10, "bold");
+  doc.text("Fast Facts", margin, y);
+  y += GAP_XS;
+
+  doc.rect(margin, y, pageW - margin * 2, FAST_FACTS_H);
+  drawMultilineInRect(data.fastFacts, margin, y, pageW - margin * 2, FAST_FACTS_H, 9);
+  y += FAST_FACTS_H + GAP_MD;
+
+  // Evidence (Client)
+  setFont(10, "bold");
+  doc.text("Evidence on Hand / Available for the Client(s)", margin, y);
+  y += GAP_XS;
+
+  const clientRows = normalizeEvidence(data.clientEvidence, 3, { type: "", author: "", purpose: "", issues: "" });
+  const clientRowData = clientRows.map((r) => [r.type, r.author, r.purpose, r.issues]);
+
+  drawTable(
+    margin,
+    y,
+    pageW - margin * 2,
+    CLIENT_EVIDENCE_H,
+    ["Type / Description", "Author / Custodian", "Purpose", "Admissibility Issues"],
+    [0.28, 0.22, 0.20, 0.30],
+    clientRowData,
+    3
+  );
+  y += CLIENT_EVIDENCE_H + GAP_MD;
+
+  // Evidence (Adverse)
+  setFont(10, "bold");
+  doc.text("Evidence on Hand / Available for the Adverse Party(ies)", margin, y);
+  y += GAP_XS;
+
+  const adverseRows = normalizeEvidence(data.adversePartyEvidence, 2, { type: "", author: "", issues: "" });
+  const adverseRowData = adverseRows.map((r) => [r.type, r.author, r.issues]);
+
+  drawTable(
+    margin,
+    y,
+    pageW - margin * 2,
+    ADVERSE_EVIDENCE_H,
+    ["Type / Description", "Author / Custodian", "Admissibility Issues"],
+    [0.35, 0.30, 0.35],
+    adverseRowData,
+    2
+  );
+  y += ADVERSE_EVIDENCE_H + (GAP_MD + 2);
+
+  // Advice + checkbox
+  setFont(10, "bold");
+  doc.text("Interviewing Intern's Initial Advice to the Client(s)", margin, y);
+
+  const cbSize = 3.5;
+  const cbLabel = "For legal advice only";
+  const cbX = pageW - margin - (cbSize + 2 + doc.getTextWidth(cbLabel));
+  const cbY = y - 3;
+
+  doc.rect(cbX, cbY, cbSize, cbSize);
+  if (data.forLegalAdvice) {
+    doc.line(cbX + 0.6, cbY + 0.6, cbX + cbSize - 0.6, cbY + cbSize - 0.6);
+    doc.line(cbX + cbSize - 0.6, cbY + 0.6, cbX + 0.6, cbY + cbSize - 0.6);
+  }
+
+  setFont(10, "normal");
+  doc.text(cbLabel, cbX + cbSize + 2, y);
+
+  y += GAP_XS;
+
+  doc.rect(margin, y, pageW - margin * 2, ADVICE_H);
+  drawMultilineInRect(data.internAdvice, margin, y, pageW - margin * 2, ADVICE_H, 9);
+  y += ADVICE_H + (GAP_MD + 2);
+
+  // Legal Opinion
+  setFont(10, "bold");
+  doc.text("Legal Opinion", margin, y);
+  y += 4;
+
+  const opinionH = Math.max(20, pageH - y - margin);
+  doc.rect(margin, y, pageW - margin * 2, opinionH);
+  drawMultilineInRect(data.legalOpinion, margin, y, pageW - margin * 2, opinionH, 9);
+};
+
+  /**
+   * Draws the continuation page (Supervising Lawyer's Comment + Director's Action + Assigned To)
+   * based on the provided page photo.
+   */
+  const drawRecommendationForActionDirectorPage = (doc, data = {}) => {
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 14;
+
+    const setFont = (size, style = 'normal') => {
+      doc.setFont('times', style);
+      doc.setFontSize(size);
+    };
+
+    const safeText = (v) => (v == null ? '' : String(v));
+
+    const mmPerPt = 0.3528;
+    const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
+
+    const drawRuledBox = (x, y, w, h, gap = 6) => {
+      doc.rect(x, y, w, h);
+      for (let yy = y + gap; yy < y + h; yy += gap) {
+        doc.line(x, yy, x + w, yy);
+      }
+    };
+
+    const drawMultilineInRect = (text, x, y, w, h, fontSize = 10) => {
+      setFont(fontSize, 'normal');
+      const padding = 2;
+      const maxW = Math.max(1, w - padding * 2);
+      const maxH = Math.max(1, h - padding * 2);
+      const lh = lineHeightMm(fontSize);
+      const maxLines = Math.max(1, Math.floor(maxH / lh));
+      const lines = doc.splitTextToSize(safeText(text), maxW).slice(0, maxLines);
+      doc.text(lines, x + padding, y + padding + lh * 0.75);
+    };
+
+    const drawLabelLine = (label, x, y, w) => {
+      setFont(10, 'normal');
+      doc.text(label, x, y);
+      const lw = doc.getTextWidth(label);
+      const lineX = x + lw + 2;
+      doc.line(lineX, y + 0.8, x + w, y + 0.8);
+      return lineX;
+    };
+
+    const decision = safeText(data.decision).toLowerCase();
+    const isAccepted = decision.includes('accept');
+    const isRejected = decision.includes('reject');
+    const isPending = decision.includes('pend');
+
+    const drawCheckbox = (x, yText, label, checked) => {
+      const size = 3.5;
+      const boxY = yText - 3;
+      doc.rect(x, boxY, size, size);
+      if (checked) {
+        doc.line(x + 0.6, boxY + 0.6, x + size - 0.6, boxY + size - 0.6);
+        doc.line(x + size - 0.6, boxY + 0.6, x + 0.6, boxY + size - 0.6);
+      }
+      setFont(10, 'normal');
+      doc.text(label, x + size + 2, yText);
+      return x + size + 2 + doc.getTextWidth(label);
+    };
+
+    const fullW = pageW - margin * 2;
+    let y = margin;
+
+    // Supervising Lawyer's Comment
+    setFont(11, 'bold');
+    doc.text("Supervising Lawyer's Comment", margin, y);
+    y += 6;
+
+    const commentH = 55;
+    drawRuledBox(margin, y, fullW, commentH, 6);
+    drawMultilineInRect(data.supervisingComment, margin, y, fullW, commentH, 10);
+    y += commentH + 10;
+
+    // Director's Action + checkboxes
+    setFont(11, 'bold');
+    doc.text("Director's Action", margin, y);
+
+    const gap = 10;
+    const labels = ['Accepted', 'Rejected', 'Pending'];
+    const size = 3.5;
+    const totalW =
+      (size + 2 + doc.getTextWidth(labels[0])) +
+      (size + 2 + doc.getTextWidth(labels[1])) +
+      (size + 2 + doc.getTextWidth(labels[2])) +
+      gap * 2;
+
+    let xCb = pageW - margin - totalW;
+    xCb = drawCheckbox(xCb, y, 'Accepted', isAccepted) + gap;
+    xCb = drawCheckbox(xCb, y, 'Rejected', isRejected) + gap;
+    drawCheckbox(xCb, y, 'Pending', isPending);
+
+    y += 6;
+    setFont(10, 'normal');
+    doc.text('If accepted/pending, instruction(s); if rejected, reason(s):', margin, y);
+    y += 5;
+
+    const actionH = 60;
+    drawRuledBox(margin, y, fullW, actionH, 6);
+    drawMultilineInRect(data.decisionNote, margin, y, fullW, actionH, 10);
+    y += actionH + 12;
+
+    // Assigned to (two columns)
+    setFont(11, 'bold');
+    doc.text('Assigned to:', margin, y);
+    y += 10;
+
+    const colGap = 18;
+    const colW = (fullW - colGap) / 2;
+    const leftX = margin;
+    const rightX = margin + colW + colGap;
+
+    // Left: Law Interns
+    setFont(10, 'normal');
+    doc.text('Law Interns:', leftX, y);
+    doc.line(leftX, y + 6, leftX + colW, y + 6);
+    drawMultilineInRect(data.assignedTo, leftX, y + 1, colW, 18, 10);
+
+    // Right: Supervising Lawyer / Director's Signature / Date
+    drawLabelLine('Supervising Lawyer:', rightX, y, colW);
+    drawMultilineInRect(data.supervisingLawyer, rightX + 40, y - 4, colW - 40, 10, 10);
+
+    y += 12;
+    drawLabelLine("Director's Signature:", rightX, y, colW);
+    drawMultilineInRect(data.directorSignature, rightX + 42, y - 4, colW - 42, 10, 10);
+
+    y += 12;
+    drawLabelLine('Date:', rightX, y, colW);
+    drawMultilineInRect(data.signatureDate, rightX + 12, y - 4, colW - 12, 10, 10);
+
+    // Defensive: keep within page
+    if (y > pageH - margin) return;
+  };
+
+  /**
+   * Case Record: landscape form page (header fields + CASE HISTORY + REMARKS/NOTES)
+   * based on the provided form photo.
+   */
+  const drawCaseRecordHistoryRemarksPage = (doc, data = {}) => {
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 10;
+    const w = pageW - margin * 2;
+
+    const setFont = (size, style = 'normal') => {
+      doc.setFont('times', style);
+      doc.setFontSize(size);
+    };
+
+    const safeText = (v) => (v == null ? '' : String(v));
+
+    const mmPerPt = 0.3528;
+    const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
+
+    const drawMultilineInRect = (text, x, y, w, h, fontSize = 9) => {
+      setFont(fontSize, 'normal');
+      const padding = 2;
+      const maxW = Math.max(1, w - padding * 2);
+      const maxH = Math.max(1, h - padding * 2);
+      const lh = lineHeightMm(fontSize);
+      const maxLines = Math.max(1, Math.floor(maxH / lh));
+      const lines = doc.splitTextToSize(safeText(text), maxW).slice(0, maxLines);
+      doc.text(lines, x + padding, y + padding + lh * 0.75);
+    };
+
+    const drawRuledRect = (x, y, w, h, gap = 6) => {
+      doc.rect(x, y, w, h);
+      for (let yy = y + gap; yy < y + h; yy += gap) {
+        doc.line(x, yy, x + w, yy);
+      }
+    };
+
+    const drawLabeledLine = (label, value, x, y, colW, labelW = 36) => {
+      setFont(9, 'normal');
+      doc.text(label, x + 2, y);
+      const lineX = x + labelW;
+      doc.line(lineX, y + 0.6, x + colW - 2, y + 0.6);
+      const maxW = Math.max(1, colW - labelW - 4);
+      const lines = doc.splitTextToSize(safeText(value), maxW).slice(0, 1);
+      if (lines.length) {
+        doc.text(lines[0], lineX + 1, y);
+      }
+    };
+
+    const x0 = margin;
+    let y = margin;
+
+    // Header block (two columns)
+    const headerH = 58;
+    doc.rect(x0, y, w, headerH);
+    const midX = x0 + w / 2;
+    doc.line(midX, y, midX, y + headerH);
+
+    const colW = w / 2;
+    const rowGap = 6;
+    const leftX = x0;
+    const rightX = midX;
+
+    // Left column fields
+    setFont(9, 'normal');
+    const leftFields = [
+      { label: 'Title of the Case:', value: data.title },
+      { label: 'Case ID:', value: data.caseId },
+      { label: 'Nature of the Case:', value: data.nature },
+      { label: 'Tribunal:', value: data.tribunal },
+      { label: 'Branch:', value: data.branch },
+      { label: 'Presiding Judge:', value: data.presidingJudge },
+      { label: 'Tel/Email:', value: data.telEmail },
     ];
+    leftFields.forEach((f, i) => {
+      drawLabeledLine(f.label, f.value, leftX, y + 6 + i * rowGap, colW, 44);
+    });
 
-    const interviewRows = [
-      { label: 'Date of Interview', value: formatDate(interview.dateOfInterview) },
-      { label: 'Date Submitted', value: formatDate(interview.dateSubmitted) },
-      { label: "Interviewing Intern(s)", value: formatText(interview.interviewingInterns) },
-      { label: 'Fast Facts', value: formatText(interview.fastFacts) },
-      { label: "Intern's Initial Advice", value: formatText(interview.internAdvice) },
-      { label: 'Legal Opinion', value: formatText(interview.legalOpinion) },
+    // Parties (multi-line) in left column
+    setFont(9, 'normal');
+    const partiesY = y + 6 + leftFields.length * rowGap;
+    doc.text('Party/ies:', leftX + 2, partiesY);
+    doc.line(leftX + 44, partiesY + 0.6, leftX + colW - 2, partiesY + 0.6);
+    drawMultilineInRect(data.parties, leftX + 44, partiesY - 4, colW - 46, 14, 9);
+
+    // Right column fields
+    const rightFields = [
+      { label: 'Contact Details:', value: data.contactDetails },
+      { label: 'Counsel/s on Record:', value: data.counsels },
+      { label: 'Public Prosecutor:', value: data.publicProsecutor },
+      { label: 'Opposing Counsel:', value: data.opposingCounsel },
     ];
+    rightFields.forEach((f, i) => {
+      drawLabeledLine(f.label, f.value, rightX, y + 6 + i * rowGap, colW, 52);
+    });
 
-    const actionRows = [
-      { label: "Supervising Lawyer's Comment", value: formatText(action.supervisingComment) },
-      { label: 'Director Decision', value: formatText(d.decision ? d.decision.toUpperCase() : action.decision) },
-      { label: 'Case Category', value: formatText(d.content?.caseInfo?.nature || d.category) },
-      { label: 'Decision Note', value: formatText(action.decisionNote) },
-      { label: 'Assigned To', value: formatText(action.assignedTo) },
-      { label: 'Supervising Lawyer', value: formatText(action.supervisingLawyer) },
-      { label: "Director's Signature", value: formatText(action.directorSignature) },
-      { label: 'Signature Date', value: formatDate(action.signatureDate) },
-    ];
+    // Client address (multi-line)
+    const addressY = y + 6 + rightFields.length * rowGap;
+    setFont(9, 'normal');
+    doc.text("Client/s Address:", rightX + 2, addressY);
+    doc.line(rightX + 52, addressY + 0.6, rightX + colW - 2, addressY + 0.6);
+    drawMultilineInRect(data.clientAddress, rightX + 52, addressY - 4, colW - 54, 14, 9);
 
-    downloadPdfDocument('Recommendation for Action', [
-      { heading: 'Recommendation Summary', rows: summaryRows },
-      { heading: 'Interview Information', rows: interviewRows },
-      { heading: 'Evidence on Hand (Client)', evidence: interview.clientEvidence },
-      { heading: 'Evidence on Hand (Adverse Party)', evidence: interview.adversePartyEvidence },
-      { heading: 'Director & Supervising Lawyer Action', rows: actionRows },
-    ]);
+    // Others (multi-line)
+    const othersY = addressY + 2 * rowGap;
+    doc.text('Others:', rightX + 2, othersY);
+    doc.line(rightX + 52, othersY + 0.6, rightX + colW - 2, othersY + 0.6);
+    drawMultilineInRect(data.others, rightX + 52, othersY - 4, colW - 54, 14, 9);
+
+    y += headerH;
+
+    // Bottom sections
+    const sectionY = y;
+    const sectionH = pageH - sectionY - margin;
+    const leftSectionW = (w - 2) / 2;
+    const rightSectionW = leftSectionW;
+    const leftSectionX = x0;
+    const rightSectionX = x0 + leftSectionW + 2;
+
+    // Section header line
+    doc.line(x0, sectionY, x0 + w, sectionY);
+
+    setFont(10, 'bold');
+    doc.text('CASE HISTORY', leftSectionX + leftSectionW / 2, sectionY + 7, { align: 'center' });
+    setFont(8, 'normal');
+    doc.text('(in reverse chronological order)', leftSectionX + leftSectionW / 2, sectionY + 12, { align: 'center' });
+
+    setFont(10, 'bold');
+    doc.text('REMARKS / REMINDERS / NOTES', rightSectionX + rightSectionW / 2, sectionY + 7, { align: 'center' });
+    setFont(8, 'normal');
+    doc.text('(deadlines/material dates, etc.)', rightSectionX + rightSectionW / 2, sectionY + 12, { align: 'center' });
+
+    const boxY = sectionY + 14;
+    const boxH = sectionH - 14;
+    drawRuledRect(leftSectionX, boxY, leftSectionW, boxH, 6);
+    drawRuledRect(rightSectionX, boxY, rightSectionW, boxH, 6);
+
+    drawMultilineInRect(data.caseHistory, leftSectionX, boxY, leftSectionW, boxH, 9);
+    drawMultilineInRect(data.remarks, rightSectionX, boxY, rightSectionW, boxH, 9);
   };
 
   // Filter function
@@ -1366,39 +1977,39 @@ export default function FinalizedCases() {
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Name</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.fullName || state.appointmentDetails.name || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Age</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.age || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Birthday</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.birthday || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Sex</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.sex || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Civil Status</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.civilStatus || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Contact Number</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.contactNumber || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Email</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Email</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.email || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Present Address</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentAddress || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddress || 'N/A'}</Text>
                   </Grid.Col>
                 </Grid>
@@ -1410,7 +2021,7 @@ export default function FinalizedCases() {
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
                   <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>
                       {state.appointmentDetails.appointedDate ? new Date(state.appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
                         weekday: 'long', 
@@ -1429,25 +2040,25 @@ export default function FinalizedCases() {
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income Source</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Income Source</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>
                       {state.appointmentDetails.monthlyIncome ? `₱${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
                     </Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.natureOfWork || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Employer</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerName || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Employer Address</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerAddress || 'N/A'}</Text>
                   </Grid.Col>
                 </Grid>
@@ -1459,31 +2070,31 @@ export default function FinalizedCases() {
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Party Represented</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.partyRepresented || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Number</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Case Number</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNumber || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Venue</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.venue || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Present Stage</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentStage || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Division</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Court Division</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtDivision || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Address</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Court Address</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtAddress || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Description</Text>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Case Description</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseDescription || 'N/A'}</Text>
                   </Grid.Col>
                 </Grid>
@@ -1660,6 +2271,30 @@ export default function FinalizedCases() {
                     <Text size="sm">{state.editedData.content?.interviewInfo?.internAdvice || '-'}</Text>
                   )}
                 </Box>
+                <Divider my="md" />
+                {renderEvidenceTable(
+                  "Evidence on Hand / Available for the Client(s)",
+                  state.editedData.content?.interviewInfo?.clientEvidence,
+                  'clientEvidence'
+                )}
+                {renderEvidenceTable(
+                  "Evidence on Hand / Available for the Adverse Party(ies)",
+                  state.editedData.content?.interviewInfo?.adversePartyEvidence,
+                  'adversePartyEvidence'
+                )}
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
+                  {state.editMode ? (
+                    <Textarea
+                      autosize
+                      minRows={3}
+                      value={state.editedData.content?.interviewInfo?.internAdvice || ''}
+                      onChange={(e) => updateEditedData('content.interviewInfo.internAdvice', e.target.value)}
+                    />
+                  ) : (
+                    <Text size="sm">{state.editedData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                  )}
+                </Box>
                 <Box>
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
                   {state.editMode ? (
@@ -1735,7 +2370,28 @@ export default function FinalizedCases() {
                       placeholder="Select a category"
                       value={state.editedData.content?.caseInfo?.nature || state.editedData.category || 'Other'}
                       onChange={(val) => updateEditedData('content.caseInfo.nature', val)}
-                      data={NATURE_OF_CASE_OPTIONS}
+                      data={[
+                        { value: 'Civil Case', label: 'Civil Case' },
+                        { value: 'Criminal Case', label: 'Criminal Case' },
+                        { value: 'Family Law', label: 'Family Law' },
+                        { value: 'Labor and Employment', label: 'Labor and Employment' },
+                        { value: 'Land and Property Disputes', label: 'Land and Property Disputes' },
+                        { value: 'Contract Disputes', label: 'Contract Disputes' },
+                        { value: 'Personal Injury', label: 'Personal Injury' },
+                        { value: 'Debt Collection', label: 'Debt Collection' },
+                        { value: 'Inheritance and Estate', label: 'Inheritance and Estate' },
+                        { value: 'Business and Commercial Law', label: 'Business and Commercial Law' },
+                        { value: 'Consumer Protection', label: 'Consumer Protection' },
+                        { value: 'Tax Law', label: 'Tax Law' },
+                        { value: 'Immigration', label: 'Immigration' },
+                        { value: 'Intellectual Property', label: 'Intellectual Property' },
+                        { value: 'Environmental Law', label: 'Environmental Law' },
+                        { value: 'Administrative Law', label: 'Administrative Law' },
+                        { value: 'Human Rights Violation', label: 'Human Rights Violation' },
+                        { value: 'Cybercrime', label: 'Cybercrime' },
+                        { value: 'Election Law', label: 'Election Law' },
+                        { value: 'Other', label: 'Other' },
+                      ]}
                       clearable={false}
                       searchable
                     />
