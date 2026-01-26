@@ -16,7 +16,8 @@ import {
     Radio,
     SimpleGrid,
     Button,
-    Stepper
+    Stepper,
+    Badge
 } from '@mantine/core';
 import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconArrowLeft } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
@@ -122,7 +123,16 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 <TextInput label="Client's Name" placeholder="Full Name"
                     value={value.clientName || ''} onChange={(e) => onChange({ ...value, clientName: e.target.value })} />
                 <TextInput label="Interviewing Intern/s Duty Day" placeholder="Intern Name/s and Duty Day"
-                    value={value.interviewingInterns || ''} onChange={(e) => onChange({ ...value, interviewingInterns: e.target.value })} />
+                    value={value.interviewingInterns || ''} 
+                    onChange={(e) => onChange({ ...value, interviewingInterns: e.target.value })} 
+                    readOnly
+                    styles={{
+                        input: {
+                            backgroundColor: '#F5F5F5',
+                            cursor: 'not-allowed'
+                        }
+                    }}
+                />
             </SimpleGrid>
             
             <Divider />
@@ -183,21 +193,53 @@ ClientInterviewSection.displayName = 'ClientInterviewSection';
 // ====================================================================================
 // 3. Supervising Lawyer's Comment & Director's Action (Based on image_588e92.png)
 // ====================================================================================
-export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange = () => {}, forLegalAdvice = false, userRole = '' }) => (
-    <Paper shadow="md" p="xl" radius="lg" bg="white">
-        <Stack gap="xl">
-            <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Supervising Lawyer & Director Action</Title>
+export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange = () => {}, forLegalAdvice = false, userRole = '', userData = null }) => {
+    // Auto-populate fields based on role
+    React.useEffect(() => {
+        const currentUserName = userData?.firstName && userData?.lastName 
+            ? `${userData.firstName} ${userData.lastName}` 
+            : userData?.username || userData?.displayName || 'Unknown User';
+        
+        const today = new Date();
+        const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        
+        if (userRole === 'intern' && userData) {
+            // For interns: Set assignedTo and date if not already set
+            if (!value.assignedTo) {
+                onChange({ ...value, assignedTo: currentUserName, signatureDate: formattedDate });
+            } else if (!value.signatureDate) {
+                onChange({ ...value, signatureDate: formattedDate });
+            }
+        } else if (userRole === 'supervising_lawyer' && userData) {
+            // For supervising lawyers: Set supervisingLawyer name if not already set
+            if (!value.supervisingLawyer) {
+                onChange({ ...value, supervisingLawyer: currentUserName });
+            }
+        }
+    }, [userRole, userData]);
 
-            <Divider />
-            
-            <Title order={3} c={PRIMARY_BROWN}>Supervising Lawyer's Comment</Title>
-            <Textarea 
-                placeholder="Comments, corrections, or additional instructions from the Supervising Lawyer." 
-                autosize 
-                minRows={4}
-                value={value.supervisingComment || ''}
-                onChange={(e) => onChange({ ...value, supervisingComment: e.target.value })}
-            />
+    return (
+        <Paper shadow="md" p="xl" radius="lg" bg="white">
+            <Stack gap="xl">
+                <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Supervising Lawyer & Director Action</Title>
+
+                <Divider />
+                
+                <Title order={3} c={PRIMARY_BROWN}>Supervising Lawyer's Comment</Title>
+                <Textarea 
+                    placeholder="Comments, corrections, or additional instructions from the Supervising Lawyer." 
+                    autosize 
+                    minRows={4}
+                    value={value.supervisingComment || ''}
+                    onChange={(e) => onChange({ ...value, supervisingComment: e.target.value })}
+                    disabled={userRole === 'intern'}
+                    styles={{
+                        input: {
+                            backgroundColor: userRole === 'intern' ? '#F5F5F5' : 'white',
+                            cursor: userRole === 'intern' ? 'not-allowed' : 'text',
+                        },
+                    }}
+                />
 
             <Divider />
 
@@ -240,6 +282,13 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                         minRows={3}
                         value={value.assignedTo || ''}
                         onChange={(e) => onChange({ ...value, assignedTo: e.target.value })}
+                        disabled={userRole === 'intern' || userRole === 'supervising_lawyer'}
+                        styles={{
+                            input: {
+                                backgroundColor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
+                                cursor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                            },
+                        }}
                     />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, md: 6 }}>
@@ -249,25 +298,47 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             placeholder="Signature/Name of Supervising Lawyer" 
                             value={value.supervisingLawyer || ''}
                             onChange={(e) => onChange({ ...value, supervisingLawyer: e.target.value })}
+                            disabled={userRole === 'intern' || userRole === 'supervising_lawyer'}
+                            styles={{
+                                input: {
+                                    backgroundColor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
+                                    cursor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                                },
+                            }}
                         />
                         <TextInput 
                             label="Director's Signature" 
                             placeholder="Signature/Name of Director" 
                             value={value.directorSignature || ''}
                             onChange={(e) => onChange({ ...value, directorSignature: e.target.value })}
+                            disabled={userRole === 'intern' || userRole === 'supervising_lawyer'}
+                            styles={{
+                                input: {
+                                    backgroundColor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
+                                    cursor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                                },
+                            }}
                         />
                         <TextInput 
                             label="Date" 
                             type="date" 
                             value={value.signatureDate || ''}
                             onChange={(e) => onChange({ ...value, signatureDate: e.target.value })}
+                            disabled={userRole === 'intern' || userRole === 'supervising_lawyer'}
+                            styles={{
+                                input: {
+                                    backgroundColor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
+                                    cursor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                                },
+                            }}
                         />
                     </Stack>
                 </Grid.Col>
             </Grid>
-        </Stack>
-    </Paper>
-));
+            </Stack>
+        </Paper>
+    );
+});
 SupervisingLawyerActionSection.displayName = 'SupervisingLawyerActionSection';
 
 
@@ -285,6 +356,7 @@ export default function CaseRecordFormsDisplay() {
     const [isFromDashboard, setIsFromDashboard] = useState(false)
     const [isViewingExistingReview, setIsViewingExistingReview] = useState(false)
     const [reviewId, setReviewId] = useState(null)
+    const [currentReviewStage, setCurrentReviewStage] = useState('supervising_lawyer') // Track current stage
 
     // controlled state for interview + action
     const [interviewInfo, setInterviewInfo] = useState({});
@@ -317,6 +389,7 @@ export default function CaseRecordFormsDisplay() {
             setIsFromDashboard(true);
             setIsViewingExistingReview(isViewingFlag || false);
             setReviewId(review._id || review.id || null);
+            setCurrentReviewStage(review.reviewStage || 'supervising_lawyer'); // Load the current stage
             
             // Load review data from location.state
             const ii = review.content.interviewInfo || review.interviewInfo || {};
@@ -336,6 +409,7 @@ export default function CaseRecordFormsDisplay() {
             setIsFromDashboard(false);
             setIsViewingExistingReview(false);
             setReviewId(null);
+            setCurrentReviewStage('supervising_lawyer');
             setInterviewInfo({});
             setActionInfo({});
         }
@@ -368,13 +442,26 @@ export default function CaseRecordFormsDisplay() {
                     const today = new Date();
                     const currentDate = formatDate(today);
                     
+                    // Get current user's full name (only for interns creating new reviews)
+                    const currentUserName = userData?.firstName && userData?.lastName 
+                        ? `${userData.firstName} ${userData.lastName}` 
+                        : userData?.username || 'Unknown User';
+                    
                     // Set interview info with client data
-                    setInterviewInfo(prev => ({
+                    // Only set interviewingInterns if this is a new review being created by an intern
+                    const newInterviewInfo = {
                         ...prev,
                         clientName: clientData.fullName || clientData.name || '',
                         dateOfInterview: formatDate(clientData.appointedDate || clientData.createdAt),
-                        dateSubmitted: currentDate
-                    }));
+                        dateSubmitted: currentDate,
+                    };
+                    
+                    // Only add interviewingInterns if not already set (preserves original intern's name)
+                    if (!prev.interviewingInterns) {
+                        newInterviewInfo.interviewingInterns = currentUserName;
+                    }
+                    
+                    setInterviewInfo(newInterviewInfo);
                 } catch (error) {
                     console.error('Error fetching client info for auto-fill:', error);
                 }
@@ -411,6 +498,7 @@ export default function CaseRecordFormsDisplay() {
             reviewerId: userData?.id || userData?._id || null,
             reviewerRole: userData?.role || null,
             step: active,
+            reviewStage: 'supervising_lawyer', // Start with supervising lawyer review
             content: { 
                 interviewInfo: completeInterviewInfo,
                 actionInfo: actionInfo 
@@ -661,6 +749,226 @@ export default function CaseRecordFormsDisplay() {
         }
     };
 
+    // Handler for intern to resubmit review after making revisions
+    const handleResubmitForReview = async () => {
+        if (!reviewId) {
+            alert('No review ID found');
+            return;
+        }
+
+        // Filter out completely empty evidence rows before resubmitting
+        const filterEmptyEvidence = (evidenceArray) => {
+            if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
+            return evidenceArray.filter(row => 
+                row && (row.type || row.author || row.purpose || row.issues)
+            );
+        };
+
+        const completeInterviewInfo = {
+            ...interviewInfo,
+            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
+            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+        };
+
+        const updatePayload = {
+            reviewStage: 'supervising_lawyer', // Resubmit to supervising lawyer
+            content: { 
+                interviewInfo: completeInterviewInfo,
+                actionInfo 
+            }
+        };
+
+        try {
+            setSaving(true);
+            const response = await fetch(`/api/reviews/${reviewId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatePayload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Update failed: ${response.status}`);
+            }
+
+            const updated = await response.json();
+            console.log('Successfully resubmitted review:', updated);
+            alert('Review resubmitted successfully!');
+            
+            // Redirect to dashboard
+            navigate('/admin');
+        } catch (err) {
+            console.error('handleResubmitForReview error:', err);
+            alert(`Failed to resubmit review: ${err.message}`);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Handler for supervising lawyer to return review to intern
+    const handleReturnToIntern = async () => {
+        if (!reviewId) {
+            alert('No review ID found');
+            return;
+        }
+
+        // Save changes first
+        const filterEmptyEvidence = (evidenceArray) => {
+            if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
+            return evidenceArray.filter(row => 
+                row && (row.type || row.author || row.purpose || row.issues)
+            );
+        };
+
+        const completeInterviewInfo = {
+            ...interviewInfo,
+            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
+            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+        };
+
+        const updatePayload = {
+            reviewStage: 'returned_to_intern', // Move back to intern
+            content: { 
+                interviewInfo: completeInterviewInfo,
+                actionInfo 
+            }
+        };
+
+        try {
+            setSaving(true);
+            const response = await fetch(`/api/reviews/${reviewId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatePayload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Update failed: ${response.status}`);
+            }
+
+            const updated = await response.json();
+            console.log('Successfully returned to intern:', updated);
+            alert('Review returned to intern successfully!');
+            
+            // Redirect to dashboard
+            navigate('/admin');
+        } catch (err) {
+            console.error('handleReturnToIntern error:', err);
+            alert(`Failed to return review: ${err.message}`);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Handler for director to return review to supervising lawyer
+    const handleReturnToSupervisingLawyer = async () => {
+        if (!reviewId) {
+            alert('No review ID found');
+            return;
+        }
+
+        // Save changes first
+        const filterEmptyEvidence = (evidenceArray) => {
+            if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
+            return evidenceArray.filter(row => 
+                row && (row.type || row.author || row.purpose || row.issues)
+            );
+        };
+
+        const completeInterviewInfo = {
+            ...interviewInfo,
+            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
+            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+        };
+
+        const updatePayload = {
+            reviewStage: 'supervising_lawyer', // Move back to supervising lawyer
+            content: { 
+                interviewInfo: completeInterviewInfo,
+                actionInfo 
+            }
+        };
+
+        try {
+            setSaving(true);
+            const response = await fetch(`/api/reviews/${reviewId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatePayload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Update failed: ${response.status}`);
+            }
+
+            const updated = await response.json();
+            console.log('Successfully returned to supervising lawyer:', updated);
+            alert('Review returned to supervising lawyer successfully!');
+            
+            // Redirect to dashboard
+            navigate('/admin');
+        } catch (err) {
+            console.error('handleReturnToSupervisingLawyer error:', err);
+            alert(`Failed to return review: ${err.message}`);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Handler for supervising lawyer to approve and send to director
+    const handleApproveToDirector = async () => {
+        if (!reviewId) {
+            alert('No review ID found');
+            return;
+        }
+
+        // Save changes first
+        const filterEmptyEvidence = (evidenceArray) => {
+            if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
+            return evidenceArray.filter(row => 
+                row && (row.type || row.author || row.purpose || row.issues)
+            );
+        };
+
+        const completeInterviewInfo = {
+            ...interviewInfo,
+            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
+            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+        };
+
+        const updatePayload = {
+            reviewStage: 'director', // Move to director review stage
+            content: { 
+                interviewInfo: completeInterviewInfo,
+                actionInfo 
+            }
+        };
+
+        try {
+            setSaving(true);
+            const response = await fetch(`/api/reviews/${reviewId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatePayload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Update failed: ${response.status}`);
+            }
+
+            const updated = await response.json();
+            console.log('Successfully moved to director review:', updated);
+            alert('Review approved and sent to director successfully!');
+            
+            // Redirect to dashboard
+            navigate('/admin');
+        } catch (err) {
+            console.error('handleApproveToDirector error:', err);
+            alert(`Failed to approve review: ${err.message}`);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     useEffect(() => {
         // Only fetch reviews list if opened from dashboard (to populate reviews state)
         // Don't auto-load form data - that should only come from location.state
@@ -681,6 +989,7 @@ export default function CaseRecordFormsDisplay() {
                         onChange={setActionInfo} 
                         forLegalAdvice={interviewInfo.forLegalAdvice}
                         userRole={userData?.role}
+                        userData={userData}
                     />
                 );
             default:
@@ -746,6 +1055,61 @@ export default function CaseRecordFormsDisplay() {
                 {/* Form Content Wrapper */}
                 <Paper shadow="xs" p="xl" radius="lg" bg="white">
                     <Stack gap="xl">
+                        {/* Review Stage Indicator - Only show when viewing existing review */}
+                        {isViewingExistingReview && (
+                            <Paper 
+                                p="md" 
+                                radius="md" 
+                                style={{ 
+                                    backgroundColor: currentReviewStage === 'supervising_lawyer' 
+                                        ? '#FFF4E6' 
+                                        : currentReviewStage === 'director' 
+                                        ? '#F3E5F5' 
+                                        : '#E8F5E9',
+                                    border: `2px solid ${
+                                        currentReviewStage === 'supervising_lawyer' 
+                                            ? '#FF8C42' 
+                                            : currentReviewStage === 'director' 
+                                            ? '#9C27B0' 
+                                            : '#4CAF50'
+                                    }`
+                                }}
+                            >
+                                <Group justify="space-between" align="center">
+                                    <Box>
+                                        <Text fw={700} size="sm" c={PRIMARY_BROWN}>
+                                            Current Review Stage
+                                        </Text>
+                                        <Text size="xs" c={MUTED_OLIVE} mt={4}>
+                                            {currentReviewStage === 'supervising_lawyer' 
+                                                ? 'This submission is pending review by the supervising lawyer'
+                                                : currentReviewStage === 'director' 
+                                                ? 'This submission has been approved by the supervising lawyer and is pending director review'
+                                                : 'This submission has been completed'}
+                                        </Text>
+                                    </Box>
+                                    <Badge 
+                                        size="lg" 
+                                        variant="filled"
+                                        style={{ 
+                                            backgroundColor: currentReviewStage === 'supervising_lawyer' 
+                                                ? '#FF8C42' 
+                                                : currentReviewStage === 'director' 
+                                                ? '#9C27B0' 
+                                                : '#4CAF50',
+                                            color: 'white'
+                                        }}
+                                    >
+                                        {currentReviewStage === 'supervising_lawyer' 
+                                            ? 'Supervising Lawyer Review'
+                                            : currentReviewStage === 'director' 
+                                            ? 'Director Review'
+                                            : 'Completed'}
+                                    </Badge>
+                                </Group>
+                            </Paper>
+                        )}
+
                         {/* Stepper Display */}
                         <Stepper 
                             active={active} 
@@ -803,21 +1167,115 @@ export default function CaseRecordFormsDisplay() {
                                 {active === 1 && (
                                     <>
                                         {isViewingExistingReview ? (
-                                            // Viewing existing review - show different buttons based on role
+                                            // Viewing existing review - show different buttons based on role and stage
                                             isIntern ? (
-                                                // Intern: Only Save Changes
-                                                <Button 
-                                                    leftSection={<IconCircleCheck size={20} />}
-                                                    onClick={handleSaveChanges}
-                                                    size="md"
-                                                    variant="filled"
-                                                    style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                    disabled={saving}
-                                                >
-                                                    {saving ? 'Saving...' : 'Save Changes'}
-                                                </Button>
+                                                // Intern: Save Changes and Resubmit (if returned)
+                                                currentReviewStage === 'returned_to_intern' ? (
+                                                    <Group gap="md">
+                                                        <Button 
+                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            onClick={handleSaveChanges}
+                                                            size="md"
+                                                            variant="outline"
+                                                            style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                            disabled={saving}
+                                                        >
+                                                            {saving ? 'Saving...' : 'Save Changes'}
+                                                        </Button>
+                                                        <Button 
+                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            onClick={handleResubmitForReview}
+                                                            size="md"
+                                                            variant="filled"
+                                                            style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                            disabled={saving}
+                                                        >
+                                                            {saving ? 'Resubmitting...' : 'Resubmit for Review'}
+                                                        </Button>
+                                                    </Group>
+                                                ) : (
+                                                    // Other stages: Only Save Changes
+                                                    <Button 
+                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        onClick={handleSaveChanges}
+                                                        size="md"
+                                                        variant="filled"
+                                                        style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                        disabled={saving}
+                                                    >
+                                                        {saving ? 'Saving...' : 'Save Changes'}
+                                                    </Button>
+                                                )
+                                            ) : currentReviewStage === 'supervising_lawyer' ? (
+                                                // Supervising Lawyer Stage: Save Changes, Approve to Director, and Return to Intern
+                                                <Group gap="md">
+                                                    <Button 
+                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        onClick={handleSaveChanges}
+                                                        size="md"
+                                                        variant="outline"
+                                                        style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                        disabled={saving}
+                                                    >
+                                                        {saving ? 'Saving...' : 'Save Changes'}
+                                                    </Button>
+                                                    <Button 
+                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        onClick={handleApproveToDirector}
+                                                        size="md"
+                                                        variant="filled"
+                                                        style={{ backgroundColor: '#FF8C42' }}
+                                                        disabled={saving || !actionInfo.decision || actionInfo.decision === 'rejected'}
+                                                    >
+                                                        {saving ? 'Approving...' : 'Approve to Director'}
+                                                    </Button>
+                                                    <Button 
+                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        onClick={handleReturnToIntern}
+                                                        size="md"
+                                                        variant="filled"
+                                                        style={{ backgroundColor: '#DC2626' }}
+                                                        disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
+                                                    >
+                                                        {saving ? 'Returning...' : 'Return to Intern'}
+                                                    </Button>
+                                                </Group>
+                                            ) : currentReviewStage === 'director' ? (
+                                                // Director Stage: Save Changes, Finalize Record, and Return to Supervising Lawyer
+                                                <Group gap="md">
+                                                    <Button 
+                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        onClick={handleSaveChanges}
+                                                        size="md"
+                                                        variant="outline"
+                                                        style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                        disabled={saving}
+                                                    >
+                                                        {saving ? 'Saving...' : 'Save Changes'}
+                                                    </Button>
+                                                    <Button 
+                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        onClick={handleSubmit}
+                                                        size="md"
+                                                        variant="filled"
+                                                        style={{ backgroundColor: PRIMARY_BROWN }}
+                                                        disabled={saving || !actionInfo.decision || actionInfo.decision === 'rejected'}
+                                                    >
+                                                        {saving ? 'Finalizing...' : 'Finalize Record'}
+                                                    </Button>
+                                                    <Button 
+                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        onClick={handleReturnToSupervisingLawyer}
+                                                        size="md"
+                                                        variant="filled"
+                                                        style={{ backgroundColor: '#DC2626' }}
+                                                        disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
+                                                    >
+                                                        {saving ? 'Returning...' : 'Return to Supervising Lawyer'}
+                                                    </Button>
+                                                </Group>
                                             ) : (
-                                                // Attorney/Secretary: Both Save Changes and Finalize Record
+                                                // Fallback: Attorney/Secretary with completed or unknown stage
                                                 <Group gap="md">
                                                     <Button 
                                                         leftSection={<IconCircleCheck size={20} />}
@@ -842,35 +1300,20 @@ export default function CaseRecordFormsDisplay() {
                                                 </Group>
                                             )
                                         ) : isIntern ? (
-                                            // Intern creating new review: Both buttons
-                                            <Group gap="md">
-                                                <Button 
-                                                    leftSection={<IconCircleCheck size={20} />}
-                                                    onClick={() => {
-                                                        window.__internFinalizeClicked = false;
-                                                        handleSubmit();
-                                                    }}
-                                                    size="md"
-                                                    variant="outline"
-                                                    style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                    disabled={saving}
-                                                >
-                                                    {saving ? 'Saving...' : 'Submit for Review'}
-                                                </Button>
-                                                <Button 
-                                                    leftSection={<IconCircleCheck size={20} />}
-                                                    onClick={() => {
-                                                        window.__internFinalizeClicked = true;
-                                                        handleSubmit();
-                                                    }}
-                                                    size="md"
-                                                    variant="filled"
-                                                    style={{ backgroundColor: PRIMARY_BROWN }}
-                                                    disabled={saving}
-                                                >
-                                                    {saving ? 'Saving...' : 'Finalize Record'}
-                                                </Button>
-                                            </Group>
+                                            // Intern creating new review: Only Submit for Review button
+                                            <Button 
+                                                leftSection={<IconCircleCheck size={20} />}
+                                                onClick={() => {
+                                                    window.__internFinalizeClicked = false;
+                                                    handleSubmit();
+                                                }}
+                                                size="md"
+                                                variant="filled"
+                                                style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                disabled={saving}
+                                            >
+                                                {saving ? 'Saving...' : 'Submit for Review'}
+                                            </Button>
                                         ) : (
                                             // Attorney/Secretary creating new: Finalize Record button only
                                             <Button 

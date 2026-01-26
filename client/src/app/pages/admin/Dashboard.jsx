@@ -73,7 +73,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     // Fetch reviews for all admin roles
-    if (userData && (userData.role === 'attorney' || userData.role === 'secretary' || userData.role === 'intern' || userData.role === 'pao_lawyer' || userData.role === 'legal_volunteer')) {
+    if (userData && (userData.role === 'attorney' || userData.role === 'secretary' || userData.role === 'intern' || userData.role === 'pao_lawyer' || userData.role === 'legal_volunteer' || userData.role === 'supervising_lawyer' || userData.role === 'director')) {
       fetchReviews();
       fetchFinalized();
     }
@@ -115,6 +115,11 @@ export default function AdminDashboard() {
       setLoadingReviews(false);
     }
   }
+
+  // Filter reviews by stage
+  const supervisingLawyerReviews = reviews.filter(r => r.reviewStage === 'supervising_lawyer' || !r.reviewStage);
+  const directorReviews = reviews.filter(r => r.reviewStage === 'director');
+  const returnedToInternReviews = reviews.filter(r => r.reviewStage === 'returned_to_intern');
 
   const fetchFinalized = async () => {
     try {
@@ -169,14 +174,6 @@ export default function AdminDashboard() {
       route: null,
     },
     {
-      id: 'attorneys',
-      title: 'Total Attorneys',
-      count: stats.totalAttorneys,
-      icon: IconBriefcase,
-      color: MUTED_OLIVE,
-      route: '/admin/attorneys',
-    },
-    {
       id: 'unassigned',
       title: 'Unassigned Cases',
       count: stats.unassignedCases,
@@ -194,15 +191,6 @@ export default function AdminDashboard() {
       icon: IconUserPlus,
       color: PRIMARY_BROWN,
       route: '/admin/assigncase',
-      enabled: true,
-    },
-    {
-      id: 'verify',
-      title: 'Verify Attorneys',
-      description: 'Review attorney applications',
-      icon: IconUserCheck,
-      color: PRIMARY_GOLD,
-      route: '/admin/attorneys',
       enabled: true,
     },
     {
@@ -332,25 +320,28 @@ export default function AdminDashboard() {
           </SimpleGrid>
         )}
 
-        {/* Submitted For Review - Visible to all admin roles */}
-        {userData && (userData.role === 'attorney' || userData.role === 'secretary' || userData.role === 'pao_lawyer' || userData.role === 'legal_volunteer' || userData.role === 'intern') && (
+        {/* Pending Review by Supervising Lawyer - Visible to all admin roles */}
+        {userData && (userData.role === 'attorney' || userData.role === 'secretary' || userData.role === 'pao_lawyer' || userData.role === 'legal_volunteer' || userData.role === 'intern' || userData.role === 'supervising_lawyer' || userData.role === 'director') && (
           <Paper shadow="xs" p="xl" radius="lg" bg="white" mt="xl">
             <Group position="apart" mb="5">
               <Box>
-                <Title order={4}>Submitted For Review</Title>
+                <Title order={4}>Pending Review by Supervising Lawyer</Title>
                 <Text size="sm" c={MUTED_OLIVE}>
                   {userData.role === 'intern' 
-                    ? 'Your submissions awaiting review by attorney/secretary (view only)'
-                    : 'Recent review submissions from interns (click to finalize)'}
+                    ? 'Your submissions awaiting review by supervising lawyer (view only)'
+                    : 'Submissions from interns pending supervising lawyer review'}
                 </Text>
               </Box>
+              <Badge size="lg" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}>
+                {supervisingLawyerReviews.length}
+              </Badge>
             </Group>
 
             <Stack>
               {loadingReviews ? (
                 <Center><Loader /></Center>
               ) : (
-                reviews.length ? reviews.map((r) => {
+                supervisingLawyerReviews.length ? supervisingLawyerReviews.map((r) => {
                   // Get submitter name with priority: displayName (Google) -> fullName (manual) -> clientName (fallback)
                   const submitterName = r.content?.interviewInfo?.clientName || r.clientName || 'Unknown Client';
                   const submittedBy = r.reviewerName || 'Staff';
@@ -389,6 +380,9 @@ export default function AdminDashboard() {
                                 {r.caseId}
                               </Badge>
                             )}
+                            <Badge size="sm" variant="light" color="orange">
+                              Supervising Lawyer Review
+                            </Badge>
                             {userData.role === 'intern' && (
                               <Badge size="sm" variant="light" color="blue">
                                 Can Edit
@@ -405,8 +399,175 @@ export default function AdminDashboard() {
                 }) : (
                   <Text size="sm" c={MUTED_OLIVE}>
                     {userData.role === 'intern' 
-                      ? 'You have no submissions pending review'
-                      : 'No reviews pending finalization'}
+                      ? 'You have no submissions pending supervising lawyer review'
+                      : 'No reviews pending supervising lawyer approval'}
+                  </Text>
+                )
+              )}
+            </Stack>
+          </Paper>
+        )}
+
+        {/* Pending Review by Director - Visible to all admin roles */}
+        {userData && (userData.role === 'attorney' || userData.role === 'secretary' || userData.role === 'pao_lawyer' || userData.role === 'legal_volunteer' || userData.role === 'intern' || userData.role === 'supervising_lawyer' || userData.role === 'director') && (
+          <Paper shadow="xs" p="xl" radius="lg" bg="white" mt="xl">
+            <Group position="apart" mb="5">
+              <Box>
+                <Title order={4}>Pending Review by Director</Title>
+                <Text size="sm" c={MUTED_OLIVE}>
+                  {userData.role === 'intern' 
+                    ? 'Your submissions approved by supervising lawyer, awaiting director review (view only)'
+                    : 'Submissions approved by supervising lawyer pending director review'}
+                </Text>
+              </Box>
+              <Badge size="lg" variant="filled" style={{ backgroundColor: ACCENT_TAN, color: 'white' }}>
+                {directorReviews.length}
+              </Badge>
+            </Group>
+
+            <Stack>
+              {loadingReviews ? (
+                <Center><Loader /></Center>
+              ) : (
+                directorReviews.length ? directorReviews.map((r) => {
+                  // Get submitter name with priority: displayName (Google) -> fullName (manual) -> clientName (fallback)
+                  const submitterName = r.content?.interviewInfo?.clientName || r.clientName || 'Unknown Client';
+                  const submittedBy = r.reviewerName || 'Staff';
+                  
+                  return (
+                    <Paper
+                      key={r._id || r.id || r.caseId}
+                      p="md"
+                      radius="md"
+                      withBorder
+                      style={{ 
+                        cursor: 'pointer', 
+                        borderRadius: 12, 
+                        border: '1px solid #C9A876', 
+                        background: '#FAF8F5'
+                      }}
+                      onClick={() => navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } })}
+                    >
+                      <Group wrap="nowrap" align="flex-start">
+                        <Box style={{ width: 52, height: 52, borderRadius: 12, background: ACCENT_TAN, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                          <IconFiles size={20} />
+                        </Box>
+                        <Box style={{ flex: 1 }}>
+                          <Text fw={700} mb={4}>
+                            {submitterName}
+                          </Text>
+                          <Text size="xs" c={MUTED_OLIVE} mb={6}>
+                            Submitted by: {submittedBy} ({r.reviewerRole || 'Intern'})
+                          </Text>
+                          <Group spacing="xs">
+                            <Badge size="sm" variant="light" color="gray">
+                              {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'No Date'}
+                            </Badge>
+                            {r.caseId && r.caseId !== 'new-case' && (
+                              <Badge size="sm" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
+                                {r.caseId}
+                              </Badge>
+                            )}
+                            <Badge size="sm" variant="light" color="grape">
+                              Director Review
+                            </Badge>
+                            {userData.role === 'intern' && (
+                              <Badge size="sm" variant="light" color="blue">
+                                Can Edit
+                              </Badge>
+                            )}
+                          </Group>
+                        </Box>
+                        <ActionIcon>
+                          <IconChevronRight />
+                        </ActionIcon>
+                      </Group>
+                    </Paper>
+                  );
+                }) : (
+                  <Text size="sm" c={MUTED_OLIVE}>
+                    {userData.role === 'intern' 
+                      ? 'You have no submissions pending director review'
+                      : 'No reviews pending director approval'}
+                  </Text>
+                )
+              )}
+            </Stack>
+          </Paper>
+        )}
+
+        {/* Returned Cases - Visible to interns only */}
+        {userData && userData.role === 'intern' && (
+          <Paper shadow="xs" p="xl" radius="lg" bg="white" mt="xl">
+            <Group position="apart" mb="5">
+              <Box>
+                <Title order={4}>Returned Cases for Revision</Title>
+                <Text size="sm" c={MUTED_OLIVE}>
+                  Cases returned by supervising lawyer for revision or corrections
+                </Text>
+              </Box>
+              <Badge size="lg" variant="filled" style={{ backgroundColor: '#DC2626', color: 'white' }}>
+                {returnedToInternReviews.length}
+              </Badge>
+            </Group>
+
+            <Stack>
+              {loadingReviews ? (
+                <Center><Loader /></Center>
+              ) : (
+                returnedToInternReviews.length ? returnedToInternReviews.map((r) => {
+                  // Get submitter name with priority: displayName (Google) -> fullName (manual) -> clientName (fallback)
+                  const submitterName = r.content?.interviewInfo?.clientName || r.clientName || 'Unknown Client';
+                  const submittedBy = r.reviewerName || 'Staff';
+                  
+                  return (
+                    <Paper
+                      key={r._id || r.id || r.caseId}
+                      p="md"
+                      radius="md"
+                      withBorder
+                      style={{ 
+                        cursor: 'pointer', 
+                        borderRadius: 12, 
+                        border: '1px solid #DC2626', 
+                        background: '#FEF2F2'
+                      }}
+                      onClick={() => navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } })}
+                    >
+                      <Group wrap="nowrap" align="flex-start">
+                        <Box style={{ width: 52, height: 52, borderRadius: 12, background: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                          <IconFiles size={20} />
+                        </Box>
+                        <Box style={{ flex: 1 }}>
+                          <Text fw={700} mb={4}>
+                            {submitterName}
+                          </Text>
+                          <Text size="xs" c={MUTED_OLIVE} mb={6}>
+                            Submitted by: {submittedBy} ({r.reviewerRole || 'Intern'})
+                          </Text>
+                          <Group spacing="xs">
+                            <Badge size="sm" variant="light" color="gray">
+                              {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'No Date'}
+                            </Badge>
+                            {r.caseId && r.caseId !== 'new-case' && (
+                              <Badge size="sm" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
+                                {r.caseId}
+                              </Badge>
+                            )}
+                            <Badge size="sm" variant="light" color="red">
+                              Returned for Revision
+                            </Badge>
+                          </Group>
+                        </Box>
+                        <ActionIcon>
+                          <IconChevronRight />
+                        </ActionIcon>
+                      </Group>
+                    </Paper>
+                  );
+                }) : (
+                  <Text size="sm" c={MUTED_OLIVE}>
+                    No cases returned for revision
                   </Text>
                 )
               )}

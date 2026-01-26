@@ -35,6 +35,14 @@ import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { CaseInformationSection } from '../other/CaseInformationSection';
 
+const APPOINTMENT_STATUS_OPTIONS = [
+  { value: 'auto-scheduled', label: 'Auto-scheduled' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'legal-advice', label: 'Legal Advice' },
+  { value: 'court-case', label: 'Court Case' },
+  { value: 'rejected', label: 'Rejected' },
+];
+
 // Chat Modal Component
 function ChatModal({ opened, onClose, caseData, messages, loading, sending, onSendMessage, onRefresh, userData }) {
   const [messageText, setMessageText] = useState('');
@@ -265,6 +273,40 @@ const initialState = {
   appointmentModalOpened: false,
   appointmentDetails: null,
   loadingAppointment: false,
+  appointmentEditMode: false,
+  appointmentForm: {
+    status: '',
+    appointedDate: '',
+    appointmentTime: '',
+    fullName: '',
+    age: '',
+    birthday: '',
+    sex: '',
+    civilStatus: '',
+    citizenship: '',
+    contactNumber: '',
+    email: '',
+    presentAddress: '',
+    permanentAddress: '',
+    spouseName: '',
+    relatorName: '',
+    relatorContactNumber: '',
+    currentSourceOfIncome: '',
+    monthlyIncome: '',
+    natureOfWork: '',
+    employerName: '',
+    employerAddress: '',
+    partyRepresented: '',
+    venue: '',
+    presentStage: '',
+    courtDivision: '',
+    courtAddress: '',
+    caseDescription: '',
+    caseNature: '',
+    presidingOfficer: '',
+    appointmentType: '',
+  },
+  appointmentSaving: false,
   
   // Chat Modal
   chatModalOpened: false,
@@ -313,13 +355,19 @@ function stateReducer(state, action) {
     
     // Appointment Receipt Modal actions
     case 'OPEN_APPOINTMENT_MODAL':
-      return { ...state, appointmentModalOpened: true, loadingAppointment: true };
+      return { ...state, appointmentModalOpened: true, loadingAppointment: true, appointmentEditMode: false, appointmentSaving: false };
     case 'CLOSE_APPOINTMENT_MODAL':
-      return { ...state, appointmentModalOpened: false, appointmentDetails: null };
+      return { ...state, appointmentModalOpened: false, appointmentDetails: null, appointmentEditMode: false, appointmentForm: { status: '', appointedDate: '', appointmentTime: '' }, appointmentSaving: false };
     case 'SET_APPOINTMENT_DETAILS':
       return { ...state, appointmentDetails: action.payload, loadingAppointment: false };
     case 'SET_LOADING_APPOINTMENT':
       return { ...state, loadingAppointment: action.payload };
+    case 'SET_APPOINTMENT_EDIT_MODE':
+      return { ...state, appointmentEditMode: action.payload };
+    case 'SET_APPOINTMENT_FORM':
+      return { ...state, appointmentForm: action.payload };
+    case 'SET_APPOINTMENT_SAVING':
+      return { ...state, appointmentSaving: action.payload };
     
     // Chat Modal actions
     case 'OPEN_CHAT_MODAL':
@@ -381,6 +429,49 @@ export default function FinalizedCases() {
       .replace(/<br\s*\/?>(\r?\n)?/gi, '\n')
       .replace(/\n/g, '\n');
   };
+
+  const toInputDate = (value) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const syncAppointmentFormFromDetails = (details) => ({
+    status: details?.status || '',
+    appointedDate: toInputDate(details?.appointedDate),
+    appointmentTime: details?.appointmentTime || '',
+    fullName: details?.fullName || details?.name || '',
+    age: details?.age !== undefined && details?.age !== null ? String(details.age) : '',
+    birthday: toInputDate(details?.birthday),
+    sex: details?.sex || '',
+    civilStatus: details?.civilStatus || '',
+    citizenship: details?.citizenship || '',
+    contactNumber: details?.contactNumber || '',
+    email: details?.email || '',
+    presentAddress: details?.presentAddress || '',
+    permanentAddress: details?.permanentAddress || '',
+    spouseName: details?.spouseName || '',
+    relatorName: details?.relatorName || '',
+    relatorContactNumber: details?.relatorContactNumber || '',
+    currentSourceOfIncome: details?.currentSourceOfIncome || '',
+    monthlyIncome: details?.monthlyIncome !== undefined && details?.monthlyIncome !== null ? String(details.monthlyIncome) : '',
+    natureOfWork: details?.natureOfWork || '',
+    employerName: details?.employerName || '',
+    employerAddress: details?.employerAddress || '',
+    partyRepresented: details?.partyRepresented || '',
+    venue: details?.venue || '',
+    presentStage: details?.presentStage || '',
+    courtDivision: details?.courtDivision || '',
+    courtAddress: details?.courtAddress || '',
+    presidingOfficer: details?.presidingOfficer || '',
+    caseDescription: details?.caseDescription || '',
+    caseNature: details?.caseNature || details?.natureOfCase || '',
+    appointmentType: details?.caseDetails?.appointmentType || details?.appointmentType || details?.personal?.legalMatter || '',
+  });
 
   const renderSectionRows = (doc, startY, title, rows) => {
     if (!rows || rows.length === 0) return startY;
@@ -791,11 +882,79 @@ export default function FinalizedCases() {
       }
       
       const response = await apiClient.get(`/clientsinfo/${clientInfoId}`);
-      console.log('Appointment details:', response.data);
-      dispatch({ type: 'SET_APPOINTMENT_DETAILS', payload: response.data });
+      const details = response.data;
+      console.log('Appointment details:', details);
+      dispatch({ type: 'SET_APPOINTMENT_DETAILS', payload: details });
+      dispatch({ type: 'SET_APPOINTMENT_FORM', payload: syncAppointmentFormFromDetails(details) });
     } catch (error) {
       console.error('Error fetching appointment details:', error);
       dispatch({ type: 'SET_LOADING_APPOINTMENT', payload: false });
+    }
+  };
+
+  const handleEnterAppointmentEdit = () => {
+    if (!state.appointmentDetails) return;
+    dispatch({ type: 'SET_APPOINTMENT_FORM', payload: syncAppointmentFormFromDetails(state.appointmentDetails) });
+    dispatch({ type: 'SET_APPOINTMENT_EDIT_MODE', payload: true });
+  };
+
+  const handleCancelAppointmentEdit = () => {
+    dispatch({ type: 'SET_APPOINTMENT_EDIT_MODE', payload: false });
+    dispatch({ type: 'SET_APPOINTMENT_FORM', payload: syncAppointmentFormFromDetails(state.appointmentDetails) });
+  };
+
+  const handleSaveAppointmentDetails = async () => {
+    if (!state.appointmentDetails?._id) return;
+
+    const payload = {
+      status: state.appointmentForm.status || undefined,
+      appointedDate: state.appointmentForm.appointedDate || undefined,
+      appointmentTime: state.appointmentForm.appointmentTime || '',
+      fullName: state.appointmentForm.fullName || undefined,
+      name: state.appointmentForm.fullName || undefined,
+      age: state.appointmentForm.age ? Number(state.appointmentForm.age) : undefined,
+      birthday: state.appointmentForm.birthday || undefined,
+      sex: state.appointmentForm.sex || undefined,
+      civilStatus: state.appointmentForm.civilStatus || undefined,
+      citizenship: state.appointmentForm.citizenship || undefined,
+      contactNumber: state.appointmentForm.contactNumber || undefined,
+      email: state.appointmentForm.email || undefined,
+      presentAddress: state.appointmentForm.presentAddress || undefined,
+      permanentAddress: state.appointmentForm.permanentAddress || undefined,
+      spouseName: state.appointmentForm.spouseName || undefined,
+      relatorName: state.appointmentForm.relatorName || undefined,
+      relatorContactNumber: state.appointmentForm.relatorContactNumber || undefined,
+      currentSourceOfIncome: state.appointmentForm.currentSourceOfIncome || undefined,
+      monthlyIncome: state.appointmentForm.monthlyIncome ? Number(state.appointmentForm.monthlyIncome) : undefined,
+      natureOfWork: state.appointmentForm.natureOfWork || undefined,
+      employerName: state.appointmentForm.employerName || undefined,
+      employerAddress: state.appointmentForm.employerAddress || undefined,
+      partyRepresented: state.appointmentForm.partyRepresented || undefined,
+      venue: state.appointmentForm.venue || undefined,
+      presentStage: state.appointmentForm.presentStage || undefined,
+      courtDivision: state.appointmentForm.courtDivision || undefined,
+      courtAddress: state.appointmentForm.courtAddress || undefined,
+      presidingOfficer: state.appointmentForm.presidingOfficer || undefined,
+      caseDescription: state.appointmentForm.caseDescription || undefined,
+      caseNature: state.appointmentForm.caseNature || undefined,
+      natureOfCase: state.appointmentForm.caseNature || undefined,
+      appointmentType: state.appointmentForm.appointmentType || undefined,
+    };
+
+    dispatch({ type: 'SET_APPOINTMENT_SAVING', payload: true });
+
+    try {
+      const resp = await apiClient.put(`/clientsinfo/${state.appointmentDetails._id}`, payload);
+      const updated = resp?.data || { ...state.appointmentDetails, ...payload };
+      dispatch({ type: 'SET_APPOINTMENT_DETAILS', payload: updated });
+      dispatch({ type: 'SET_APPOINTMENT_FORM', payload: syncAppointmentFormFromDetails(updated) });
+      dispatch({ type: 'SET_APPOINTMENT_EDIT_MODE', payload: false });
+      notifications.show({ title: 'Updated', message: 'Appointment details saved.', color: 'green' });
+    } catch (err) {
+      console.error('Error updating appointment details:', err);
+      notifications.show({ title: 'Error', message: 'Failed to save appointment details.', color: 'red' });
+    } finally {
+      dispatch({ type: 'SET_APPOINTMENT_SAVING', payload: false });
     }
   };
 
@@ -1237,6 +1396,10 @@ export default function FinalizedCases() {
     </Paper>
   );
 
+  const appointmentStatusLabel = state.appointmentEditMode
+    ? (state.appointmentForm.status || state.appointmentDetails?.status || 'For Appointment')
+    : (state.appointmentDetails?.status || 'For Appointment');
+
   return (
     <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
       <Container size="xl">
@@ -1326,14 +1489,46 @@ export default function FinalizedCases() {
               <Text fw={700} size="xl" c={PRIMARY_BROWN}>
                 Appointment Receipt
               </Text>
-              <Button
-                size="xs"
-                variant="subtle"
-                leftSection={<IconDownload size={16} />}
-                onClick={exportAppointmentPdf}
-              >
-                Export PDF
-              </Button>
+              <Group gap="xs">
+                {state.appointmentEditMode ? (
+                  <>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={handleCancelAppointmentEdit}
+                      disabled={state.appointmentSaving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="xs"
+                      style={{ backgroundColor: PRIMARY_BROWN }}
+                      onClick={handleSaveAppointmentDetails}
+                      loading={state.appointmentSaving}
+                    >
+                      Save
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    color={PRIMARY_BROWN}
+                    onClick={handleEnterAppointmentEdit}
+                    disabled={state.loadingAppointment || !state.appointmentDetails}
+                  >
+                    Edit
+                  </Button>
+                )}
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  leftSection={<IconDownload size={16} />}
+                  onClick={exportAppointmentPdf}
+                >
+                  Export PDF
+                </Button>
+              </Group>
             </Group>
           }
           size="lg"
@@ -1352,7 +1547,7 @@ export default function FinalizedCases() {
                     {state.appointmentDetails.caseDetails?.appointmentType || state.appointmentDetails.personal?.legalMatter || 'Appointment'}
                   </Text>
                   <Badge size="lg" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
-                    {state.appointmentDetails.status || 'For Appointment'}
+                    {appointmentStatusLabel}
                   </Badge>
                 </Group>
                 <Text size="sm" c={MUTED_OLIVE} mt="xs">
@@ -1367,39 +1562,161 @@ export default function FinalizedCases() {
                 <Grid gutter="md">
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.fullName || state.appointmentDetails.name || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.fullName}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, fullName: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.fullName || state.appointmentDetails.name || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.age || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        type="number"
+                        value={state.appointmentForm.age}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, age: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.age || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.birthday || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        type="date"
+                        value={state.appointmentForm.birthday}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, birthday: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.birthday || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.sex || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.sex}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, sex: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.sex || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.civilStatus || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.civilStatus}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, civilStatus: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.civilStatus || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Citizenship</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.citizenship}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, citizenship: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.citizenship || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.contactNumber || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.contactNumber}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, contactNumber: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.contactNumber || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Email</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.email || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.email}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, email: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.email || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentAddress || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.presentAddress}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentAddress: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentAddress || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddress || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.permanentAddress}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, permanentAddress: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse Name</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.spouseName}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseName: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseName || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relator Name</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.relatorName}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relatorName: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relatorName || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relator Contact Number</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.relatorContactNumber}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relatorContactNumber: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relatorContactNumber || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                 </Grid>
               </Paper>
@@ -1410,15 +1727,53 @@ export default function FinalizedCases() {
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
                   <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Status</Text>
+                    {state.appointmentEditMode ? (
+                      <Select
+                        size="sm"
+                        data={APPOINTMENT_STATUS_OPTIONS}
+                        placeholder="Select status"
+                        value={state.appointmentForm.status || null}
+                        onChange={(val) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, status: val || '' } })}
+                      />
+                    ) : (
+                      <Badge size="lg" variant="light" color="gray" style={{ backgroundColor: `${PRIMARY_BROWN}10`, color: PRIMARY_BROWN }}>
+                        {appointmentStatusLabel}
+                      </Badge>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>
-                      {state.appointmentDetails.appointedDate ? new Date(state.appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      }) : 'N/A'}
-                    </Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        type="date"
+                        size="sm"
+                        value={state.appointmentForm.appointedDate || ''}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointedDate: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>
+                        {state.appointmentDetails.appointedDate ? new Date(state.appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        }) : 'N/A'}
+                      </Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Time</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        type="time"
+                        size="sm"
+                        value={state.appointmentForm.appointmentTime || ''}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointmentTime: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.appointmentTime || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                 </Grid>
               </Paper>
@@ -1430,25 +1785,66 @@ export default function FinalizedCases() {
                 <Grid gutter="md">
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income Source</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.currentSourceOfIncome}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, currentSourceOfIncome: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>
-                      {state.appointmentDetails.monthlyIncome ? `₱${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
-                    </Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        type="number"
+                        value={state.appointmentForm.monthlyIncome}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, monthlyIncome: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>
+                        {state.appointmentDetails.monthlyIncome ? `₱${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
+                      </Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.natureOfWork || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.natureOfWork}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, natureOfWork: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.natureOfWork || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerName || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.employerName}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerName: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerName || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerAddress || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.employerAddress}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerAddress: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerAddress || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                 </Grid>
               </Paper>
@@ -1460,31 +1856,116 @@ export default function FinalizedCases() {
                 <Grid gutter="md">
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.partyRepresented || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.partyRepresented}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, partyRepresented: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.partyRepresented || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Number</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNumber || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Nature</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.caseNature}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, caseNature: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNature || state.appointmentDetails.natureOfCase || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Type</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.appointmentType}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointmentType: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseDetails?.appointmentType || state.appointmentDetails.personal?.legalMatter || state.appointmentDetails.appointmentType || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.venue || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.venue}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, venue: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.venue || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentStage || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.presentStage}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentStage: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentStage || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Division</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtDivision || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.courtDivision}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtDivision: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtDivision || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Address</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtAddress || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.courtAddress}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtAddress: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtAddress || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Description</Text>
-                    <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseDescription || 'N/A'}</Text>
+                    {state.appointmentEditMode ? (
+                      <Textarea
+                        size="sm"
+                        minRows={2}
+                        value={state.appointmentForm.caseDescription}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, caseDescription: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseDescription || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput
+                        size="sm"
+                        value={state.appointmentForm.presidingOfficer}
+                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presidingOfficer: e.target.value } })}
+                      />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presidingOfficer || 'N/A'}</Text>
+                    )}
                   </Grid.Col>
                 </Grid>
               </Paper>

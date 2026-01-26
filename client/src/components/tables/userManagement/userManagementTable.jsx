@@ -315,6 +315,8 @@ export default function UserManagementTable() {
               { value: "user", label: "User (Client)" },
               { value: "secretary", label: "Secretary" },
               { value: "intern", label: "Intern" },
+              { value: "director", label: "Director" },
+              { value: "supervising_lawyer", label: "Supervising Lawyer" },
             ]}
             value={selectedRole}
             onChange={setSelectedRole}
@@ -456,6 +458,28 @@ export default function UserManagementTable() {
                   >
                     Interns (
                     {tableData.filter((u) => u.role === "intern").length})
+                  </Tabs.Tab>
+                  <Tabs.Tab
+                    value="director"
+                    style={{
+                      color:
+                        activeTab === "director" ? PRIMARY_BROWN : MUTED_OLIVE,
+                      fontWeight: activeTab === "director" ? 600 : 400,
+                    }}
+                  >
+                    Directors (
+                    {tableData.filter((u) => u.role === "director").length})
+                  </Tabs.Tab>
+                  <Tabs.Tab
+                    value="supervising_lawyer"
+                    style={{
+                      color:
+                        activeTab === "supervising_lawyer" ? PRIMARY_BROWN : MUTED_OLIVE,
+                      fontWeight: activeTab === "supervising_lawyer" ? 600 : 400,
+                    }}
+                  >
+                    Supervising Lawyers (
+                    {tableData.filter((u) => u.role === "supervising_lawyer").length})
                   </Tabs.Tab>
                   <Tabs.Tab
                     value="inactive"

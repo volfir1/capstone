@@ -38,13 +38,17 @@ app.use(helmet({
 // Rate Limiting - More generous for admin operations
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Increased from 100 to 500 requests per windowMs
+  max: 2000, // Increased to 2000 requests per windowMs for development
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'development', // Skip rate limiting in development
 });
 
-app.use('/api', limiter);
+// Only apply rate limiting in production
+if (process.env.NODE_ENV === 'production') {
+  app.use('/api', limiter);
+}
 
 // CORS Configuration
 const corsOptions = {
