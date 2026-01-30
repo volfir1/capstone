@@ -28,3 +28,9 @@ yarn-debug.log*
 # Build
 dist/
 build/
+
+# Uploaded files
+uploads/documents/*.doc
+uploads/documents/*.docx
+uploads/documents/*.pdf
+!uploads/.gitkeep

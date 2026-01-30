@@ -8,6 +8,7 @@ import ClientFormStatusCalendar from '@components/calendar/ClientFormCalendar';
 import { DatePickerInput, DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/authContext';
 import { 
   IconCalendarEvent, IconMessage2, IconFileDescription, IconClock, IconCheck, 
   IconMapPin, IconScale, IconUser, IconCheckbox, IconPhone, IconMail, IconDots,
@@ -26,10 +27,10 @@ const APPOINTMENT_STATUS_OPTIONS = [
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'legal-advice', label: 'Legal Advice' },
   { value: 'court-case', label: 'Court Case' },
-  { value: 'rejected', label: 'Rejected' },
 ];
 
 export default function StaffAppointmentManager() {
+  const { userData } = useAuth();
   const [userRole] = useState('attorney');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -741,30 +742,27 @@ export default function StaffAppointmentManager() {
             variant="filled" 
             leftSection={<IconFileText size={18} />} 
             onClick={() => {
-              // Update status to confirmed and navigate
-              (async () => {
-                try {
-                  const { default: apiClient } = await import('@config/api/apiClient');
-                  await apiClient.put(`/clientsinfo/${item.id}`, { status: 'confirmed' });
-                  notifications.show({
-                    title: 'Status Updated',
-                    message: 'Appointment status set to Confirmed',
-                    color: 'green',
-                    icon: <IconCheck size={18} />,
-                  });
-                  // Reload data to reflect status change
-                  await loadAllData();
-                  // Navigate to recommendation page
-                  navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } });
-                } catch (error) {
-                  console.error('Failed to update status:', error);
-                  notifications.show({
-                    title: 'Error',
-                    message: 'Failed to update status',
-                    color: 'red',
-                  });
-                }
-              })();
+              // Get current date for auto-fill
+              const today = new Date();
+              const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+              
+              // Get logged-in intern's name
+              const internName = userData?.firstName && userData?.lastName 
+                ? `${userData.firstName} ${userData.lastName}` 
+                : userData?.username || userData?.displayName || '';
+              
+              // Navigate to recommendation page with client info and current date
+              navigate(`/admin/recommendation/${item.id}`, { 
+                state: { 
+                  caseId: item.id,
+                  clientInfo: {
+                    clientName: item.clientName,
+                    dateOfInterview: formattedDate,
+                    dateSubmitted: formattedDate,
+                    interviewingInterns: internName
+                  }
+                } 
+              });
             }}
             style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
           >
@@ -997,19 +995,6 @@ export default function StaffAppointmentManager() {
             <Tabs.Tab value="pending" leftSection={<IconClock size={20} />}>
               Auto-Scheduled ({pendingAppointments.filter(a => a.status === 'auto-scheduled').length})
             </Tabs.Tab>
-            <Tabs.Tab value="scheduled" leftSection={<IconCalendarEvent size={20} />}>
-              Confirmed ({pendingAppointments.filter(a => a.status === 'confirmed').length})
-            </Tabs.Tab>
-            <Tabs.Tab value="advice" leftSection={<IconMessage2 size={20} />}>
-              Legal Advice ({pendingAppointments.filter(a => a.status === 'legal-advice').length})
-            </Tabs.Tab>
-            <Tabs.Tab value="representation" leftSection={<IconScale size={20} />}>
-              Court Cases ({pendingAppointments.filter(a => a.status === 'court-case').length})
-            </Tabs.Tab>
-            <Tabs.Tab value="rejected" leftSection={<IconX size={20} />}>
-              Rejected ({pendingAppointments.filter(a => a.status === 'rejected').length})
-            </Tabs.Tab>
-            <Tabs.Tab value="documents" leftSection={<IconFileDescription size={20} />}>Documents ({documentRequests.length})</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="pending">
@@ -1022,55 +1007,6 @@ export default function StaffAppointmentManager() {
             )}
           </Tabs.Panel>
 
-          <Tabs.Panel value="scheduled">
-            {pendingAppointments.filter(a => a.status === 'confirmed').length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.filter(a => a.status === 'confirmed').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={300}><Text c={MUTED_OLIVE}>No confirmed appointments</Text></Center>
-            )}
-          </Tabs.Panel>
-
-          <Tabs.Panel value="advice">
-            {pendingAppointments.filter(a => a.status === 'legal-advice').length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.filter(a => a.status === 'legal-advice').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={300}><Text c={MUTED_OLIVE}>No legal advice cases</Text></Center>
-            )}
-          </Tabs.Panel>
-
-          <Tabs.Panel value="representation">
-            {pendingAppointments.filter(a => a.status === 'court-case').length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.filter(a => a.status === 'court-case').map((item) => (<CaseRepresentationCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={300}><Text c={MUTED_OLIVE}>No active court cases</Text></Center>
-            )}
-          </Tabs.Panel>
-
-          <Tabs.Panel value="rejected">
-            {pendingAppointments.filter(a => a.status === 'rejected').length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.filter(a => a.status === 'rejected').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={300}><Text c={MUTED_OLIVE}>No rejected cases</Text></Center>
-            )}
-          </Tabs.Panel>
-
-          <Tabs.Panel value="documents">
-            {documentRequests.length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {documentRequests.map((item) => (<DocumentRequestCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={300}><Text c={MUTED_OLIVE}>No document requests</Text></Center>
-            )}
-          </Tabs.Panel>
         </Tabs>
 
         <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title="Edit Appointment" size="lg" styles={{ header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' }, body: { padding: '24px' } }}>

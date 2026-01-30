@@ -17,11 +17,17 @@ import {
     SimpleGrid,
     Button,
     Stepper,
-    Badge
+    Badge,
+    FileButton,
+    Alert,
+    Modal,
+    Timeline,
+    ScrollArea
 } from '@mantine/core';
-import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconArrowLeft } from '@tabler/icons-react'; // Added icons
+import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconArrowLeft, IconUpload, IconFile, IconX, IconDownload, IconEye, IconClock, IconCheck } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import mammoth from 'mammoth';
 
 // --- Consolidated Constants ---
 const PRIMARY_GOLD = '#FFD700';
@@ -32,8 +38,9 @@ const MUTED_OLIVE = '#8A8A5C'; // Re-added for button styling
 
 
 // Helper component for Evidence Tables (Memoized)
-const EvidenceTable = React.memo(({ title, value = [], onChange = () => {} }) => {
+const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, readOnly = false }) => {
     const updateRow = (index, field, newValue) => {
+        if (readOnly) return; // Prevent updates if read-only
         const updated = [...value];
         if (!updated[index]) {
             updated[index] = { type: '', author: '', purpose: '', issues: '' };
@@ -67,6 +74,13 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {} }) =>
                                     variant="unstyled"
                                     value={row.type || ''}
                                     onChange={(e) => updateRow(index, 'type', e.target.value)}
+                                    readOnly={readOnly}
+                                    styles={{
+                                        input: {
+                                            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
+                                            cursor: readOnly ? 'not-allowed' : 'text'
+                                        }
+                                    }}
                                 />
                             </Table.Td>
                             <Table.Td>
@@ -76,6 +90,13 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {} }) =>
                                     variant="unstyled"
                                     value={row.author || ''}
                                     onChange={(e) => updateRow(index, 'author', e.target.value)}
+                                    readOnly={readOnly}
+                                    styles={{
+                                        input: {
+                                            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
+                                            cursor: readOnly ? 'not-allowed' : 'text'
+                                        }
+                                    }}
                                 />
                             </Table.Td>
                             <Table.Td>
@@ -85,6 +106,13 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {} }) =>
                                     variant="unstyled"
                                     value={row.purpose || ''}
                                     onChange={(e) => updateRow(index, 'purpose', e.target.value)}
+                                    readOnly={readOnly}
+                                    styles={{
+                                        input: {
+                                            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
+                                            cursor: readOnly ? 'not-allowed' : 'text'
+                                        }
+                                    }}
                                 />
                             </Table.Td>
                             <Table.Td>
@@ -94,6 +122,13 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {} }) =>
                                     variant="unstyled"
                                     value={row.issues || ''}
                                     onChange={(e) => updateRow(index, 'issues', e.target.value)}
+                                    readOnly={readOnly}
+                                    styles={{
+                                        input: {
+                                            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
+                                            cursor: readOnly ? 'not-allowed' : 'text'
+                                        }
+                                    }}
                                 />
                             </Table.Td>
                         </Table.Tr>
@@ -108,20 +143,70 @@ EvidenceTable.displayName = 'EvidenceTable';
 // ====================================================================================
 // 2. Client Interview and Evidence Section (Based on image_588eb7.png)
 // ====================================================================================
-export const ClientInterviewSection = React.memo(({ value = {}, onChange = () => {} }) => (
+export const ClientInterviewSection = React.memo(({ value = {}, onChange = () => {}, uploadedFile = null, onFileChange = () => {}, documentVersions = [], onViewDocument = () => {}, onDownloadDocument = () => {}, onRemoveVersion = () => {}, fileInputKey = Date.now(), userRole = '', isViewingExistingReview = false, currentReviewStage = '' }) => {
+    // Determine if the section should be read-only based on:
+    // 1. Position mismatch (different role created it)
+    // 2. Review stage restrictions (intern can't edit when in review stages)
+    const isPositionMismatch = value.createdByRole && userRole && value.createdByRole !== userRole;
+    const isInternViewingSubmittedReview = userRole === 'intern' && (currentReviewStage === 'supervising_lawyer' || currentReviewStage === 'director' || currentReviewStage === 'completed');
+    const isSupervisingLawyerViewingDirectorReview = userRole === 'supervising_lawyer' && (currentReviewStage === 'director' || currentReviewStage === 'completed');
+    
+    const isReadOnly = isPositionMismatch || isInternViewingSubmittedReview || isSupervisingLawyerViewingDirectorReview;
+    
+    // Determine the alert message based on why it's read-only
+    let alertMessage = '';
+    if (isPositionMismatch) {
+        alertMessage = `This record was created by a ${value.createdByRole?.replace('_', ' ')} and cannot be edited by your role (${userRole?.replace('_', ' ')}).`;
+    } else if (isInternViewingSubmittedReview) {
+        alertMessage = 'This record has been submitted for review and can no longer be edited by interns.';
+    } else if (isSupervisingLawyerViewingDirectorReview) {
+        alertMessage = 'This record is currently under director review and cannot be edited by supervising lawyers.';
+    }
+    
+    return (
     <Paper shadow="md" p="xl" radius="lg" bg="white">
         <Stack gap="xl">
             <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Client Interview and Evidence Record</Title>
+            
+            {isReadOnly && (
+                <Alert color="yellow" title="View Only Mode" radius="md">
+                    {alertMessage}
+                </Alert>
+            )}
             
             <Divider />
             
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
                 <TextInput label="Date of Interview" type="date" 
-                    value={value.dateOfInterview || ''} onChange={(e) => onChange({ ...value, dateOfInterview: e.target.value })} />
+                    value={value.dateOfInterview || ''} onChange={(e) => onChange({ ...value, dateOfInterview: e.target.value })} 
+                    readOnly={isReadOnly}
+                    styles={{
+                        input: {
+                            backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
+                            cursor: isReadOnly ? 'not-allowed' : 'text'
+                        }
+                    }}
+                />
                 <TextInput label="Date Submitted" type="date"
-                    value={value.dateSubmitted || ''} onChange={(e) => onChange({ ...value, dateSubmitted: e.target.value })} />
+                    value={value.dateSubmitted || ''} onChange={(e) => onChange({ ...value, dateSubmitted: e.target.value })} 
+                    readOnly={isReadOnly}
+                    styles={{
+                        input: {
+                            backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
+                            cursor: isReadOnly ? 'not-allowed' : 'text'
+                        }
+                    }}
+                />
                 <TextInput label="Client's Name" placeholder="Full Name"
-                    value={value.clientName || ''} onChange={(e) => onChange({ ...value, clientName: e.target.value })} />
+                    value={value.clientName || ''} onChange={(e) => onChange({ ...value, clientName: e.target.value })} 
+                    readOnly={isReadOnly}
+                    styles={{
+                        input: {
+                            backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
+                            cursor: isReadOnly ? 'not-allowed' : 'text'
+                        }
+                    }}
+                />
                 <TextInput label="Interviewing Intern/s Duty Day" placeholder="Intern Name/s and Duty Day"
                     value={value.interviewingInterns || ''} 
                     onChange={(e) => onChange({ ...value, interviewingInterns: e.target.value })} 
@@ -143,6 +228,13 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 autosize 
                 minRows={4}
                 value={value.fastFacts || ''} onChange={(e) => onChange({ ...value, fastFacts: e.target.value })}
+                readOnly={isReadOnly}
+                styles={{
+                    input: {
+                        backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
+                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                    }
+                }}
             />
 
             <Divider />
@@ -151,6 +243,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 title="Evidence on Hand / Available for the Client(s)" 
                 value={value.clientEvidence || []}
                 onChange={(evidence) => onChange({ ...value, clientEvidence: evidence })}
+                readOnly={isReadOnly}
             />
 
             <Divider />
@@ -159,6 +252,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 title="Evidence on Hand / Available for the Adverse Party(ies)" 
                 value={value.adversePartyEvidence || []}
                 onChange={(evidence) => onChange({ ...value, adversePartyEvidence: evidence })}
+                readOnly={isReadOnly}
             />
             
             <Divider />
@@ -169,11 +263,188 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 autosize
                 minRows={3}
                 value={value.internAdvice || ''} onChange={(e) => onChange({ ...value, internAdvice: e.target.value })}
+                readOnly={isReadOnly}
+                styles={{
+                    input: {
+                        backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
+                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                    }
+                }}
             />
-            <Group justify="flex-end">
-                <Checkbox label="For legal advice only" 
-                    checked={!!value.forLegalAdvice} onChange={(e) => onChange({ ...value, forLegalAdvice: e.currentTarget.checked })} />
-            </Group>
+            <Radio.Group
+                label="Case Type"
+                value={value.caseType || ''}
+                onChange={(val) => onChange({ ...value, caseType: val })}
+                mt="md"
+            >
+                <Stack gap="xs" mt="xs">
+                    <Radio value="legal-advice" label="For legal advice only" disabled={isReadOnly || (userRole !== 'intern' && isViewingExistingReview)} />
+                    <Radio value="legal-document" label="For drafting of legal document" disabled={isReadOnly || (userRole !== 'intern' && isViewingExistingReview)} />
+                    <Radio value="court-representation" label="For court representation" disabled={isReadOnly || (userRole !== 'intern' && isViewingExistingReview)} />
+                </Stack>
+            </Radio.Group>
+
+            {/* Conditional File Upload for Legal Document Drafting */}
+            {value.caseType === 'legal-document' && (
+                <Box mt="md">
+                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">
+                        Legal Document Management
+                    </Text>
+                    
+                    {/* Upload Button */}
+                    {!isReadOnly && (
+                    <FileButton
+                        key={fileInputKey}
+                        onChange={onFileChange}
+                        accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+                    >
+                        {(props) => (
+                            <Button
+                                {...props}
+                                leftSection={<IconUpload size={18} />}
+                                variant="outline"
+                                style={{ borderColor: PRIMARY_BROWN, color: PRIMARY_BROWN }}
+                            >
+                                {uploadedFile ? 'Upload New Version' : 'Upload Document'}
+                            </Button>
+                        )}
+                    </FileButton>
+                    )}
+                    
+                    {/* Current Document Display */}
+                    {(uploadedFile || value.uploadedDocument) && (
+                        <Paper p="md" mt="sm" radius="md" style={{ backgroundColor: '#F0F8FF', border: '1px solid #B0D4F1' }}>
+                            <Group justify="space-between">
+                                <Group gap="xs">
+                                    <IconFile size={20} color={PRIMARY_BROWN} />
+                                    <Box>
+                                        <Text size="sm" fw={600}>
+                                            {uploadedFile ? uploadedFile.name : value.uploadedDocument?.fileName}
+                                        </Text>
+                                        <Text size="xs" c="dimmed">
+                                            {uploadedFile 
+                                                ? `${(uploadedFile.size / 1024).toFixed(2)} KB • Latest Version ${uploadedFile.isServerFile ? '(Uploaded)' : '(Uploading...)'}`
+                                                : `${((value.uploadedDocument?.fileSize || 0) / 1024).toFixed(2)} KB • Current Version`
+                                            }
+                                        </Text>
+                                        {(uploadedFile?.uploadedBy || value.uploadedDocument?.uploadedBy) && (
+                                            <Text size="xs" c="dimmed">
+                                                By: {uploadedFile?.uploadedBy || value.uploadedDocument?.uploadedBy} ({uploadedFile?.uploadedByRole || value.uploadedDocument?.uploadedByRole})
+                                            </Text>
+                                        )}
+                                    </Box>
+                                </Group>
+                                <Group gap="xs">
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="blue"
+                                        leftSection={<IconEye size={16} />}
+                                        onClick={() => onViewDocument(uploadedFile, value.uploadedDocument)}
+                                    >
+                                        View
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="green"
+                                        leftSection={<IconDownload size={16} />}
+                                        onClick={() => onDownloadDocument(uploadedFile, value.uploadedDocument)}
+                                    >
+                                        Download
+                                    </Button>
+                                    {!isReadOnly && (
+                                    <Button
+                                        size="xs"
+                                        variant="subtle"
+                                        color="red"
+                                        leftSection={<IconX size={16} />}
+                                        onClick={() => onFileChange(null)}
+                                    >
+                                        Remove
+                                    </Button>
+                                    )}
+                                </Group>
+                            </Group>
+                        </Paper>
+                    )}
+                    
+                    {/* Version History */}
+                    {documentVersions && documentVersions.length > 0 && (
+                        <Paper p="md" mt="md" radius="md" style={{ backgroundColor: '#FFF9F0', border: '1px solid #FFE0B2' }}>
+                            <Group mb="sm">
+                                <IconClock size={18} color={PRIMARY_BROWN} />
+                                <Text size="sm" fw={600} c={PRIMARY_BROWN}>
+                                    Version History ({documentVersions.length})
+                                </Text>
+                            </Group>
+                            <Timeline active={documentVersions.length} bulletSize={20} lineWidth={2}>
+                                {documentVersions.map((version, index) => (
+                                    <Timeline.Item
+                                        key={index}
+                                        bullet={index === 0 ? <IconCheck size={12} /> : <IconClock size={12} />}
+                                        title={
+                                            <Text size="xs" fw={600}>
+                                                Version {documentVersions.length - index}
+                                            </Text>
+                                        }
+                                    >
+                                        <Text size="xs" c="dimmed" mb={4}>
+                                            {version.fileName} • {(version.fileSize / 1024).toFixed(2)} KB
+                                        </Text>
+                                        {version.uploadedBy && (
+                                            <Text size="xs" c="dimmed" mb={4}>
+                                                Uploaded by: <Text component="span" fw={600}>{version.uploadedBy}</Text> ({version.uploadedByRole || 'Unknown'})
+                                            </Text>
+                                        )}
+                                        <Text size="xs" c="dimmed" mb={8}>
+                                            {new Date(version.uploadedAt).toLocaleString()}
+                                        </Text>
+                                        <Group gap="xs">
+                                            <Button
+                                                size="xs"
+                                                variant="subtle"
+                                                compact
+                                                leftSection={<IconEye size={14} />}
+                                                onClick={() => onViewDocument(null, version)}
+                                            >
+                                                View
+                                            </Button>
+                                            <Button
+                                                size="xs"
+                                                variant="subtle"
+                                                compact
+                                                leftSection={<IconDownload size={14} />}
+                                                onClick={() => onDownloadDocument(null, version)}
+                                            >
+                                                Download
+                                            </Button>
+                                            {!isReadOnly && (
+                                            <Button
+                                                size="xs"
+                                                variant="subtle"
+                                                compact
+                                                color="red"
+                                                leftSection={<IconX size={14} />}
+                                                onClick={() => onRemoveVersion(index)}
+                                            >
+                                                Remove
+                                            </Button>
+                                            )}
+                                        </Group>
+                                    </Timeline.Item>
+                                ))}
+                            </Timeline>
+                        </Paper>
+                    )}
+                    
+                    {!uploadedFile && documentVersions.length === 0 && (
+                        <Text size="xs" c="dimmed" mt="xs">
+                            Please upload a Word document (.doc, .docx) or PDF file
+                        </Text>
+                    )}
+                </Box>
+            )}
 
             <Divider />
 
@@ -183,17 +454,25 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 autosize 
                 minRows={5}
                 value={value.legalOpinion || ''} onChange={(e) => onChange({ ...value, legalOpinion: e.target.value })}
+                readOnly={isReadOnly}
+                styles={{
+                    input: {
+                        backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
+                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                    }
+                }}
             />
         </Stack>
     </Paper>
-));
+    );
+});
 ClientInterviewSection.displayName = 'ClientInterviewSection';
 
 
 // ====================================================================================
 // 3. Supervising Lawyer's Comment & Director's Action (Based on image_588e92.png)
 // ====================================================================================
-export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange = () => {}, forLegalAdvice = false, userRole = '', userData = null }) => {
+export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange = () => {}, forLegalAdvice = false, userRole = '', userData = null, currentReviewStage = '' }) => {
     // Auto-populate fields based on role
     React.useEffect(() => {
         const currentUserName = userData?.firstName && userData?.lastName 
@@ -215,8 +494,19 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
             if (!value.supervisingLawyer) {
                 onChange({ ...value, supervisingLawyer: currentUserName });
             }
+        } else if (userRole === 'director' && userData) {
+            // For directors: Set directorSignature if not already set
+            if (!value.directorSignature) {
+                onChange({ ...value, directorSignature: currentUserName });
+            }
         }
     }, [userRole, userData]);
+
+    // Determine if supervising lawyer section should be disabled
+    const supervisingLawyerDisabled = userRole === 'intern' || userRole === 'secretary' || userRole === 'director' || currentReviewStage === 'director';
+    
+    // Determine if director section should be disabled
+    const directorSectionDisabled = userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer';
 
     return (
         <Paper shadow="md" p="xl" radius="lg" bg="white">
@@ -232,29 +522,29 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                     minRows={4}
                     value={value.supervisingComment || ''}
                     onChange={(e) => onChange({ ...value, supervisingComment: e.target.value })}
-                    disabled={userRole === 'intern'}
+                    disabled={supervisingLawyerDisabled}
                     styles={{
                         input: {
-                            backgroundColor: userRole === 'intern' ? '#F5F5F5' : 'white',
-                            cursor: userRole === 'intern' ? 'not-allowed' : 'text',
+                            backgroundColor: supervisingLawyerDisabled ? '#F5F5F5' : 'white',
+                            cursor: supervisingLawyerDisabled ? 'not-allowed' : 'text',
                         },
                     }}
                 />
 
             <Divider />
 
-            {/* Director's Action - Always visible, disabled for interns */}
+            {/* Director's Action - Disabled for interns, secretary, and supervising lawyer */}
             <Title order={3} c={PRIMARY_BROWN}>Director's Action</Title>
             <Radio.Group 
                 label="Decision" 
                 value={value.decision || ''} 
                 onChange={(val) => onChange({ ...value, decision: val })}
-                disabled={userRole === 'intern'}
+                disabled={directorSectionDisabled}
             >
                 <Group>
-                    <Radio value="accepted" label="Accepted" />
-                    <Radio value="rejected" label="Rejected" />
-                    <Radio value="pending" label="Pending" />
+                    <Radio value="accepted" label="Accepted" disabled={directorSectionDisabled} />
+                    <Radio value="rejected" label="Rejected" disabled={directorSectionDisabled} />
+                    <Radio value="pending" label="Pending" disabled={directorSectionDisabled} />
                 </Group>
             </Radio.Group>
             
@@ -265,7 +555,13 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                 minRows={4}
                 value={value.decisionNote || ''}
                 onChange={(e) => onChange({ ...value, decisionNote: e.target.value })}
-                disabled={userRole === 'intern'}
+                disabled={directorSectionDisabled}
+                styles={{
+                    input: {
+                        backgroundColor: directorSectionDisabled ? '#F5F5F5' : 'white',
+                        cursor: directorSectionDisabled ? 'not-allowed' : 'text',
+                    },
+                }}
             />
 
             <Divider />
@@ -282,11 +578,11 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                         minRows={3}
                         value={value.assignedTo || ''}
                         onChange={(e) => onChange({ ...value, assignedTo: e.target.value })}
-                        disabled={userRole === 'intern' || userRole === 'supervising_lawyer'}
+                        disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
                         styles={{
                             input: {
-                                backgroundColor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
-                                cursor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                                backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? '#F5F5F5' : 'white',
+                                cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? 'not-allowed' : 'text',
                             },
                         }}
                     />
@@ -298,11 +594,11 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             placeholder="Signature/Name of Supervising Lawyer" 
                             value={value.supervisingLawyer || ''}
                             onChange={(e) => onChange({ ...value, supervisingLawyer: e.target.value })}
-                            disabled={userRole === 'intern' || userRole === 'supervising_lawyer'}
+                            disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
                             styles={{
                                 input: {
-                                    backgroundColor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
-                                    cursor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                                    backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? '#F5F5F5' : 'white',
+                                    cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? 'not-allowed' : 'text',
                                 },
                             }}
                         />
@@ -311,11 +607,11 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             placeholder="Signature/Name of Director" 
                             value={value.directorSignature || ''}
                             onChange={(e) => onChange({ ...value, directorSignature: e.target.value })}
-                            disabled={userRole === 'intern' || userRole === 'supervising_lawyer'}
+                            disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
                             styles={{
                                 input: {
-                                    backgroundColor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
-                                    cursor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                                    backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? '#F5F5F5' : 'white',
+                                    cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? 'not-allowed' : 'text',
                                 },
                             }}
                         />
@@ -324,11 +620,11 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             type="date" 
                             value={value.signatureDate || ''}
                             onChange={(e) => onChange({ ...value, signatureDate: e.target.value })}
-                            disabled={userRole === 'intern' || userRole === 'supervising_lawyer'}
+                            disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer'}
                             styles={{
                                 input: {
-                                    backgroundColor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
-                                    cursor: (userRole === 'intern' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                                    backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
+                                    cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
                                 },
                             }}
                         />
@@ -361,6 +657,13 @@ export default function CaseRecordFormsDisplay() {
     // controlled state for interview + action
     const [interviewInfo, setInterviewInfo] = useState({});
     const [actionInfo, setActionInfo] = useState({});
+    const [uploadedFile, setUploadedFile] = useState(null);
+    const [documentVersions, setDocumentVersions] = useState([]);
+    const [viewerModalOpened, setViewerModalOpened] = useState(false);
+    const [currentViewingDoc, setCurrentViewingDoc] = useState(null);
+    const [wordDocHtml, setWordDocHtml] = useState(null);
+    const [wordDocLoading, setWordDocLoading] = useState(false);
+    const [fileInputKey, setFileInputKey] = useState(Date.now()); // Key to reset file input
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const { caseId: caseIdParam } = useParams();
@@ -383,6 +686,7 @@ export default function CaseRecordFormsDisplay() {
     useEffect(() => {
         const review = location?.state?.review;
         const isViewingFlag = location?.state?.isViewingExistingReview;
+        const clientInfo = location?.state?.clientInfo; // Get auto-fill data from location state
         
         if (review && review.content) {
             // Mark that this is opened from dashboard (has review in location state)
@@ -393,6 +697,46 @@ export default function CaseRecordFormsDisplay() {
             
             // Load review data from location.state
             const ii = review.content.interviewInfo || review.interviewInfo || {};
+            
+            // Restore uploaded file if exists
+            if (ii.uploadedDocument) {
+                try {
+                    // Check if it's a server-based file or legacy base64 file
+                    if (ii.uploadedDocument.isServerFile) {
+                        // For server-based files, create a mock File object with metadata
+                        // This allows the display logic to work without actually fetching the file
+                        const mockFile = {
+                            name: ii.uploadedDocument.fileName,
+                            size: ii.uploadedDocument.fileSize,
+                            type: ii.uploadedDocument.fileType,
+                            serverFile: {
+                                url: ii.uploadedDocument.url,
+                                filename: ii.uploadedDocument.serverFilename
+                            },
+                            isServerFile: true
+                        };
+                        setUploadedFile(mockFile);
+                    } else if (ii.uploadedDocument.fileData) {
+                        // Legacy base64 files - convert back to File object
+                        const { fileName, fileSize, fileType, fileData } = ii.uploadedDocument;
+                        fetch(fileData)
+                            .then(res => res.blob())
+                            .then(blob => {
+                                const file = new File([blob], fileName, { type: fileType });
+                                setUploadedFile(file);
+                            })
+                            .catch(err => console.error('Error restoring file:', err));
+                    }
+                } catch (error) {
+                    console.error('Error processing uploaded document:', error);
+                }
+            }
+            
+            // Load version history
+            if (ii.documentVersions && Array.isArray(ii.documentVersions)) {
+                setDocumentVersions(ii.documentVersions);
+            }
+            
             // Restore evidence tables if they exist
             if (ii.clientEvidence) {
                 setInterviewInfo(prev => ({ ...prev, ...ii }));
@@ -404,6 +748,20 @@ export default function CaseRecordFormsDisplay() {
             if (review.content?.actionInfo) {
                 setActionInfo(review.content.actionInfo);
             }
+        } else if (clientInfo) {
+            // Auto-fill from clientInfo passed from Recommend button
+            setIsFromDashboard(false);
+            setIsViewingExistingReview(false);
+            setReviewId(null);
+            setCurrentReviewStage('supervising_lawyer');
+            setInterviewInfo({
+                clientName: clientInfo.clientName || '',
+                dateOfInterview: clientInfo.dateOfInterview || '',
+                dateSubmitted: clientInfo.dateSubmitted || '',
+                interviewingInterns: clientInfo.interviewingInterns || '',
+            });
+            setActionInfo({});
+            setUploadedFile(null); // Reset file
         } else {
             // If no review in location state, it's opened from sidebar - reset to clean state
             setIsFromDashboard(false);
@@ -412,6 +770,7 @@ export default function CaseRecordFormsDisplay() {
             setCurrentReviewStage('supervising_lawyer');
             setInterviewInfo({});
             setActionInfo({});
+            setUploadedFile(null); // Reset file
         }
     }, [location]);
 
@@ -419,6 +778,12 @@ export default function CaseRecordFormsDisplay() {
     useEffect(() => {
         const fetchClientInfo = async () => {
             const caseId = getCaseId();
+            const clientInfo = location?.state?.clientInfo;
+            
+            // Skip fetching if clientInfo was already passed from Recommend button
+            if (clientInfo) {
+                return;
+            }
             
             // Only fetch if we have a valid caseId, we're not viewing an existing review, 
             // and the form is empty (no client name yet)
@@ -449,19 +814,21 @@ export default function CaseRecordFormsDisplay() {
                     
                     // Set interview info with client data
                     // Only set interviewingInterns if this is a new review being created by an intern
-                    const newInterviewInfo = {
-                        ...prev,
-                        clientName: clientData.fullName || clientData.name || '',
-                        dateOfInterview: formatDate(clientData.appointedDate || clientData.createdAt),
-                        dateSubmitted: currentDate,
-                    };
-                    
-                    // Only add interviewingInterns if not already set (preserves original intern's name)
-                    if (!prev.interviewingInterns) {
-                        newInterviewInfo.interviewingInterns = currentUserName;
-                    }
-                    
-                    setInterviewInfo(newInterviewInfo);
+                    setInterviewInfo(prev => {
+                        const newInterviewInfo = {
+                            ...prev,
+                            clientName: clientData.fullName || clientData.name || '',
+                            dateOfInterview: formatDate(clientData.appointedDate || clientData.createdAt),
+                            dateSubmitted: currentDate,
+                        };
+                        
+                        // Only add interviewingInterns if not already set (preserves original intern's name)
+                        if (!prev.interviewingInterns) {
+                            newInterviewInfo.interviewingInterns = currentUserName;
+                        }
+                        
+                        return newInterviewInfo;
+                    });
                 } catch (error) {
                     console.error('Error fetching client info for auto-fill:', error);
                 }
@@ -469,13 +836,233 @@ export default function CaseRecordFormsDisplay() {
         };
 
         fetchClientInfo();
-    }, [getCaseId, isViewingExistingReview, interviewInfo.clientName]);
+    }, [getCaseId, isViewingExistingReview, interviewInfo.clientName, location]);
+
+    // Clear uploaded file when switching away from 'legal-document' case type
+    useEffect(() => {
+        if (interviewInfo.caseType && interviewInfo.caseType !== 'legal-document' && uploadedFile) {
+            setUploadedFile(null);
+            setFileInputKey(Date.now());
+            setDocumentVersions([]);
+        }
+    }, [interviewInfo.caseType, uploadedFile]);
 
     const nextStep = () => setActive((current) => (current < totalSteps - 1 ? current + 1 : current));
     const prevStep = () => setActive((current) => (current > 0 ? current - 1 : current));
     
+    // Handler for viewing document
+    const handleViewDocument = async (file, documentData) => {
+        console.log('handleViewDocument called with:', { file, documentData });
+        
+        // Reset Word doc state
+        setWordDocHtml(null);
+        setWordDocLoading(false);
+        
+        let docToView = null;
+        
+        // Prioritize the passed file object, then documentData, then fallback to interviewInfo
+        if (file) {
+            // If file object is passed (uploaded but not saved yet)
+            if (file.isServerFile && file.serverFile) {
+                // Document uploaded to server
+                console.log('Viewing server file:', file.serverFile);
+                docToView = {
+                    fileName: file.name,
+                    fileType: file.type,
+                    fileUrl: file.serverFile.url,
+                    isServerFile: true
+                };
+            } else {
+                // Local file (shouldn't happen with new upload system)
+                console.log('Viewing local file');
+                docToView = {
+                    fileName: file.name,
+                    fileType: file.type,
+                    fileData: URL.createObjectURL(file),
+                    isServerFile: false
+                };
+            }
+        } else if (documentData) {
+            // If documentData is passed (version history or saved document)
+            console.log('Viewing document data:', documentData);
+            docToView = {
+                fileName: documentData.fileName,
+                fileType: documentData.fileType,
+                fileData: documentData.fileData,
+                fileUrl: documentData.fileUrl,
+                isServerFile: documentData.isServerFile || false
+            };
+        } else if (interviewInfo.uploadedDocument) {
+            // Fallback to saved document in interviewInfo
+            console.log('Viewing from interviewInfo:', interviewInfo.uploadedDocument);
+            docToView = {
+                fileName: interviewInfo.uploadedDocument.fileName,
+                fileType: interviewInfo.uploadedDocument.fileType,
+                fileData: interviewInfo.uploadedDocument.fileData,
+                fileUrl: interviewInfo.uploadedDocument.fileUrl,
+                isServerFile: interviewInfo.uploadedDocument.isServerFile || false
+            };
+        } else {
+            console.warn('No document to view');
+            return; // Nothing to view
+        }
+        
+        setCurrentViewingDoc(docToView);
+        
+        // If it's a Word document, convert to HTML using mammoth
+        const isWordDoc = docToView.fileType?.includes('word') || 
+                         docToView.fileName?.endsWith('.docx') || 
+                         docToView.fileName?.endsWith('.doc');
+        
+        if (isWordDoc && docToView.fileUrl) {
+            setWordDocLoading(true);
+            try {
+                // Fetch the Word document from the server
+                const response = await fetch(docToView.fileUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                
+                // Convert to HTML using mammoth
+                const result = await mammoth.convertToHtml({ arrayBuffer });
+                setWordDocHtml(result.value);
+                
+                if (result.messages.length > 0) {
+                    console.log('Mammoth conversion messages:', result.messages);
+                }
+            } catch (error) {
+                console.error('Error converting Word document:', error);
+                setWordDocHtml('<div style="padding: 20px; color: red;">Error loading document. Please try downloading instead.</div>');
+            } finally {
+                setWordDocLoading(false);
+            }
+        }
+        
+        setViewerModalOpened(true);
+    };
+    
+    // Handler for downloading document
+    const handleDownloadDocument = (file, documentData) => {
+        const docData = documentData || interviewInfo.uploadedDocument;
+        
+        // Check if it's a server file first
+        let url = null;
+        if (file?.isServerFile && file?.serverFile?.url) {
+            url = file.serverFile.url;
+        } else if (docData?.isServerFile && docData?.fileUrl) {
+            url = docData.fileUrl;
+        } else if (docData?.fileData) {
+            url = docData.fileData;
+        } else if (file && !file.isServerFile) {
+            url = URL.createObjectURL(file);
+        }
+        
+        const fileName = file?.name || docData?.fileName || 'document';
+        
+        if (!url) {
+            console.error('No URL available for download');
+            return;
+        }
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.target = '_blank'; // Open in new tab for server files
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up object URL only if it was created locally
+        if (file && !file.isServerFile && !docData?.fileData) {
+            URL.revokeObjectURL(url);
+        }
+    };
+    
+    // Handler for file change with version management
+    const handleFileChange = async (file) => {
+        if (file) {
+            // Add current document to version history before replacing
+            if (uploadedFile || interviewInfo.uploadedDocument) {
+                const currentDoc = {
+                    fileName: uploadedFile?.name || interviewInfo.uploadedDocument?.fileName,
+                    fileSize: uploadedFile?.size || interviewInfo.uploadedDocument?.fileSize,
+                    fileType: uploadedFile?.type || interviewInfo.uploadedDocument?.fileType,
+                    fileData: interviewInfo.uploadedDocument?.fileData,
+                    fileUrl: uploadedFile?.serverFile?.url || interviewInfo.uploadedDocument?.fileUrl,
+                    filename: uploadedFile?.serverFile?.filename || interviewInfo.uploadedDocument?.filename,
+                    isServerFile: uploadedFile?.isServerFile || interviewInfo.uploadedDocument?.isServerFile || false,
+                    uploadedAt: new Date().toISOString(),
+                    // Don't use current userData as fallback - preserve original uploader or mark as Unknown
+                    uploadedBy: uploadedFile?.uploadedBy || interviewInfo.uploadedDocument?.uploadedBy || 'Unknown',
+                    uploadedByRole: uploadedFile?.uploadedByRole || interviewInfo.uploadedDocument?.uploadedByRole || 'Unknown'
+                };
+                setDocumentVersions(prev => [currentDoc, ...prev]);
+            }
+            
+            // Upload all documents (Word and PDF) to server
+            try {
+                const formData = new FormData();
+                formData.append('document', file);
+                
+                const response = await fetch('/api/upload/document', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to upload document');
+                }
+                
+                const result = await response.json();
+                console.log('Document uploaded successfully:', result);
+                
+                // Store file with URL reference - explicitly copy File properties
+                setUploadedFile({
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    lastModified: file.lastModified,
+                    serverFile: result.file,
+                    isServerFile: true,
+                    uploadedBy: userData?.firstName && userData?.lastName 
+                        ? `${userData.firstName} ${userData.lastName}` 
+                        : userData?.username || 'Unknown',
+                    uploadedByRole: userData?.role || 'Unknown'
+                });
+            } catch (error) {
+                console.error('Error uploading document:', error);
+                alert('Failed to upload document. Please try again.');
+                return;
+            }
+        } else {
+            // When file is removed (null), delete from server if it was uploaded
+            if (uploadedFile?.isServerFile && uploadedFile?.serverFile?.filename) {
+                try {
+                    await fetch(`/api/upload/document/${uploadedFile.serverFile.filename}`, {
+                        method: 'DELETE'
+                    });
+                } catch (error) {
+                    console.error('Error deleting file from server:', error);
+                }
+            }
+            setUploadedFile(null);
+            setFileInputKey(Date.now());
+        }
+    };
+    
+    // Handler for removing a version from history
+    const handleRemoveVersion = (index) => {
+        if (window.confirm('Are you sure you want to remove this version from history?')) {
+            setDocumentVersions(prev => prev.filter((_, i) => i !== index));
+        }
+    };
+    
     const handleSubmit = async () => {
         const caseId = getCaseId();
+        
+        // Check if file is required but not uploaded
+        if (interviewInfo.caseType === 'legal-document' && !uploadedFile) {
+            alert('Please upload a Word document for legal document drafting cases.');
+            return;
+        }
         
         // Filter out completely empty evidence rows before saving
         const filterEmptyEvidence = (evidenceArray) => {
@@ -485,12 +1072,42 @@ export default function CaseRecordFormsDisplay() {
             );
         };
         
+        // All documents (Word and PDF) now stored on server with URL references
+        let fileData = null;
+        if (uploadedFile && interviewInfo.caseType === 'legal-document') {
+            if (uploadedFile.isServerFile) {
+                // Document already uploaded to server (both Word and PDF)
+                fileData = {
+                    fileName: uploadedFile.name,
+                    fileSize: uploadedFile.size,
+                    fileType: uploadedFile.type,
+                    fileUrl: uploadedFile.serverFile.url,
+                    filename: uploadedFile.serverFile.filename,
+                    isServerFile: true,
+                    uploadedBy: uploadedFile.uploadedBy || (userData?.firstName && userData?.lastName 
+                        ? `${userData.firstName} ${userData.lastName}` 
+                        : userData?.username || 'Unknown'),
+                    uploadedByRole: uploadedFile.uploadedByRole || userData?.role || 'Unknown'
+                };
+            } else {
+                // Shouldn't happen with current logic, but handle as fallback
+                alert('File was not uploaded to server. Please try uploading again.');
+                return;
+            }
+        }
+        
         // Ensure all interview data is included
         const completeInterviewInfo = {
             ...interviewInfo,
             // Filter out empty evidence rows
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            uploadedDocument: fileData, // Add file data with URL reference
+            documentVersions: documentVersions.length > 0 ? documentVersions : interviewInfo.documentVersions || [],
+            createdByRole: interviewInfo.createdByRole || userData?.role || null, // Track who created this interview record
+            createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
+                ? `${userData.firstName} ${userData.lastName}` 
+                : userData?.username || 'Unknown User')
         };
 
         const reviewPayload = {
@@ -543,7 +1160,7 @@ export default function CaseRecordFormsDisplay() {
             delete window.__internFinalizeClicked; // Clean up flag
             
             if (userData?.role === 'intern' && active === totalSteps - 1) {
-                if (isInternFinalize && interviewInfo.forLegalAdvice === true) {
+                if (isInternFinalize && interviewInfo.caseType === 'legal-advice') {
                     // Intern finalizing a legal advice case
                     const statusOk = await updateCaseStatus('legal-advice');
                     if (!statusOk) {
@@ -571,13 +1188,13 @@ export default function CaseRecordFormsDisplay() {
                 }
             }
             
-            // If attorney/secretary finalizes record on last step, create a finalized record
-            if ((userData?.role === 'attorney' || userData?.role === 'secretary' || userData?.role === 'pao_lawyer' || userData?.role === 'legal_volunteer') && active === totalSteps - 1) {
-                // Determine final status based on forLegalAdvice checkbox and decision
-                const finalDecision = actionInfo.decision || 'accepted'; // default to accepted when attorney finalizes
+            // If director/attorney/secretary finalizes record on last step, create a finalized record
+            if ((userData?.role === 'director' || userData?.role === 'attorney' || userData?.role === 'secretary' || userData?.role === 'pao_lawyer' || userData?.role === 'legal_volunteer' || userData?.role === 'supervising_lawyer') && active === totalSteps - 1) {
+                // Determine final status based on caseType and decision
+                const finalDecision = actionInfo.decision || 'accepted'; // default to accepted when finalizing
                 let finalStatus = 'confirmed';
 
-                if (interviewInfo.forLegalAdvice === true) {
+                if (interviewInfo.caseType === 'legal-advice') {
                     finalStatus = 'legal-advice';
                 } else if (finalDecision === 'rejected') {
                     finalStatus = 'rejected';
@@ -637,7 +1254,7 @@ export default function CaseRecordFormsDisplay() {
                 await fetchReviews(caseId)
                 
                 // Redirect to dashboard
-                navigate('/admin');
+                navigate('/admin', { replace: true });
                 return
             }
 
@@ -668,7 +1285,7 @@ export default function CaseRecordFormsDisplay() {
                 return '/user/home'; // Default fallback for clients
             };
             
-            navigate(getDashboardPath());
+            navigate(getDashboardPath(), { replace: true });
         } catch (err) {
             console.error('handleSubmit error:', err);
             alert(`Failed to save data: ${err.message}`);
@@ -705,6 +1322,12 @@ export default function CaseRecordFormsDisplay() {
             return;
         }
 
+        // Check if file is required but not uploaded
+        if (interviewInfo.caseType === 'legal-document' && !uploadedFile) {
+            alert('Please upload a Word document for legal document drafting cases.');
+            return;
+        }
+
         // Filter out completely empty evidence rows before saving
         const filterEmptyEvidence = (evidenceArray) => {
             if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
@@ -713,10 +1336,36 @@ export default function CaseRecordFormsDisplay() {
             );
         };
 
+        // All documents (Word and PDF) now stored on server with URL references
+        let fileData = interviewInfo.uploadedDocument; // Keep existing if no new file
+        if (uploadedFile && interviewInfo.caseType === 'legal-document') {
+            if (uploadedFile.isServerFile) {
+                // Document already uploaded to server (both Word and PDF)
+                fileData = {
+                    fileName: uploadedFile.name,
+                    fileSize: uploadedFile.size,
+                    fileType: uploadedFile.type,
+                    fileUrl: uploadedFile.serverFile.url,
+                    filename: uploadedFile.serverFile.filename,
+                    isServerFile: true
+                };
+            } else {
+                // Shouldn't happen with current logic, but handle as fallback
+                alert('File was not uploaded to server. Please try uploading again.');
+                return;
+            }
+        }
+
         const completeInterviewInfo = {
             ...interviewInfo,
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            uploadedDocument: fileData,
+            documentVersions: documentVersions.length > 0 ? documentVersions : interviewInfo.documentVersions || [],
+            createdByRole: interviewInfo.createdByRole || userData?.role || null, // Preserve or set position
+            createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
+                ? `${userData.firstName} ${userData.lastName}` 
+                : userData?.username || 'Unknown User')
         };
 
         const updatePayload = {
@@ -768,6 +1417,10 @@ export default function CaseRecordFormsDisplay() {
             ...interviewInfo,
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            createdByRole: interviewInfo.createdByRole || userData?.role || null,
+            createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
+                ? `${userData.firstName} ${userData.lastName}` 
+                : userData?.username || 'Unknown User')
         };
 
         const updatePayload = {
@@ -795,7 +1448,7 @@ export default function CaseRecordFormsDisplay() {
             alert('Review resubmitted successfully!');
             
             // Redirect to dashboard
-            navigate('/admin');
+            navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleResubmitForReview error:', err);
             alert(`Failed to resubmit review: ${err.message}`);
@@ -823,6 +1476,10 @@ export default function CaseRecordFormsDisplay() {
             ...interviewInfo,
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            createdByRole: interviewInfo.createdByRole || userData?.role || null,
+            createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
+                ? `${userData.firstName} ${userData.lastName}` 
+                : userData?.username || 'Unknown User')
         };
 
         const updatePayload = {
@@ -850,7 +1507,7 @@ export default function CaseRecordFormsDisplay() {
             alert('Review returned to intern successfully!');
             
             // Redirect to dashboard
-            navigate('/admin');
+            navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleReturnToIntern error:', err);
             alert(`Failed to return review: ${err.message}`);
@@ -878,6 +1535,10 @@ export default function CaseRecordFormsDisplay() {
             ...interviewInfo,
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            createdByRole: interviewInfo.createdByRole || userData?.role || null,
+            createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
+                ? `${userData.firstName} ${userData.lastName}` 
+                : userData?.username || 'Unknown User')
         };
 
         const updatePayload = {
@@ -905,7 +1566,7 @@ export default function CaseRecordFormsDisplay() {
             alert('Review returned to supervising lawyer successfully!');
             
             // Redirect to dashboard
-            navigate('/admin');
+            navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleReturnToSupervisingLawyer error:', err);
             alert(`Failed to return review: ${err.message}`);
@@ -933,6 +1594,10 @@ export default function CaseRecordFormsDisplay() {
             ...interviewInfo,
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            createdByRole: interviewInfo.createdByRole || userData?.role || null,
+            createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
+                ? `${userData.firstName} ${userData.lastName}` 
+                : userData?.username || 'Unknown User')
         };
 
         const updatePayload = {
@@ -960,7 +1625,7 @@ export default function CaseRecordFormsDisplay() {
             alert('Review approved and sent to director successfully!');
             
             // Redirect to dashboard
-            navigate('/admin');
+            navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleApproveToDirector error:', err);
             alert(`Failed to approve review: ${err.message}`);
@@ -981,7 +1646,22 @@ export default function CaseRecordFormsDisplay() {
     const renderStepContent = () => {
         switch (active) {
             case 0:
-                return <ClientInterviewSection value={interviewInfo} onChange={setInterviewInfo} />;
+                return (
+                    <ClientInterviewSection 
+                        value={interviewInfo} 
+                        onChange={setInterviewInfo}
+                        uploadedFile={uploadedFile}
+                        onFileChange={handleFileChange}
+                        documentVersions={documentVersions}
+                        onViewDocument={handleViewDocument}
+                        onDownloadDocument={handleDownloadDocument}
+                        onRemoveVersion={handleRemoveVersion}
+                        fileInputKey={fileInputKey}
+                        userRole={userData?.role}
+                        isViewingExistingReview={isViewingExistingReview}
+                        currentReviewStage={currentReviewStage}
+                    />
+                );
             case 1:
                 return (
                     <SupervisingLawyerActionSection 
@@ -990,6 +1670,7 @@ export default function CaseRecordFormsDisplay() {
                         forLegalAdvice={interviewInfo.forLegalAdvice}
                         userRole={userData?.role}
                         userData={userData}
+                        currentReviewStage={currentReviewStage}
                     />
                 );
             default:
@@ -1194,88 +1875,100 @@ export default function CaseRecordFormsDisplay() {
                                                         </Button>
                                                     </Group>
                                                 ) : (
-                                                    // Other stages: Only Save Changes
-                                                    <Button 
-                                                        leftSection={<IconCircleCheck size={20} />}
-                                                        onClick={handleSaveChanges}
-                                                        size="md"
-                                                        variant="filled"
-                                                        style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                        disabled={saving}
-                                                    >
-                                                        {saving ? 'Saving...' : 'Save Changes'}
-                                                    </Button>
+                                                    // Other stages: View only, no buttons for interns
+                                                    <Text size="sm" c={MUTED_OLIVE} fs="italic">
+                                                        View only - Pending review by {currentReviewStage === 'supervising_lawyer' ? 'supervising lawyer' : 'director'}
+                                                    </Text>
                                                 )
-                                            ) : currentReviewStage === 'supervising_lawyer' ? (
-                                                // Supervising Lawyer Stage: Save Changes, Approve to Director, and Return to Intern
-                                                <Group gap="md">
-                                                    <Button 
-                                                        leftSection={<IconCircleCheck size={20} />}
-                                                        onClick={handleSaveChanges}
-                                                        size="md"
-                                                        variant="outline"
-                                                        style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                        disabled={saving}
-                                                    >
-                                                        {saving ? 'Saving...' : 'Save Changes'}
-                                                    </Button>
-                                                    <Button 
-                                                        leftSection={<IconCircleCheck size={20} />}
-                                                        onClick={handleApproveToDirector}
-                                                        size="md"
-                                                        variant="filled"
-                                                        style={{ backgroundColor: '#FF8C42' }}
-                                                        disabled={saving || !actionInfo.decision || actionInfo.decision === 'rejected'}
-                                                    >
-                                                        {saving ? 'Approving...' : 'Approve to Director'}
-                                                    </Button>
-                                                    <Button 
-                                                        leftSection={<IconCircleCheck size={20} />}
-                                                        onClick={handleReturnToIntern}
-                                                        size="md"
-                                                        variant="filled"
-                                                        style={{ backgroundColor: '#DC2626' }}
-                                                        disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
-                                                    >
-                                                        {saving ? 'Returning...' : 'Return to Intern'}
-                                                    </Button>
-                                                </Group>
-                                            ) : currentReviewStage === 'director' ? (
-                                                // Director Stage: Save Changes, Finalize Record, and Return to Supervising Lawyer
-                                                <Group gap="md">
-                                                    <Button 
-                                                        leftSection={<IconCircleCheck size={20} />}
-                                                        onClick={handleSaveChanges}
-                                                        size="md"
-                                                        variant="outline"
-                                                        style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                        disabled={saving}
-                                                    >
-                                                        {saving ? 'Saving...' : 'Save Changes'}
-                                                    </Button>
-                                                    <Button 
-                                                        leftSection={<IconCircleCheck size={20} />}
-                                                        onClick={handleSubmit}
-                                                        size="md"
-                                                        variant="filled"
-                                                        style={{ backgroundColor: PRIMARY_BROWN }}
-                                                        disabled={saving || !actionInfo.decision || actionInfo.decision === 'rejected'}
-                                                    >
-                                                        {saving ? 'Finalizing...' : 'Finalize Record'}
-                                                    </Button>
-                                                    <Button 
-                                                        leftSection={<IconCircleCheck size={20} />}
-                                                        onClick={handleReturnToSupervisingLawyer}
-                                                        size="md"
-                                                        variant="filled"
-                                                        style={{ backgroundColor: '#DC2626' }}
-                                                        disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
-                                                    >
-                                                        {saving ? 'Returning...' : 'Return to Supervising Lawyer'}
-                                                    </Button>
-                                                </Group>
+                                            ) : userData?.role === 'secretary' ? (
+                                                // Secretary: View only, no edit buttons
+                                                <Text size="sm" c={MUTED_OLIVE} fs="italic">
+                                                    View only - Secretary cannot edit reviews
+                                                </Text>
+                                            ) : userData?.role === 'supervising_lawyer' ? (
+                                                // Supervising Lawyer: Can only act on supervising_lawyer stage
+                                                currentReviewStage === 'supervising_lawyer' ? (
+                                                    <Group gap="md">
+                                                        <Button 
+                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            onClick={handleSaveChanges}
+                                                            size="md"
+                                                            variant="outline"
+                                                            style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                            disabled={saving}
+                                                        >
+                                                            {saving ? 'Saving...' : 'Save Changes'}
+                                                        </Button>
+                                                        <Button 
+                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            onClick={handleApproveToDirector}
+                                                            size="md"
+                                                            variant="filled"
+                                                            style={{ backgroundColor: '#FF8C42' }}
+                                                            disabled={saving || !actionInfo.decision || actionInfo.decision === 'rejected'}
+                                                        >
+                                                            {saving ? 'Approving...' : 'Approve to Director'}
+                                                        </Button>
+                                                        <Button 
+                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            onClick={handleReturnToIntern}
+                                                            size="md"
+                                                            variant="filled"
+                                                            style={{ backgroundColor: '#DC2626' }}
+                                                            disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
+                                                        >
+                                                            {saving ? 'Returning...' : 'Return to Intern'}
+                                                        </Button>
+                                                    </Group>
+                                                ) : (
+                                                    // Supervising lawyer viewing director stage - view only
+                                                    <Text size="sm" c={MUTED_OLIVE} fs="italic">
+                                                        View only - Pending director review
+                                                    </Text>
+                                                )
+                                            ) : userData?.role === 'director' ? (
+                                                // Director: Can only act on director stage
+                                                currentReviewStage === 'director' ? (
+                                                    <Group gap="md">
+                                                        <Button 
+                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            onClick={handleSaveChanges}
+                                                            size="md"
+                                                            variant="outline"
+                                                            style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                            disabled={saving}
+                                                        >
+                                                            {saving ? 'Saving...' : 'Save Changes'}
+                                                        </Button>
+                                                        <Button 
+                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            onClick={handleSubmit}
+                                                            size="md"
+                                                            variant="filled"
+                                                            style={{ backgroundColor: PRIMARY_BROWN }}
+                                                            disabled={saving || !actionInfo.decision || actionInfo.decision === 'rejected'}
+                                                        >
+                                                            {saving ? 'Finalizing...' : 'Finalize Record'}
+                                                        </Button>
+                                                        <Button 
+                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            onClick={handleReturnToSupervisingLawyer}
+                                                            size="md"
+                                                            variant="filled"
+                                                            style={{ backgroundColor: '#DC2626' }}
+                                                            disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
+                                                        >
+                                                            {saving ? 'Returning...' : 'Return to Supervising Lawyer'}
+                                                        </Button>
+                                                    </Group>
+                                                ) : (
+                                                    // Director viewing supervising lawyer stage - view only
+                                                    <Text size="sm" c={MUTED_OLIVE} fs="italic">
+                                                        View only - Pending supervising lawyer review
+                                                    </Text>
+                                                )
                                             ) : (
-                                                // Fallback: Attorney/Secretary with completed or unknown stage
+                                                // Fallback: Attorney with completed or unknown stage
                                                 <Group gap="md">
                                                     <Button 
                                                         leftSection={<IconCircleCheck size={20} />}
@@ -1333,6 +2026,135 @@ export default function CaseRecordFormsDisplay() {
                     </Stack>
                 </Paper>
             </Container>
+            
+            {/* Document Viewer Modal */}
+            <Modal
+                opened={viewerModalOpened}
+                onClose={() => {
+                    setViewerModalOpened(false);
+                    if (currentViewingDoc?.fileData && !currentViewingDoc.fileData.startsWith('data:')) {
+                        URL.revokeObjectURL(currentViewingDoc.fileData);
+                    }
+                    setCurrentViewingDoc(null);
+                    setWordDocHtml(null);
+                    setWordDocLoading(false);
+                }}
+                title={
+                    <Group>
+                        <IconFileText size={24} color={PRIMARY_BROWN} />
+                        <Text fw={600} c={PRIMARY_BROWN}>Document Viewer</Text>
+                    </Group>
+                }
+                size="calc(95vw)"
+                fullScreen
+                styles={{
+                    body: { minHeight: '85vh', height: 'calc(100vh - 120px)' },
+                    content: { height: '95vh' }
+                }}
+            >
+                {currentViewingDoc && (
+                    <Stack gap="md" style={{ height: '100%' }}>
+                        <Paper p="sm" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
+                            <Group justify="space-between">
+                                <Box>
+                                    <Text size="sm" fw={600}>{currentViewingDoc.fileName}</Text>
+                                    <Text size="xs" c="dimmed">
+                                        {currentViewingDoc.fileType}
+                                    </Text>
+                                </Box>
+                                <Button
+                                    size="sm"
+                                    leftSection={<IconDownload size={16} />}
+                                    onClick={() => handleDownloadDocument(null, currentViewingDoc)}
+                                    style={{ backgroundColor: PRIMARY_BROWN }}
+                                >
+                                    Download
+                                </Button>
+                            </Group>
+                        </Paper>
+                        
+                        <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
+                            {currentViewingDoc.fileType?.includes('pdf') || currentViewingDoc.fileName?.endsWith('.pdf') ? (
+                                // PDF - embed directly (works for both server URLs and base64)
+                                <iframe
+                                    src={currentViewingDoc.fileUrl || currentViewingDoc.fileData}
+                                    style={{ width: '100%', height: '100%', minHeight: '75vh', border: 'none', flex: 1 }}
+                                    title="PDF Viewer"
+                                />
+                            ) : (currentViewingDoc.fileType?.includes('word') || currentViewingDoc.fileName?.endsWith('.docx') || currentViewingDoc.fileName?.endsWith('.doc')) ? (
+                                // Word Document - Render using mammoth.js
+                                <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                    {wordDocLoading ? (
+                                        <Box style={{ textAlign: 'center', padding: '40px' }}>
+                                            <IconFileText size={64} color={PRIMARY_BROWN} />
+                                            <Text size="xl" fw={700} mt="md" c={PRIMARY_BROWN}>
+                                                Loading Word Document...
+                                            </Text>
+                                        </Box>
+                                    ) : wordDocHtml ? (
+                                        <ScrollArea style={{ flex: 1, height: '100%' }}>
+                                            <Box 
+                                                p="xl" 
+                                                style={{ 
+                                                    backgroundColor: 'white',
+                                                    maxWidth: '800px',
+                                                    margin: '0 auto',
+                                                    minHeight: '100%'
+                                                }}
+                                                dangerouslySetInnerHTML={{ __html: wordDocHtml }}
+                                            />
+                                        </ScrollArea>
+                                    ) : (
+                                        <Box style={{ textAlign: 'center', padding: '40px' }}>
+                                            <IconFileText size={64} color={PRIMARY_BROWN} />
+                                            <Text size="xl" fw={700} mt="md" c={PRIMARY_BROWN}>
+                                                Word Document
+                                            </Text>
+                                            <Text size="sm" c="dimmed" mt="xs" mb="md">
+                                                {currentViewingDoc.fileName}
+                                            </Text>
+                                            <Alert color="yellow" title="Preview not available" mb="xl" style={{ maxWidth: 600, margin: '0 auto 2rem' }}>
+                                                <Text size="sm">
+                                                    Unable to preview this document. Please download it to view.
+                                                </Text>
+                                            </Alert>
+                                            <Group justify="center" gap="md">
+                                                <Button
+                                                    size="lg"
+                                                    leftSection={<IconDownload size={20} />}
+                                                    onClick={() => handleDownloadDocument(null, currentViewingDoc)}
+                                                    style={{ backgroundColor: PRIMARY_BROWN }}
+                                                >
+                                                    Download to View/Edit
+                                                </Button>
+                                            </Group>
+                                        </Box>
+                                    )}
+                                </Box>
+                            ) : (
+                                // Generic file viewer with download option
+                                <Box style={{ textAlign: 'center', padding: '40px' }}>
+                                    <IconFileText size={48} color={PRIMARY_BROWN} />
+                                    <Text size="lg" fw={600} mt="md" c={PRIMARY_BROWN}>
+                                        Document Preview
+                                    </Text>
+                                    <Text size="sm" c="dimmed" mt="xs" mb="xl">
+                                        This file type cannot be previewed in the browser. Please download to view.
+                                    </Text>
+                                    <Button
+                                        size="lg"
+                                        leftSection={<IconDownload size={20} />}
+                                        onClick={() => handleDownloadDocument(null, currentViewingDoc)}
+                                        style={{ backgroundColor: PRIMARY_BROWN }}
+                                    >
+                                        Download File
+                                    </Button>
+                                </Box>
+                            )}
+                        </Paper>
+                    </Stack>
+                )}
+            </Modal>
         </Box>
     );
 }

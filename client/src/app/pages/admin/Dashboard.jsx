@@ -13,6 +13,7 @@ import {
   Center,
   SimpleGrid,
   Badge,
+  Button,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -24,6 +25,7 @@ import {
   IconUserPlus,
   IconUserCheck,
   IconChevronRight,
+  IconEye,
 } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
@@ -44,7 +46,7 @@ export default function AdminDashboard() {
   const [finalized, setFinalized] = useState([]);
   const [loadingFinalized, setLoadingFinalized] = useState(false);
   const [caseRecordsMap, setCaseRecordsMap] = useState({});
-  const { userData } = useAuth();
+  const { userData, loading: authLoading } = useAuth();
   const location = useLocation();
 
   const fetchStats = async () => {
@@ -204,6 +206,17 @@ export default function AdminDashboard() {
     },
   ];
 
+  // Show loading screen while authenticating
+  if (authLoading) {
+    return (
+      <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+        <Center mih="100vh">
+          <Loader size="lg" color={PRIMARY_BROWN} />
+        </Center>
+      </Box>
+    );
+  }
+
   return (
     <Box 
       bg={THEMED_LIGHT_BG} 
@@ -358,7 +371,11 @@ export default function AdminDashboard() {
                         border: '1px solid #E6D9CC', 
                         background: '#FBF7F4'
                       }}
-                      onClick={() => navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } })}
+                      onClick={(e) => {
+                        // Prevent default click
+                        if (e.target.closest('button')) return;
+                        navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } });
+                      }}
                     >
                       <Group wrap="nowrap" align="flex-start">
                         <Box style={{ width: 52, height: 52, borderRadius: 12, background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
@@ -390,10 +407,21 @@ export default function AdminDashboard() {
                             )}
                           </Group>
                         </Box>
-                        <ActionIcon>
-                          <IconChevronRight />
-                        </ActionIcon>
                       </Group>
+                      <Button
+                        fullWidth
+                        size="sm"
+                        variant="light"
+                        mt="md"
+                        leftSection={<IconEye size={16} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } });
+                        }}
+                        style={{ backgroundColor: '#FBF7F4', color: PRIMARY_BROWN }}
+                      >
+                        View Full Receipt
+                      </Button>
                     </Paper>
                   );
                 }) : (
@@ -446,7 +474,11 @@ export default function AdminDashboard() {
                         border: '1px solid #C9A876', 
                         background: '#FAF8F5'
                       }}
-                      onClick={() => navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } })}
+                      onClick={(e) => {
+                        // Prevent default click
+                        if (e.target.closest('button')) return;
+                        navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } });
+                      }}
                     >
                       <Group wrap="nowrap" align="flex-start">
                         <Box style={{ width: 52, height: 52, borderRadius: 12, background: ACCENT_TAN, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
@@ -478,10 +510,21 @@ export default function AdminDashboard() {
                             )}
                           </Group>
                         </Box>
-                        <ActionIcon>
-                          <IconChevronRight />
-                        </ActionIcon>
                       </Group>
+                      <Button
+                        fullWidth
+                        size="sm"
+                        variant="light"
+                        mt="md"
+                        leftSection={<IconEye size={16} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } });
+                        }}
+                        style={{ backgroundColor: '#FAF8F5', color: CHARCOAL }}
+                      >
+                        View Full Receipt
+                      </Button>
                     </Paper>
                   );
                 }) : (
@@ -532,7 +575,11 @@ export default function AdminDashboard() {
                         border: '1px solid #DC2626', 
                         background: '#FEF2F2'
                       }}
-                      onClick={() => navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } })}
+                      onClick={(e) => {
+                        // Prevent default click
+                        if (e.target.closest('button')) return;
+                        navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } });
+                      }}
                     >
                       <Group wrap="nowrap" align="flex-start">
                         <Box style={{ width: 52, height: 52, borderRadius: 12, background: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
@@ -559,10 +606,21 @@ export default function AdminDashboard() {
                             </Badge>
                           </Group>
                         </Box>
-                        <ActionIcon>
-                          <IconChevronRight />
-                        </ActionIcon>
                       </Group>
+                      <Button
+                        fullWidth
+                        size="sm"
+                        variant="light"
+                        mt="md"
+                        leftSection={<IconEye size={16} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } });
+                        }}
+                        style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}
+                      >
+                        View Full Receipt
+                      </Button>
                     </Paper>
                   );
                 }) : (
