@@ -27,8 +27,9 @@ import {
   ScrollArea,
   Avatar,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory } from '@tabler/icons-react';
 import jsPDF from 'jspdf';
+import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN, NATURE_OF_CASE_OPTIONS, CATEGORY_COLORS } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
@@ -314,6 +315,17 @@ const initialState = {
   chatMessages: [],
   loadingMessages: false,
   sendingMessage: false,
+  
+  // Version History Modal
+  versionHistoryModalOpened: false,
+  selectedCaseForVersions: null,
+  documentVersions: [],
+  
+  // Document Viewer Modal (for version history preview)
+  documentViewerModalOpened: false,
+  currentViewingDoc: null,
+  wordDocHtml: null,
+  wordDocLoading: false,
 };
 
 // Reducer function
@@ -382,6 +394,42 @@ function stateReducer(state, action) {
       return { ...state, sendingMessage: action.payload };
     case 'ADD_CHAT_MESSAGE':
       return { ...state, chatMessages: [...state.chatMessages, action.payload] };
+    
+    // Version History Modal actions
+    case 'OPEN_VERSION_HISTORY_MODAL':
+      return {
+        ...state,
+        versionHistoryModalOpened: true,
+        selectedCaseForVersions: action.payload.case,
+        documentVersions: action.payload.versions || [],
+      };
+    case 'CLOSE_VERSION_HISTORY_MODAL':
+      return {
+        ...state,
+        versionHistoryModalOpened: false,
+        selectedCaseForVersions: null,
+        documentVersions: [],
+      };
+    
+    // Document Viewer Modal actions (for version history preview)
+    case 'OPEN_DOCUMENT_VIEWER_MODAL':
+      return {
+        ...state,
+        documentViewerModalOpened: true,
+        currentViewingDoc: action.payload,
+      };
+    case 'CLOSE_DOCUMENT_VIEWER_MODAL':
+      return {
+        ...state,
+        documentViewerModalOpened: false,
+        currentViewingDoc: null,
+        wordDocHtml: null,
+        wordDocLoading: false,
+      };
+    case 'SET_WORD_DOC_HTML':
+      return { ...state, wordDocHtml: action.payload };
+    case 'SET_WORD_DOC_LOADING':
+      return { ...state, wordDocLoading: action.payload };
     
     // Case Record Modal actions
     case 'OPEN_CASE_RECORD_MODAL':
@@ -768,14 +816,18 @@ export default function FinalizedCases() {
     return flag === true || flag === 'true' || flag === 1 || flag === '1';
   };
 
+  const isDocumentDrafting = (record) => {
+    const caseType = record?.content?.interviewInfo?.caseType;
+    return caseType === 'legal-document';
+  };
+
   // Group finalized records by decision and apply search filter
   const acceptedCases = filterCases(state.finalized.filter(f => f.decision === 'accepted'));
   const legalAdviceCases = acceptedCases.filter(isLegalAdvice);
-  const acceptedNonLegal = acceptedCases.filter(f => !isLegalAdvice(f));
+  const documentDraftingCases = acceptedCases.filter(isDocumentDrafting);
+  const acceptedNonLegal = acceptedCases.filter(f => !isLegalAdvice(f) && !isDocumentDrafting(f));
   const acceptedWithRecord = acceptedNonLegal.filter(f => state.caseRecordsMap[f._id || f.id]);
   const acceptedWithoutRecord = acceptedNonLegal.filter(f => !state.caseRecordsMap[f._id || f.id]);
-  const rejectedCases = filterCases(state.finalized.filter(f => f.decision === 'rejected'));
-  const pendingCases = filterCases(state.finalized.filter(f => f.decision === 'pending' || !f.decision));
 
   const fetchFinalized = async () => {
     try {
@@ -955,6 +1007,59 @@ export default function FinalizedCases() {
       notifications.show({ title: 'Error', message: 'Failed to save appointment details.', color: 'red' });
     } finally {
       dispatch({ type: 'SET_APPOINTMENT_SAVING', payload: false });
+    }
+  };
+
+  // Function to handle viewing documents (for version history preview)
+  const handleViewDocument = async (documentData) => {
+    // Reset Word doc state
+    dispatch({ type: 'SET_WORD_DOC_HTML', payload: null });
+    dispatch({ type: 'SET_WORD_DOC_LOADING', payload: false });
+    
+    if (!documentData) {
+      console.warn('No document to view');
+      return;
+    }
+    
+    const docToView = {
+      fileName: documentData.fileName,
+      fileType: documentData.fileType,
+      fileData: documentData.fileData,
+      fileUrl: documentData.fileUrl,
+      isServerFile: documentData.isServerFile || false
+    };
+    
+    dispatch({ type: 'OPEN_DOCUMENT_VIEWER_MODAL', payload: docToView });
+    
+    // If it's a Word document, convert to HTML using mammoth
+    const isWordDoc = docToView.fileType?.includes('word') || 
+                     docToView.fileName?.endsWith('.docx') || 
+                     docToView.fileName?.endsWith('.doc');
+    
+    if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
+      dispatch({ type: 'SET_WORD_DOC_LOADING', payload: true });
+      try {
+        // Fetch the Word document from the server or use fileData
+        const url = docToView.fileUrl || docToView.fileData;
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        
+        // Convert to HTML using mammoth
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        dispatch({ type: 'SET_WORD_DOC_HTML', payload: result.value });
+        
+        if (result.messages.length > 0) {
+          console.log('Mammoth conversion messages:', result.messages);
+        }
+      } catch (error) {
+        console.error('Error converting Word document:', error);
+        dispatch({ 
+          type: 'SET_WORD_DOC_HTML', 
+          payload: '<div style="padding: 20px; color: red;">Error loading document. Please try downloading instead.</div>' 
+        });
+      } finally {
+        dispatch({ type: 'SET_WORD_DOC_LOADING', payload: false });
+      }
     }
   };
 
@@ -1391,6 +1496,25 @@ export default function FinalizedCases() {
               </Button>
             </Group>
           )}
+          {f.decision === 'accepted' && isDocumentDrafting(f) && (
+            <Button
+              size="sm"
+              variant="light"
+              color="violet"
+              fullWidth
+              leftSection={<IconHistory size={16} />}
+              onClick={(e) => {
+                e.stopPropagation();
+                const versions = f.content?.interviewInfo?.documentVersions || [];
+                dispatch({ 
+                  type: 'OPEN_VERSION_HISTORY_MODAL', 
+                  payload: { case: f, versions } 
+                });
+              }}
+            >
+              View Version History
+            </Button>
+          )}
         </Stack>
       </Group>
     </Paper>
@@ -1479,6 +1603,318 @@ export default function FinalizedCases() {
           onRefresh={() => state.selectedCaseForChat && fetchChatMessages(state.selectedCaseForChat._id)}
           userData={userData}
         />
+
+        {/* Version History Modal */}
+        <Modal
+          opened={state.versionHistoryModalOpened}
+          onClose={() => dispatch({ type: 'CLOSE_VERSION_HISTORY_MODAL' })}
+          title={
+            <Group>
+              <IconHistory size={24} color={PRIMARY_BROWN} />
+              <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+                Document Version History
+              </Text>
+            </Group>
+          }
+          size="lg"
+          radius="lg"
+        >
+          {state.selectedCaseForVersions && (
+            <Stack gap="md">
+              <Paper p="sm" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
+                <Group justify="space-between">
+                  <Box>
+                    <Text size="sm" fw={600}>
+                      {state.selectedCaseForVersions.caseId}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {state.selectedCaseForVersions.content?.interviewInfo?.clientName || 'Unknown Client'}
+                    </Text>
+                  </Box>
+                  <Badge variant="light" color="violet">
+                    {state.documentVersions.length} Version{state.documentVersions.length !== 1 ? 's' : ''}
+                  </Badge>
+                </Group>
+              </Paper>
+
+              {state.documentVersions.length > 0 ? (
+                <ScrollArea style={{ maxHeight: '60vh' }}>
+                  <Stack gap="sm">
+                    {/* Current/Latest Version */}
+                    {state.selectedCaseForVersions.content?.interviewInfo?.uploadedDocument && (
+                      <Paper p="md" radius="md" withBorder style={{ borderColor: PRIMARY_GOLD, borderWidth: 2 }}>
+                        <Group justify="space-between" mb="xs">
+                          <Group gap="xs">
+                            <IconFileText size={20} color={PRIMARY_BROWN} />
+                            <Text size="sm" fw={600} c={PRIMARY_BROWN}>
+                              Current Version
+                            </Text>
+                          </Group>
+                          <Badge variant="filled" style={{ backgroundColor: PRIMARY_BROWN }}>
+                            Latest
+                          </Badge>
+                        </Group>
+                        <Text size="sm" fw={500} mb={4}>
+                          {state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileName}
+                        </Text>
+                        <Text size="xs" c="dimmed" mb={4}>
+                          {(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileSize / 1024).toFixed(2)} KB
+                        </Text>
+                        {state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.uploadedBy && (
+                          <Text size="xs" c="dimmed" mb={8}>
+                            Uploaded by: <Text component="span" fw={600}>
+                              {state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.uploadedBy}
+                            </Text> ({state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.uploadedByRole || 'Unknown'})
+                          </Text>
+                        )}
+                        <Group gap="xs" mt="sm">
+                          {state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl && (
+                            <>
+                              <Button
+                                size="xs"
+                                variant="light"
+                                color="blue"
+                                leftSection={<IconEye size={14} />}
+                                onClick={() => handleViewDocument(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument)}
+                              >
+                                View
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="light"
+                                color="green"
+                                leftSection={<IconDownload size={14} />}
+                                component="a"
+                                href={state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl}
+                                download={state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileName}
+                              >
+                                Download
+                              </Button>
+                            </>
+                          )}
+                        </Group>
+                      </Paper>
+                    )}
+
+                    {/* Version History */}
+                    {state.documentVersions.map((version, index) => (
+                      <Paper key={index} p="md" radius="md" withBorder style={{ borderColor: '#e0e0e0' }}>
+                        <Group justify="space-between" mb="xs">
+                          <Group gap="xs">
+                            <IconClock size={18} color={MUTED_OLIVE} />
+                            <Text size="sm" fw={600}>
+                              Version {state.documentVersions.length - index}
+                            </Text>
+                          </Group>
+                          <Badge variant="light" color="gray">
+                            {new Date(version.uploadedAt).toLocaleDateString()}
+                          </Badge>
+                        </Group>
+                        <Text size="sm" mb={4}>
+                          {version.fileName}
+                        </Text>
+                        <Text size="xs" c="dimmed" mb={4}>
+                          {(version.fileSize / 1024).toFixed(2)} KB
+                        </Text>
+                        {version.uploadedBy && (
+                          <Text size="xs" c="dimmed" mb={8}>
+                            Uploaded by: <Text component="span" fw={600}>
+                              {version.uploadedBy}
+                            </Text> ({version.uploadedByRole || 'Unknown'})
+                          </Text>
+                        )}
+                        <Text size="xs" c="dimmed" mb={8}>
+                          {new Date(version.uploadedAt).toLocaleString()}
+                        </Text>
+                        <Group gap="xs">
+                          {version.fileUrl ? (
+                            <>
+                              <Button
+                                size="xs"
+                                variant="subtle"
+                                leftSection={<IconEye size={14} />}
+                                onClick={() => handleViewDocument(version)}
+                              >
+                                View
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="subtle"
+                                leftSection={<IconDownload size={14} />}
+                                component="a"
+                                href={version.fileUrl}
+                                download={version.fileName}
+                              >
+                                Download
+                              </Button>
+                            </>
+                          ) : version.fileData ? (
+                            <>
+                              <Button
+                                size="xs"
+                                variant="subtle"
+                                leftSection={<IconEye size={14} />}
+                                onClick={() => handleViewDocument(version)}
+                              >
+                                View
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="subtle"
+                                leftSection={<IconDownload size={14} />}
+                                component="a"
+                                href={version.fileData}
+                                download={version.fileName}
+                              >
+                                Download
+                              </Button>
+                            </>
+                          ) : (
+                            <Text size="xs" c="red">
+                              File not available
+                            </Text>
+                          )}
+                        </Group>
+                      </Paper>
+                    ))}
+                  </Stack>
+                </ScrollArea>
+              ) : (
+                <Paper p="xl" radius="md" style={{ backgroundColor: '#f5f5f5', textAlign: 'center' }}>
+                  <IconClock size={48} color={MUTED_OLIVE} style={{ margin: '0 auto' }} />
+                  <Text size="sm" c="dimmed" mt="md">
+                    No version history available
+                  </Text>
+                </Paper>
+              )}
+            </Stack>
+          )}
+        </Modal>
+
+        {/* Document Viewer Modal (for version history preview) */}
+        <Modal
+          opened={state.documentViewerModalOpened}
+          onClose={() => dispatch({ type: 'CLOSE_DOCUMENT_VIEWER_MODAL' })}
+          title={
+            <Group>
+              <IconFileText size={24} color={PRIMARY_BROWN} />
+              <Text fw={600} c={PRIMARY_BROWN}>Document Viewer</Text>
+            </Group>
+          }
+          size="calc(95vw)"
+          fullScreen
+          styles={{
+            body: { minHeight: '85vh', height: 'calc(100vh - 120px)' },
+            content: { height: '95vh' }
+          }}
+        >
+          {state.currentViewingDoc && (
+            <Stack gap="md" style={{ height: '100%' }}>
+              <Paper p="sm" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
+                <Group justify="space-between">
+                  <Box>
+                    <Text size="sm" fw={600}>{state.currentViewingDoc.fileName}</Text>
+                    <Text size="xs" c="dimmed">
+                      {state.currentViewingDoc.fileType}
+                    </Text>
+                  </Box>
+                  <Button
+                    size="sm"
+                    leftSection={<IconDownload size={16} />}
+                    component="a"
+                    href={state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                    download={state.currentViewingDoc.fileName}
+                    style={{ backgroundColor: PRIMARY_BROWN }}
+                  >
+                    Download
+                  </Button>
+                </Group>
+              </Paper>
+              
+              <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
+                {state.currentViewingDoc.fileType?.includes('pdf') || state.currentViewingDoc.fileName?.endsWith('.pdf') ? (
+                  // PDF - embed directly (works for both server URLs and base64)
+                  <iframe
+                    src={state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                    style={{ width: '100%', height: '100%', minHeight: '75vh', border: 'none', flex: 1 }}
+                    title="PDF Viewer"
+                  />
+                ) : (state.currentViewingDoc.fileType?.includes('word') || state.currentViewingDoc.fileName?.endsWith('.docx') || state.currentViewingDoc.fileName?.endsWith('.doc')) ? (
+                  // Word Document - Render using mammoth.js
+                  <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    {state.wordDocLoading ? (
+                      <Box style={{ textAlign: 'center', padding: '40px' }}>
+                        <IconFileText size={64} color={PRIMARY_BROWN} />
+                        <Text size="xl" fw={700} mt="md" c={PRIMARY_BROWN}>
+                          Loading Word Document...
+                        </Text>
+                      </Box>
+                    ) : state.wordDocHtml ? (
+                      <ScrollArea style={{ flex: 1, height: '100%' }}>
+                        <Box 
+                          p="xl" 
+                          style={{ 
+                            backgroundColor: 'white',
+                            maxWidth: '800px',
+                            margin: '0 auto',
+                            minHeight: '100%'
+                          }}
+                          dangerouslySetInnerHTML={{ __html: state.wordDocHtml }}
+                        />
+                      </ScrollArea>
+                    ) : (
+                      <Box style={{ textAlign: 'center', padding: '40px' }}>
+                        <IconFileText size={64} color={PRIMARY_BROWN} />
+                        <Text size="xl" fw={700} mt="md" c={PRIMARY_BROWN}>
+                          Word Document
+                        </Text>
+                        <Text size="sm" c="dimmed" mt="xs" mb="md">
+                          {state.currentViewingDoc.fileName}
+                        </Text>
+                        <Text size="sm" c="dimmed" mb="xl">
+                          Unable to preview this document. Please download it to view.
+                        </Text>
+                        <Group justify="center" gap="md">
+                          <Button
+                            size="lg"
+                            leftSection={<IconDownload size={20} />}
+                            component="a"
+                            href={state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                            download={state.currentViewingDoc.fileName}
+                            style={{ backgroundColor: PRIMARY_BROWN }}
+                          >
+                            Download to View/Edit
+                          </Button>
+                        </Group>
+                      </Box>
+                    )}
+                  </Box>
+                ) : (
+                  // Generic file viewer with download option
+                  <Box style={{ textAlign: 'center', padding: '40px' }}>
+                    <IconFileText size={48} color={PRIMARY_BROWN} />
+                    <Text size="lg" fw={600} mt="md" c={PRIMARY_BROWN}>
+                      Document Preview
+                    </Text>
+                    <Text size="sm" c="dimmed" mt="xs" mb="xl">
+                      This file type cannot be previewed in the browser. Please download to view.
+                    </Text>
+                    <Button
+                      size="lg"
+                      leftSection={<IconDownload size={20} />}
+                      component="a"
+                      href={state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                      download={state.currentViewingDoc.fileName}
+                      style={{ backgroundColor: PRIMARY_BROWN }}
+                    >
+                      Download File
+                    </Button>
+                  </Box>
+                )}
+              </Paper>
+            </Stack>
+          )}
+        </Modal>
 
         {/* Appointment Receipt Modal */}
         <Modal
@@ -2443,16 +2879,10 @@ export default function FinalizedCases() {
                 Legal Advice Only
               </Tabs.Tab>
               <Tabs.Tab
-                value="rejected"
-                rightSection={<Badge size="sm" color="red" variant="light">{rejectedCases.length}</Badge>}
+                value="document-drafting"
+                rightSection={<Badge size="sm" color="violet" variant="light">{documentDraftingCases.length}</Badge>}
               >
-                Rejected
-              </Tabs.Tab>
-              <Tabs.Tab
-                value="pending"
-                rightSection={<Badge size="sm" color="yellow" variant="light">{pendingCases.length}</Badge>}
-              >
-                Pending
+                Document Drafting
               </Tabs.Tab>
             </Tabs.List>
 
@@ -2492,25 +2922,13 @@ export default function FinalizedCases() {
               </Stack>
             </Tabs.Panel>
 
-            <Tabs.Panel value="rejected" pb="md">
+            <Tabs.Panel value="document-drafting" pb="md">
               <Stack>
                 {state.loadingFinalized ? (
                   <Center><Loader /></Center>
                 ) : (
-                  rejectedCases.length ? rejectedCases.map(renderCaseCard) : (
-                    <Text size="sm" c={MUTED_OLIVE}>No rejected cases found</Text>
-                  )
-                )}
-              </Stack>
-            </Tabs.Panel>
-
-            <Tabs.Panel value="pending" pb="md">
-              <Stack>
-                {state.loadingFinalized ? (
-                  <Center><Loader /></Center>
-                ) : (
-                  pendingCases.length ? pendingCases.map(renderCaseCard) : (
-                    <Text size="sm" c={MUTED_OLIVE}>No pending cases found</Text>
+                  documentDraftingCases.length ? documentDraftingCases.map(renderCaseCard) : (
+                    <Text size="sm" c={MUTED_OLIVE}>No document drafting cases found</Text>
                   )
                 )}
               </Stack>

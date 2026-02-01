@@ -146,12 +146,17 @@ EvidenceTable.displayName = 'EvidenceTable';
 export const ClientInterviewSection = React.memo(({ value = {}, onChange = () => {}, uploadedFile = null, onFileChange = () => {}, documentVersions = [], onViewDocument = () => {}, onDownloadDocument = () => {}, onRemoveVersion = () => {}, fileInputKey = Date.now(), userRole = '', isViewingExistingReview = false, currentReviewStage = '' }) => {
     // Determine if the section should be read-only based on:
     // 1. Position mismatch (different role created it)
-    // 2. Review stage restrictions (intern can't edit when in review stages)
-    const isPositionMismatch = value.createdByRole && userRole && value.createdByRole !== userRole;
-    const isInternViewingSubmittedReview = userRole === 'intern' && (currentReviewStage === 'supervising_lawyer' || currentReviewStage === 'director' || currentReviewStage === 'completed');
+    // 2. Review stage restrictions (intern can't edit when in review stages, EXCEPT when returned for revision)
+    // Allow intern to edit if review is returned for revision, even if last editor was supervising lawyer
+    const isPositionMismatch = value.createdByRole && userRole && value.createdByRole !== userRole && currentReviewStage !== 'returned_to_intern';
+    // Interns can edit when: not submitted yet OR returned to them for revision
+    const isInternViewingSubmittedReview = userRole === 'intern' && 
+        (currentReviewStage === 'supervising_lawyer' || currentReviewStage === 'director' || currentReviewStage === 'completed');
     const isSupervisingLawyerViewingDirectorReview = userRole === 'supervising_lawyer' && (currentReviewStage === 'director' || currentReviewStage === 'completed');
     
-    const isReadOnly = isPositionMismatch || isInternViewingSubmittedReview || isSupervisingLawyerViewingDirectorReview;
+    // Director can edit during director review stage
+    const isDirectorEditing = userRole === 'director' && currentReviewStage === 'director';
+    const isReadOnly = (isPositionMismatch || isInternViewingSubmittedReview || isSupervisingLawyerViewingDirectorReview) && !isDirectorEditing;
     
     // Determine the alert message based on why it's read-only
     let alertMessage = '';
@@ -505,8 +510,8 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
     // Determine if supervising lawyer section should be disabled
     const supervisingLawyerDisabled = userRole === 'intern' || userRole === 'secretary' || userRole === 'director' || currentReviewStage === 'director';
     
-    // Determine if director section should be disabled
-    const directorSectionDisabled = userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer';
+    // Determine if director section should be disabled - Allow both supervising_lawyer and director to edit
+    const directorSectionDisabled = userRole === 'intern' || userRole === 'secretary';
 
     return (
         <Paper shadow="md" p="xl" radius="lg" bg="white">
@@ -710,10 +715,12 @@ export default function CaseRecordFormsDisplay() {
                             size: ii.uploadedDocument.fileSize,
                             type: ii.uploadedDocument.fileType,
                             serverFile: {
-                                url: ii.uploadedDocument.url,
-                                filename: ii.uploadedDocument.serverFilename
+                                url: ii.uploadedDocument.fileUrl,
+                                filename: ii.uploadedDocument.filename
                             },
-                            isServerFile: true
+                            isServerFile: true,
+                            uploadedBy: ii.uploadedDocument.uploadedBy,
+                            uploadedByRole: ii.uploadedDocument.uploadedByRole
                         };
                         setUploadedFile(mockFile);
                     } else if (ii.uploadedDocument.fileData) {
@@ -914,11 +921,12 @@ export default function CaseRecordFormsDisplay() {
                          docToView.fileName?.endsWith('.docx') || 
                          docToView.fileName?.endsWith('.doc');
         
-        if (isWordDoc && docToView.fileUrl) {
+        if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
             setWordDocLoading(true);
             try {
-                // Fetch the Word document from the server
-                const response = await fetch(docToView.fileUrl);
+                // Fetch the Word document from the server or use fileData
+                const url = docToView.fileUrl || docToView.fileData;
+                const response = await fetch(url);
                 const arrayBuffer = await response.arrayBuffer();
                 
                 // Convert to HTML using mammoth
@@ -1043,7 +1051,22 @@ export default function CaseRecordFormsDisplay() {
                     console.error('Error deleting file from server:', error);
                 }
             }
+            // Also delete from server if file exists in interviewInfo
+            if (interviewInfo.uploadedDocument?.isServerFile && interviewInfo.uploadedDocument?.filename) {
+                try {
+                    await fetch(`/api/upload/document/${interviewInfo.uploadedDocument.filename}`, {
+                        method: 'DELETE'
+                    });
+                } catch (error) {
+                    console.error('Error deleting file from server:', error);
+                }
+            }
             setUploadedFile(null);
+            // Also clear from interviewInfo to ensure it doesn't show up after removal
+            setInterviewInfo(prev => ({
+                ...prev,
+                uploadedDocument: null
+            }));
             setFileInputKey(Date.now());
         }
     };
@@ -1196,6 +1219,8 @@ export default function CaseRecordFormsDisplay() {
 
                 if (interviewInfo.caseType === 'legal-advice') {
                     finalStatus = 'legal-advice';
+                } else if (interviewInfo.caseType === 'legal-document') {
+                    finalStatus = 'confirmed'; // Document drafting cases remain as confirmed
                 } else if (finalDecision === 'rejected') {
                     finalStatus = 'rejected';
                 } else if (finalDecision === 'accepted' || finalDecision === 'pending') {
@@ -1209,7 +1234,7 @@ export default function CaseRecordFormsDisplay() {
                     return;
                 }
 
-                console.log('Final status updated to:', finalStatus);
+                console.log('Final status updated to:', finalStatus, 'for caseType:', interviewInfo.caseType);
                 
                 const finalizePayload = {
                     caseId: caseId,
@@ -1322,8 +1347,8 @@ export default function CaseRecordFormsDisplay() {
             return;
         }
 
-        // Check if file is required but not uploaded
-        if (interviewInfo.caseType === 'legal-document' && !uploadedFile) {
+        // Check if file is required but not uploaded (only if there was never a file)
+        if (interviewInfo.caseType === 'legal-document' && !uploadedFile && !interviewInfo.uploadedDocument) {
             alert('Please upload a Word document for legal document drafting cases.');
             return;
         }
@@ -1337,8 +1362,10 @@ export default function CaseRecordFormsDisplay() {
         };
 
         // All documents (Word and PDF) now stored on server with URL references
-        let fileData = interviewInfo.uploadedDocument; // Keep existing if no new file
+        let fileData = null;
+        
         if (uploadedFile && interviewInfo.caseType === 'legal-document') {
+            // New file uploaded
             if (uploadedFile.isServerFile) {
                 // Document already uploaded to server (both Word and PDF)
                 fileData = {
@@ -1347,14 +1374,22 @@ export default function CaseRecordFormsDisplay() {
                     fileType: uploadedFile.type,
                     fileUrl: uploadedFile.serverFile.url,
                     filename: uploadedFile.serverFile.filename,
-                    isServerFile: true
+                    isServerFile: true,
+                    uploadedBy: uploadedFile.uploadedBy || (userData?.firstName && userData?.lastName 
+                        ? `${userData.firstName} ${userData.lastName}` 
+                        : userData?.username || 'Unknown'),
+                    uploadedByRole: uploadedFile.uploadedByRole || userData?.role || 'Unknown'
                 };
             } else {
                 // Shouldn't happen with current logic, but handle as fallback
                 alert('File was not uploaded to server. Please try uploading again.');
                 return;
             }
+        } else if (interviewInfo.uploadedDocument) {
+            // Keep existing if no new file was uploaded
+            fileData = interviewInfo.uploadedDocument;
         }
+        // If fileData is still null here and there was no uploadedFile, it means file was removed
 
         const completeInterviewInfo = {
             ...interviewInfo,
@@ -1417,6 +1452,17 @@ export default function CaseRecordFormsDisplay() {
             ...interviewInfo,
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            uploadedDocument: uploadedFile ? {
+                fileName: uploadedFile.name,
+                fileSize: uploadedFile.size,
+                fileType: uploadedFile.type,
+                fileUrl: uploadedFile.serverFile?.url,
+                filename: uploadedFile.serverFile?.filename,
+                isServerFile: uploadedFile.isServerFile,
+                uploadedBy: uploadedFile.uploadedBy,
+                uploadedByRole: uploadedFile.uploadedByRole
+            } : interviewInfo.uploadedDocument || null,
+            documentVersions: documentVersions.length > 0 ? documentVersions : interviewInfo.documentVersions || [],
             createdByRole: interviewInfo.createdByRole || userData?.role || null,
             createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
                 ? `${userData.firstName} ${userData.lastName}` 
@@ -1476,6 +1522,17 @@ export default function CaseRecordFormsDisplay() {
             ...interviewInfo,
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            uploadedDocument: uploadedFile ? {
+                fileName: uploadedFile.name,
+                fileSize: uploadedFile.size,
+                fileType: uploadedFile.type,
+                fileUrl: uploadedFile.serverFile?.url,
+                filename: uploadedFile.serverFile?.filename,
+                isServerFile: uploadedFile.isServerFile,
+                uploadedBy: uploadedFile.uploadedBy,
+                uploadedByRole: uploadedFile.uploadedByRole
+            } : interviewInfo.uploadedDocument || null,
+            documentVersions: documentVersions.length > 0 ? documentVersions : interviewInfo.documentVersions || [],
             createdByRole: interviewInfo.createdByRole || userData?.role || null,
             createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
                 ? `${userData.firstName} ${userData.lastName}` 
@@ -1535,6 +1592,17 @@ export default function CaseRecordFormsDisplay() {
             ...interviewInfo,
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            uploadedDocument: uploadedFile ? {
+                fileName: uploadedFile.name,
+                fileSize: uploadedFile.size,
+                fileType: uploadedFile.type,
+                fileUrl: uploadedFile.serverFile?.url,
+                filename: uploadedFile.serverFile?.filename,
+                isServerFile: uploadedFile.isServerFile,
+                uploadedBy: uploadedFile.uploadedBy,
+                uploadedByRole: uploadedFile.uploadedByRole
+            } : interviewInfo.uploadedDocument || null,
+            documentVersions: documentVersions.length > 0 ? documentVersions : interviewInfo.documentVersions || [],
             createdByRole: interviewInfo.createdByRole || userData?.role || null,
             createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
                 ? `${userData.firstName} ${userData.lastName}` 
@@ -1594,6 +1662,17 @@ export default function CaseRecordFormsDisplay() {
             ...interviewInfo,
             clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
             adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            uploadedDocument: uploadedFile ? {
+                fileName: uploadedFile.name,
+                fileSize: uploadedFile.size,
+                fileType: uploadedFile.type,
+                fileUrl: uploadedFile.serverFile?.url,
+                filename: uploadedFile.serverFile?.filename,
+                isServerFile: uploadedFile.isServerFile,
+                uploadedBy: uploadedFile.uploadedBy,
+                uploadedByRole: uploadedFile.uploadedByRole
+            } : interviewInfo.uploadedDocument || null,
+            documentVersions: documentVersions.length > 0 ? documentVersions : interviewInfo.documentVersions || [],
             createdByRole: interviewInfo.createdByRole || userData?.role || null,
             createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
                 ? `${userData.firstName} ${userData.lastName}` 
