@@ -1,6 +1,6 @@
 import React from 'react';
 import { IconUser, IconInfoCircle, IconCheck, IconCalendar } from '@tabler/icons-react';
-import { TextInput, Select, Group, Title, Paper, Grid, Stack, Checkbox, Tooltip, Alert, Text, Box } from '@mantine/core';
+import { TextInput, Select, Group, Title, Paper, Grid, Stack, Checkbox, Tooltip, Alert, Text, Box, Radio } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { 
   PRIMARY_GOLD, 
@@ -18,7 +18,10 @@ import { validationRules } from '@utils/validation';
 export default function PersonalDetailsForm({ register, errors, setValue, watch }) {
   const [calculatedAge, setCalculatedAge] = React.useState('');
   const [sameAsPresent, setSameAsPresent] = React.useState(false);
-  const [showRelator, setShowRelator] = React.useState(false);
+  const throughRelator = watch?.('throughRelator') || 'no';
+  const isThroughRelator = throughRelator === 'yes';
+  const relatorNameValue = watch?.('relatorName');
+  const relationshipValue = watch?.('relationshipToClient');
 
   // Auto-format phone number with fixed +63
   const formatPhoneNumber = (value) => {
@@ -97,6 +100,28 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
   React.useEffect(() => {
     setValue('citizenship', DEFAULT_CITIZENSHIP);
   }, [setValue]);
+
+  // Default relator toggle to "no" if unset
+  React.useEffect(() => {
+    if (!throughRelator) {
+      setValue('throughRelator', 'no', { shouldValidate: false });
+    }
+  }, [throughRelator, setValue]);
+
+  // Auto-enable relator toggle when prefilled relator details exist
+  React.useEffect(() => {
+    if (throughRelator === 'no' && (relatorNameValue || relationshipValue)) {
+      setValue('throughRelator', 'yes', { shouldValidate: false });
+    }
+  }, [throughRelator, relatorNameValue, relationshipValue, setValue]);
+
+  // Clear relator fields when user selects "No"
+  React.useEffect(() => {
+    if (throughRelator === 'no') {
+      setValue('relatorName', '', { shouldValidate: false });
+      setValue('relationshipToClient', '', { shouldValidate: false });
+    }
+  }, [throughRelator, setValue]);
 
   return (
     <Stack gap="lg" mt="lg">
@@ -484,68 +509,90 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
         />
       </Box>
       
-      {/* Relator Checkbox */}
-      <Checkbox
-        label="I am filling this form on behalf of someone else"
-        checked={showRelator}
-        onChange={(event) => setShowRelator(event.currentTarget.checked)}
-        styles={{
-          label: { color: CHARCOAL, fontWeight: 500 }
-        }}
-      />
-      
       {/* Relator Section */}
-      {showRelator && (
-        <Paper p="lg" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
-          <Title order={4} mb="md" c={CHARCOAL}>
-            Relator/Representative Information
-          </Title>
-          <Stack gap="md">
-            <Box>
-              <Group gap={8} mb={8}>
-                <Text size="sm" fw={600} c={CHARCOAL}>Name of Relator/Representative</Text>
-                <Text size="sm" c="red">*</Text>
+      <Paper p="lg" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
+        <Title order={4} mb="md" c={CHARCOAL}>
+          Relator/Representative Information
+        </Title>
+        <Stack gap="md">
+          <Box>
+            <Text size="sm" fw={600} c={CHARCOAL} mb={6}>If through a Relator / Representative</Text>
+            <Radio.Group
+              value={throughRelator}
+              onChange={(value) => setValue('throughRelator', value, { shouldValidate: true })}
+            >
+              <Group gap="lg">
+                <Radio value="yes" label="Yes" color={PRIMARY_BROWN} />
+                <Radio value="no" label="No" color={PRIMARY_BROWN} />
               </Group>
-              <TextInput
-                placeholder="Maria Santos"
-                size="md"
-                {...register('relatorName', validationRules.relatorName)}
-                error={errors.relatorName?.message}
-                styles={{
-                  input: {
-                    backgroundColor: 'white',
-                    borderColor: errors.relatorName ? '#E74C3C' : '#E0E0E0',
-                    '&:focus': {
-                      borderColor: errors.relatorName ? '#E74C3C' : PRIMARY_BROWN,
-                    },
+            </Radio.Group>
+            {/* keep value in RHF state */}
+            <input type="hidden" value={throughRelator} {...register('throughRelator')} readOnly />
+          </Box>
+
+          <Box>
+            <Group gap={8} mb={8}>
+              <Text size="sm" fw={600} c={CHARCOAL}>Name of Relator/Representative</Text>
+              {isThroughRelator && <Text size="sm" c="red">*</Text>}
+            </Group>
+            <TextInput
+              placeholder="Maria Santos"
+              size="md"
+              disabled={!isThroughRelator}
+              {...register('relatorName', {
+                validate: (value) => {
+                  if (!isThroughRelator) return true;
+                  if (!value || !value.trim()) return 'Relator name is required';
+                  if (value.trim().length < 2) return 'Relator name must be at least 2 characters';
+                  return true;
+                },
+              })}
+              error={errors.relatorName?.message}
+              styles={{
+                input: {
+                  backgroundColor: isThroughRelator ? 'white' : '#F5F5F5',
+                  borderColor: errors.relatorName ? '#E74C3C' : '#E0E0E0',
+                  cursor: isThroughRelator ? 'text' : 'not-allowed',
+                  '&:focus': {
+                    borderColor: errors.relatorName ? '#E74C3C' : PRIMARY_BROWN,
                   },
-                }}
-              />
-            </Box>
-            <Box>
-              <Group gap={8} mb={8}>
-                <Text size="sm" fw={600} c={CHARCOAL}>Relationship to the Client</Text>
-                <Text size="sm" c="red">*</Text>
-              </Group>
-              <TextInput
-                placeholder="Sister, Brother, Parent, Attorney, etc."
-                size="md"
-                {...register('relationshipToClient', validationRules.relationshipToClient)}
-                error={errors.relationshipToClient?.message}
-                styles={{
-                  input: {
-                    backgroundColor: 'white',
-                    borderColor: errors.relationshipToClient ? '#E74C3C' : '#E0E0E0',
-                    '&:focus': {
-                      borderColor: errors.relationshipToClient ? '#E74C3C' : PRIMARY_BROWN,
-                    },
+                },
+              }}
+            />
+          </Box>
+
+          <Box>
+            <Group gap={8} mb={8}>
+              <Text size="sm" fw={600} c={CHARCOAL}>Relationship to the Client</Text>
+              {isThroughRelator && <Text size="sm" c="red">*</Text>}
+            </Group>
+            <TextInput
+              placeholder="Sister, Brother, Parent, Attorney, etc."
+              size="md"
+              disabled={!isThroughRelator}
+              {...register('relationshipToClient', {
+                validate: (value) => {
+                  if (!isThroughRelator) return true;
+                  if (!value || !value.trim()) return 'Relationship is required';
+                  if (value.trim().length < 2) return 'Relationship must be at least 2 characters';
+                  return true;
+                },
+              })}
+              error={errors.relationshipToClient?.message}
+              styles={{
+                input: {
+                  backgroundColor: isThroughRelator ? 'white' : '#F5F5F5',
+                  borderColor: errors.relationshipToClient ? '#E74C3C' : '#E0E0E0',
+                  cursor: isThroughRelator ? 'text' : 'not-allowed',
+                  '&:focus': {
+                    borderColor: errors.relationshipToClient ? '#E74C3C' : PRIMARY_BROWN,
                   },
-                }}
-              />
-            </Box>
-          </Stack>
-        </Paper>
-      )}
+                },
+              }}
+            />
+          </Box>
+        </Stack>
+      </Paper>
     </Stack>
   );
 }

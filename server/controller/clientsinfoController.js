@@ -2,6 +2,30 @@ import ClientsInfo from '../models/clientsinfo.js'
 import admin from 'firebase-admin'
 import User from '../models/user.js'
 
+const normalizeDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const normalizeTime = (value) => {
+  if (!value) return '';
+  // Accept HH:mm or HH:mm:ss, trim to HH:mm
+  const match = /^\s*(\d{1,2}):(\d{2})/.exec(value);
+  if (!match) return '';
+  const hour = String(match[1]).padStart(2, '0');
+  const minute = match[2];
+  return `${hour}:${minute}`;
+};
+
+const cleanPhone = (value) => {
+  if (!value) return '';
+  const digits = String(value).replace(/\D/g, '');
+  if (digits.startsWith('09') && digits.length === 11) return digits;
+  if (digits.startsWith('9') && digits.length === 10) return `0${digits}`;
+  return digits;
+};
+
 export const createClientsInfo = async (req, res) => {
   try {
     const payload = req.body || {}
@@ -98,6 +122,57 @@ export const createClientsInfo = async (req, res) => {
   }
 }
 
+// Public appointment submission (no auth required)
+export const createPublicAppointment = async (req, res) => {
+  try {
+    const { fullName, phone, appointmentDate, appointmentTime } = req.body || {};
+
+    if (!fullName || !appointmentDate || !appointmentTime) {
+      return res.status(400).json({
+        message: 'fullName, appointmentDate, and appointmentTime are required',
+      });
+    }
+
+    const normalizedDate = normalizeDate(appointmentDate);
+    const normalizedTime = normalizeTime(appointmentTime);
+    const cleanedPhone = cleanPhone(phone);
+
+    if (!normalizedDate) {
+      return res.status(400).json({ message: 'Invalid appointmentDate' });
+    }
+
+    if (!normalizedTime) {
+      return res.status(400).json({ message: 'Invalid appointmentTime' });
+    }
+
+    const doc = new ClientsInfo({
+      fullName,
+      contactNumber: cleanedPhone,
+      appointedDate: normalizedDate,
+      appointmentTime: normalizedTime,
+      status: 'auto-scheduled',
+      source: 'public-appointment',
+      personal: {
+        fullName,
+        contactNumber: cleanedPhone,
+      },
+      caseDetails: {
+        appointmentTime: normalizedTime,
+        appointedDate: normalizedDate,
+      },
+      review: {
+        source: 'public-appointment',
+      },
+    });
+
+    const saved = await doc.save();
+    return res.status(201).json(saved);
+  } catch (err) {
+    console.error('createPublicAppointment error', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 export const listClientsInfo = async (req, res) => {
   try {
     // Get authenticated user info
@@ -119,7 +194,7 @@ export const listClientsInfo = async (req, res) => {
     let query = {};
     
     // Admin roles (secretary, attorney, intern, etc.) can see all appointments
-    const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern'];
+    const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
     
     if (currentUser && !adminRoles.includes(currentUser.role)) {
       // Regular clients can only see their own appointments
@@ -162,11 +237,76 @@ export const updateClientsInfo = async (req, res) => {
     const payload = req.body || {}
 
     const update = {}
-    if (payload.appointedDate) update.appointedDate = new Date(payload.appointedDate)
-    if (payload.appointmentTime !== undefined) update.appointmentTime = payload.appointmentTime
-    if (payload.status) update.status = payload.status
-    if (payload.fullName) update.fullName = payload.fullName
-    if (payload.caseNumber) update.caseNumber = payload.caseNumber
+    const setField = (key, transform) => {
+      if (Object.prototype.hasOwnProperty.call(payload, key)) {
+        update[key] = transform ? transform(payload[key]) : payload[key]
+      }
+    }
+
+    setField('appointedDate', (v) => (v ? new Date(v) : v))
+    setField('appointmentTime')
+    setField('status')
+    setField('fullName')
+    setField('caseNumber')
+
+    // Personal Details
+    setField('name')
+    setField('age', (v) => (v === '' || v === null || v === undefined ? v : Number(v)))
+    setField('birthday')
+    setField('sex')
+    setField('civilStatus')
+    setField('citizenship')
+    setField('contactNumber')
+    setField('cellphoneNumber')
+    setField('telephoneNumber')
+    setField('email')
+    setField('presentAddress')
+    setField('permanentAddress')
+    setField('spouseName')
+    setField('throughRelator')
+    setField('relatorName')
+    setField('relationshipToClient')
+    setField('relatorContactNumber')
+
+    // Financial Details
+    setField('currentSourceOfIncome')
+    setField('monthlyIncome', (v) => (v === '' || v === null || v === undefined ? v : Number(v)))
+    setField('natureOfWork')
+    setField('employerName')
+    setField('employerAddress')
+    setField('employerTelephone')
+    setField('spouseSourceOfIncome')
+    setField('spouseMonthlyIncome', (v) => (v === '' || v === null || v === undefined ? v : Number(v)))
+    setField('spouseEmployerAddress')
+    setField('totalCombinedIncome', (v) => (v === '' || v === null || v === undefined ? v : Number(v)))
+    setField('dependents', (v) => (v === '' || v === null || v === undefined ? v : Number(v)))
+
+    // Case Details
+    setField('partyRepresented')
+    setField('venue')
+    setField('presentStage')
+    setField('caseNature')
+    setField('natureOfCase')
+    setField('courtDivision')
+    setField('courtAddress')
+    setField('courtPhoneNumber')
+    setField('presidingOfficer')
+    setField('caseDescription')
+    setField('adverseParty')
+    setField('adversePartyAddress')
+    setField('adversePartyCounsel')
+    setField('adversePartyCounselAddress')
+    setField('adversePartyCounselPhone')
+    setField('legalMatter')
+    setField('location')
+    setField('appointmentType')
+    setField('urgencyLevel')
+
+    // Nested payloads (backward compatibility)
+    setField('personal')
+    setField('financial')
+    setField('caseDetails')
+    setField('review')
 
     const updated = await ClientsInfo.findByIdAndUpdate(id, update, { new: true })
     if (!updated) return res.status(404).json({ message: 'ClientsInfo not found' })

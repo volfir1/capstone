@@ -22,6 +22,9 @@ export default function UserForm() {
     defaultValues: {
       appointedDate: '',
       appointmentTime: '',
+      throughRelator: 'no',
+      relatorName: '',
+      relationshipToClient: '',
     }
   });
   
@@ -80,6 +83,10 @@ export default function UserForm() {
     
     if (active === 0) {
       fieldsToValidate = ['name', 'age', 'birthday', 'contactNumber', 'sex', 'civilStatus', 'citizenship', 'presentAddress', 'permanentAddress'];
+      const throughRelator = getValues().throughRelator;
+      if (throughRelator === 'yes') {
+        fieldsToValidate.push('relatorName', 'relationshipToClient');
+      }
     } else if (active === 1) {
       fieldsToValidate = ['currentSourceOfIncome', 'monthlyIncome', 'natureOfWork', 'employerName', 'employerAddress'];
     } else if (active === 2) {

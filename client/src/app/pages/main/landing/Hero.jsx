@@ -94,7 +94,7 @@ export default function Hero() {
                 radius="xl"
                 variant="gradient"
                 gradient={{ from: PRIMARY_GOLD, to: PRIMARY_BROWN }}
-                onClick={() => navigate('/auth/signup')}
+                onClick={() => navigate('/appointment')}
               >
                 Get Legal Assistance
               </Button>

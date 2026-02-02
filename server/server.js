@@ -17,6 +17,13 @@ import cors from "cors"
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import admin from 'firebase-admin'
+import upload from './config/multerConfig.js'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import fs from 'fs'
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Initialize Firebase Admin SDK
 admin.initializeApp({
@@ -38,13 +45,17 @@ app.use(helmet({
 // Rate Limiting - More generous for admin operations
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Increased from 100 to 500 requests per windowMs
+  max: 2000, // Increased to 2000 requests per windowMs for development
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'development', // Skip rate limiting in development
 });
 
-app.use('/api', limiter);
+// Only apply rate limiting in production
+if (process.env.NODE_ENV === 'production') {
+  app.use('/api', limiter);
+}
 
 // CORS Configuration
 const corsOptions = {
@@ -56,6 +67,9 @@ const corsOptions = {
 app.use(express.json({ limit: '10mb' })) // Limit payload size
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cors(corsOptions))
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Request timeout middleware - prevents hanging requests
 app.use((req, res, next) => {
@@ -87,6 +101,51 @@ app.use("/api/ai-assistant", chatbotRoutes); // AI Chatbot - public access
 // Test route to verify server is working
 app.get("/api/test", (req, res) => {
   res.json({ message: "Server is working!" });
+});
+
+// File upload route for Word documents (PDF stays as base64)
+app.post('/api/upload/document', upload.single('document'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Return file information
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/documents/${req.file.filename}`;
+    
+    res.json({
+      success: true,
+      file: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        url: fileUrl,
+        path: `/uploads/documents/${req.file.filename}`
+      }
+    });
+  } catch (error) {
+    console.error('File upload error:', error);
+    res.status(500).json({ error: 'File upload failed', details: error.message });
+  }
+});
+
+// File delete route for Word documents
+app.delete('/api/upload/document/:filename', (req, res) => {
+  try {
+    const filename = req.params.filename;
+    const filePath = path.join(__dirname, 'uploads/documents', filename);
+    
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      res.json({ success: true, message: 'File deleted successfully' });
+    } else {
+      res.status(404).json({ error: 'File not found' });
+    }
+  } catch (error) {
+    console.error('File delete error:', error);
+    res.status(500).json({ error: 'File deletion failed', details: error.message });
+  }
 });
 
 // Protected Routes (auth required)

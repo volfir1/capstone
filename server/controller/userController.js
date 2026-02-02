@@ -68,7 +68,7 @@ export const fetchUsers = async (req, res) =>{
         }
 
         // Allow secretary and attorney roles to access user management
-        const allowedRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern'];
+        const allowedRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
         if(!allowedRoles.includes(authenticatedUser.role)){
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
@@ -110,7 +110,7 @@ export const updateUserRole = async (req, res) => {
         }
 
         // Only allow admin roles to change user roles
-        const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern'];
+        const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
         if(!adminRoles.includes(adminUser.role)){
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
@@ -118,9 +118,9 @@ export const updateUserRole = async (req, res) => {
         const { userId } = req.params
         const { role } = req.body
 
-        // Only allow changing to 'user', 'secretary', or 'intern' roles
-        if(!['user', 'secretary', 'intern'].includes(role)){
-            return res.status(400).json({ success: false, message: 'Invalid role. Only user, secretary, and intern roles are allowed.' })
+        // Only allow changing to valid roles
+        if(!['user', 'secretary', 'intern', 'director', 'supervising_lawyer'].includes(role)){
+            return res.status(400).json({ success: false, message: 'Invalid role. Allowed roles: user, secretary, intern, director, supervising_lawyer.' })
         }
 
         const updatedUser = await User.findByIdAndUpdate(
@@ -166,7 +166,7 @@ export const toggleUserStatus = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Admin user not found'})
         }
 
-        const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern'];
+        const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
         if(!adminRoles.includes(adminUser.role)){
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
@@ -226,7 +226,7 @@ export const sendPasswordResetEmail = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Admin user not found'})
         }
 
-        const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern'];
+        const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
         if(!adminRoles.includes(adminUser.role)){
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }

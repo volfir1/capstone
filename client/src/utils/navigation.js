@@ -30,7 +30,6 @@ export const NAVIGATION_CONFIG = {
   secretary: [
     { icon: IconDashboard, label: "Dashboard", path: '/admin' },
     { icon: IconUsers, label: "Users Management", path: 'users' },
-    { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
     // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
     { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
@@ -40,7 +39,6 @@ export const NAVIGATION_CONFIG = {
   attorney: [
     { icon: IconDashboard, label: "Dashboard", path: '/admin' },
     { icon: IconUsers, label: "Users Management", path: 'users' },
-    { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
     // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
     { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
@@ -50,8 +48,23 @@ export const NAVIGATION_CONFIG = {
   intern: [
     { icon: IconDashboard, label: "Dashboard", path: '/admin' },
     { icon: IconUsers, label: "Users Management", path: 'users' },
-    { icon: IconScale, label: "Manage Attorneys", path: 'attorneys' },
     // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
+    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
+    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
+    { icon: IconUserCircle, label: "Profile", path: 'profile' },
+  ],
+  
+  supervising_lawyer: [
+    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
+    { icon: IconUsers, label: "Users Management", path: 'users' },
+    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
+    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
+    { icon: IconUserCircle, label: "Profile", path: 'profile' },
+  ],
+  
+  director: [
+    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
+    { icon: IconUsers, label: "Users Management", path: 'users' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
     { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
@@ -74,6 +87,8 @@ export const getNavigationByRole = (role, currentPath) => {
     secretary: 'admin',
     attorney: 'admin',
     intern: 'admin',
+    supervising_lawyer: 'admin',
+    director: 'admin',
     client: 'user'
   };
   
@@ -98,6 +113,8 @@ export const ROLE_DISPLAY = {
   attorney: "Attorney",
   intern: "Legal Intern",
   client: "Client",
+  director: "Director",
+  supervising_lawyer: "Supervising Lawyer",
 };
 
 // Page titles by role
@@ -105,6 +122,8 @@ export const PAGE_TITLES = {
   secretary: "Admin Dashboard",
   attorney: "Attorney Portal",
   intern: "Intern Portal",
+  supervising_lawyer: "Supervising Lawyer Portal",
+  director: "Director Portal",
   client: "Client Portal",
 };
 

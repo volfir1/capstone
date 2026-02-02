@@ -32,13 +32,13 @@ const AboutPage = lazy(()=> import('./pages/About'))
 const FeaturesPage = lazy(()=> import('./pages/Features'))
 const HowItWorks = lazy(()=> import('./pages/How')) 
 const UserForm = lazy(() => import('./pages/user/UserForm'))
+const Appointment = lazy(() => import('./pages/Appointment'))
 const TrackCase = lazy(() => import('./pages/user/TrackCase'))
 const UserChat = lazy(() => import('./pages/user/Chat'))
 const ProfilePage = lazy(() => import('./pages/other/Profile'))
 const ClientApplicationStatus = lazy(() => import('./pages/other/ClientFormStatus'))
 
 // Admin
-const ManageAttorney = lazy(() => import('./pages/admin/ManageAttorney'))
 const AssignCase = lazy(() => import('./pages/admin/AssingCase'))
 const UserManagement = lazy(() => import('./pages/admin/userManagement'))
 const RecommendationForAction = lazy(() => import('./pages/other/RecommendationForAction'))
@@ -76,7 +76,7 @@ function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false, int
     return <Navigate to="/auth/login" replace />;
   }
 
-  if (adminOnly && userData?.role !== "secretary" && userData?.role !== "attorney" && userData?.role !== "pao_lawyer" && userData?.role !== "legal_volunteer" && userData?.role !== "intern") {
+  if (adminOnly && userData?.role !== "secretary" && userData?.role !== "attorney" && userData?.role !== "pao_lawyer" && userData?.role !== "legal_volunteer" && userData?.role !== "intern" && userData?.role !== "supervising_lawyer" && userData?.role !== "director") {
     console.log('ProtectedRoute: Redirecting to /user/home - not secretary or attorney');
     return <Navigate to="/user/home" replace />;
   }
@@ -91,7 +91,7 @@ function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false, int
     return <Navigate to="/auth/login" replace />;
   }
 
-  if (!adminOnly && !attorneyOnly && !internOnly && (userData?.role === "secretary" || userData?.role === "attorney" || userData?.role === "pao_lawyer" || userData?.role === "legal_volunteer" || userData?.role === "intern")) {
+  if (!adminOnly && !attorneyOnly && !internOnly && (userData?.role === "secretary" || userData?.role === "attorney" || userData?.role === "pao_lawyer" || userData?.role === "legal_volunteer" || userData?.role === "intern" || userData?.role === "supervising_lawyer" || userData?.role === "director")) {
     console.log('ProtectedRoute: Redirecting to /admin - is admin role');
     return <Navigate to="/admin" replace />;
   }
@@ -155,7 +155,6 @@ function AppRoutes() {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
-          <Route path="attorneys" element={<ManageAttorney />} />
           <Route path="recommendation/:caseId?" element={<RecommendationForAction />} />
           <Route path="finalized" element={<FinalizedCases />} />
           <Route path="clientformstatus" element={<ClientApplicationStatus />} />
@@ -166,6 +165,7 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Navigate to="/auth/login" replace />} />
         <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
+        <Route path="/appointment" element={<Appointment />} />
         <Route path="/ai-chatbot" element={<AIChatbot />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/features" element={<FeaturesPage />} />

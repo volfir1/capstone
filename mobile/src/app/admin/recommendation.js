@@ -40,11 +40,12 @@ export default function RecommendationForAction() {
   const { userData } = useAuth();
   const normalizedRole = (userData?.role || '').toLowerCase().trim();
   const isIntern = normalizedRole === 'intern';
-  const isAttorneyRole = ['attorney', 'secretary', 'pao_lawyer', 'legal_volunteer', 'admin'].includes(normalizedRole);
+  const isAttorneyRole = ['attorney', 'secretary', 'pao_lawyer', 'legal_volunteer', 'admin', 'director', 'supervising_lawyer'].includes(normalizedRole);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [reviewId, setReviewId] = useState(null);
+  const [currentReviewStage, setCurrentReviewStage] = useState('supervising_lawyer'); // Track current stage
   const [showSignatureDatePicker, setShowSignatureDatePicker] = useState(false);
   
   // Form data - matches website structure exactly
@@ -65,7 +66,7 @@ export default function RecommendationForAction() {
       { type: '', author: '', purpose: '', issues: '' }
     ],
     internAdvice: '',
-    forLegalAdvice: false,
+    caseType: '',
     legalOpinion: '',
   });
   
@@ -89,6 +90,7 @@ export default function RecommendationForAction() {
     if (passedReview && passedReview.content) {
       const review = passedReview;
       setReviewId(review._id || review.id);
+      setCurrentReviewStage(review.reviewStage || 'supervising_lawyer'); // Load the current stage
       if (review.content.interviewInfo) {
         setInterviewInfo(prev => ({
           ...prev,
@@ -118,6 +120,41 @@ export default function RecommendationForAction() {
       loadClientInfo();
     }
   }, [derivedCaseId, passedReview]);
+
+  // Auto-populate fields based on user role
+  useEffect(() => {
+    if (!userData) return;
+    
+    const currentUserName = userData.firstName && userData.lastName 
+      ? `${userData.firstName} ${userData.lastName}` 
+      : userData.username || userData.displayName || 'Unknown User';
+    
+    const today = new Date();
+    const formattedDate = today.toISOString().split('T')[0];
+    
+    if (normalizedRole === 'intern') {
+      // For interns: Set assignedTo and date if not already set
+      if (!actionInfo.assignedTo) {
+        setActionInfo(prev => ({
+          ...prev,
+          assignedTo: currentUserName,
+          signatureDate: formattedDate
+        }));
+      } else if (!actionInfo.signatureDate) {
+        setActionInfo(prev => ({ ...prev, signatureDate: formattedDate }));
+      }
+    } else if (normalizedRole === 'supervising_lawyer') {
+      // For supervising lawyers: Set supervisingLawyer name if not already set
+      if (!actionInfo.supervisingLawyer) {
+        setActionInfo(prev => ({ ...prev, supervisingLawyer: currentUserName }));
+      }
+    } else if (normalizedRole === 'director') {
+      // For directors: Set directorSignature if not already set
+      if (!actionInfo.directorSignature) {
+        setActionInfo(prev => ({ ...prev, directorSignature: currentUserName }));
+      }
+    }
+  }, [normalizedRole, userData, actionInfo.assignedTo, actionInfo.signatureDate, actionInfo.supervisingLawyer, actionInfo.directorSignature]);
 
   const loadClientInfo = async () => {
     try {
@@ -240,7 +277,7 @@ export default function RecommendationForAction() {
           return;
         }
         let finalStatus = 'confirmed';
-        if (completeInterviewInfo.forLegalAdvice === true) {
+        if (completeInterviewInfo.caseType === 'legal-advice') {
           finalStatus = 'legal-advice';
         } else if (actionInfo.decision === 'accepted' || actionInfo.decision === 'rejected' || actionInfo.decision === 'pending') {
           finalStatus = 'court-case';
@@ -469,16 +506,39 @@ export default function RecommendationForAction() {
               numberOfLines={3}
             />
             
-            {/* For legal advice only checkbox */}
-            <TouchableOpacity
-              style={styles.checkboxRow}
-              onPress={() => setInterviewInfo({...interviewInfo, forLegalAdvice: !interviewInfo.forLegalAdvice})}
-            >
-              <View style={[styles.checkbox, interviewInfo.forLegalAdvice && styles.checkboxChecked]}>
-                {interviewInfo.forLegalAdvice && <Ionicons name="checkmark" size={16} color="white" />}
-              </View>
-              <Text style={styles.checkboxLabel}>For legal advice only</Text>
-            </TouchableOpacity>
+            {/* Case Type Radio Buttons */}
+            <Text style={styles.inputLabel}>Case Type</Text>
+            <View style={styles.radioGroup}>
+              <TouchableOpacity
+                style={styles.radioRow}
+                onPress={() => setInterviewInfo({...interviewInfo, caseType: 'legal-advice'})}
+              >
+                <View style={[styles.radio, interviewInfo.caseType === 'legal-advice' && styles.radioSelected]}>
+                  {interviewInfo.caseType === 'legal-advice' && <View style={styles.radioInner} />}
+                </View>
+                <Text style={styles.radioLabel}>For legal advice only</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.radioRow}
+                onPress={() => setInterviewInfo({...interviewInfo, caseType: 'legal-document'})}
+              >
+                <View style={[styles.radio, interviewInfo.caseType === 'legal-document' && styles.radioSelected]}>
+                  {interviewInfo.caseType === 'legal-document' && <View style={styles.radioInner} />}
+                </View>
+                <Text style={styles.radioLabel}>For drafting of legal document</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.radioRow}
+                onPress={() => setInterviewInfo({...interviewInfo, caseType: 'court-representation'})}
+              >
+                <View style={[styles.radio, interviewInfo.caseType === 'court-representation' && styles.radioSelected]}>
+                  {interviewInfo.caseType === 'court-representation' && <View style={styles.radioInner} />}
+                </View>
+                <Text style={styles.radioLabel}>For court representation</Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.divider} />
 
@@ -559,28 +619,34 @@ export default function RecommendationForAction() {
             
             <Text style={styles.inputLabel}>Assigned to: Law Interns</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, currentReviewStage === 'director' && styles.disabledInput]}
               value={actionInfo.assignedTo}
               onChangeText={(text) => setActionInfo({...actionInfo, assignedTo: text})}
               placeholder="List of interns assigned to the case"
               multiline
               numberOfLines={3}
+              editable={currentReviewStage !== 'director'}
+              selectTextOnFocus={currentReviewStage !== 'director'}
             />
             
             <Text style={styles.inputLabel}>Supervising Lawyer</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, currentReviewStage === 'director' && styles.disabledInput]}
               value={actionInfo.supervisingLawyer}
               onChangeText={(text) => setActionInfo({...actionInfo, supervisingLawyer: text})}
               placeholder="Signature/Name of Supervising Lawyer"
+              editable={currentReviewStage !== 'director'}
+              selectTextOnFocus={currentReviewStage !== 'director'}
             />
             
             <Text style={styles.inputLabel}>Director's Signature</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, currentReviewStage === 'director' && styles.disabledInput]}
               value={actionInfo.directorSignature}
               onChangeText={(text) => setActionInfo({...actionInfo, directorSignature: text})}
               placeholder="Signature/Name of Director"
+              editable={currentReviewStage !== 'director'}
+              selectTextOnFocus={currentReviewStage !== 'director'}
             />
             
             <Text style={styles.inputLabel}>Date</Text>
@@ -894,6 +960,10 @@ const styles = StyleSheet.create({
   },
   disabledRow: {
     opacity: 0.5,
+  },
+  disabledInput: {
+    backgroundColor: '#F5F5F5',
+    opacity: 0.7,
   },
   buttonContainer: {
     flexDirection: 'row',

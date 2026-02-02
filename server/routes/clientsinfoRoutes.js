@@ -1,10 +1,13 @@
 import express from 'express'
-import { createClientsInfo, listClientsInfo, getClientsInfoById, updateClientsInfo } from '../controller/clientsinfoController.js'
+import { createClientsInfo, listClientsInfo, getClientsInfoById, updateClientsInfo, createPublicAppointment } from '../controller/clientsinfoController.js'
 
 const router = express.Router()
 
 // POST /api/clientsinfo
 router.post('/', createClientsInfo)
+
+// Public: POST /api/clientsinfo/public-appointment
+router.post('/public-appointment', createPublicAppointment)
 
 // GET /api/clientsinfo (list all or filtered)
 router.get('/', listClientsInfo)

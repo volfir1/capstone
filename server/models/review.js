@@ -9,6 +9,8 @@ const ReviewSchema = new mongoose.Schema({
   reviewerRole: { type: String },
   step: { type: Number },
   content: { type: mongoose.Schema.Types.Mixed },
+  // Review stage for two-layer approval: 'supervising_lawyer' -> 'director' -> 'completed' OR 'returned_to_intern'
+  reviewStage: { type: String, enum: ['supervising_lawyer', 'director', 'completed', 'returned_to_intern'], default: 'supervising_lawyer', index: true },
   createdAt: { type: Date, default: Date.now }
 }, { timestamps: true })
 
