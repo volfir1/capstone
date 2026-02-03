@@ -732,49 +732,14 @@ export default function FinalizedCases() {
       return;
     }
 
-    const a = state.appointmentDetails;
-    const personalRows = [
-      { label: 'Full Name', value: formatText(a.fullName || a.name) },
-      { label: 'Age', value: formatText(a.age) },
-      { label: 'Birthday', value: formatDate(a.birthday) },
-      { label: 'Sex', value: formatText(a.sex) },
-      { label: 'Civil Status', value: formatText(a.civilStatus) },
-      { label: 'Contact Number', value: formatText(a.contactNumber) },
-      { label: 'Email', value: formatText(a.email) },
-      { label: 'Present Address', value: formatText(a.presentAddress) },
-      { label: 'Permanent Address', value: formatText(a.permanentAddress) },
-    ];
+    // If currently editing, export what’s on-screen (form) merged over details
+    const exportData = state.appointmentEditMode
+      ? { ...state.appointmentDetails, ...state.appointmentForm }
+      : state.appointmentDetails;
 
-    const scheduleRows = [
-      { label: 'Appointment Date', value: formatDate(a.appointedDate) },
-      { label: 'Case Number', value: formatText(a.caseNumber) },
-      { label: 'Status', value: formatText(a.status) },
-      { label: 'Appointment Type', value: formatText(a.caseDetails?.appointmentType || a.personal?.legalMatter || a.caseDetails?.legalMatter) },
-    ];
-
-    const financialRows = [
-      { label: 'Income Source', value: formatText(a.currentSourceOfIncome) },
-      { label: 'Monthly Income', value: a.monthlyIncome ? `₱${Number(a.monthlyIncome).toLocaleString()}` : '-' },
-      { label: 'Nature of Work', value: formatText(a.natureOfWork) },
-      { label: 'Employer', value: formatText(a.employerName) },
-      { label: 'Employer Address', value: formatText(a.employerAddress) },
-    ];
-
-    const caseRows = [
-      { label: 'Party Represented', value: formatText(a.partyRepresented) },
-      { label: 'Venue', value: formatText(a.venue) },
-      { label: 'Present Stage', value: formatText(a.presentStage) },
-      { label: 'Court Division', value: formatText(a.courtDivision) },
-      { label: 'Court Address', value: formatText(a.courtAddress) },
-      { label: 'Case Description', value: formatText(a.caseDescription) },
-    ];
-
-    downloadPdfDocument('Appointment Receipt', [
-      { heading: 'Personal Details', rows: personalRows },
-      { heading: 'Schedule Details', rows: scheduleRows },
-      { heading: 'Financial Details', rows: financialRows },
-      { heading: 'Case Details', rows: caseRows },
-    ]);
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    drawClientsInformationSheetPage(doc, exportData);
+    doc.save('Appointment_Receipt.pdf');
   };
 
   const exportRecommendationPdf = async () => {
@@ -2271,11 +2236,11 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                         <Text size="xs" c="dimmed" mb={4}>
                           {(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileSize / 1024).toFixed(2)} KB
                         </Text>
-                        {state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.uploadedBy && (
+                        {state.selectedCaseForVersions.content.interviewInfo.uploadedBy && (
                           <Text size="xs" c="dimmed" mb={8}>
                             Uploaded by: <Text component="span" fw={600}>
-                              {state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.uploadedBy}
-                            </Text> ({state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.uploadedByRole || 'Unknown'})
+                              {state.selectedCaseForVersions.content.interviewInfo.uploadedBy}
+                            </Text> ({state.selectedCaseForVersions.content.interviewInfo.uploadedByRole || 'Unknown'})
                           </Text>
                         )}
                         <Group gap="xs" mt="sm">
@@ -2483,7 +2448,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                           {state.currentViewingDoc.fileName}
                         </Text>
                         <Text size="sm" c="dimmed" mb="xl">
-                          Unable to preview this document. Please download it to view.
+                          Unable to preview this document. Please download to view.
                         </Text>
                         <Group justify="center" gap="md">
                           <Button
@@ -3595,3 +3560,331 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     </Box>
   );
 }
+
+// --- CLIENT INFORMATION SHEET (SOLA Form 3) PDF LAYOUT ---
+const drawClientsInformationSheetPage = (doc, raw = {}) => {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 12;
+
+  // Prefer current edit values when exporting while editing
+  const a = raw || {};
+
+  const txt = (v) => (v === undefined || v === null ? "" : String(v));
+  // NOTE: jsPDF's built-in Times font doesn't reliably render the Peso sign (₱)
+  // and can show garbled characters like '+&'. Keep export ASCII-safe.
+  const money = (v) => {
+    if (v === undefined || v === null || v === "") return "";
+    if (typeof v === 'number' && Number.isFinite(v)) return v.toLocaleString();
+    const s = String(v).trim();
+    // Strip common currency formatting (₱, PHP, commas) and parse
+    const cleaned = s
+      .replace(/php/gi, '')
+      .replace(/[₱,\s]/g, '')
+      .replace(/[^0-9.-]/g, '');
+    const n = Number(cleaned);
+    if (Number.isNaN(n)) return s.replace(/₱/g, '').trim();
+    return n.toLocaleString();
+  };
+
+  const fullName = txt(a.fullName || a.name);
+  const age = txt(a.age);
+  const birthday = txt(a.birthday);
+  const sex = txt(a.sex);
+  const civilStatus = txt(a.civilStatus);
+  const citizenship = txt(a.citizenship);
+  const spouseName = txt(a.spouseName);
+  const contactNumber = txt(a.contactNumber);
+  const presentAddress = txt(a.presentAddress);
+  const permanentAddress = txt(a.permanentAddress);
+
+  const relatorName = txt(a.relatorName);
+  const relationshipToClient = txt(a.relationshipToClient);
+  const relatorContactNumber = txt(a.relatorContactNumber);
+
+  const currentSourceOfIncome = txt(a.currentSourceOfIncome);
+  const monthlyIncome = money(a.monthlyIncome);
+  const natureOfWork = txt(a.natureOfWork);
+  const employerName = txt(a.employerName);
+  const employerAddress = txt(a.employerAddress);
+  const employerTelephone = txt(a.employerTelephone);
+
+  const spouseSourceOfIncome = txt(a.spouseSourceOfIncome);
+  const spouseMonthlyIncome = money(a.spouseMonthlyIncome);
+  const spouseEmployerAddress = txt(a.spouseEmployerAddress);
+  const totalCombinedIncome = money(a.totalCombinedIncome);
+
+  const partyRepresented = txt(a.partyRepresented);
+  const venue = txt(a.venue);
+  const presentStage = txt(a.presentStage);
+  const caseNumber = txt(a.caseNumber);
+  const caseNature = txt(a.caseNature || a.natureOfCase);
+  const courtDivision = txt(a.courtDivision);
+  const courtAddress = txt(a.courtAddress);
+  const presidingOfficer = txt(a.presidingOfficer);
+
+  // These are on the printed form but may not exist in your current schema/UI.
+  const presidingOfficerPhone = txt(a.presidingOfficerPhone || a.phoneNumber);
+  const adverseParties = txt(a.adverseParties);
+  const adversePartiesAddress = txt(a.adversePartiesAddress);
+  const adversePartiesCounsel = txt(a.adversePartiesCounsel);
+  const adversePartiesCounselAddress = txt(a.adversePartiesCounselAddress);
+  const adversePartiesCounselPhone = txt(a.adversePartiesCounselPhone);
+
+  const setFont = (size = 11, style = "normal") => {
+    doc.setFont("times", style);
+    doc.setFontSize(size);
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const label = (t, x, y) => {
+    setFont(10, "normal");
+    doc.text(t, x, y);
+  };
+
+  const line = (x1, y, x2) => doc.line(x1, y, x2, y);
+
+  // Draw "Label: ____" with value printed just above the line.
+  const field = ({ labelText, value, x, y, labelW, lineW, lineToX }) => {
+    label(labelText, x, y);
+    const lx = x + labelW;
+    const ly = y + 0.6; // underline baseline
+    const x2 = typeof lineToX === 'number' ? lineToX : lx + lineW;
+    line(lx, ly, x2);
+    if (value) {
+      setFont(10, "normal");
+      // place value slightly above the underline
+      const maxW = Math.max(0, (x2 - lx) - 2);
+      doc.text(value, lx + 1, y - 0.6, { maxWidth: maxW });
+    }
+  };
+
+  // Section title (PERSONAL DETAILS, etc.)
+  const sectionTitle = (t, x, y) => {
+    setFont(11, "bold");
+    doc.text(t, x, y);
+  };
+
+  // --- Header (matches the photo) ---
+  let y = 12;
+
+  setFont(9, "normal");
+  doc.text("SOLA FORM 3", margin, y);
+  doc.text("Revised September 2020", margin, y + 4);
+
+  // Center title box
+  const titleBoxW = 72;
+  const titleBoxH = 8;
+  const titleBoxX = (pageW - titleBoxW) / 2;
+  doc.rect(titleBoxX, y, titleBoxW, titleBoxH);
+  setFont(10, "bold");
+  doc.text("CLIENT'S INFORMATION SHEET", titleBoxX + 6, y + 5.6);
+
+  // Organization box (left)
+  const orgBoxX = margin;
+  const orgBoxY = y + 10;
+  const orgBoxW = 78;
+  const orgBoxH = 18;
+  doc.rect(orgBoxX, orgBoxY, orgBoxW, orgBoxH);
+  setFont(9, "normal");
+  doc.text(
+    [
+      "Sebastinian Office of Legal Aid (SOLA)",
+      "College of Law",
+      "San Sebastian College - Recoletos, Manila",
+    ],
+    orgBoxX + 3,
+    orgBoxY + 6
+  );
+
+  y = orgBoxY + orgBoxH + 10;
+
+  // --- Layout columns ---
+  const gap = 8;
+  const leftX = margin;
+  const leftW = (pageW - margin * 2 - gap) * 0.62;
+  const rightX = leftX + leftW + gap;
+  const rightW = pageW - margin - rightX;
+
+  // --- PERSONAL DETAILS ---
+  sectionTitle("PERSONAL DETAILS", leftX, y);
+  y += 6;
+
+  // Row spacing
+  const rowH = 7;
+
+  field({ labelText: "Name:", value: fullName, x: leftX, y, labelW: 14, lineW: leftW - 16 });
+  field({ labelText: "If through a Relator / Representative:", value: "", x: rightX, y, labelW: 54, lineW: rightW - 56 });
+  y += rowH;
+
+  field({ labelText: "Age:", value: age, x: leftX, y, labelW: 10, lineW: 18 });
+  field({ labelText: "Birthday:", value: birthday, x: leftX + 34, y, labelW: 16, lineW: leftW - 34 - 18 });
+  field({ labelText: "Name of Relator / Representative:", value: relatorName, x: rightX, y, labelW: 50, lineW: rightW - 52 });
+  y += rowH;
+
+  field({ labelText: "Contact Number/s:", value: contactNumber, x: leftX, y, labelW: 32, lineW: leftW - 34 });
+  field({ labelText: "Relationship to the Client:", value: relationshipToClient, x: rightX, y, labelW: 40, lineW: rightW - 42 });
+  y += rowH;
+
+  field({ labelText: "Sex:", value: sex, x: leftX, y, labelW: 10, lineW: 26 });
+  field({ labelText: "Civil Status:", value: civilStatus, x: leftX + 40, y, labelW: 22, lineW: leftW - 40 - 24 });
+  field({ labelText: "Telephone Number:", value: relatorContactNumber, x: rightX, y, labelW: 32, lineW: rightW - 34 });
+  y += rowH;
+
+  field({ labelText: "Citizenship:", value: citizenship, x: leftX, y, labelW: 22, lineW: leftW - 24 });
+  y += rowH;
+
+  field({ labelText: "Spouse:", value: spouseName, x: leftX, y, labelW: 16, lineW: leftW - 18 });
+  y += rowH;
+
+  field({ labelText: "Cellphone Number/s:", value: contactNumber, x: leftX, y, labelW: 36, lineW: leftW - 38 });
+  y += rowH;
+
+  field({ labelText: "Present Address:", value: presentAddress, x: leftX, y, labelW: 30, lineW: leftW - 32 });
+  y += rowH;
+
+  field({ labelText: "Permanent Address:", value: permanentAddress, x: leftX, y, labelW: 34, lineW: leftW - 36 });
+  y += rowH;
+
+  field({ labelText: "Telephone Number:", value: "", x: leftX, y, labelW: 32, lineW: leftW - 34 });
+  y += 8;
+
+  // --- FINANCIAL DETAILS ---
+  sectionTitle("FINANCIAL DETAILS", leftX, y);
+  y += 6;
+
+  // Financial rows have two fields on one line inside the LEFT column.
+  // Use explicit boundaries to prevent underline/value overlap.
+  const leftColEndX = leftX + leftW;
+  const finRightFieldX = leftX + 64; // start of the right-side field label within left column
+
+  field({
+    labelText: "Current Source of Income:",
+    value: currentSourceOfIncome,
+    x: leftX,
+    y,
+    labelW: 40,
+    lineToX: finRightFieldX - 2,
+  });
+  field({
+    labelText: "Income / Month:",
+    value: monthlyIncome,
+    x: finRightFieldX,
+    y,
+    labelW: 24,
+    lineToX: leftColEndX,
+  });
+  y += rowH;
+
+  field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 48, lineW: leftW - 50 });
+  y += rowH;
+
+  field({ labelText: "Employer / Business Owner's Name:", value: employerName, x: leftX, y, labelW: 60, lineW: leftW - 62 });
+  y += rowH;
+
+  field({ labelText: "Employer / Business Address:", value: employerAddress, x: leftX, y, labelW: 52, lineW: leftW - 54 });
+  y += rowH;
+
+  // Telephone shares a row in the printed layout; avoid overlap.
+  const finTelFieldX = leftX + 72;
+  field({
+    labelText: "Nature of Work / Business:",
+    value: natureOfWork,
+    x: leftX,
+    y,
+    labelW: 40,
+    lineToX: finTelFieldX - 2,
+  });
+  field({
+    labelText: "Telephone:",
+    value: employerTelephone,
+    x: finTelFieldX,
+    y,
+    labelW: 18,
+    lineToX: leftColEndX,
+  });
+  y += rowH;
+
+  field({
+    labelText: "Spouse's Source of Income:",
+    value: spouseSourceOfIncome,
+    x: leftX,
+    y,
+    labelW: 44,
+    lineToX: finRightFieldX - 2,
+  });
+  field({
+    labelText: "Income / Month:",
+    value: spouseMonthlyIncome,
+    x: finRightFieldX,
+    y,
+    labelW: 24,
+    lineToX: leftColEndX,
+  });
+  y += rowH;
+
+  field({ labelText: "Spouse's Employer / Business Address:", value: spouseEmployerAddress, x: leftX, y, labelW: 66, lineW: leftW - 68 });
+  y += rowH;
+
+  field({ labelText: "Total Combined Monthly Income:", value: totalCombinedIncome, x: leftX, y, labelW: 56, lineW: leftW - 58 });
+  y += 8;
+
+  // --- CASE DETAILS ---
+  sectionTitle("CASE DETAILS", leftX, y);
+  y += 6;
+
+  // Case section was looking too tall; use a tighter row height here.
+  const caseRowH = 5.5;
+
+  field({ labelText: "Party Represented:", value: partyRepresented, x: leftX, y, labelW: 34, lineW: leftW - 36 - 10 });
+  field({ labelText: "Venue / City:", value: venue, x: rightX, y, labelW: 26, lineW: rightW - 28 });
+  y += caseRowH;
+
+  field({ labelText: "Present Stage of the Case:", value: presentStage, x: leftX, y, labelW: 50, lineW: leftW - 52 });
+  field({ labelText: "Case / Docket Number:", value: caseNumber, x: rightX, y, labelW: 40, lineW: rightW - 42 });
+  y += caseRowH;
+
+  field({ labelText: "Nature:", value: caseNature, x: leftX, y, labelW: 14, lineW: pageW - margin * 2 - 16 });
+  y += caseRowH;
+
+  field({ labelText: "Court / Agency / Tribunal Division:", value: courtDivision, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
+  y += caseRowH;
+
+  field({ labelText: "Court / Agency / Tribunal Address:", value: courtAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
+  y += caseRowH;
+
+  // Prevent the Presiding Officer underline from running into the Phone Number field.
+  field({ labelText: "Presiding Officer:", value: presidingOfficer, x: leftX, y, labelW: 34, lineToX: rightX - 2 });
+  field({ labelText: "Phone Number:", value: presidingOfficerPhone, x: rightX + 6, y, labelW: 28, lineW: rightW - 34 });
+  y += caseRowH;
+
+  field({ labelText: "Adverse Party(ies):", value: adverseParties, x: leftX, y, labelW: 36, lineW: pageW - margin * 2 - 38 });
+  y += caseRowH;
+
+  field({ labelText: "Adverse Party(ies) Address:", value: adversePartiesAddress, x: leftX, y, labelW: 52, lineW: pageW - margin * 2 - 54 });
+  y += caseRowH;
+
+  field({ labelText: "Adverse Party(ies) Counsel:", value: adversePartiesCounsel, x: leftX, y, labelW: 50, lineW: pageW - margin * 2 - 52 });
+  y += caseRowH;
+
+  field({ labelText: "Adverse Party(ies) Counsel Address:", value: adversePartiesCounselAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
+  y += caseRowH;
+
+  field({ labelText: "Adverse Party(ies) Counsel Phone Number:", value: adversePartiesCounselPhone, x: leftX, y, labelW: 76, lineW: pageW - margin * 2 - 78 });
+  y += 10;
+
+  // --- Data privacy footer box ---
+  const footerH = 18;
+  const footerY = pageH - margin - footerH;
+  doc.rect(margin, footerY, pageW - margin * 2, footerH);
+  setFont(7, "normal");
+  doc.text(
+    "\n"+
+    "DATA PRIVACY: Sebastinian Office of Legal Aid (SOLA) College of Law is committed to upholding the Philippine Data Privacy Act which implements the\n" +
+      "Constitutional right to informational privacy of data subjects. This form is operated and maintained by the SOLA. Your personal information is collected and\n" +
+      "processed in order for us to verify your identity, assess your application, and contact you about your case. Rest assured the information provided herein will\n" +
+      "be treated with utmost confidentiality.",
+    margin + 2,
+    footerY + 6
+  );
+};
