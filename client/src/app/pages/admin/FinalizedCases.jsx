@@ -27,7 +27,7 @@ import {
   ScrollArea,
   Avatar,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconUserPlus } from '@tabler/icons-react';
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
@@ -326,6 +326,16 @@ const initialState = {
   currentViewingDoc: null,
   wordDocHtml: null,
   wordDocLoading: false,
+  
+  // Create Account Modal
+  createAccountModalOpened: false,
+  selectedCaseForAccount: null,
+  accountForm: {
+    username: '',
+    password: '',
+    email: '',
+  },
+  creatingAccount: false,
 };
 
 // Reducer function
@@ -430,6 +440,32 @@ function stateReducer(state, action) {
       return { ...state, wordDocHtml: action.payload };
     case 'SET_WORD_DOC_LOADING':
       return { ...state, wordDocLoading: action.payload };
+    
+    // Create Account Modal actions
+    case 'OPEN_CREATE_ACCOUNT_MODAL':
+      return {
+        ...state,
+        createAccountModalOpened: true,
+        selectedCaseForAccount: action.payload,
+        accountForm: {
+          username: '',
+          password: '',
+          email: '',
+        },
+        creatingAccount: false,
+      };
+    case 'CLOSE_CREATE_ACCOUNT_MODAL':
+      return {
+        ...state,
+        createAccountModalOpened: false,
+        selectedCaseForAccount: null,
+        accountForm: { username: '', password: '', email: '' },
+        creatingAccount: false,
+      };
+    case 'SET_ACCOUNT_FORM':
+      return { ...state, accountForm: action.payload };
+    case 'SET_CREATING_ACCOUNT':
+      return { ...state, creatingAccount: action.payload };
     
     // Case Record Modal actions
     case 'OPEN_CASE_RECORD_MODAL':
@@ -1851,6 +1887,49 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     }
   };
 
+  const handleCreateClientAccount = async () => {
+    try {
+      if (!state.accountForm.username || !state.accountForm.password) {
+        notifications.show({
+          title: 'Validation Error',
+          message: 'Username and password are required',
+          color: 'red',
+        });
+        return;
+      }
+
+      dispatch({ type: 'SET_CREATING_ACCOUNT', payload: true });
+
+      const resp = await apiClient.post('/auth/create-client-account', {
+        finalizeId: state.selectedCaseForAccount._id,
+        username: state.accountForm.username,
+        password: state.accountForm.password,
+        email: state.accountForm.email || undefined,
+      });
+
+      if (resp.data?.success) {
+        notifications.show({
+          title: 'Success',
+          message: `Client account created successfully! Username: ${resp.data.data.username}`,
+          color: 'green',
+        });
+        dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' });
+        // Refresh finalized cases to update the UI
+        await fetchFinalized();
+      }
+    } catch (err) {
+      console.error('Error creating client account:', err);
+      const errorMsg = err.response?.data?.message || err.message;
+      notifications.show({
+        title: 'Error',
+        message: `Failed to create client account: ${errorMsg}`,
+        color: 'red',
+      });
+    } finally {
+      dispatch({ type: 'SET_CREATING_ACCOUNT', payload: false });
+    }
+  };
+
   const updateEditedData = (path, value) => {
     const newData = { ...state.editedData };
     const keys = path.split('.');
@@ -2071,6 +2150,21 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 Chat
               </Button>
             </Group>
+          )}
+          {f.decision === 'accepted' && !f.linkedCaseId && !f.clientAccountCreated && (
+            <Button
+              size="sm"
+              variant="light"
+              color="blue"
+              fullWidth
+              leftSection={<IconUserPlus size={16} />}
+              onClick={(e) => {
+                e.stopPropagation();
+                dispatch({ type: 'OPEN_CREATE_ACCOUNT_MODAL', payload: f });
+              }}
+            >
+              Create Client Account
+            </Button>
           )}
           {f.decision === 'accepted' && isDocumentDrafting(f) && (
             <Button
@@ -3382,6 +3476,114 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     Next Step
                   </Button>
                 )}
+              </Group>
+            </Stack>
+          )}
+        </Modal>
+
+        {/* Create Client Account Modal */}
+        <Modal
+          opened={state.createAccountModalOpened}
+          onClose={() => dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' })}
+          title={
+            <Group>
+              <IconUserPlus size={24} color={PRIMARY_BROWN} />
+              <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+                Create Client Account
+              </Text>
+            </Group>
+          }
+          size="md"
+          radius="lg"
+        >
+          {state.selectedCaseForAccount && (
+            <Stack gap="md">
+              <Paper p="md" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
+                <Text size="sm" fw={600} mb={4}>
+                  {state.selectedCaseForAccount.caseId}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Client: {state.selectedCaseForAccount.content?.interviewInfo?.clientName || state.selectedCaseForAccount.clientName || 'Unknown'}
+                </Text>
+              </Paper>
+
+              <Text size="sm" c="dimmed">
+                Create login credentials for this client. They will be able to access their case information through the client dashboard.
+              </Text>
+
+              <TextInput
+                label="Username"
+                placeholder="Enter username"
+                required
+                value={state.accountForm.username}
+                onChange={(e) => dispatch({ 
+                  type: 'SET_ACCOUNT_FORM', 
+                  payload: { ...state.accountForm, username: e.target.value } 
+                })}
+                styles={{
+                  label: { color: PRIMARY_BROWN, fontWeight: 600 },
+                  input: {
+                    borderColor: '#E6D9CC',
+                    '&:focus': { borderColor: PRIMARY_BROWN },
+                  }
+                }}
+              />
+
+              <TextInput
+                label="Password"
+                type="password"
+                placeholder="Enter password"
+                required
+                value={state.accountForm.password}
+                onChange={(e) => dispatch({ 
+                  type: 'SET_ACCOUNT_FORM', 
+                  payload: { ...state.accountForm, password: e.target.value } 
+                })}
+                styles={{
+                  label: { color: PRIMARY_BROWN, fontWeight: 600 },
+                  input: {
+                    borderColor: '#E6D9CC',
+                    '&:focus': { borderColor: PRIMARY_BROWN },
+                  }
+                }}
+              />
+
+              <TextInput
+                label="Email (Optional)"
+                type="email"
+                placeholder="Enter email address (optional)"
+                value={state.accountForm.email}
+                onChange={(e) => dispatch({ 
+                  type: 'SET_ACCOUNT_FORM', 
+                  payload: { ...state.accountForm, email: e.target.value } 
+                })}
+                styles={{
+                  label: { color: MUTED_OLIVE, fontWeight: 500 },
+                  input: {
+                    borderColor: '#E6D9CC',
+                    '&:focus': { borderColor: PRIMARY_BROWN },
+                  }
+                }}
+              />
+
+              <Divider />
+
+              <Group justify="flex-end" gap="sm">
+                <Button
+                  variant="subtle"
+                  onClick={() => dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' })}
+                  disabled={state.creatingAccount}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  style={{ backgroundColor: PRIMARY_BROWN }}
+                  onClick={handleCreateClientAccount}
+                  loading={state.creatingAccount}
+                  disabled={!state.accountForm.username || !state.accountForm.password}
+                >
+                  Create Account
+                </Button>
               </Group>
             </Stack>
           )}

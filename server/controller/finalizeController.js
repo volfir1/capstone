@@ -78,3 +78,22 @@ export const getFinalizeByCaseId = async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 }
+
+// Get finalized cases for a specific user (client accounts created by admin)
+export const getFinalizedByUserId = async (req, res) => {
+  try {
+    const { userId } = req.params
+    console.log('Fetching finalized cases for userId:', userId)
+    
+    const finalizedCases = await Finalize.find({ 
+      clientUserId: userId,
+      decision: 'accepted' 
+    }).sort({ createdAt: -1 })
+    
+    console.log('Found', finalizedCases.length, 'finalized cases for user')
+    res.json(finalizedCases)
+  } catch (err) {
+    console.error('getFinalizedByUserId error', err)
+    res.status(500).json({ error: err.message })
+  }
+}

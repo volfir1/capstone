@@ -61,11 +61,11 @@ export const LoginForm = ({
         <Stack spacing={20}>
           <Box>
             <Text size="sm" fw={500} mb={8} style={{ color: CHARCOAL }}>
-              Email Address
+              Email or Username
             </Text>
             <TextInput
               leftSection={<IconMail size={18} stroke={1.5} style={{ color: ACCENT_TAN }} />}
-              placeholder="lester@gmail.com"
+              placeholder="your.email@gmail.com or username"
               size="md"
               radius="md"
               styles={{

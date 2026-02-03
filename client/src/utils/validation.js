@@ -77,11 +77,8 @@ export const signupValidationRules = {
 // Login validation rules (simpler than signup)
 export const loginValidationRules = {
   email: {
-    required: "Email is required",
-    pattern: {
-      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-      message: "Invalid email address",
-    },
+    required: "Email or username is required",
+    // Remove email pattern validation to allow username
   },
   
   password: {

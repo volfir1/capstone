@@ -72,6 +72,7 @@ export default function AppointmentTracker() {
   const [legalAdviceData, setLegalAdviceData] = useState([])
   const [representationData, setRepresentationData] = useState([])
   const [rejectedData, setRejectedData] = useState([])
+  const [documentData, setDocumentData] = useState([])
   const [loadingAppointments, setLoadingAppointments] = useState(false)
   
   // Case Record Modal states
@@ -102,7 +103,7 @@ export default function AppointmentTracker() {
 
   useEffect(() => {
     // Wait for auth to load and user to be available
-    if (authLoading || !currentUser) {
+    if (authLoading || !currentUser || !userData) {
       return;
     }
 
@@ -111,11 +112,18 @@ export default function AppointmentTracker() {
       setLoadingAppointments(true)
       try {
         const { default: apiClient } = await import('@config/api/apiClient')
-        const resp = await apiClient.get('/clientsinfo')
-        const docs = resp?.data || []
+        
+        // Fetch both clientsinfo appointments and finalized cases for this user
+        const [appointmentsResp, finalizedResp] = await Promise.all([
+          apiClient.get('/clientsinfo'),
+          apiClient.get(`/finalize/user/${userData._id || userData.id}`)
+        ])
+        
+        const docs = appointmentsResp?.data || []
+        const finalizedCases = finalizedResp?.data || []
         
         console.log('Fetched appointments for current user:', docs.length, 'records');
-        console.log('First appointment data:', docs[0]);
+        console.log('Fetched finalized cases for current user:', finalizedCases.length, 'cases');
         
         const appointmentsList = []
         const legalAdviceList = []
@@ -230,11 +238,71 @@ export default function AppointmentTracker() {
           }
         })
         
+        // Process finalized cases created by admin for this user
+        const documentsList = []
+        finalizedCases.forEach((f) => {
+          console.log('Processing finalized case:', f.caseId, f.caseTitle);
+          const clientName = f.content?.interviewInfo?.clientName || f.clientName || userData.firstName + ' ' + userData.lastName;
+          const caseType = f.content?.interviewInfo?.caseType;
+          const isDocumentDrafting = caseType === 'legal-document';
+          
+          if (isDocumentDrafting) {
+            // Add to documents list
+            documentsList.push({
+              id: f._id,
+              docType: f.caseTitle || 'Legal Document',
+              status: 'In Progress',
+              actionNeeded: 'Drafting',
+              dateRequest: f.createdAt ? new Date(f.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
+              caseId: f.caseId,
+              finalizeId: f._id,
+              clientName: clientName,
+              isFromFinalizedCase: true
+            })
+          } else {
+            // Add to court cases list
+            courtCasesList.push({
+              id: f._id,
+              type: 'Court Case',
+              submittedDate: f.createdAt ? new Date(f.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
+              appointmentDate: 'TBD',
+              appointmentTime: '',
+              location: 'SOLA (Sebastian Office Legal Aid)',
+              purpose: f.caseTitle || 'Court Case',
+              clientName: clientName,
+              submittedBy: clientName,
+              caseTitle: f.caseTitle || 'Court Case',
+              caseNumber: f.caseId || 'TBD',
+              caseId: f.caseId,
+              finalizeId: f._id, // Use finalize _id for fetching case record
+              stage: 'Active',
+              nextDate: 'TBD',
+              attorney: 'TBD',
+              isRejected: false,
+              isFromFinalizedCase: true // Mark to identify these cases
+            })
+          }
+        })
+        
         if (mounted) {
           // Fetch all case records for court cases
           const courtCasesWithRecords = await Promise.all(
             courtCasesList.map(async (item) => {
-              if (item.caseId) {
+              // For cases from finalized records, use finalizeId directly
+              if (item.isFromFinalizedCase && item.finalizeId) {
+                try {
+                  const recordResp = await apiClient.get(`/caserecords/finalize/${item.finalizeId}`);
+                  const caseRecord = recordResp?.data?.data || recordResp?.data || null;
+                  console.log(`Case record for finalized case ${item.finalizeId}:`, caseRecord);
+                  return { ...item, caseRecord };
+                } catch (err) {
+                  console.log(`No case record yet for finalized case ${item.finalizeId}`);
+                  return { ...item, caseRecord: null };
+                }
+              }
+              
+              // For regular cases from clientsinfo
+              if (item.caseId && !item.isFromFinalizedCase) {
                 try {
                   // First, get the finalize document by caseId to get its _id
                   console.log('Fetching finalize document for caseId:', item.caseId);
@@ -277,6 +345,7 @@ export default function AppointmentTracker() {
           setLegalAdviceData(legalAdviceList)
           setRepresentationData(courtCasesWithRecords)
           setRejectedData(rejectedList)
+          setDocumentData(documentsList)
         }
       } catch (err) {
         console.error('Failed to load clientsinfo for appointments', err)
@@ -286,7 +355,7 @@ export default function AppointmentTracker() {
     }
     load()
     return () => { mounted = false }
-  }, [currentUser, authLoading])
+  }, [currentUser, authLoading, userData])
 
   // Function to fetch case record
   const fetchCaseRecord = async (caseIdString) => {
@@ -574,45 +643,6 @@ export default function AppointmentTracker() {
       });
     }
   }, [chatMessages]);
-
-  const documentData = [
-    {
-      id: 1,
-      docType: "Affidavit of Loss",
-      status: "Ready for Pickup",
-      actionNeeded: "Sign Physically",
-      dateRequest: "Oct 28, 2025",
-      appointment: {
-        date: "Nov 05, 2025",
-        time: "10:00 AM",
-        handler: "Intern Marco Santos",
-        role: "Legal Intern",
-        location: "SOLA (Sebastian Office Legal Aid)"
-      }
-    },
-    {
-      id: 2,
-      docType: "Deed of Sale",
-      status: "In Progress",
-      actionNeeded: "Drafting",
-      dateRequest: "Nov 02, 2025",
-      estimatedCompletion: "Nov 15, 2025"
-    },
-    {
-      id: 3,
-      docType: "Special Power of Attorney",
-      status: "Ready for Pickup",
-      actionNeeded: "Sign Physically",
-      dateRequest: "Oct 15, 2025",
-      appointment: {
-        date: "Nov 06, 2025",
-        time: "1:30 PM",
-        handler: "Admin Staff - Lisa Chen",
-        role: "Administrative Officer",
-        location: "SOLA (Sebastian Office Legal Aid)"
-      }
-    }
-  ];
 
   // --- REUSABLE CARD COMPONENTS ---
 

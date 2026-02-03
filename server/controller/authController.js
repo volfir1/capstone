@@ -498,3 +498,237 @@ export const verifyAttorney = async (req, res) => {
     });
   }
 };
+
+// Get email from username (for login purposes)
+export const getEmailFromUsername = async (req, res) => {
+  try {
+    const { username } = req.body;
+    console.log('getEmailFromUsername called with username:', username);
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: "Username is required",
+      });
+    }
+
+    // Check if it's already an email format
+    if (username.includes('@')) {
+      console.log('Input is already an email:', username);
+      return res.status(200).json({
+        success: true,
+        email: username,
+        isEmail: true,
+      });
+    }
+
+    // Try to find user by username
+    const user = await User.findOne({ username });
+    if (user) {
+      console.log('Found user with email:', user.email);
+      return res.status(200).json({
+        success: true,
+        email: user.email,
+        isEmail: false,
+      });
+    }
+
+    // Try to find attorney by username
+    const attorney = await Attorney.findOne({ username });
+    if (attorney) {
+      console.log('Found attorney with email:', attorney.email);
+      return res.status(200).json({
+        success: true,
+        email: attorney.email,
+        isEmail: false,
+      });
+    }
+
+    console.log('Username not found:', username);
+    return res.status(404).json({
+      success: false,
+      message: "Username not found",
+    });
+  } catch (error) {
+    console.error("Get email from username error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to get email from username",
+    });
+  }
+};
+
+// Create client account for finalized case (Admin only)
+export const createClientAccount = async (req, res) => {
+  try {
+    const { finalizeId, username, password, email } = req.body;
+
+    // Validate required fields
+    if (!finalizeId || !username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: finalizeId, username, password",
+      });
+    }
+
+    // Import Finalize model
+    const Finalize = (await import("../models/finalize.js")).default;
+    
+    // Get finalized case
+    const finalizedCase = await Finalize.findById(finalizeId);
+    if (!finalizedCase) {
+      return res.status(404).json({
+        success: false,
+        message: "Finalized case not found",
+      });
+    }
+
+    // Check if this case is already linked to a user
+    if (finalizedCase.linkedCaseId) {
+      const Case = (await import("../models/case.js")).default;
+      const linkedCase = await Case.findById(finalizedCase.linkedCaseId).populate('userId');
+      if (linkedCase && linkedCase.userId) {
+        return res.status(400).json({
+          success: false,
+          message: "This case is already linked to a user account",
+        });
+      }
+    }
+
+    // Check if account was already created for this finalized case
+    if (finalizedCase.clientAccountCreated) {
+      return res.status(400).json({
+        success: false,
+        message: "Client account has already been created for this case",
+      });
+    }
+
+    // Check if username already exists
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Username already exists",
+      });
+    }
+
+    // Generate email if not provided
+    const clientEmail = email || `${username}@finalizedcase.local`;
+    
+    // Check if email already exists
+    const existingEmailUser = await User.findOne({ email: clientEmail });
+    if (existingEmailUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already exists",
+      });
+    }
+
+    // Extract client name from finalized case
+    const firstName = finalizedCase.content?.interviewInfo?.clientName?.split(' ')[0] || finalizedCase.clientName?.split(' ')[0] || 'Client';
+    const lastName = finalizedCase.content?.interviewInfo?.clientName?.split(' ').slice(1).join(' ') || finalizedCase.clientName?.split(' ').slice(1).join(' ') || 'User';
+
+    // Create Firebase account
+    let firebaseUser;
+    try {
+      firebaseUser = await admin.auth().createUser({
+        email: clientEmail,
+        password: password,
+        displayName: `${firstName} ${lastName}`,
+        emailVerified: true, // Admin-created accounts are pre-verified
+      });
+    } catch (firebaseError) {
+      console.error("Firebase user creation error:", firebaseError);
+      return res.status(500).json({
+        success: false,
+        message: `Failed to create Firebase account: ${firebaseError.message}`,
+      });
+    }
+
+    // Create MongoDB user
+    const user = await User.create({
+      email: clientEmail,
+      firstName: firstName,
+      lastName: lastName,
+      username: username,
+      firebaseUid: firebaseUser.uid,
+      isVerified: true, // Admin-created accounts are pre-verified
+      role: "user",
+      disabled: false,
+    });
+
+    // Update finalized case to mark that client account was created
+    finalizedCase.clientAccountCreated = true;
+    finalizedCase.clientUserId = user._id;
+    await finalizedCase.save();
+
+    res.status(201).json({
+      success: true,
+      data: {
+        userId: user._id,
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        finalizeId: finalizedCase._id,
+        caseId: finalizedCase.caseId,
+      },
+      message: "Client account created successfully",
+    });
+  } catch (error) {
+    console.error("Create client account error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to create client account",
+    });
+  }
+};
+
+// Fix verification status for client accounts (temporary endpoint)
+export const verifyClientAccount = async (req, res) => {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: "Username is required",
+      });
+    }
+
+    // Find user by username
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Update Firebase
+    await admin.auth().updateUser(user.firebaseUid, {
+      emailVerified: true,
+    });
+
+    // Update MongoDB
+    user.isVerified = true;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Client account verified successfully",
+      data: {
+        username: user.username,
+        email: user.email,
+        isVerified: user.isVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Verify client account error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to verify client account",
+    });
+  }
+};
