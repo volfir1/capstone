@@ -478,6 +478,29 @@ export default function FinalizedCases() {
       .replace(/\n/g, '\n');
   };
 
+  // Helper function to add date/time header to all pages of a PDF
+  const addDateTimeHeaderToAllPages = (doc) => {
+    const totalPages = doc.internal.getNumberOfPages();
+    const now = new Date();
+    const dateTimeStr = now.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFont('times', 'italic');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Generated: ${dateTimeStr}`, pageWidth - 14, 8, { align: 'right' });
+    }
+  };
+
   const toInputDate = (value) => {
     if (!value) return '';
     const parsed = new Date(value);
@@ -640,6 +663,7 @@ export default function FinalizedCases() {
       y += 2;
     });
 
+    addDateTimeHeaderToAllPages(doc);
     doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
   };
 
@@ -723,6 +747,7 @@ export default function FinalizedCases() {
       remarks: formatText(state.caseRecordData.remarks),
     });
 
+    addDateTimeHeaderToAllPages(doc);
     doc.save('Case_Record.pdf');
   };
 
@@ -739,6 +764,7 @@ export default function FinalizedCases() {
 
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     drawClientsInformationSheetPage(doc, exportData);
+    addDateTimeHeaderToAllPages(doc);
     doc.save('Appointment_Receipt.pdf');
   };
 
@@ -823,6 +849,7 @@ export default function FinalizedCases() {
         remarks: formatText(caseRecord?.remarks),
       });
 
+      addDateTimeHeaderToAllPages(doc);
       doc.save('Recommendation_For_Action.pdf');
     } catch (err) {
       console.error('exportRecommendationPdf failed:', err);
