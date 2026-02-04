@@ -13,8 +13,10 @@ import {
   IconCalendarEvent, IconMessage2, IconFileDescription, IconClock, IconCheck, 
   IconMapPin, IconScale, IconUser, IconCheckbox, IconPhone, IconMail, IconDots,
   IconEdit, IconX, IconSearch, IconFilter, IconGavel, IconFileText, IconEye, IconCalendar,
+  IconBrandGoogle,
 } from '@tabler/icons-react';
 import { GENDER_OPTIONS, CIVIL_STATUS_OPTIONS, DEFAULT_CITIZENSHIP } from '@utils/constants';
+import { generateGoogleCalendarUrl } from '@utils/googleCalendar';
 
 const PRIMARY_GOLD = '#D4A574';
 const PRIMARY_BROWN = '#6B4423';
@@ -638,6 +640,12 @@ export default function StaffAppointmentManager() {
       adversePartyCounsel: appointmentForm.adversePartyCounsel || undefined,
       adversePartyCounselAddress: appointmentForm.adversePartyCounselAddress || undefined,
       adversePartyCounselPhone: appointmentForm.adversePartyCounselPhone || undefined,
+      employerTelephone: appointmentForm.employerTelephone || undefined,
+      spouseSourceOfIncome: appointmentForm.spouseSourceOfIncome || undefined,
+      spouseMonthlyIncome: appointmentForm.spouseMonthlyIncome ? Number(appointmentForm.spouseMonthlyIncome) : undefined,
+      spouseEmployerAddress: appointmentForm.spouseEmployerAddress || undefined,
+      totalCombinedIncome: appointmentForm.totalCombinedIncome ? Number(appointmentForm.totalCombinedIncome) : undefined,
+      caseNumber: appointmentForm.caseNumber || undefined,
       caseDescription: appointmentForm.caseDescription || undefined,
       caseNature: appointmentForm.caseNature || undefined,
       natureOfCase: appointmentForm.caseNature || undefined,
@@ -1126,45 +1134,38 @@ export default function StaffAppointmentManager() {
             return dateAppointments.length > 0 ? (
               <Stack gap="md">
                 {dateAppointments.map((item, idx) => (
-                  <Paper
-                    key={item.id || idx}
-                    p="lg"
-                    radius="md"
-                    style={{
-                      backgroundColor: THEMED_LIGHT_BG,
-                      border: `2px solid ${PRIMARY_GOLD}`,
+                  <Paper 
+                    key={idx} 
+                    p="lg" 
+                    radius="md" 
+                    style={{ 
+                      backgroundColor: THEMED_LIGHT_BG, 
+                      border: `1px solid ${PRIMARY_GOLD}` 
                     }}
                   >
                     <Group justify="space-between" mb="md">
-                      <Group gap="sm">
-                        <Avatar size={48} radius="md" color={PRIMARY_BROWN}>
-                          <IconUser size={24} />
-                        </Avatar>
-                        <Box>
-                          <Text fw={700} size="md" c={CHARCOAL}>
-                            {/* Show event title for custom events, client name for appointments */}
-                            {events.find(e => e.id === item.id) ? item.purpose || item.clientName : item.clientName}
-                          </Text>
-                          <Badge size="sm" style={{ backgroundColor: PRIMARY_BROWN, marginTop: '4px' }}>
-                            {item.type}
-                          </Badge>
-                        </Box>
-                      </Group>
-                      {/* Show edit and delete buttons only for custom events, not appointments from clientsinfo */}
-                      {events.find(e => e.id === item.id) && (
+                      <Box>
+                        <Text fw={600} size="lg" c={CHARCOAL} mb={4}>
+                          {item.clientName || item.title}
+                        </Text>
+                        <Badge size="sm" style={{ backgroundColor: PRIMARY_BROWN }}>
+                          {item.type || 'Event'}
+                        </Badge>
+                      </Box>
+                      {item.type !== 'event' && (
                         <Group gap="xs">
                           <ActionIcon
+                            size="lg"
                             variant="light"
                             color={PRIMARY_BROWN}
-                            size="lg"
-                            onClick={() => handleEditEvent(item)}
+                            onClick={() => handleOpenEditAppointment(item)}
                           >
                             <IconEdit size={18} />
                           </ActionIcon>
                           <ActionIcon
+                            size="lg"
                             variant="light"
                             color="red"
-                            size="lg"
                             onClick={() => {
                               setEventToDelete(item);
                               setDeleteConfirmModal(true);
@@ -1189,6 +1190,7 @@ export default function StaffAppointmentManager() {
                         <IconCalendarEvent size={16} color={PRIMARY_BROWN} />
                         <Text size="sm" fw={600} c={CHARCOAL}>
                           {item.scheduledDate}
+                          {item.appointmentTime && ` at ${item.appointmentTime}`}
                         </Text>
                       </Group>
                       {item.purpose && (
@@ -1201,36 +1203,37 @@ export default function StaffAppointmentManager() {
                           </Text>
                         </Box>
                       )}
-                      {item.assignedTo && (
-                        <Group gap="xs">
-                          <IconUser size={16} color={PRIMARY_GOLD} />
-                          <Text size="sm" c={CHARCOAL}>
-                            {item.assignedTo}
-                          </Text>
-                        </Group>
-                      )}
                     </Stack>
 
-                    {item.contactNumber && (
-                      <Group gap="md" mt="md" pt="md" style={{ borderTop: '1px solid #E0E0E0' }}>
-                        {item.contactNumber && (
-                          <Group gap="xs">
-                            <IconPhone size={14} color={MUTED_OLIVE} />
-                            <Text size="xs" c={CHARCOAL}>
-                              {item.contactNumber}
-                            </Text>
-                          </Group>
-                        )}
-                        {item.email && (
-                          <Group gap="xs">
-                            <IconMail size={14} color={MUTED_OLIVE} />
-                            <Text size="xs" c={CHARCOAL}>
-                              {item.email}
-                            </Text>
-                          </Group>
-                        )}
-                      </Group>
-                    )}
+                    {/* Transfer to Google Calendar Button */}
+                    <Button
+                      fullWidth
+                      mt="md"
+                      variant="outline"
+                      leftSection={<IconBrandGoogle size={18} />}
+                      onClick={() => {
+                        const googleCalendarUrl = generateGoogleCalendarUrl({
+                          title: item.clientName || item.title,
+                          appointmentDate: item.rawAppointedDate || item.eventDate,
+                          appointmentTime: item.appointmentTime || item.time,
+                          location: item.location,
+                          description: item.purpose || item.description,
+                          purpose: item.purpose
+                        });
+                        window.open(googleCalendarUrl, '_blank');
+                      }}
+                      styles={{
+                        root: {
+                          borderColor: '#4285F4',
+                          color: '#4285F4',
+                          '&:hover': {
+                            backgroundColor: '#4285F410',
+                          }
+                        }
+                      }}
+                    >
+                      Transfer to Google Calendar
+                    </Button>
                   </Paper>
                 ))}
               </Stack>

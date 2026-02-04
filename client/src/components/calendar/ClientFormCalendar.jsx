@@ -633,3 +633,45 @@ export default function ClientFormStatusCalendar({ appointments = [], onEventCre
     </Box>
   );
 }
+
+/**
+ * Generate a Google Calendar event URL with pre-filled details
+ * @param {Object} event - Event details
+ * @returns {string} Google Calendar URL
+ */
+export const generateGoogleCalendarUrl = (event) => {
+  const baseUrl = 'https://calendar.google.com/calendar/render';
+  
+  // Format date and time for Google Calendar
+  const formatDateTime = (date, time) => {
+    const eventDate = new Date(date);
+    if (time) {
+      const [hours, minutes] = time.split(':');
+      eventDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    }
+    return eventDate.toISOString().replace(/-|:|\.\d+/g, '');
+  };
+
+  const startDateTime = formatDateTime(event.appointmentDate || event.eventDate, event.appointmentTime || event.time);
+  
+  // End time is 1 hour after start by default
+  const endDate = new Date(event.appointmentDate || event.eventDate);
+  if (event.appointmentTime || event.time) {
+    const [hours, minutes] = (event.appointmentTime || event.time).split(':');
+    endDate.setHours(parseInt(hours) + 1, parseInt(minutes), 0, 0);
+  } else {
+    endDate.setHours(endDate.getHours() + 1);
+  }
+  const endDateTime = endDate.toISOString().replace(/-|:|\.\d+/g, '');
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title || event.purpose || event.clientName || 'Appointment',
+    dates: `${startDateTime}/${endDateTime}`,
+    details: event.description || event.purpose || '',
+    location: event.location || '',
+    trp: 'false' // Don't show guests
+  });
+
+  return `${baseUrl}?${params.toString()}`;
+};
