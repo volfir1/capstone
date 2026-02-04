@@ -754,10 +754,11 @@ export default function StaffAppointmentManager() {
               const today = new Date();
               const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
               
-              // Get logged-in intern's name
+              // Get logged-in intern's name and ID
               const internName = userData?.firstName && userData?.lastName 
                 ? `${userData.firstName} ${userData.lastName}` 
                 : userData?.username || userData?.displayName || '';
+              const internId = userData?._id || userData?.id || null;
               
               // Navigate to recommendation page with client info and current date
               navigate(`/admin/recommendation/${item.id}`, { 
@@ -767,7 +768,8 @@ export default function StaffAppointmentManager() {
                     clientName: item.clientName,
                     dateOfInterview: formattedDate,
                     dateSubmitted: formattedDate,
-                    interviewingInterns: internName
+                    interviewingInterns: internName,
+                    interviewingInternsId: internId
                   }
                 } 
               });

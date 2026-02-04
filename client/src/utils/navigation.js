@@ -23,7 +23,8 @@ import {
   IconMessageCircle,
   IconScale,
   IconLocationSearch,
-  IconChartDots
+  IconChartDots,
+  IconChartBar
 } from "@tabler/icons-react";
 
 export const NAVIGATION_CONFIG = {
@@ -33,6 +34,7 @@ export const NAVIGATION_CONFIG = {
     // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
     { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
   ],
   
@@ -42,6 +44,7 @@ export const NAVIGATION_CONFIG = {
     // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
     { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
   ],
   
@@ -51,6 +54,7 @@ export const NAVIGATION_CONFIG = {
     // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
     { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
   ],
   
@@ -59,6 +63,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconUsers, label: "Users Management", path: 'users' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
     { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
   ],
   
@@ -67,6 +72,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconUsers, label: "Users Management", path: 'users' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
     { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
     { icon: IconUserCircle, label: "Profile", path: 'profile' },
   ],
   

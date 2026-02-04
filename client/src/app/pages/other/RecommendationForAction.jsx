@@ -145,18 +145,19 @@ EvidenceTable.displayName = 'EvidenceTable';
 // ====================================================================================
 export const ClientInterviewSection = React.memo(({ value = {}, onChange = () => {}, uploadedFile = null, onFileChange = () => {}, documentVersions = [], onViewDocument = () => {}, onDownloadDocument = () => {}, onRemoveVersion = () => {}, fileInputKey = Date.now(), userRole = '', isViewingExistingReview = false, currentReviewStage = '' }) => {
     // Determine if the section should be read-only based on:
-    // 1. Position mismatch (different role created it)
+    // 1. Position mismatch (different role created it) - BUT allow supervising lawyers and directors to edit during their review stages
     // 2. Review stage restrictions (intern can't edit when in review stages, EXCEPT when returned for revision)
-    // Allow intern to edit if review is returned for revision, even if last editor was supervising lawyer
-    const isPositionMismatch = value.createdByRole && userRole && value.createdByRole !== userRole && currentReviewStage !== 'returned_to_intern';
+    // Allow supervising lawyer to edit when at supervising_lawyer stage, director to edit at director stage
+    const isSupervisingLawyerReviewing = userRole === 'supervising_lawyer' && currentReviewStage === 'supervising_lawyer';
+    const isDirectorReviewing = userRole === 'director' && currentReviewStage === 'director';
+    const isPositionMismatch = value.createdByRole && userRole && value.createdByRole !== userRole && 
+        currentReviewStage !== 'returned_to_intern' && !isSupervisingLawyerReviewing && !isDirectorReviewing;
     // Interns can edit when: not submitted yet OR returned to them for revision
     const isInternViewingSubmittedReview = userRole === 'intern' && 
         (currentReviewStage === 'supervising_lawyer' || currentReviewStage === 'director' || currentReviewStage === 'completed');
     const isSupervisingLawyerViewingDirectorReview = userRole === 'supervising_lawyer' && (currentReviewStage === 'director' || currentReviewStage === 'completed');
     
-    // Director can edit during director review stage
-    const isDirectorEditing = userRole === 'director' && currentReviewStage === 'director';
-    const isReadOnly = (isPositionMismatch || isInternViewingSubmittedReview || isSupervisingLawyerViewingDirectorReview) && !isDirectorEditing;
+    const isReadOnly = (isPositionMismatch || isInternViewingSubmittedReview || isSupervisingLawyerViewingDirectorReview);
     
     // Determine the alert message based on why it's read-only
     let alertMessage = '';
@@ -483,6 +484,7 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
         const currentUserName = userData?.firstName && userData?.lastName 
             ? `${userData.firstName} ${userData.lastName}` 
             : userData?.username || userData?.displayName || 'Unknown User';
+        const currentUserId = userData?._id || userData?.id || null;
         
         const today = new Date();
         const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -490,19 +492,19 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
         if (userRole === 'intern' && userData) {
             // For interns: Set assignedTo and date if not already set
             if (!value.assignedTo) {
-                onChange({ ...value, assignedTo: currentUserName, signatureDate: formattedDate });
+                onChange({ ...value, assignedTo: currentUserName, assignedToId: currentUserId, signatureDate: formattedDate });
             } else if (!value.signatureDate) {
                 onChange({ ...value, signatureDate: formattedDate });
             }
         } else if (userRole === 'supervising_lawyer' && userData) {
-            // For supervising lawyers: Set supervisingLawyer name if not already set
+            // For supervising lawyers: Set supervisingLawyer name and ID if not already set
             if (!value.supervisingLawyer) {
-                onChange({ ...value, supervisingLawyer: currentUserName });
+                onChange({ ...value, supervisingLawyer: currentUserName, supervisingLawyerId: currentUserId });
             }
         } else if (userRole === 'director' && userData) {
-            // For directors: Set directorSignature if not already set
+            // For directors: Set directorSignature and ID if not already set
             if (!value.directorSignature) {
-                onChange({ ...value, directorSignature: currentUserName });
+                onChange({ ...value, directorSignature: currentUserName, directorId: currentUserId });
             }
         }
     }, [userRole, userData]);
@@ -760,12 +762,13 @@ export default function CaseRecordFormsDisplay() {
             setIsFromDashboard(false);
             setIsViewingExistingReview(false);
             setReviewId(null);
-            setCurrentReviewStage('supervising_lawyer');
+            setCurrentReviewStage(''); // Empty string for new review, not yet submitted
             setInterviewInfo({
                 clientName: clientInfo.clientName || '',
                 dateOfInterview: clientInfo.dateOfInterview || '',
                 dateSubmitted: clientInfo.dateSubmitted || '',
                 interviewingInterns: clientInfo.interviewingInterns || '',
+                interviewingInternsId: clientInfo.interviewingInternsId || null,
             });
             setActionInfo({});
             setUploadedFile(null); // Reset file
@@ -774,7 +777,7 @@ export default function CaseRecordFormsDisplay() {
             setIsFromDashboard(false);
             setIsViewingExistingReview(false);
             setReviewId(null);
-            setCurrentReviewStage('supervising_lawyer');
+            setCurrentReviewStage(''); // Empty string for new review, not yet submitted
             setInterviewInfo({});
             setActionInfo({});
             setUploadedFile(null); // Reset file
@@ -814,10 +817,11 @@ export default function CaseRecordFormsDisplay() {
                     const today = new Date();
                     const currentDate = formatDate(today);
                     
-                    // Get current user's full name (only for interns creating new reviews)
+                    // Get current user's full name and ID (only for interns creating new reviews)
                     const currentUserName = userData?.firstName && userData?.lastName 
                         ? `${userData.firstName} ${userData.lastName}` 
                         : userData?.username || 'Unknown User';
+                    const currentUserId = userData?._id || userData?.id || null;
                     
                     // Set interview info with client data
                     // Only set interviewingInterns if this is a new review being created by an intern
@@ -829,9 +833,10 @@ export default function CaseRecordFormsDisplay() {
                             dateSubmitted: currentDate,
                         };
                         
-                        // Only add interviewingInterns if not already set (preserves original intern's name)
+                        // Only add interviewingInterns and ID if not already set (preserves original intern's name and ID)
                         if (!prev.interviewingInterns) {
                             newInterviewInfo.interviewingInterns = currentUserName;
+                            newInterviewInfo.interviewingInternsId = currentUserId;
                         }
                         
                         return newInterviewInfo;
