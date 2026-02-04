@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -1748,4 +1749,44 @@ const styles = StyleSheet.create({
   priorityButtonTextActive: {
     color: 'white',
   },
+  googleCalendarButton: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#4285F4',
+  },
 });
+
+export const generateGoogleCalendarUrl = (event) => {
+  const baseUrl = 'https://calendar.google.com/calendar/render';
+  
+  const formatDateTime = (date, time) => {
+    const eventDate = new Date(date);
+    if (time) {
+      const [hours, minutes] = time.split(':');
+      eventDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    }
+    return eventDate.toISOString().replace(/-|:|\.\d+/g, '');
+  };
+
+  const startDateTime = formatDateTime(event.appointmentDate || event.eventDate, event.appointmentTime || event.time);
+  
+  const endDate = new Date(event.appointmentDate || event.eventDate);
+  if (event.appointmentTime || event.time) {
+    const [hours, minutes] = (event.appointmentTime || event.time).split(':');
+    endDate.setHours(parseInt(hours) + 1, parseInt(minutes), 0, 0);
+  } else {
+    endDate.setHours(endDate.getHours() + 1);
+  }
+  const endDateTime = endDate.toISOString().replace(/-|:|\.\d+/g, '');
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title || event.purpose || event.clientName || 'Appointment',
+    dates: `${startDateTime}/${endDateTime}`,
+    details: event.description || event.purpose || '',
+    location: event.location || '',
+    trp: 'false'
+  });
+
+  return `${baseUrl}?${params.toString()}`;
+};
