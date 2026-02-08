@@ -1424,8 +1424,8 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   };
 
   const isLegalAdvice = (record) => {
-    const flag = record?.content?.interviewInfo?.forLegalAdvice;
-    return flag === true || flag === 'true' || flag === 1 || flag === '1';
+    const caseType = record?.content?.interviewInfo?.caseType;
+    return caseType === 'legal-advice';
   };
 
   const isDocumentDrafting = (record) => {
@@ -1433,13 +1433,24 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     return caseType === 'legal-document';
   };
 
+  const isCourtRepresentation = (record) => {
+    const caseType = record?.content?.interviewInfo?.caseType;
+    return caseType === 'court-representation';
+  };
+
   // Group finalized records by decision and apply search filter
   const acceptedCases = filterCases(state.finalized.filter(f => f.decision === 'accepted'));
+  
+  // Separate by case type
   const legalAdviceCases = acceptedCases.filter(isLegalAdvice);
   const documentDraftingCases = acceptedCases.filter(isDocumentDrafting);
-  const acceptedNonLegal = acceptedCases.filter(f => !isLegalAdvice(f) && !isDocumentDrafting(f));
-  const acceptedWithRecord = acceptedNonLegal.filter(f => state.caseRecordsMap[f._id || f.id]);
-  const acceptedWithoutRecord = acceptedNonLegal.filter(f => !state.caseRecordsMap[f._id || f.id]);
+  
+  // Court representation cases (not legal advice or document drafting)
+  const courtRepresentationCases = acceptedCases.filter(f => !isLegalAdvice(f) && !isDocumentDrafting(f));
+  
+  // Split court representation cases by whether they have case records
+  const acceptedWithRecord = courtRepresentationCases.filter(f => state.caseRecordsMap[f._id || f.id]);
+  const acceptedWithoutRecord = courtRepresentationCases.filter(f => !state.caseRecordsMap[f._id || f.id]);
 
   const fetchFinalized = async () => {
     try {
@@ -1854,15 +1865,27 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       console.log('Save response:', resp.data);
       
       if (resp.data) {
-        alert('Case record saved successfully!');
-        dispatch({ type: 'SET_CASE_RECORD_EDIT_MODE', payload: false });
-        // Refetch finalized cases to update the data
+        // Refetch finalized cases to update the caseRecordsMap
         await fetchFinalized();
+        
+        // Close the modal and reset edit mode
+        dispatch({ type: 'SET_CASE_RECORD_EDIT_MODE', payload: false });
+        dispatch({ type: 'CLOSE_CASE_RECORD_MODAL' });
+        
+        notifications.show({
+          title: 'Success',
+          message: 'Case record saved successfully! The case has been moved to "With Record" section.',
+          color: 'green',
+        });
       }
     } catch (err) {
       console.error('Error saving case record:', err);
       const errorMsg = err.response?.data?.error || err.message;
-      alert('Failed to save case record: ' + errorMsg);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to save case record: ' + errorMsg,
+        color: 'red',
+      });
     } finally {
       dispatch({ type: 'SET_SAVING', payload: false });
     }
