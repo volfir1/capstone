@@ -15,8 +15,11 @@ import {
   Card,
   SimpleGrid,
   Avatar,
+  Modal,
+  Tabs,
+  Divider,
 } from '@mantine/core';
-import { IconChartBar, IconTrophy, IconUser, IconGavel, IconBriefcase } from '@tabler/icons-react';
+import { IconChartBar, IconTrophy, IconUser, IconGavel, IconBriefcase, IconFileText, IconScale, IconFileDescription } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, NATURE_OF_CASE_OPTIONS } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 
@@ -28,6 +31,11 @@ export default function Analytics() {
   const [internsStats, setInternsStats] = useState([]);
   const [supervisingLawyersStats, setSupervisingLawyersStats] = useState([]);
   const [directorsStats, setDirectorsStats] = useState([]);
+  
+  // Modal state
+  const [modalOpened, setModalOpened] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userCases, setUserCases] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -141,7 +149,77 @@ export default function Analytics() {
     setDirectorsStats(directorsList);
   };
 
-  const renderStatsCard = (title, icon, data, color) => (
+  const handleUserClick = (user, role) => {
+    setSelectedUser({ ...user, role });
+    
+    // Filter cases based on role
+    let cases = [];
+    if (role === 'intern') {
+      cases = finalizedCases.filter(c => c.content?.interviewInfo?.interviewingInternsId === user.id);
+    } else if (role === 'supervising_lawyer') {
+      cases = finalizedCases.filter(c => c.content?.actionInfo?.supervisingLawyerId === user.id);
+    } else if (role === 'director') {
+      cases = finalizedCases.filter(c => c.content?.actionInfo?.directorId === user.id);
+    }
+    
+    // Categorize by case type
+    const categorizedCases = {
+      legalAdvice: cases.filter(c => c.content?.interviewInfo?.caseType === 'legal-advice'),
+      legalDocument: cases.filter(c => c.content?.interviewInfo?.caseType === 'legal-document'),
+      courtRepresentation: cases.filter(c => c.content?.interviewInfo?.caseType === 'court-representation')
+    };
+    
+    setUserCases(categorizedCases);
+    setModalOpened(true);
+  };
+
+  const renderCasesList = (cases, type) => {
+    if (cases.length === 0) {
+      return (
+        <Text size="sm" c="dimmed" ta="center" py="xl">
+          No {type} cases handled
+        </Text>
+      );
+    }
+
+    return (
+      <Table striped highlightOnHover>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Case ID</Table.Th>
+            <Table.Th>Client Name</Table.Th>
+            <Table.Th>Decision</Table.Th>
+            <Table.Th>Date</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {cases.map((c) => (
+            <Table.Tr key={c._id}>
+              <Table.Td>
+                <Text size="sm" fw={500}>{c.caseId || 'N/A'}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{c.clientName || c.content?.interviewInfo?.clientName || 'N/A'}</Text>
+              </Table.Td>
+              <Table.Td>
+                <Badge 
+                  color={c.decision === 'accepted' ? 'green' : c.decision === 'rejected' ? 'red' : 'blue'}
+                  variant="light"
+                >
+                  {c.decision || 'N/A'}
+                </Badge>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm">{c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A'}</Text>
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    );
+  };
+
+  const renderStatsCard = (title, icon, data, color, role) => (
     <Card shadow="sm" padding="lg" radius="md" withBorder>
       <Stack gap="md">
         <Group justify="space-between">
@@ -195,7 +273,11 @@ export default function Analytics() {
               </Table.Thead>
               <Table.Tbody>
                 {data.map((item, index) => (
-                  <Table.Tr key={item.id}>
+                  <Table.Tr 
+                    key={item.id}
+                    onClick={() => handleUserClick(item, role)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <Table.Td>
                       <Badge 
                         size="lg" 
@@ -325,23 +407,111 @@ export default function Analytics() {
             'Interns Performance',
             <IconUser size={24} color={PRIMARY_BROWN} />,
             internsStats,
-            'blue'
+            'blue',
+            'intern'
           )}
           
           {renderStatsCard(
             'Supervising Lawyers Performance',
             <IconGavel size={24} color={PRIMARY_BROWN} />,
             supervisingLawyersStats,
-            'teal'
+            'teal',
+            'supervising_lawyer'
           )}
           
           {renderStatsCard(
             'Directors Performance',
             <IconBriefcase size={24} color={PRIMARY_BROWN} />,
             directorsStats,
-            'grape'
+            'grape',
+            'director'
           )}
         </Stack>
+
+        {/* User Details Modal */}
+        <Modal
+          opened={modalOpened}
+          onClose={() => setModalOpened(false)}
+          title={
+            <Group>
+              <Avatar size="lg" radius="xl" color={PRIMARY_BROWN}>
+                {selectedUser?.role === 'intern' ? <IconUser size={24} /> : 
+                 selectedUser?.role === 'supervising_lawyer' ? <IconGavel size={24} /> : 
+                 <IconBriefcase size={24} />}
+              </Avatar>
+              <Box>
+                <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+                  {selectedUser?.name}
+                </Text>
+                <Text size="sm" c={MUTED_OLIVE}>
+                  {selectedUser?.role === 'intern' ? 'Intern' : 
+                   selectedUser?.role === 'supervising_lawyer' ? 'Supervising Lawyer' : 
+                   'Director'}
+                </Text>
+              </Box>
+            </Group>
+          }
+          size="xl"
+          styles={{
+            title: { width: '100%' }
+          }}
+        >
+          <Stack gap="lg">
+            {/* Summary Stats */}
+            <SimpleGrid cols={3} spacing="md">
+              <Card shadow="sm" padding="md" radius="md" style={{ backgroundColor: `${PRIMARY_BROWN}10` }}>
+                <Stack gap="xs" align="center">
+                  <IconFileText size={32} color={PRIMARY_BROWN} />
+                  <Text size="xs" c={MUTED_OLIVE} fw={600} ta="center">LEGAL ADVICE</Text>
+                  <Text size="xl" fw={700} c={PRIMARY_BROWN}>{userCases.legalAdvice?.length || 0}</Text>
+                </Stack>
+              </Card>
+              <Card shadow="sm" padding="md" radius="md" style={{ backgroundColor: `${PRIMARY_GOLD}10` }}>
+                <Stack gap="xs" align="center">
+                  <IconFileDescription size={32} style={{ color: PRIMARY_BROWN }} />
+                  <Text size="xs" c={MUTED_OLIVE} fw={600} ta="center">DOCUMENT DRAFTING</Text>
+                  <Text size="xl" fw={700} c={PRIMARY_BROWN}>{userCases.legalDocument?.length || 0}</Text>
+                </Stack>
+              </Card>
+              <Card shadow="sm" padding="md" radius="md" style={{ backgroundColor: `${MUTED_OLIVE}10` }}>
+                <Stack gap="xs" align="center">
+                  <IconScale size={32} color={MUTED_OLIVE} />
+                  <Text size="xs" c={MUTED_OLIVE} fw={600} ta="center">COURT REPRESENTATION</Text>
+                  <Text size="xl" fw={700} c={PRIMARY_BROWN}>{userCases.courtRepresentation?.length || 0}</Text>
+                </Stack>
+              </Card>
+            </SimpleGrid>
+
+            <Divider />
+
+            {/* Cases by Type */}
+            <Tabs defaultValue="legalAdvice" variant="pills">
+              <Tabs.List>
+                <Tabs.Tab value="legalAdvice" leftSection={<IconFileText size={16} />}>
+                  Legal Advice ({userCases.legalAdvice?.length || 0})
+                </Tabs.Tab>
+                <Tabs.Tab value="legalDocument" leftSection={<IconFileDescription size={16} />}>
+                  Document Drafting ({userCases.legalDocument?.length || 0})
+                </Tabs.Tab>
+                <Tabs.Tab value="courtRepresentation" leftSection={<IconScale size={16} />}>
+                  Court Representation ({userCases.courtRepresentation?.length || 0})
+                </Tabs.Tab>
+              </Tabs.List>
+
+              <Tabs.Panel value="legalAdvice" pt="lg">
+                {renderCasesList(userCases.legalAdvice || [], 'legal advice')}
+              </Tabs.Panel>
+
+              <Tabs.Panel value="legalDocument" pt="lg">
+                {renderCasesList(userCases.legalDocument || [], 'document drafting')}
+              </Tabs.Panel>
+
+              <Tabs.Panel value="courtRepresentation" pt="lg">
+                {renderCasesList(userCases.courtRepresentation || [], 'court representation')}
+              </Tabs.Panel>
+            </Tabs>
+          </Stack>
+        </Modal>
       </Container>
     </Box>
   );
