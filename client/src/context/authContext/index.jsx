@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useRef } from "react";
 import { auth } from "../../firebase/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { getUserData } from "@/features/auth/user";
@@ -20,6 +20,7 @@ export default function AuthProvider({ children }) {
   const [userLoggedIn, setUserLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
+  const loginLoggedRef = useRef(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -51,7 +52,16 @@ export default function AuthProvider({ children }) {
                 const backendUserData = await getUserData();
                 setUserData(backendUserData);
                 console.log('User data loaded:', backendUserData);
-              } catch (userError) {
+              // Log login activity
+              if (!loginLoggedRef.current) {
+                loginLoggedRef.current = true;
+                apiClient.post('/activity-logs', {
+                  action: 'login',
+                  userEmail: user.email || '',
+                  userName: backendUserData.displayName || backendUserData.fullName || `${backendUserData.firstName || ''} ${backendUserData.lastName || ''}`.trim() || user.email,
+                  userRole: backendUserData.role || '',
+                }).catch(err => console.error('Activity log error:', err));
+              }              } catch (userError) {
                 // If regular user fetch fails, try to fetch as attorney
                 console.log('Not found as regular user, checking if attorney...');
                 try {
@@ -63,6 +73,17 @@ export default function AuthProvider({ children }) {
                     const attorneyData = attorneyResponse.data.data;
                     setUserData(attorneyData);
                     console.log('Attorney data loaded:', attorneyData);
+
+                    // Log login activity for attorney
+                    if (!loginLoggedRef.current) {
+                      loginLoggedRef.current = true;
+                      apiClient.post('/activity-logs', {
+                        action: 'login',
+                        userEmail: user.email || '',
+                        userName: attorneyData.displayName || attorneyData.fullName || `${attorneyData.firstName || ''} ${attorneyData.lastName || ''}`.trim() || user.email,
+                        userRole: attorneyData.role || '',
+                      }).catch(err => console.error('Activity log error:', err));
+                    }
                   } else {
                     throw new Error('Not found as attorney either');
                   }
@@ -104,6 +125,7 @@ export default function AuthProvider({ children }) {
         setCurrentUser(null);
         setUserLoggedIn(false);
         setUserData(null);
+        loginLoggedRef.current = false;
         
         // Clear localStorage
         localStorage.removeItem('token');
@@ -123,20 +145,11 @@ export default function AuthProvider({ children }) {
   const refreshUserData = async () => {
     if (currentUser) {
       try {
-        setLoading(true);
-
-        await currentUser.reload();
-
-        if (currentUser.emailVerified) {
-          await verifyUser(); 
-        }
-
         const backendUserData = await getUserData();
         setUserData(backendUserData);
+        return backendUserData;
       } catch (error) {
         console.error("Failed to refresh user data:", error);
-      } finally {
-        setLoading(false);
       }
     }
   };

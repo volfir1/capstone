@@ -5,6 +5,7 @@ import Review from "../models/review.js";
 import Finalize from "../models/finalize.js";
 import CaseRecord from "../models/caserecord.js";
 import admin from "firebase-admin";
+import { createNotification } from "./notificationController.js";
 
 // Submit a new case
 export const submitCase = async (req, res) => {
@@ -234,6 +235,27 @@ export const assignAttorney = async (req, res) => {
     const updatedCase = await Case.findById(caseId)
       .populate("userId", "firstName lastName email")
       .populate("attorneyId", "firstName lastName email");
+
+    // ── Notifications ──
+    const user = await User.findById(caseData.userId);
+    if (user?.firebaseUid) {
+      createNotification({
+        recipientId: user.firebaseUid,
+        title: 'Attorney Assigned',
+        message: `Atty. ${attorney.firstName} ${attorney.lastName} has been assigned to your case "${caseData.caseTitle}".`,
+        type: 'case_assigned',
+        referenceId: caseId,
+      });
+    }
+    if (attorney?.firebaseUid) {
+      createNotification({
+        recipientId: attorney.firebaseUid,
+        title: 'New Case Assigned',
+        message: `You have been assigned to case "${caseData.caseTitle}" (${caseData.caseNumber}).`,
+        type: 'new_case',
+        referenceId: caseId,
+      });
+    }
 
     res.status(200).json({
       success: true,

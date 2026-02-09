@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Container,
   Paper,
@@ -15,6 +15,7 @@ import {
   Progress,
   Loader,
   Center,
+  FileButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -24,14 +25,19 @@ import {
   IconCheck,
   IconX,
   IconShieldCheck,
+  IconCamera,
 } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
+import { uploadToCloudinary } from '@utils/cloudinary';
+import { useAuth } from '@context/authContext';
 
 export default function ClientProfile() {
+  const { refreshUserData } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const [userData, setUserData] = useState({
     firstName: '',
@@ -41,6 +47,7 @@ export default function ClientProfile() {
     role: '',
     verified: false,
     memberSince: '',
+    profileImage: '',
   });
 
   const [editedData, setEditedData] = useState(userData);
@@ -65,6 +72,7 @@ export default function ClientProfile() {
           memberSince: d.createdAt
             ? new Date(d.createdAt).getFullYear().toString()
             : '',
+          profileImage: d.profileImage || '',
         };
         setUserData(normalizedData);
         setEditedData(normalizedData);
@@ -126,6 +134,35 @@ export default function ClientProfile() {
     setEditedData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    // Validate file type and size (max 5 MB)
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      return notifications.show({ title: 'Invalid File', message: 'Please upload a JPG, PNG, WebP, or GIF image.', color: 'red' });
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return notifications.show({ title: 'File Too Large', message: 'Image must be under 5 MB.', color: 'red' });
+    }
+
+    try {
+      setUploadingImage(true);
+      const imageUrl = await uploadToCloudinary(file);
+      // Save to backend
+      await apiClient.put('/users/profile/image', { profileImage: imageUrl });
+      setUserData((prev) => ({ ...prev, profileImage: imageUrl }));
+      setEditedData((prev) => ({ ...prev, profileImage: imageUrl }));
+      // Sync layout header/navbar avatar
+      refreshUserData().catch(() => {});
+      notifications.show({ title: 'Photo Updated', message: 'Profile photo uploaded successfully.', color: 'green' });
+    } catch (error) {
+      console.error('Image upload error:', error);
+      notifications.show({ title: 'Upload Failed', message: error.message || 'Failed to upload image.', color: 'red' });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box bg={BG} mih="100vh" py="xl">
@@ -147,6 +184,11 @@ export default function ClientProfile() {
 
   return (
     <Box bg={BG} mih="100vh" py="xl">
+      <style>{`
+        .avatar-upload-overlay { opacity: 0; transition: opacity 0.2s; }
+        .avatar-upload-overlay:hover, 
+        [style*="cursor: pointer"]:hover .avatar-upload-overlay { opacity: 1 !important; }
+      `}</style>
       <Container size="lg">
         <Grid gutter="xl">
           {/* ── Sidebar ── */}
@@ -155,16 +197,54 @@ export default function ClientProfile() {
               <Stack align="center" gap="md">
                 {/* Avatar */}
                 <Box style={{ position: 'relative' }}>
-                  <Avatar
-                    size={140}
-                    radius={70}
-                    style={{
-                      background: PRIMARY_GOLD,
-                      border: `4px solid ${PRIMARY_GOLD}`,
-                    }}
-                  >
-                    <IconUser size={70} color="white" />
-                  </Avatar>
+                  <FileButton onChange={handleImageUpload} accept="image/png,image/jpeg,image/webp,image/gif">
+                    {(props) => (
+                      <Box
+                        {...props}
+                        style={{ position: 'relative', cursor: 'pointer' }}
+                      >
+                        <Avatar
+                          size={140}
+                          radius={70}
+                          src={userData.profileImage || null}
+                          style={{
+                            background: PRIMARY_GOLD,
+                            border: `4px solid ${PRIMARY_GOLD}`,
+                          }}
+                        >
+                          <IconUser size={70} color="white" />
+                        </Avatar>
+
+                        {/* Camera overlay */}
+                        <Box
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: '40%',
+                            borderBottomLeftRadius: 70,
+                            borderBottomRightRadius: 70,
+                            background: 'rgba(0,0,0,0.45)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: uploadingImage ? 1 : 0,
+                            transition: 'opacity 0.2s',
+                            '&:hover': { opacity: 1 },
+                          }}
+                          className="avatar-upload-overlay"
+                        >
+                          {uploadingImage ? (
+                            <Loader size={20} color="white" />
+                          ) : (
+                            <IconCamera size={22} color="white" />
+                          )}
+                        </Box>
+                      </Box>
+                    )}
+                  </FileButton>
+
                   {userData.verified && (
                     <Box
                       style={{

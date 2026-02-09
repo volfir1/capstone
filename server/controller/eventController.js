@@ -1,4 +1,7 @@
 import Event from '../models/events.js';
+import User from '../models/user.js';
+import Attorney from '../models/attorney.js';
+import { createNotification } from './notificationController.js';
 
 // Create a new event
 export const createEvent = async (req, res) => {
@@ -24,6 +27,40 @@ export const createEvent = async (req, res) => {
     });
 
     const savedEvent = await newEvent.save();
+
+    // ── Notify assigned person about new event ──
+    if (assignedTo) {
+      const q = assignedTo.trim();
+      let person = await Attorney.findOne({ email: q }).select('firebaseUid').lean();
+      if (!person) person = await User.findOne({ email: q }).select('firebaseUid').lean();
+      if (!person) person = await Attorney.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('firebaseUid').lean();
+      if (!person) person = await User.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('firebaseUid').lean();
+      if (person?.firebaseUid) {
+        createNotification({
+          recipientId: person.firebaseUid,
+          title: 'New Appointment Scheduled',
+          message: `"${title}" on ${new Date(eventDate).toLocaleDateString()}.${location ? ` Location: ${location}` : ''}`,
+          type: 'appointment_created',
+          referenceId: savedEvent._id.toString(),
+        });
+      }
+    }
+
+    // ── Notify client about their appointment ──
+    if (clientName) {
+      const q = clientName.trim();
+      let client = await User.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('firebaseUid').lean();
+      if (client?.firebaseUid) {
+        createNotification({
+          recipientId: client.firebaseUid,
+          title: 'Appointment Scheduled',
+          message: `Your ${eventType || 'appointment'} "${title}" has been scheduled for ${new Date(eventDate).toLocaleDateString()}.`,
+          type: 'appointment_created',
+          referenceId: savedEvent._id.toString(),
+        });
+      }
+    }
+
     res.status(201).json(savedEvent);
   } catch (error) {
     console.error('Error creating event:', error);
@@ -65,6 +102,7 @@ export const updateEvent = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
+    const oldEvent = await Event.findById(id);
     const updatedEvent = await Event.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
@@ -72,6 +110,65 @@ export const updateEvent = async (req, res) => {
 
     if (!updatedEvent) {
       return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // ── Determine if anything meaningful changed ──
+    const statusChanged = oldEvent && updateData.status && updateData.status !== oldEvent.status;
+    const dateChanged = oldEvent && updateData.eventDate && new Date(updateData.eventDate).getTime() !== new Date(oldEvent.eventDate).getTime();
+    const shouldNotify = statusChanged || dateChanged;
+
+    if (shouldNotify) {
+      // Build a human-readable change description
+      let changeDesc = '';
+      if (statusChanged) {
+        changeDesc = `has been ${updateData.status}`;
+      }
+      if (dateChanged) {
+        const oldDate = new Date(oldEvent.eventDate).toLocaleDateString();
+        const newDate = new Date(updateData.eventDate).toLocaleDateString();
+        changeDesc = changeDesc
+          ? `${changeDesc} and rescheduled from ${oldDate} to ${newDate}`
+          : `has been rescheduled from ${oldDate} to ${newDate}`;
+      }
+
+      // Build identifying info
+      const eventLabel = updatedEvent.eventType ? updatedEvent.eventType.charAt(0).toUpperCase() + updatedEvent.eventType.slice(1) : 'Appointment';
+      const clientInfo = updatedEvent.clientName ? ` for ${updatedEvent.clientName}` : '';
+      const locationInfo = updatedEvent.location ? ` at ${updatedEvent.location}` : '';
+
+      const notifTitle = statusChanged
+        ? `${eventLabel} ${updateData.status.charAt(0).toUpperCase() + updateData.status.slice(1)}`
+        : `${eventLabel} Rescheduled`;
+
+      // ── Collect recipients ──
+      const notifyTargets = [];
+
+      const findPerson = async (nameOrEmail) => {
+        if (!nameOrEmail) return null;
+        const q = nameOrEmail.trim();
+        // Try exact email first, then first+last name match
+        let person = await Attorney.findOne({ email: q }).select('firebaseUid').lean();
+        if (!person) person = await User.findOne({ email: q }).select('firebaseUid').lean();
+        if (!person) person = await Attorney.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('firebaseUid').lean();
+        if (!person) person = await User.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('firebaseUid').lean();
+        return person?.firebaseUid || null;
+      };
+
+      const assigneeUid = await findPerson(updatedEvent.assignedTo);
+      if (assigneeUid) notifyTargets.push(assigneeUid);
+
+      const clientUid = await findPerson(updatedEvent.clientName);
+      if (clientUid && !notifyTargets.includes(clientUid)) notifyTargets.push(clientUid);
+
+      for (const uid of notifyTargets) {
+        createNotification({
+          recipientId: uid,
+          title: notifTitle,
+          message: `"${updatedEvent.title}"${clientInfo}${locationInfo} ${changeDesc}.`,
+          type: 'appointment_updated',
+          referenceId: id,
+        });
+      }
     }
 
     res.status(200).json(updatedEvent);

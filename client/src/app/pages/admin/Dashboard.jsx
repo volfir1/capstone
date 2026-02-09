@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -38,6 +38,10 @@ import {
   IconClipboardCheck,
   IconSearch,
   IconFilter,
+  IconLogin,
+  IconLogout,
+  IconCircleFilled,
+  IconActivity,
 } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
@@ -79,6 +83,17 @@ export default function AdminDashboard() {
   const [finalizedDecisionFilter, setFinalizedDecisionFilter] = useState('all');
   const [finalizedServiceFilter, setFinalizedServiceFilter] = useState('all');
 
+  // Activity log state
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [logPage, setLogPage] = useState(1);
+  const [logTotal, setLogTotal] = useState(0);
+  const [logPeriod, setLogPeriod] = useState('today');
+  const [logActionFilter, setLogActionFilter] = useState('all');
+  const activityPollRef = useRef(null);
+  const LOG_ITEMS = 10;
+
   const fetchStats = async () => {
     try {
       setLoading(true);
@@ -102,6 +117,32 @@ export default function AdminDashboard() {
     fetchStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Activity log fetch
+  const fetchActivityLogs = useCallback(async () => {
+    try {
+      setLoadingLogs(true);
+      const params = new URLSearchParams({ page: logPage, limit: LOG_ITEMS, period: logPeriod });
+      if (logActionFilter !== 'all') params.append('action', logActionFilter);
+      const res = await apiClient.get(`/activity-logs?${params.toString()}`);
+      if (res.data.success) {
+        setActivityLogs(res.data.data);
+        setLogTotal(res.data.total);
+        setOnlineUsers(res.data.onlineUsers || []);
+      }
+    } catch (err) {
+      console.error('Activity logs error:', err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  }, [logPage, logPeriod, logActionFilter]);
+
+  // Poll activity logs every 15 seconds
+  useEffect(() => {
+    fetchActivityLogs();
+    activityPollRef.current = setInterval(fetchActivityLogs, 15000);
+    return () => clearInterval(activityPollRef.current);
+  }, [fetchActivityLogs]);
 
   useEffect(() => {
     // Fetch reviews for all admin roles
@@ -864,6 +905,184 @@ export default function AdminDashboard() {
             ) : (
               <Text size="sm" c={MUTED_OLIVE} px="lg" py="sm">{finalizedSearch || finalizedDecisionFilter !== 'all' || finalizedServiceFilter !== 'all' ? 'No matching records found' : 'No finalized records found'}</Text>
             )
+          )}
+        </Paper>
+
+        {/* ── Activity Log Monitoring ── */}
+        <Paper shadow="xs" radius="lg" bg="white" mt="xl" style={{ overflow: 'hidden' }}>
+          {/* Header */}
+          <Box px="lg" py="sm" style={{ borderBottom: '1px solid #F0F0F0' }}>
+            <Group justify="space-between" align="center">
+              <Group gap={8} align="center">
+                <Box style={{ width: 28, height: 28, borderRadius: 8, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconActivity size={15} color="white" stroke={2.5} />
+                </Box>
+                <Text size="sm" fw={700} c={CHARCOAL} tt="uppercase" lts={0.5}>Activity Log</Text>
+                {onlineUsers.length > 0 && (
+                  <Badge size="sm" variant="light" color="green" leftSection={<IconCircleFilled size={8} style={{ color: '#40C057' }} />}>
+                    {onlineUsers.length} Online
+                  </Badge>
+                )}
+              </Group>
+              <Group gap={6}>
+                <Tooltip label="Refresh logs">
+                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={fetchActivityLogs} loading={loadingLogs} radius="md">
+                    <IconRefresh size={14} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            </Group>
+          </Box>
+
+          {/* Online Users Strip */}
+          {onlineUsers.length > 0 && (
+            <Box px="lg" py={8} style={{ background: '#F0FFF4', borderBottom: '1px solid #E8F5E9' }}>
+              <Group gap={12} wrap="wrap">
+                <Text size="xs" c={MUTED_OLIVE} fw={600}>Currently Online:</Text>
+                {onlineUsers.map((u) => {
+                  const roleName = (u.userRole || 'user').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                  return (
+                    <Group key={u._id} gap={4} wrap="nowrap">
+                      <IconCircleFilled size={6} style={{ color: '#40C057' }} />
+                      <Text size="xs" fw={600} c={CHARCOAL}>{u.userName || u.userEmail || 'Unknown'}</Text>
+                      <Text size="xs" c={MUTED_OLIVE}>({roleName})</Text>
+                    </Group>
+                  );
+                })}
+              </Group>
+            </Box>
+          )}
+
+          {/* Filters */}
+          <Box px="lg" py="sm" style={{ borderBottom: '1px solid #F0F0F0' }}>
+            <Group gap="sm" wrap="nowrap">
+              <Select
+                placeholder="Period"
+                size="sm"
+                radius="md"
+                value={logPeriod}
+                onChange={(val) => { setLogPeriod(val || 'today'); setLogPage(1); }}
+                data={[
+                  { value: 'today', label: 'Today' },
+                  { value: 'week', label: 'Last 7 Days' },
+                  { value: 'month', label: 'Last 30 Days' },
+                ]}
+                leftSection={<IconFilter size={16} />}
+                style={{ width: 160 }}
+                styles={{ input: { border: '1px solid #E0E0E0', fontSize: '13px' } }}
+                allowDeselect={false}
+              />
+              <Select
+                placeholder="Action"
+                size="sm"
+                radius="md"
+                value={logActionFilter}
+                onChange={(val) => { setLogActionFilter(val || 'all'); setLogPage(1); }}
+                data={[
+                  { value: 'all', label: 'All Actions' },
+                  { value: 'login', label: 'Logins Only' },
+                  { value: 'logout', label: 'Logouts Only' },
+                ]}
+                leftSection={<IconFilter size={16} />}
+                style={{ width: 160 }}
+                styles={{ input: { border: '1px solid #E0E0E0', fontSize: '13px' } }}
+                allowDeselect={false}
+              />
+              <Box style={{ flex: 1 }} />
+              <Text size="xs" c={MUTED_OLIVE}>{logTotal} total entries</Text>
+            </Group>
+          </Box>
+
+          {/* Log Entries */}
+          {loadingLogs && activityLogs.length === 0 ? (
+            <Center py="xl"><Loader size="sm" color={PRIMARY_BROWN} /></Center>
+          ) : activityLogs.length > 0 ? (
+            <>
+              {/* Table Header */}
+              <Group wrap="nowrap" px="lg" py={8} style={{ background: '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
+                <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ width: 60 }}>Action</Text>
+                <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ flex: 1 }}>User</Text>
+                <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ width: 100 }}>Role</Text>
+                <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ width: 160, textAlign: 'right' }}>Date & Time</Text>
+              </Group>
+
+              {activityLogs.map((log, idx) => {
+                const isLogin = log.action === 'login';
+                const roleName = (log.userRole || 'user').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                const logDate = new Date(log.createdAt);
+                const dateStr = logDate.toLocaleDateString();
+                const timeStr = logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const now = new Date();
+                const isToday = logDate.toDateString() === now.toDateString();
+
+                return (
+                  <Box key={log._id}>
+                    <Group
+                      className="review-row"
+                      wrap="nowrap"
+                      px="lg"
+                      py={10}
+                      style={{ transition: 'background 0.15s' }}
+                    >
+                      {/* Action Badge */}
+                      <Box style={{ width: 60, flexShrink: 0 }}>
+                        <Badge
+                          size="sm"
+                          variant="light"
+                          color={isLogin ? 'green' : 'red'}
+                          leftSection={isLogin ? <IconLogin size={12} /> : <IconLogout size={12} />}
+                        >
+                          {isLogin ? 'In' : 'Out'}
+                        </Badge>
+                      </Box>
+
+                      {/* User Info */}
+                      <Box style={{ flex: 1, minWidth: 0 }}>
+                        <Text size="sm" fw={600} c={CHARCOAL} truncate>
+                          {log.userName || log.userEmail || 'Unknown User'}
+                        </Text>
+                        {log.userEmail && log.userName && (
+                          <Text size="xs" c={MUTED_OLIVE} truncate>{log.userEmail}</Text>
+                        )}
+                      </Box>
+
+                      {/* Role */}
+                      <Box style={{ width: 100, flexShrink: 0 }}>
+                        <Badge size="xs" variant="outline" color="gray" style={{ textTransform: 'capitalize' }}>
+                          {roleName}
+                        </Badge>
+                      </Box>
+
+                      {/* Date & Time */}
+                      <Box style={{ width: 160, flexShrink: 0, textAlign: 'right' }}>
+                        <Text size="sm" fw={500} c={CHARCOAL}>{timeStr}</Text>
+                        <Text size="xs" c={MUTED_OLIVE}>{isToday ? 'Today' : dateStr}</Text>
+                      </Box>
+                    </Group>
+                    {idx < activityLogs.length - 1 && <Divider color="#F0F0F0" />}
+                  </Box>
+                );
+              })}
+
+              {logTotal > LOG_ITEMS && (
+                <Group justify="center" py="xs" style={{ borderTop: '1px solid #F0F0F0' }}>
+                  <Pagination
+                    size="sm"
+                    total={Math.ceil(logTotal / LOG_ITEMS)}
+                    value={logPage}
+                    onChange={setLogPage}
+                    color={PRIMARY_BROWN}
+                  />
+                </Group>
+              )}
+            </>
+          ) : (
+            <Center py={40}>
+              <Stack align="center" gap={8}>
+                <IconActivity size={32} color="#D5D5D5" stroke={1.5} />
+                <Text size="sm" c="#B0B0B0">No activity logs for this period</Text>
+              </Stack>
+            </Center>
           )}
         </Paper>
 

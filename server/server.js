@@ -12,6 +12,8 @@ import finalizeRoutes from './routes/finalizeRoutes.js'
 import clientsinfoRoutes from './routes/clientsinfoRoutes.js'
 import eventRoutes from './routes/eventRoutes.js'
 import caseRecordRoutes from './routes/caseRecordRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js'
+import activityLogRoutes from './routes/activityLogRoutes.js'
 import cors from "cors"
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
@@ -157,6 +159,8 @@ app.use('/api/finalize', finalizeRoutes)
 app.use('/api/clientsinfo', clientsinfoRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/caserecords', caseRecordRoutes)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api/activity-logs', activityLogRoutes)
 
 // MongoDB Connection with improved configuration
 const mongoOptions = {

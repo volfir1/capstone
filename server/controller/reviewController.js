@@ -1,4 +1,7 @@
 import Review from '../models/review.js'
+import User from '../models/user.js'
+import Attorney from '../models/attorney.js'
+import { createNotification } from './notificationController.js'
 
 export const createReview = async (req, res) => {
   try {
@@ -14,6 +17,26 @@ export const createReview = async (req, res) => {
     const review = await Review.create(toCreate)
     
     // Return only essential fields to avoid serialization issues with large content
+    // ── Notify the next reviewers (supervising_lawyer / director) ──
+    if (review.reviewStage) {
+      const roleToNotify = review.reviewStage; // e.g. 'supervising_lawyer' or 'director'
+      // Find all users with that role in both collections
+      const users = await User.find({ role: roleToNotify }).select('firebaseUid').lean();
+      const attorneys = await Attorney.find({ role: roleToNotify }).select('firebaseUid').lean();
+      const allRecipients = [...users, ...attorneys];
+      for (const r of allRecipients) {
+        if (r.firebaseUid) {
+          createNotification({
+            recipientId: r.firebaseUid,
+            title: 'Review Pending',
+            message: `Case "${review.caseTitle || review.caseId}" requires your review.${review.clientName ? ` Client: ${review.clientName}` : ''}`,
+            type: 'review_pending',
+            referenceId: review.caseId,
+          });
+        }
+      }
+    }
+
     const result = {
       _id: review._id,
       caseId: review.caseId,

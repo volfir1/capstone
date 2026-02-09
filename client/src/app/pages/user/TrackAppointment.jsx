@@ -647,1039 +647,549 @@ export default function AppointmentTracker() {
 
   // --- REUSABLE CARD COMPONENTS ---
 
-  const ForAppointmentCard = ({ item }) => (
-    <Card 
-      shadow="xs" 
-      padding="xl" 
-      radius="lg"
-      style={{ 
-        border: '1px solid #F0F0F0',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-4px)';
-        e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = '';
-      }}
-    >
-      {/* Status indicator dot */}
-      {item.status === "Scheduled" && (
-        <Box
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            backgroundColor: '#10B981',
-            boxShadow: '0 0 0 3px #10B98130',
-          }}
-        />
-      )}
+  const ForAppointmentCard = ({ item }) => {
+    const statusColor = 
+      item.status === "Scheduled" ? '#10B981' :
+      item.status === "Rescheduled" ? '#F59E0B' :
+      item.status === "Canceled" ? '#EF4444' :
+      item.status === "Rejected" ? '#EF4444' :
+      MUTED_OLIVE;
 
-      <Box
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '4px',
-          background: 
-            item.status === "Scheduled" ? `linear-gradient(90deg, ${PRIMARY_GOLD} 0%, ${PRIMARY_BROWN} 100%)` :
-            item.status === "Rescheduled" ? `linear-gradient(90deg, ${ACCENT_TAN} 0%, ${PRIMARY_GOLD} 100%)` :
-            item.status === "Canceled" ? `linear-gradient(90deg, #E74C3C 0%, #C0392B 100%)` :
-            `linear-gradient(90deg, ${MUTED_OLIVE} 0%, #6B8E4E 100%)`,
-        }}
-      />
-
-      <Group justify="space-between" mb="md" align="flex-start">
-        <Box style={{ flex: 1 }}>
-          <Text fw={700} size="lg" c={CHARCOAL} mb={4}>
-            {item.type}
-          </Text>
-          {item.clientName && (
-            <Text size="sm" c={MUTED_OLIVE} mb={6}>
-              {item.clientName}
-            </Text>
-          )}
-          <Group gap="xs">
-            <IconCalendarEvent size={14} color={MUTED_OLIVE} />
-            <Text size="xs" c={MUTED_OLIVE}>
-              Submitted: {item.submittedDate}
-            </Text>
-          </Group>
-        </Box>
-        <Badge 
-          size="lg"
-          radius="md"
-          variant="filled"
-          style={{ 
-            backgroundColor: 
-              item.status === "Scheduled" ? PRIMARY_BROWN :
-              item.status === "Rescheduled" ? ACCENT_TAN :
-              item.status === "Canceled" ? '#E74C3C' :
-              MUTED_OLIVE,
-            padding: '8px 12px',
-          }}
-        >
-          {item.status}
-        </Badge>
-      </Group>
-
-      {item.purpose && (
-        <Text size="sm" c={CHARCOAL} mb="lg" style={{ lineHeight: 1.6 }}>
-          {item.purpose}
-        </Text>
-      )}
-
-      {/* Scheduled State */}
-      {item.status === "Scheduled" && (
-        <Paper 
-          p="lg" 
-          radius="md" 
-          style={{ 
-            background: `linear-gradient(135deg, ${THEMED_LIGHT_BG} 0%, white 100%)`,
-            border: `2px solid ${PRIMARY_GOLD}30`,
-          }}
-        >
-          <Group gap="xs" mb="md">
-            <Box
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '8px',
-                background: `linear-gradient(135deg, ${PRIMARY_GOLD} 0%, ${PRIMARY_BROWN} 100%)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <IconCheckbox size={18} color="white" />
-            </Box>
-            <Text size="sm" fw={700} c={PRIMARY_BROWN} tt="uppercase" style={{ letterSpacing: '0.5px' }}>
-              Appointment Details
-            </Text>
-          </Group>
-
-          <Stack gap="sm">
-            <Group gap="sm" wrap="nowrap">
-              <Box
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '6px',
-                  background: `${PRIMARY_BROWN}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <IconCalendarEvent size={14} color={PRIMARY_BROWN} />
-              </Box>
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={2}>Date & Time</Text>
-                <Text size="sm" fw={600} c={CHARCOAL}>
-                  {item.appointmentDate} at {item.appointmentTime}
-                </Text>
-              </Box>
-            </Group>
-
-            <Group gap="sm" wrap="nowrap">
-              <Box
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '6px',
-                  background: `${ACCENT_TAN}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <IconMapPin size={14} color={ACCENT_TAN} />
-              </Box>
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={2}>Location</Text>
-                <Text size="sm" fw={500} c={CHARCOAL}>
-                  {item.location}
-                </Text>
-              </Box>
-            </Group>
-          </Stack>
-        </Paper>
-      )}
-
-      {/* Rescheduled State */}
-      {item.status === "Rescheduled" && (
-        <Paper 
-          p="lg" 
-          radius="md" 
-          style={{ 
-            background: `linear-gradient(135deg, ${THEMED_LIGHT_BG} 0%, white 100%)`,
-            border: `2px solid ${ACCENT_TAN}40`,
-          }}
-        >
-          <Group gap="xs" mb="md">
-            <Box
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '8px',
-                background: `${ACCENT_TAN}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <IconAlertCircle size={18} color="white" />
-            </Box>
-            <Text size="sm" fw={700} c={ACCENT_TAN} tt="uppercase" style={{ letterSpacing: '0.5px' }}>
-              Rescheduled
-            </Text>
-          </Group>
-
-          <Stack gap="sm">
-            <Paper 
-              p="xs" 
-              radius="md"
-              style={{ 
-                backgroundColor: '#FEF3E2',
-                border: '1px solid #F59E0B30',
-              }}
-            >
-              <Group gap="xs">
-                <IconClock size={14} color="#F59E0B" />
-                <Text size="xs" c={CHARCOAL}>
-                  Original: <Text span fw={600}>{item.originalDate}</Text>
-                </Text>
-              </Group>
-            </Paper>
-
-            <Group gap="sm" wrap="nowrap">
-              <Box
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '6px',
-                  background: `${PRIMARY_BROWN}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <IconCalendarEvent size={14} color={PRIMARY_BROWN} />
-              </Box>
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={2}>New Date & Time</Text>
-                <Text size="sm" fw={600} c={CHARCOAL}>
-                  {item.appointmentDate} at {item.appointmentTime}
-                </Text>
-              </Box>
-            </Group>
-
-            <Group gap="sm" wrap="nowrap">
-              <Box
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '6px',
-                  background: `${ACCENT_TAN}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <IconMapPin size={14} color={ACCENT_TAN} />
-              </Box>
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={2}>Location</Text>
-                <Text size="sm" fw={500} c={CHARCOAL}>
-                  {item.location}
-                </Text>
-              </Box>
-            </Group>
-          </Stack>
-        </Paper>
-      )}
-
-      {/* Canceled State */}
-      {item.status === "Canceled" && (
-        <Paper 
-          p="md" 
-          radius="md"
-          style={{ 
-            backgroundColor: '#FEE2E2',
-            border: '1px solid #EF444440',
-          }}
-        >
-          <Group gap="sm" align="flex-start">
-            <Box
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '8px',
-                background: '#EF4444',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <IconAlertCircle size={18} color="white" />
-            </Box>
-            <Box style={{ flex: 1 }}>
-              <Text size="sm" fw={600} c="#B91C1C" mb={4}>
-                Appointment Canceled
-              </Text>
-              {item.originalDate && (
-                <Text size="xs" c="#DC2626" mb={4}>
-                  Originally scheduled: {item.originalDate}
-                </Text>
-              )}
-              {item.cancelReason && (
-                <Text size="xs" c="#991B1B">
-                  Reason: {item.cancelReason}
-                </Text>
-              )}
-            </Box>
-          </Group>
-        </Paper>
-      )}
-
-      {/* Pending State */}
-      {item.status === "Pending" && (
-        <Paper 
-          p="md" 
-          radius="md"
-          style={{ 
-            backgroundColor: `${MUTED_OLIVE}15`,
-            border: `1px solid ${MUTED_OLIVE}40`,
-          }}
-        >
-          <Group gap="sm">
-            <Box
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '8px',
-                background: `${MUTED_OLIVE}30`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <IconClock size={18} color={MUTED_OLIVE} />
-            </Box>
-            <Box>
-              <Text size="sm" fw={600} c={CHARCOAL}>
-                Awaiting Schedule
-              </Text>
-              <Text size="xs" c={MUTED_OLIVE}>
-                Your appointment date will be set soon
-              </Text>
-            </Box>
-          </Group>
-        </Paper>
-      )}
-
-      {/* View Details Button for all appointments */}
-      <Group gap="xs" mt="md">
-        <Button
-          flex={1}
-          size="md"
-          variant="light"
-          leftSection={<IconEye size={18} />}
-          onClick={() => openAppointmentModal(item.id)}
-          style={{
-            backgroundColor: THEMED_LIGHT_BG,
-            color: PRIMARY_BROWN,
-            fontWeight: 600,
-          }}
-        >
-          View Full Details
-        </Button>
-        {item.status === "Rejected" && item.caseId && (
-          <Button 
-            variant="outline"
-            onClick={() => openReviewModal(item.caseId)}
-            flex={1}
-            size="md"
-            leftSection={<IconFileText size={18} />}
-            style={{ 
-              borderColor: PRIMARY_BROWN,
-              color: PRIMARY_BROWN,
-              fontWeight: 600,
-            }}
-          >
-            View Review
-          </Button>
-        )}
-      </Group>
-    </Card>
-  );
-
-  const AdviceCard = ({ item }) => (
-    <Card 
-      shadow="xs" 
-      padding="xl" 
-      radius="lg"
-      style={{ 
-        border: '1px solid #F0F0F0',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-4px)';
-        e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = '';
-      }}
-    >
-      <Box
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '4px',
-          background: `linear-gradient(90deg, ${PRIMARY_GOLD} 0%, ${PRIMARY_BROWN} 100%)`,
-        }}
-      />
-      
-      <Group justify="space-between" mb="md">
-        <Box style={{ flex: 1 }}>
-          <Text fw={700} size="lg" c={CHARCOAL} mb={4}>
-            {item.topic}
-          </Text>
-          <Group gap="xs">
-            <IconCalendarEvent size={14} color={MUTED_OLIVE} />
-            <Text size="xs" c={MUTED_OLIVE}>
-              Submitted: {item.date}
-            </Text>
-          </Group>
-        </Box>
-        <Badge 
-          size="lg"
-          radius="md"
-          variant="filled"
-          style={{ 
-            backgroundColor: 
-                item.status === "Completed" ? MUTED_OLIVE : 
-                item.status === "Scheduled" ? PRIMARY_BROWN : ACCENT_TAN,
-            padding: '8px 12px',
-          }}
-        >
-          {item.status}
-        </Badge>
-      </Group>
-
-      <Text size="sm" c={CHARCOAL} mb="lg" style={{ lineHeight: 1.6 }}>
-        {item.description}
-      </Text>
-
-      {item.caseId && (
-        <Button 
-          variant="outline"
-          fullWidth
-          onClick={() => openChatModal(item)}
-          size="md"
-          leftSection={<IconMessageCircle size={18} />}
-          style={{ 
-            borderColor: PRIMARY_GOLD,
-            color: PRIMARY_GOLD,
-            fontWeight: 600,
-          }}
-        >
-          Chat with Attorney
-        </Button>
-      )}
-      
-      {/* Pending State */}
-      {item.status === "Pending Review" && (
-        <Paper 
-          p="md" 
-          radius="md" 
-          style={{ 
-            backgroundColor: `${ACCENT_TAN}15`,
-            border: `1px solid ${ACCENT_TAN}40`,
-          }}
-        >
-          <Group gap="sm">
-            <Box
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '8px',
-                background: `${ACCENT_TAN}30`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <IconClock size={18} color={ACCENT_TAN} />
-            </Box>
-            <Box style={{ flex: 1 }}>
-              <Text size="sm" fw={600} c={CHARCOAL}>
-                Pending Lawyer Approval
-              </Text>
-              <Text size="xs" c={MUTED_OLIVE}>
-                Drafted by Intern - Awaiting review
-              </Text>
-            </Box>
-          </Group>
-        </Paper>
-      )}
-
-      {/* Scheduled State with Appointment Details */}
-      {item.status === "Scheduled" && item.appointment && (
-        <Paper 
-          p="lg" 
-          radius="md" 
-          style={{ 
-            background: `linear-gradient(135deg, ${THEMED_LIGHT_BG} 0%, white 100%)`,
-            border: `2px solid ${PRIMARY_GOLD}30`,
-          }}
-        >
-          <Group gap="xs" mb="md">
-            <Box
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '8px',
-                background: `linear-gradient(135deg, ${PRIMARY_GOLD} 0%, ${PRIMARY_BROWN} 100%)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <IconCheckbox size={18} color="white" />
-            </Box>
-            <Text size="sm" fw={700} c={PRIMARY_BROWN} tt="uppercase" style={{ letterSpacing: '0.5px' }}>
-              Appointment Scheduled
-            </Text>
-          </Group>
-
-          <Stack gap="sm">
-            <Group gap="sm" wrap="nowrap">
-              <Box
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '6px',
-                  background: `${PRIMARY_BROWN}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <IconCalendarEvent size={14} color={PRIMARY_BROWN} />
-              </Box>
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={2}>Date & Time</Text>
-                <Text size="sm" fw={600} c={CHARCOAL}>
-                  {item.appointment.date} at {item.appointment.time}
-                </Text>
-              </Box>
-            </Group>
-
-            <Group gap="sm" wrap="nowrap">
-              <Box
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '6px',
-                  background: `${PRIMARY_GOLD}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <IconUser size={14} color={PRIMARY_GOLD} />
-              </Box>
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={2}>Handler</Text>
-                <Text size="sm" fw={600} c={CHARCOAL}>
-                  {item.appointment.handler}
-                </Text>
-                <Text size="xs" c={MUTED_OLIVE}>{item.appointment.role}</Text>
-              </Box>
-            </Group>
-
-            <Group gap="sm" wrap="nowrap">
-              <Box
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '6px',
-                  background: `${ACCENT_TAN}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <IconMapPin size={14} color={ACCENT_TAN} />
-              </Box>
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={2}>Location</Text>
-                <Text size="sm" fw={500} c={CHARCOAL}>
-                  {item.appointment.location}
-                </Text>
-              </Box>
-            </Group>
-          </Stack>
-        </Paper>
-      )}
-
-      {/* Completed State */}
-      {item.status === "Completed" && (
-        <>
-          <Paper 
-            p="md" 
-            radius="md" 
-            mb="md"
-            style={{ 
-              backgroundColor: `${MUTED_OLIVE}15`,
-              border: `1px solid ${MUTED_OLIVE}40`,
-            }}
-          >
-            <Group gap="sm">
-              <IconCheck size={20} color={MUTED_OLIVE} />
-              <Box>
-                <Text size="sm" fw={600} c={CHARCOAL}>
-                  Completed on {item.completedDate}
-                </Text>
-                <Text size="xs" c={MUTED_OLIVE}>
-                  Legal opinion is now available
-                </Text>
-              </Box>
-            </Group>
-          </Paper>
-          <Group gap="xs">
-            <Button 
-              variant="light" 
-              onClick={() => {
-                if (item.id) {
-                  openAppointmentModal(item.id)
-                }
-              }}
-              flex={1}
-              size="md"
-              leftSection={<IconEye size={18} />}
-              style={{ 
-                backgroundColor: THEMED_LIGHT_BG,
-                color: PRIMARY_BROWN,
-                fontWeight: 600,
-              }}
-            >
-              View Full Details
-            </Button>
-            {item.caseId && (
-              <Button 
-                variant="outline"
-                onClick={() => openReviewModal(item.caseId)}
-                flex={1}
-                size="md"
-                leftSection={<IconFileText size={18} />}
-                style={{ 
-                  borderColor: PRIMARY_BROWN,
-                  color: PRIMARY_BROWN,
-                  fontWeight: 600,
-                }}
-              >
-                View Review
-              </Button>
-            )}
-          </Group>
-        </>
-      )}
-    </Card>
-  );
-
-  const RepresentationCard = ({ item }) => (
-    <Card 
-      shadow="xs" 
-      padding="xl" 
-      radius="lg"
-      style={{ 
-        border: '1px solid #F0F0F0',
-        borderLeft: `4px solid ${PRIMARY_BROWN}`,
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-4px)';
-        e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = '';
-      }}
-    >
-      <Group mb="lg" wrap="nowrap">
-        <Box
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: '12px',
-            background: `linear-gradient(135deg, ${PRIMARY_BROWN} 0%, #8B5A2B 100%)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: `0 4px 12px ${PRIMARY_BROWN}40`,
-            flexShrink: 0,
-          }}
-        >
-          <IconScale size={24} color="white" stroke={2.5} />
-        </Box>
-        <Box style={{ flex: 1, minWidth: 0 }}>
-          <Text fw={700} size="lg" c={CHARCOAL} mb={4} lineClamp={1}>
-            {item.caseRecord?.title || `Appointment for ${item.clientName || 'Case'}`}
-          </Text>
-          <Badge 
-            size="sm" 
-            variant="light"
-            color={PRIMARY_BROWN}
-            style={{ fontFamily: 'monospace' }}
-          >
-            {item.caseNumber}
-          </Badge>
-        </Box>
-      </Group>
-
+    return (
       <Paper 
-        p="md" 
-        radius="md" 
-        mb="lg" 
+        shadow="xs" 
+        p="lg" 
+        radius="lg"
         style={{ 
-          background: `linear-gradient(135deg, ${THEMED_LIGHT_BG} 0%, white 100%)`,
-          border: `1px solid ${PRIMARY_GOLD}30`,
+          border: '1px solid #F0F0F0',
+          transition: 'all 0.25s ease',
+          cursor: 'pointer',
+          background: 'white',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-3px)';
+          e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.07)';
+          e.currentTarget.style.borderColor = '#E0E0E0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '';
+          e.currentTarget.style.borderColor = '#F0F0F0';
         }}
       >
-        <Group gap="sm" wrap="nowrap">
-          <Box
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: '8px',
-              background: `${MUTED_OLIVE}20`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
+        {/* Header row */}
+        <Group justify="space-between" align="center" mb="sm">
+          <Group gap={8}>
+            <Box style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: `${statusColor}12`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <IconCalendarEvent size={16} color={statusColor} />
+            </Box>
+            <Box>
+              <Text fw={600} size="sm" c={CHARCOAL} lh={1.2}>{item.type}</Text>
+              {item.clientName && (
+                <Text size="xs" c={MUTED_OLIVE}>{item.clientName}</Text>
+              )}
+            </Box>
+          </Group>
+          <Badge 
+            size="sm" 
+            radius="sm"
+            variant="light"
+            color={
+              item.status === "Scheduled" ? 'green' :
+              item.status === "Rescheduled" ? 'yellow' :
+              item.status === "Canceled" || item.status === "Rejected" ? 'red' : 'gray'
+            }
+          >
+            {item.status}
+          </Badge>
+        </Group>
+
+        {/* Submitted date */}
+        <Text size="xs" c={MUTED_OLIVE} mb="sm">
+          Submitted {item.submittedDate}
+        </Text>
+
+        <Divider color="#F0F0F0" mb="sm" />
+
+        {/* Appointment info */}
+        {(item.status === "Scheduled" || item.status === "Rescheduled") && (
+          <Stack gap={8} mb="sm">
+            {item.status === "Rescheduled" && item.originalDate && (
+              <Group gap={6}>
+                <IconClock size={13} color="#F59E0B" />
+                <Text size="xs" c={MUTED_OLIVE} td="line-through">Original: {item.originalDate}</Text>
+              </Group>
+            )}
+            <Group gap={6}>
+              <IconCalendarEvent size={13} color={CHARCOAL} />
+              <Text size="sm" fw={600} c={CHARCOAL}>
+                {item.appointmentDate} at {item.appointmentTime}
+              </Text>
+            </Group>
+            <Group gap={6}>
+              <IconMapPin size={13} color={MUTED_OLIVE} />
+              <Text size="xs" c={MUTED_OLIVE}>{item.location}</Text>
+            </Group>
+          </Stack>
+        )}
+
+        {/* Canceled info */}
+        {item.status === "Canceled" && (
+          <Box mb="sm" p="xs" style={{ background: '#FEF2F2', borderRadius: 8 }}>
+            <Text size="xs" c="#B91C1C" fw={500}>Appointment Canceled</Text>
+            {item.cancelReason && <Text size="xs" c="#DC2626" mt={2}>{item.cancelReason}</Text>}
+          </Box>
+        )}
+
+        {/* Pending info */}
+        {item.status === "Pending" && (
+          <Box mb="sm" p="xs" style={{ background: '#F9FAFB', borderRadius: 8 }}>
+            <Group gap={6}>
+              <IconClock size={13} color={MUTED_OLIVE} />
+              <Text size="xs" c={MUTED_OLIVE} fw={500}>Awaiting schedule confirmation</Text>
+            </Group>
+          </Box>
+        )}
+
+        {/* Action buttons */}
+        <Group gap="xs" mt="xs">
+          <Button
+            flex={1}
+            size="sm"
+            variant="light"
+            leftSection={<IconEye size={15} />}
+            onClick={() => openAppointmentModal(item.id)}
+            radius="md"
+            styles={{
+              root: {
+                backgroundColor: '#F5F5F5',
+                color: CHARCOAL,
+                fontWeight: 600,
+                fontSize: '13px',
+                '&:hover': { backgroundColor: '#EBEBEB' },
+              },
             }}
           >
-            <IconGavel size={18} color={MUTED_OLIVE} />
-          </Box>
-          <Box style={{ flex: 1 }}>
-            <Text size="xs" c={MUTED_OLIVE} mb={2}>Nature of the Case</Text>
-            <Text fw={600} c={PRIMARY_BROWN} size="sm">
-              {item.caseRecord?.nature || 'N/A'}
-            </Text>
-          </Box>
+            View Details
+          </Button>
+          {item.status === "Rejected" && item.caseId && (
+            <Button 
+              variant="light"
+              onClick={() => openReviewModal(item.caseId)}
+              flex={1}
+              size="sm"
+              radius="md"
+              leftSection={<IconFileText size={15} />}
+              styles={{
+                root: {
+                  backgroundColor: `${PRIMARY_BROWN}10`,
+                  color: PRIMARY_BROWN,
+                  fontWeight: 600,
+                  fontSize: '13px',
+                },
+              }}
+            >
+              View Review
+            </Button>
+          )}
         </Group>
       </Paper>
-      
-      <Stack gap="sm">
-        <Button 
-          variant="filled" 
-          fullWidth
-          size="md"
-          rightSection={<IconArrowRight size={18} />}
-          onClick={() => {
-            if (!item.isRejected && item.caseId) {
-              // For accepted cases, fetch and display case record modal
-              openCaseRecordModal(item)
+    );
+  };
+
+  const AdviceCard = ({ item }) => {
+    const statusColor = 
+      item.status === "Completed" ? '#10B981' :
+      item.status === "Scheduled" ? '#3B82F6' :
+      item.status === "Pending Review" ? '#F59E0B' : MUTED_OLIVE;
+
+    return (
+      <Paper 
+        shadow="xs" 
+        p="lg" 
+        radius="lg"
+        style={{ 
+          border: '1px solid #F0F0F0',
+          transition: 'all 0.25s ease',
+          background: 'white',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-3px)';
+          e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.07)';
+          e.currentTarget.style.borderColor = '#E0E0E0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '';
+          e.currentTarget.style.borderColor = '#F0F0F0';
+        }}
+      >
+        {/* Header */}
+        <Group justify="space-between" align="center" mb="sm">
+          <Group gap={8}>
+            <Box style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: `${statusColor}12`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <IconMessage2 size={16} color={statusColor} />
+            </Box>
+            <Text fw={600} size="sm" c={CHARCOAL} lineClamp={1} style={{ maxWidth: 200 }}>{item.topic}</Text>
+          </Group>
+          <Badge 
+            size="sm" 
+            radius="sm"
+            variant="light"
+            color={
+              item.status === "Completed" ? 'green' :
+              item.status === "Scheduled" ? 'blue' :
+              item.status === "Pending Review" ? 'yellow' : 'gray'
             }
-            // For rejected cases, do nothing (just show in rejected tab)
-          }}
+          >
+            {item.status}
+          </Badge>
+        </Group>
+
+        <Text size="xs" c={MUTED_OLIVE} mb="xs">Submitted {item.date}</Text>
+
+        <Divider color="#F0F0F0" mb="sm" />
+
+        <Text size="sm" c={CHARCOAL} mb="md" lineClamp={2} lh={1.6}>
+          {item.description}
+        </Text>
+
+        {/* Status-specific info */}
+        {item.status === "Pending Review" && (
+          <Box mb="sm" p="xs" style={{ background: '#FFFBEB', borderRadius: 8 }}>
+            <Group gap={6}>
+              <IconClock size={13} color="#F59E0B" />
+              <Text size="xs" c="#92400E" fw={500}>Pending lawyer approval</Text>
+            </Group>
+          </Box>
+        )}
+
+        {item.status === "Scheduled" && item.appointment && (
+          <Stack gap={6} mb="sm">
+            <Group gap={6}>
+              <IconCalendarEvent size={13} color={CHARCOAL} />
+              <Text size="sm" fw={600} c={CHARCOAL}>{item.appointment.date} at {item.appointment.time}</Text>
+            </Group>
+            <Group gap={6}>
+              <IconUser size={13} color={MUTED_OLIVE} />
+              <Text size="xs" c={MUTED_OLIVE}>{item.appointment.handler} — {item.appointment.role}</Text>
+            </Group>
+            <Group gap={6}>
+              <IconMapPin size={13} color={MUTED_OLIVE} />
+              <Text size="xs" c={MUTED_OLIVE}>{item.appointment.location}</Text>
+            </Group>
+          </Stack>
+        )}
+
+        {item.status === "Completed" && (
+          <Box mb="sm" p="xs" style={{ background: '#F0FDF4', borderRadius: 8 }}>
+            <Group gap={6}>
+              <IconCheck size={13} color="#10B981" />
+              <Text size="xs" c="#065F46" fw={500}>Completed {item.completedDate}</Text>
+            </Group>
+          </Box>
+        )}
+
+        {/* Action buttons */}
+        <Group gap="xs">
+          {item.caseId && (
+            <Button 
+              variant="light"
+              onClick={() => openChatModal(item)}
+              flex={1}
+              size="sm"
+              radius="md"
+              leftSection={<IconMessageCircle size={15} />}
+              styles={{
+                root: {
+                  backgroundColor: `${PRIMARY_GOLD}12`,
+                  color: ACCENT_TAN,
+                  fontWeight: 600,
+                  fontSize: '13px',
+                },
+              }}
+            >
+              Chat with Attorney
+            </Button>
+          )}
+          {item.status === "Completed" && (
+            <>
+              <Button 
+                variant="light" 
+                onClick={() => item.id && openAppointmentModal(item.id)}
+                flex={1}
+                size="sm"
+                radius="md"
+                leftSection={<IconEye size={15} />}
+                styles={{
+                  root: {
+                    backgroundColor: '#F5F5F5',
+                    color: CHARCOAL,
+                    fontWeight: 600,
+                    fontSize: '13px',
+                  },
+                }}
+              >
+                Details
+              </Button>
+              {item.caseId && (
+                <Button 
+                  variant="light"
+                  onClick={() => openReviewModal(item.caseId)}
+                  flex={1}
+                  size="sm"
+                  radius="md"
+                  leftSection={<IconFileText size={15} />}
+                  styles={{
+                    root: {
+                      backgroundColor: `${PRIMARY_BROWN}10`,
+                      color: PRIMARY_BROWN,
+                      fontWeight: 600,
+                      fontSize: '13px',
+                    },
+                  }}
+                >
+                  Review
+                </Button>
+              )}
+            </>
+          )}
+        </Group>
+      </Paper>
+    );
+  };
+
+  const RepresentationCard = ({ item }) => (
+    <Paper 
+      shadow="xs" 
+      p="lg" 
+      radius="lg"
+      style={{ 
+        border: '1px solid #F0F0F0',
+        transition: 'all 0.25s ease',
+        background: 'white',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-3px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.07)';
+        e.currentTarget.style.borderColor = '#E0E0E0';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = '';
+        e.currentTarget.style.borderColor = '#F0F0F0';
+      }}
+    >
+      {/* Header */}
+      <Group gap={8} mb="sm">
+        <Box style={{
+          width: 32, height: 32, borderRadius: 8,
+          background: `${PRIMARY_BROWN}12`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <IconScale size={16} color={PRIMARY_BROWN} />
+        </Box>
+        <Box style={{ flex: 1, minWidth: 0 }}>
+          <Text fw={600} size="sm" c={CHARCOAL} lineClamp={1}>
+            {item.caseRecord?.title || `Appointment for ${item.clientName || 'Case'}`}
+          </Text>
+          <Text size="xs" c={MUTED_OLIVE} style={{ fontFamily: 'monospace' }}>{item.caseNumber}</Text>
+        </Box>
+        <Badge 
+          size="sm" 
+          radius="sm"
+          variant="light"
+          color={item.isRejected ? 'red' : 'green'}
+        >
+          {item.isRejected ? 'Rejected' : 'Active'}
+        </Badge>
+      </Group>
+
+      <Divider color="#F0F0F0" mb="sm" />
+
+      {/* Case nature */}
+      <Group gap={6} mb="md">
+        <IconGavel size={13} color={MUTED_OLIVE} />
+        <Text size="xs" c={MUTED_OLIVE}>Nature:</Text>
+        <Text size="sm" fw={600} c={CHARCOAL}>{item.caseRecord?.nature || 'N/A'}</Text>
+      </Group>
+
+      {/* Action buttons */}
+      <Stack gap={6}>
+        <Button 
+          variant="light" 
+          fullWidth
+          size="sm"
+          radius="md"
+          rightSection={<IconArrowRight size={15} />}
+          onClick={() => !item.isRejected && item.caseId && openCaseRecordModal(item)}
           disabled={item.isRejected}
-          style={{ 
-            background: item.isRejected ? '#999' : `linear-gradient(135deg, ${MUTED_OLIVE} 0%, #6B8E4E 100%)`,
-            fontWeight: 600,
-            cursor: item.isRejected ? 'not-allowed' : 'pointer',
+          styles={{
+            root: {
+              backgroundColor: item.isRejected ? '#F5F5F5' : `${MUTED_OLIVE}12`,
+              color: item.isRejected ? '#999' : MUTED_OLIVE,
+              fontWeight: 600,
+              fontSize: '13px',
+            },
           }}
         >
           {item.isRejected ? 'Case Rejected' : 'View Case Folder'}
         </Button>
         {item.caseId && !item.isRejected && (
-          <>
+          <Group gap={6}>
             <Button 
-              variant="outline"
-              fullWidth
+              variant="light"
+              flex={1}
               onClick={() => openReviewModal(item.caseId)}
-              size="md"
-              leftSection={<IconFileText size={18} />}
-              style={{ 
-                borderColor: PRIMARY_BROWN,
-                color: PRIMARY_BROWN,
-                fontWeight: 600,
+              size="sm"
+              radius="md"
+              leftSection={<IconFileText size={15} />}
+              styles={{
+                root: {
+                  backgroundColor: `${PRIMARY_BROWN}10`,
+                  color: PRIMARY_BROWN,
+                  fontWeight: 600,
+                  fontSize: '13px',
+                },
               }}
             >
-              View Review
+              Review
             </Button>
             <Button 
-              variant="outline"
-              fullWidth
+              variant="light"
+              flex={1}
               onClick={() => openChatModal(item)}
-              size="md"
-              leftSection={<IconMessageCircle size={18} />}
-              style={{ 
-                borderColor: PRIMARY_GOLD,
-                color: PRIMARY_GOLD,
-                fontWeight: 600,
+              size="sm"
+              radius="md"
+              leftSection={<IconMessageCircle size={15} />}
+              styles={{
+                root: {
+                  backgroundColor: `${PRIMARY_GOLD}12`,
+                  color: ACCENT_TAN,
+                  fontWeight: 600,
+                  fontSize: '13px',
+                },
               }}
             >
-              Chat with Attorney
+              Chat
             </Button>
-          </>
+          </Group>
         )}
       </Stack>
-    </Card>
+    </Paper>
   );
 
-  const DocumentCard = ({ item }) => (
-    <Card 
-      shadow="xs" 
-      padding="xl" 
-      radius="lg"
-      style={{ 
-        border: '1px solid #F0F0F0',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-4px)';
-        e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = '';
-      }}
-    >
-      {item.status === "Ready for Pickup" && (
-        <Box
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            backgroundColor: '#10B981',
-            boxShadow: '0 0 0 3px #10B98130',
-          }}
-        />
-      )}
+  const DocumentCard = ({ item }) => {
+    const isReady = item.status === "Ready for Pickup";
+    const statusColor = isReady ? '#10B981' : MUTED_OLIVE;
 
-      <Group justify="space-between" mb="md">
-        <Group gap="sm">
-          <Box
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '10px',
-              background: item.status === "Ready for Pickup" 
-                ? `linear-gradient(135deg, ${PRIMARY_GOLD} 0%, ${PRIMARY_BROWN} 100%)`
-                : `${MUTED_OLIVE}20`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: item.status === "Ready for Pickup" ? `0 4px 12px ${PRIMARY_GOLD}40` : 'none',
-            }}
-          >
-            {item.status === "Ready for Pickup" ? (
-              <IconCheck size={22} color="white" stroke={3} />
-            ) : (
-              <IconClock size={22} color={MUTED_OLIVE} />
-            )}
-          </Box>
-          <Box>
-            <Text fw={700} c={CHARCOAL} size="lg">
-              {item.docType}
-            </Text>
-            <Text size="xs" c={MUTED_OLIVE}>
-              Requested: {item.dateRequest}
-            </Text>
-          </Box>
-        </Group>
-      </Group>
-
-      <Badge 
-        size="lg" 
-        radius="md"
-        fullWidth
-        mb="md"
+    return (
+      <Paper 
+        shadow="xs" 
+        p="lg" 
+        radius="lg"
         style={{ 
-          backgroundColor: item.status === "Ready for Pickup" ? `${PRIMARY_GOLD}20` : THEMED_LIGHT_BG,
-          color: item.status === "Ready for Pickup" ? PRIMARY_BROWN : MUTED_OLIVE,
-          fontWeight: 600,
-          padding: '12px 16px',
-          border: item.status === "Ready for Pickup" ? `1px solid ${PRIMARY_GOLD}` : `1px solid #E0E0E0`,
+          border: '1px solid #F0F0F0',
+          transition: 'all 0.25s ease',
+          background: 'white',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-3px)';
+          e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.07)';
+          e.currentTarget.style.borderColor = '#E0E0E0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '';
+          e.currentTarget.style.borderColor = '#F0F0F0';
         }}
       >
-        {item.status}
-      </Badge>
-
-      {/* Ready for Pickup - Appointment Details */}
-      {item.status === "Ready for Pickup" && item.appointment && (
-        <>
-          <Paper 
-            p="lg" 
-            radius="md" 
-            mb="md"
-            style={{ 
-              background: `linear-gradient(135deg, ${THEMED_LIGHT_BG} 0%, white 100%)`,
-              border: `2px dashed ${PRIMARY_GOLD}60`,
-            }}
+        {/* Header */}
+        <Group justify="space-between" align="center" mb="sm">
+          <Group gap={8}>
+            <Box style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: `${statusColor}12`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {isReady ? <IconCheck size={16} color={statusColor} /> : <IconClock size={16} color={statusColor} />}
+            </Box>
+            <Box>
+              <Text fw={600} size="sm" c={CHARCOAL}>{item.docType}</Text>
+              <Text size="xs" c={MUTED_OLIVE}>Requested {item.dateRequest}</Text>
+            </Box>
+          </Group>
+          <Badge 
+            size="sm" 
+            radius="sm"
+            variant="light"
+            color={isReady ? 'green' : 'gray'}
           >
-            <Group gap="xs" mb="md">
-              <Box
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  background: `linear-gradient(135deg, ${PRIMARY_GOLD} 0%, ${PRIMARY_BROWN} 100%)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconCalendarEvent size={16} color="white" />
-              </Box>
-              <Text size="sm" fw={700} c={PRIMARY_BROWN} tt="uppercase" style={{ letterSpacing: '0.5px' }}>
-                Pickup Schedule
-              </Text>
+            {item.status}
+          </Badge>
+        </Group>
+
+        <Divider color="#F0F0F0" mb="sm" />
+
+        {/* Ready for Pickup */}
+        {isReady && item.appointment && (
+          <Stack gap={6} mb="sm">
+            <Group gap={6}>
+              <IconCalendarEvent size={13} color={CHARCOAL} />
+              <Text size="sm" fw={600} c={CHARCOAL}>{item.appointment.date} at {item.appointment.time}</Text>
             </Group>
+            <Group gap={6}>
+              <IconUser size={13} color={MUTED_OLIVE} />
+              <Text size="xs" c={MUTED_OLIVE}>Look for {item.appointment.handler}</Text>
+            </Group>
+            <Group gap={6}>
+              <IconMapPin size={13} color={MUTED_OLIVE} />
+              <Text size="xs" c={MUTED_OLIVE}>{item.appointment.location}</Text>
+            </Group>
+          </Stack>
+        )}
 
-            <Stack gap="sm">
-              <Group gap="sm" wrap="nowrap">
-                <Box
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '6px',
-                    background: `${PRIMARY_BROWN}15`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <IconCalendarEvent size={14} color={PRIMARY_BROWN} />
-                </Box>
-                <Box>
-                  <Text size="xs" c={MUTED_OLIVE} mb={2}>Date & Time</Text>
-                  <Text size="sm" fw={600} c={CHARCOAL}>
-                    {item.appointment.date} at {item.appointment.time}
-                  </Text>
-                </Box>
-              </Group>
+        {/* In Progress */}
+        {item.status === "In Progress" && (
+          <Box mb="sm" p="xs" style={{ background: '#F9FAFB', borderRadius: 8 }}>
+            <Group gap={6}>
+              <IconClock size={13} color={MUTED_OLIVE} />
+              <Text size="xs" c={MUTED_OLIVE} fw={500}>{item.actionNeeded}</Text>
+            </Group>
+          </Box>
+        )}
 
-              <Group gap="sm" wrap="nowrap">
-                <Box
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '6px',
-                    background: `${PRIMARY_GOLD}15`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <IconUser size={14} color={PRIMARY_GOLD} />
-                </Box>
-                <Box>
-                  <Text size="xs" c={MUTED_OLIVE} mb={2}>Look for</Text>
-                  <Text size="sm" fw={600} c={CHARCOAL}>
-                    {item.appointment.handler}
-                  </Text>
-                  <Text size="xs" c={MUTED_OLIVE}>{item.appointment.role}</Text>
-                </Box>
-              </Group>
-
-              <Group gap="sm" wrap="nowrap">
-                <Box
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '6px',
-                    background: `${ACCENT_TAN}15`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <IconMapPin size={14} color={ACCENT_TAN} />
-                </Box>
-                <Box>
-                  <Text size="xs" c={MUTED_OLIVE} mb={2}>Location</Text>
-                  <Text size="sm" fw={500} c={CHARCOAL}>
-                    {item.appointment.location}
-                  </Text>
-                </Box>
-              </Group>
-            </Stack>
-          </Paper>
-
+        {/* Action button */}
+        {isReady && (
           <Button 
-            variant="filled"
+            variant="light"
             fullWidth
-            size="md"
-            leftSection={<IconDownload size={18} />}
-            style={{ 
-              background: `linear-gradient(135deg, ${PRIMARY_GOLD} 0%, ${PRIMARY_BROWN} 100%)`,
-              fontWeight: 600,
+            size="sm"
+            radius="md"
+            leftSection={<IconDownload size={15} />}
+            styles={{
+              root: {
+                backgroundColor: `${PRIMARY_GOLD}12`,
+                color: ACCENT_TAN,
+                fontWeight: 600,
+                fontSize: '13px',
+              },
             }}
           >
             Download Document
           </Button>
-        </>
-      )}
-
-      {/* In Progress State */}
-      {item.status === "In Progress" && (
-        <Paper 
-          p="md" 
-          radius="md"
-          style={{ 
-            backgroundColor: `${MUTED_OLIVE}15`,
-            border: `1px solid ${MUTED_OLIVE}40`,
-          }}
-        >
-          <Group gap="sm">
-            <IconClock size={20} color={MUTED_OLIVE} />
-            <Box>
-              <Text size="sm" fw={600} c={CHARCOAL}>
-                {item.actionNeeded}
-              </Text>
-              <Text size="xs" c={MUTED_OLIVE}>
-                Est. completion: {item.estimatedCompletion}
-              </Text>
-            </Box>
-          </Group>
-        </Paper>
-      )}
-    </Card>
-  );
+        )}
+      </Paper>
+    );
+  };
 
   // --- MAIN RENDER ---
 
@@ -1741,39 +1251,50 @@ export default function AppointmentTracker() {
 
         <Tabs 
           defaultValue="appointments" 
-          variant="pills"
-          radius="md"
+          variant="unstyled"
           styles={{
             tab: {
-              padding: '10px 18px',
+              padding: '12px 20px',
               fontWeight: 600,
-              fontSize: '13px',
+              fontSize: '14px',
               color: MUTED_OLIVE,
+              borderRadius: '10px',
               transition: 'all 0.2s ease',
+              border: '1.5px solid transparent',
               '&[data-active]': {
-                backgroundColor: CHARCOAL,
-                color: 'white',
+                backgroundColor: 'white',
+                color: CHARCOAL,
+                border: `1.5px solid #E0E0E0`,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
               },
+              '&:hover': {
+                backgroundColor: '#F5F5F5',
+              },
+            },
+            list: {
+              gap: '6px',
             },
           }}
         >
-          <Tabs.List mb="lg">
-            <Tabs.Tab value="appointments" leftSection={<IconCalendarEvent size={16} />}>
-              Appointments
-            </Tabs.Tab>
-            <Tabs.Tab value="advice" leftSection={<IconMessage2 size={16} />}>
-              Legal Advice
-            </Tabs.Tab>
-            <Tabs.Tab value="representation" leftSection={<IconScale size={16} />}>
-              Court Cases
-            </Tabs.Tab>
-            <Tabs.Tab value="rejected" leftSection={<IconX size={16} />}>
-              Rejected
-            </Tabs.Tab>
-            <Tabs.Tab value="documents" leftSection={<IconFileDescription size={16} />}>
-              Documents
-            </Tabs.Tab>
-          </Tabs.List>
+          <Paper p="xs" radius="xl" mb="lg" style={{ background: '#F5F5F5', border: '1px solid #EBEBEB', display: 'inline-flex' }}>
+            <Tabs.List>
+              <Tabs.Tab value="appointments" leftSection={<IconCalendarEvent size={16} color={PRIMARY_BROWN} />}>
+                Appointments
+              </Tabs.Tab>
+              <Tabs.Tab value="advice" leftSection={<IconMessage2 size={16} color="#4DABF7" />}>
+                Legal Advice
+              </Tabs.Tab>
+              <Tabs.Tab value="representation" leftSection={<IconScale size={16} color={MUTED_OLIVE} />}>
+                Court Cases
+              </Tabs.Tab>
+              <Tabs.Tab value="rejected" leftSection={<IconX size={16} color="#EF4444" />}>
+                Rejected
+              </Tabs.Tab>
+              <Tabs.Tab value="documents" leftSection={<IconFileDescription size={16} color={ACCENT_TAN} />}>
+                Documents
+              </Tabs.Tab>
+            </Tabs.List>
+          </Paper>
 
           {/* --- TAB 1: FOR APPOINTMENT --- */}
           <Tabs.Panel value="appointments">

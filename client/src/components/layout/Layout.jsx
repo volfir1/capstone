@@ -12,13 +12,11 @@ import {
   Flex,
   Menu,
   Tooltip,
-  Indicator,
   Stack,
   Divider,
+  Avatar,
 } from "@mantine/core";
 import {
-  IconBell,
-  IconSearch,
   IconLogout,
   IconUserCircle,
   IconScale,
@@ -26,6 +24,8 @@ import {
 import { useAuth } from "../../context/authContext";
 import { useNavigate } from "react-router";
 import { doSignOut } from "@/firebase/auth";
+import { useNotifications } from "@/hooks/useNotifications";
+import NotificationDropdown from "@/components/ui/NotificationDropdown";
 import { 
   PRIMARY_GOLD, 
   PRIMARY_BROWN, 
@@ -50,6 +50,15 @@ const Layout = ({
   const [opened, setOpened] = useState(false);
   const navigate = useNavigate();
   const { userData } = useAuth();
+  const {
+    notifications: notifList,
+    unreadCount,
+    loading: notifLoading,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    refresh: refreshNotifications,
+  } = useNotifications();
   
   const currentPath = window.location.pathname;
   const actualUserRole = userData?.role || "client";
@@ -75,6 +84,18 @@ const Layout = ({
 
   const handleLogout = async () => {
     try {
+      // Log logout activity before signing out
+      try {
+        const { default: apiClient } = await import('@config/api/apiClient');
+        await apiClient.post('/activity-logs', {
+          action: 'logout',
+          userEmail: userData?.email || '',
+          userName: userData?.displayName || userData?.fullName || `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim() || '',
+          userRole: userData?.role || '',
+        });
+      } catch (err) {
+        console.error('Logout activity log error:', err);
+      }
       await doSignOut();
       navigate('/auth/login');
     } catch (error) {
@@ -182,22 +203,20 @@ const Layout = ({
             style={{ borderTop: '1px solid #F0F0F0' }}
           >
             <Group gap="sm" wrap="nowrap">
-              <Box
+              <Avatar
+                size={36}
+                radius="xl"
+                src={userData?.profileImage || null}
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: '10px',
-                  background: "PRIMARY_BROWN",
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  border: `2px solid ${PRIMARY_GOLD}`,
+                  background: PRIMARY_BROWN,
                   flexShrink: 0,
                 }}
               >
                 <Text size="sm" fw={700} c="white">
                   {userData?.firstName?.charAt(0) || '?'}
                 </Text>
-              </Box>
+              </Avatar>
               <Box style={{ minWidth: 0 }}>
                 <Text size="sm" fw={600} c={CHARCOAL} truncate>
                   {userData?.firstName} {userData?.lastName}
@@ -255,30 +274,30 @@ const Layout = ({
             </Group>
 
             <Group gap={4}>
-              <Tooltip label="Search" position="bottom">
-                <ActionIcon
-                  size={36}
-                  variant="subtle"
-                  color="gray"
-                  radius="xl"
-                >
-                  <IconSearch size={18} />
-                </ActionIcon>
-              </Tooltip>
-              
-              <Tooltip label="Notifications" position="bottom">
-                <Indicator color="red" size={7} offset={4} processing>
-                  <ActionIcon size={36} variant="subtle" color="gray" radius="xl">
-                    <IconBell size={18} />
-                  </ActionIcon>
-                </Indicator>
-              </Tooltip>
+              <NotificationDropdown
+                notifications={notifList}
+                unreadCount={unreadCount}
+                loading={notifLoading}
+                onRead={markAsRead}
+                onReadAll={markAllAsRead}
+                onDelete={deleteNotification}
+                onRefresh={refreshNotifications}
+              />
 
               <Menu shadow="md" width={180} position="bottom-end">
                 <Menu.Target>
                   <Tooltip label="Account" position="bottom">
-                    <ActionIcon size={36} variant="subtle" color="gray" radius="xl">
-                      <IconUserCircle size={20} />
+                    <ActionIcon size={36} variant="subtle" color="gray" radius="xl" p={0}>
+                      <Avatar
+                        size={32}
+                        radius="xl"
+                        src={userData?.profileImage || null}
+                        style={{ border: `2px solid ${PRIMARY_GOLD}`, background: ACCENT_TAN, cursor: 'pointer' }}
+                      >
+                        <Text size="xs" fw={700} c="white">
+                          {userData?.firstName?.charAt(0) || '?'}
+                        </Text>
+                      </Avatar>
                     </ActionIcon>
                   </Tooltip>
                 </Menu.Target>
