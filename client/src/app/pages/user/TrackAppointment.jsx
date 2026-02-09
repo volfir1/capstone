@@ -62,7 +62,8 @@ import {
   MUTED_OLIVE, 
   THEMED_LIGHT_BG, 
   CHARCOAL, 
-  ACCENT_TAN 
+  ACCENT_TAN,
+  BG 
 } from '@utils/constants';
 
 export default function AppointmentTracker() {
@@ -1693,11 +1694,15 @@ export default function AppointmentTracker() {
           setCaseRecordError(null)
         }}
         title={
-          <Title order={3} c={PRIMARY_BROWN}>
-            Case Record
-          </Title>
+          <Group gap={8}>
+            <Box style={{ width: 28, height: 28, borderRadius: 7, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconFileText size={14} color="white" stroke={2.5} />
+            </Box>
+            <Text fw={700} size="lg" c={CHARCOAL}>Case Record</Text>
+          </Group>
         }
         size="xl"
+        radius="lg"
         styles={{
           title: { fontWeight: 700, width: '100%' },
           body: { maxHeight: '70vh', overflowY: 'auto' },
@@ -1721,16 +1726,18 @@ export default function AppointmentTracker() {
         ) : null}
       </Modal>
 
-      <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <Box bg={BG} mih="100vh" py="xl">
       <Container size="xl">
-        <Box mb="xl">
-          <Title order={1} mb="xs" c={PRIMARY_BROWN}>
-            My Legal Portal
-          </Title>
-          <Text c={MUTED_OLIVE} size="lg">
-            Manage your inquiries, cases, and documents.
-          </Text>
-        </Box>
+        {/* Page Header */}
+        <Group gap="sm" mb="xs">
+          <Box style={{ width: 36, height: 36, borderRadius: 9, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconGavel size={18} color="white" stroke={2.5} />
+          </Box>
+          <Title order={2} c={CHARCOAL} fw={700}>My Legal Portal</Title>
+        </Group>
+        <Text c={MUTED_OLIVE} size="sm" mb="lg" ml={48}>
+          Manage your inquiries, cases, and documents
+        </Text>
 
         <Tabs 
           defaultValue="appointments" 
@@ -1738,68 +1745,62 @@ export default function AppointmentTracker() {
           radius="md"
           styles={{
             tab: {
-              padding: '12px 24px',
+              padding: '10px 18px',
               fontWeight: 600,
-              fontSize: '15px',
+              fontSize: '13px',
+              color: MUTED_OLIVE,
               transition: 'all 0.2s ease',
-              '&:hover': {
-                backgroundColor: THEMED_LIGHT_BG,
+              '&[data-active]': {
+                backgroundColor: CHARCOAL,
+                color: 'white',
               },
-            },
-            tabLabel: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
             },
           }}
         >
-          <Tabs.List mb="xl">
-            <Tabs.Tab value="appointments" leftSection={<IconCalendarEvent size={20} />}>
-              For Appointment
+          <Tabs.List mb="lg">
+            <Tabs.Tab value="appointments" leftSection={<IconCalendarEvent size={16} />}>
+              Appointments
             </Tabs.Tab>
-            <Tabs.Tab value="advice" leftSection={<IconMessage2 size={20} />}>
+            <Tabs.Tab value="advice" leftSection={<IconMessage2 size={16} />}>
               Legal Advice
             </Tabs.Tab>
-            <Tabs.Tab value="representation" leftSection={<IconScale size={20} />}>
-              Track Case
+            <Tabs.Tab value="representation" leftSection={<IconScale size={16} />}>
+              Court Cases
             </Tabs.Tab>
-            <Tabs.Tab value="rejected" leftSection={<IconX size={20} />}>
-              Rejected Cases
+            <Tabs.Tab value="rejected" leftSection={<IconX size={16} />}>
+              Rejected
             </Tabs.Tab>
-            <Tabs.Tab value="documents" leftSection={<IconFileDescription size={20} />}>
+            <Tabs.Tab value="documents" leftSection={<IconFileDescription size={16} />}>
               Documents
             </Tabs.Tab>
           </Tabs.List>
 
           {/* --- TAB 1: FOR APPOINTMENT --- */}
           <Tabs.Panel value="appointments">
-            <Paper shadow="xs" p="md" mb="xl" radius="lg" style={{ border: `1px solid #F0F0F0` }}>
-              <Group gap="sm">
-                <IconAlertCircle size={20} color={PRIMARY_BROWN} />
-                <Text size="sm" c={CHARCOAL} fw={500}>
+            <Paper p="sm" px="md" mb="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+              <Group gap={8}>
+                <Box style={{ width: 24, height: 24, borderRadius: 6, background: `${PRIMARY_GOLD}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconCalendarEvent size={13} color={ACCENT_TAN} />
+                </Box>
+                <Text size="xs" c={MUTED_OLIVE} fw={500}>
                   Your scheduled interviews and appointments after submitting client information
                 </Text>
               </Group>
             </Paper>
             
             {loadingAppointments ? (
-              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center' }}>
-                <Text c={MUTED_OLIVE}>Loading your appointments...</Text>
+              <Paper p="xl" radius="lg" style={{ textAlign: 'center', border: '1px solid #F0F0F0' }}>
+                <Loader size="md" color={ACCENT_TAN} />
+                <Text c={MUTED_OLIVE} size="sm" mt="sm">Loading appointments...</Text>
               </Paper>
             ) : forAppointmentData.length === 0 ? (
-              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center', border: `1px solid #F0F0F0` }}>
-                <Box mb="md">
-                  <IconCalendarEvent size={48} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.5 }} />
-                </Box>
-                <Text size="lg" fw={600} c={CHARCOAL} mb="xs">
-                  No Appointments Yet
-                </Text>
-                <Text size="sm" c={MUTED_OLIVE}>
-                  You don't have any appointments scheduled at the moment.
-                </Text>
+              <Paper p="xl" radius="lg" style={{ textAlign: 'center', border: '1px solid #F0F0F0' }}>
+                <IconCalendarEvent size={40} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.4 }} />
+                <Text size="sm" fw={600} c={CHARCOAL} mt="sm">No Appointments Yet</Text>
+                <Text size="xs" c={MUTED_OLIVE} mt={4}>Submit a client information form to get started</Text>
               </Paper>
             ) : (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                 {forAppointmentData.map((item) => (
                   <ForAppointmentCard key={item.id} item={item} />
                 ))}
@@ -1809,31 +1810,27 @@ export default function AppointmentTracker() {
 
           {/* --- TAB 2: LEGAL ADVICE --- */}
           <Tabs.Panel value="advice">
-            <Paper shadow="xs" p="md" mb="xl" radius="lg" style={{ border: `1px solid #F0F0F0` }}>
-              <Group gap="sm">
-                <IconAlertCircle size={20} color={PRIMARY_BROWN} />
-                <Text size="sm" c={CHARCOAL} fw={500}>
+            <Paper p="sm" px="md" mb="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+              <Group gap={8}>
+                <Box style={{ width: 24, height: 24, borderRadius: 6, background: `${MUTED_OLIVE}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconMessage2 size={13} color={MUTED_OLIVE} />
+                </Box>
+                <Text size="xs" c={MUTED_OLIVE} fw={500}>
                   Your submitted inquiries and their current status
                 </Text>
               </Group>
             </Paper>
             {legalAdviceData.length === 0 ? (
-              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center', border: `1px solid #F0F0F0` }}>
-                <Box mb="md">
-                  <IconMessage2 size={48} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.5 }} />
-                </Box>
-                <Text size="lg" fw={600} c={CHARCOAL} mb="xs">
-                  No Legal Advice Requests
-                </Text>
-                <Text size="sm" c={MUTED_OLIVE} mb="lg">
-                  Cases marked for legal advice only will appear here.
-                </Text>
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+              <Paper p="xl" radius="lg" style={{ textAlign: 'center', border: '1px solid #F0F0F0' }}>
+                <IconMessage2 size={40} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.4 }} />
+                <Text size="sm" fw={600} c={CHARCOAL} mt="sm">No Legal Advice Requests</Text>
+                <Text size="xs" c={MUTED_OLIVE} mt={4} mb="lg">Cases marked for legal advice only will appear here</Text>
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                   <AdviceCard key={dummyLegalAdvice.id} item={dummyLegalAdvice} />
                 </SimpleGrid>
               </Paper>
             ) : (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                 {legalAdviceData.map((item) => (
                   <AdviceCard key={item.id} item={item} />
                 ))}
@@ -1843,37 +1840,33 @@ export default function AppointmentTracker() {
 
           {/* --- TAB 3: REPRESENTATION (TRACK CASE) --- */}
           <Tabs.Panel value="representation">
-            <Paper shadow="xs" p="md" mb="xl" radius="lg" style={{ border: `1px solid #F0F0F0` }}>
+            <Paper p="sm" px="md" mb="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
               <Group justify="space-between">
-                <Group gap="sm">
-                  <IconAlertCircle size={20} color={PRIMARY_BROWN} />
-                  <Text size="sm" c={CHARCOAL} fw={500}>
+                <Group gap={8}>
+                  <Box style={{ width: 24, height: 24, borderRadius: 6, background: `${PRIMARY_BROWN}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconScale size={13} color={PRIMARY_BROWN} />
+                  </Box>
+                  <Text size="xs" c={MUTED_OLIVE} fw={500}>
                     Active Litigation & Court Cases
                   </Text>
                 </Group>
-                <Badge color="red" variant="dot" size="lg">
-                  Restricted Access
+                <Badge size="sm" radius="md" variant="light" color="red">
+                  Restricted
                 </Badge>
               </Group>
             </Paper>
             
             {representationData.length === 0 ? (
-              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center', border: `1px solid #F0F0F0` }}>
-                <Box mb="md">
-                  <IconScale size={48} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.5 }} />
-                </Box>
-                <Text size="lg" fw={600} c={CHARCOAL} mb="xs">
-                  No Active Court Cases
-                </Text>
-                <Text size="sm" c={MUTED_OLIVE} mb="lg">
-                  Accepted court representation cases will appear here.
-                </Text>
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+              <Paper p="xl" radius="lg" style={{ textAlign: 'center', border: '1px solid #F0F0F0' }}>
+                <IconScale size={40} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.4 }} />
+                <Text size="sm" fw={600} c={CHARCOAL} mt="sm">No Active Court Cases</Text>
+                <Text size="xs" c={MUTED_OLIVE} mt={4} mb="lg">Accepted court representation cases will appear here</Text>
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                   <RepresentationCard key={dummyCourtCase.id} item={dummyCourtCase} />
                 </SimpleGrid>
               </Paper>
             ) : (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                 {representationData.map((item) => (
                   <RepresentationCard key={item.id} item={item} />
                 ))}
@@ -1883,33 +1876,30 @@ export default function AppointmentTracker() {
 
           {/* --- TAB 4: REJECTED CASES --- */}
           <Tabs.Panel value="rejected">
-            <Paper shadow="xs" p="md" mb="xl" radius="lg" style={{ border: `1px solid #F0F0F0`, backgroundColor: '#FEE2E2' }}>
-              <Group gap="sm">
-                <IconAlertCircle size={20} color="#DC2626" />
-                <Text size="sm" c="#991B1B" fw={500}>
-                  Cases that were reviewed and rejected by the director
+            <Paper p="sm" px="md" mb="lg" radius="lg" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
+              <Group gap={8}>
+                <Box style={{ width: 24, height: 24, borderRadius: 6, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconX size={13} color="#DC2626" />
+                </Box>
+                <Text size="xs" c="#991B1B" fw={500}>
+                  Cases reviewed and rejected by the director
                 </Text>
               </Group>
             </Paper>
             
             {loadingAppointments ? (
-              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center' }}>
-                <Text c={MUTED_OLIVE}>Loading rejected cases...</Text>
+              <Paper p="xl" radius="lg" style={{ textAlign: 'center', border: '1px solid #F0F0F0' }}>
+                <Loader size="md" color={ACCENT_TAN} />
+                <Text c={MUTED_OLIVE} size="sm" mt="sm">Loading...</Text>
               </Paper>
             ) : rejectedData.length === 0 ? (
-              <Paper shadow="xs" p="xl" radius="lg" style={{ textAlign: 'center', border: `1px solid #F0F0F0` }}>
-                <Box mb="md">
-                  <IconX size={48} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.5 }} />
-                </Box>
-                <Text size="lg" fw={600} c={CHARCOAL} mb="xs">
-                  No Rejected Cases
-                </Text>
-                <Text size="sm" c={MUTED_OLIVE}>
-                  Cases rejected by the director will appear here.
-                </Text>
+              <Paper p="xl" radius="lg" style={{ textAlign: 'center', border: '1px solid #F0F0F0' }}>
+                <IconX size={40} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.4 }} />
+                <Text size="sm" fw={600} c={CHARCOAL} mt="sm">No Rejected Cases</Text>
+                <Text size="xs" c={MUTED_OLIVE} mt={4}>Cases rejected by the director will appear here</Text>
               </Paper>
             ) : (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                 {rejectedData.map((item) => (
                   <ForAppointmentCard key={item.id} item={item} />
                 ))}
@@ -1919,19 +1909,29 @@ export default function AppointmentTracker() {
 
           {/* --- TAB 5: DOCUMENTS --- */}
           <Tabs.Panel value="documents">
-            <Paper shadow="xs" p="md" mb="xl" radius="lg" style={{ border: `1px solid #F0F0F0` }}>
-              <Group gap="sm">
-                <IconAlertCircle size={20} color={PRIMARY_BROWN} />
-                <Text size="sm" c={CHARCOAL} fw={500}>
+            <Paper p="sm" px="md" mb="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+              <Group gap={8}>
+                <Box style={{ width: 24, height: 24, borderRadius: 6, background: `${PRIMARY_GOLD}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconFileDescription size={13} color={ACCENT_TAN} />
+                </Box>
+                <Text size="xs" c={MUTED_OLIVE} fw={500}>
                   Drafting requests and document pickup schedules
                 </Text>
               </Group>
             </Paper>
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xl">
+            {documentData.length === 0 ? (
+              <Paper p="xl" radius="lg" style={{ textAlign: 'center', border: '1px solid #F0F0F0' }}>
+                <IconFileDescription size={40} color={MUTED_OLIVE} stroke={1.5} style={{ opacity: 0.4 }} />
+                <Text size="sm" fw={600} c={CHARCOAL} mt="sm">No Documents</Text>
+                <Text size="xs" c={MUTED_OLIVE} mt={4}>Your document requests will appear here</Text>
+              </Paper>
+            ) : (
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
               {documentData.map((item) => (
                 <DocumentCard key={item.id} item={item} />
               ))}
             </SimpleGrid>
+            )}
           </Tabs.Panel>
         </Tabs>
       </Container>
@@ -1942,155 +1942,164 @@ export default function AppointmentTracker() {
         opened={appointmentModalOpened}
         onClose={() => setAppointmentModalOpened(false)}
         title={
-          <Text fw={700} size="xl" c={PRIMARY_BROWN}>
-            Appointment Receipt
-          </Text>
+          <Group gap={8}>
+            <Box style={{ width: 28, height: 28, borderRadius: 7, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconCalendarEvent size={14} color="white" stroke={2.5} />
+            </Box>
+            <Text fw={700} size="lg" c={CHARCOAL}>Appointment Receipt</Text>
+          </Group>
         }
         size="lg"
         radius="lg"
       >
         {loadingAppointment ? (
           <Center py="xl">
-            <Loader size="lg" color={PRIMARY_BROWN} />
+            <Loader size="md" color={ACCENT_TAN} />
           </Center>
         ) : appointmentDetails ? (
-          <Stack gap="lg" mt="lg">
+          <Stack gap="md" mt="md">
             {/* Header Badge */}
-            <Paper p="md" radius="md" style={{ backgroundColor: `${PRIMARY_GOLD}15`, border: `1px solid ${PRIMARY_GOLD}` }}>
+            <Paper p="md" radius="lg" style={{ background: `${PRIMARY_GOLD}12`, border: `1px solid ${PRIMARY_GOLD}30` }}>
               <Group justify="space-between" align="center">
-                <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+                <Text fw={600} size="sm" c={CHARCOAL}>
                   {appointmentDetails.caseDetails?.appointmentType || appointmentDetails.personal?.legalMatter || 'Appointment'}
                 </Text>
-                <Badge size="lg" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
+                <Badge size="sm" variant="filled" style={{ backgroundColor: ACCENT_TAN, color: 'white' }}>
                   {appointmentDetails.status || 'For Appointment'}
                 </Badge>
               </Group>
-              <Text size="sm" c={MUTED_OLIVE} mt="xs">
-                Case #{appointmentDetails.caseNumber || 'N/A'}
-              </Text>
             </Paper>
 
             {/* Personal Details */}
-            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-              <Title order={4} mb="md" c={CHARCOAL}>Personal Details</Title>
-              <Divider mb="md" color="#F0F0F0" />
-              <Grid gutter="md">
+            <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+              <Group gap={8} mb="md">
+                <Box style={{ width: 28, height: 28, borderRadius: 7, background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconUser size={14} color="white" stroke={2.5} />
+                </Box>
+                <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Personal Details</Text>
+              </Group>
+              <Grid gutter="sm">
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Name</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.fullName || appointmentDetails.name || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Age</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.age || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Birthday</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.birthday || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Sex</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.sex || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Civil Status</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.civilStatus || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Contact Number</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.contactNumber || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={12}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Present Address</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presentAddress || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={12}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Permanent Address</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.permanentAddress || 'N/A'}</Text>
                 </Grid.Col>
               </Grid>
             </Paper>
 
             {/* Schedule Details */}
-            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-              <Title order={4} mb="md" c={CHARCOAL}>Schedule Details</Title>
-              <Divider mb="md" color="#F0F0F0" />
-              <Grid gutter="md">
-                <Grid.Col span={12}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
-                  <Text size="sm" c={CHARCOAL} fw={500}>
-                    {appointmentDetails.appointedDate ? new Date(appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    }) : 'N/A'}
-                  </Text>
-                </Grid.Col>
-              </Grid>
+            <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+              <Group gap={8} mb="md">
+                <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#F59F00', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconCalendarEvent size={14} color="white" stroke={2.5} />
+                </Box>
+                <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Schedule</Text>
+              </Group>
+              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Appointment Date</Text>
+              <Text size="sm" c={CHARCOAL} fw={500}>
+                {appointmentDetails.appointedDate ? new Date(appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                }) : 'N/A'}
+              </Text>
             </Paper>
 
             {/* Financial Details */}
-            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-              <Title order={4} mb="md" c={CHARCOAL}>Financial Details</Title>
-              <Divider mb="md" color="#F0F0F0" />
-              <Grid gutter="md">
+            <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+              <Group gap={8} mb="md">
+                <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#40C057', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconFileDescription size={14} color="white" stroke={2.5} />
+                </Box>
+                <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Financial Details</Text>
+              </Group>
+              <Grid gutter="sm">
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income Source</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Income Source</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Monthly Income</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>
                     {appointmentDetails.monthlyIncome ? `₱${Number(appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
                   </Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Nature of Work</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.natureOfWork || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Employer</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.employerName || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={12}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Employer Address</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.employerAddress || 'N/A'}</Text>
                 </Grid.Col>
               </Grid>
             </Paper>
 
             {/* Case Details */}
-            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-              <Title order={4} mb="md" c={CHARCOAL}>Case Details</Title>
-              <Divider mb="md" color="#F0F0F0" />
-              <Grid gutter="md">
+            <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+              <Group gap={8} mb="md">
+                <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#4DABF7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconGavel size={14} color="white" stroke={2.5} />
+                </Box>
+                <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Case Details</Text>
+              </Group>
+              <Grid gutter="sm">
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Party Represented</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.partyRepresented || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Number</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Case Number</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.caseNumber || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Venue</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.venue || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Present Stage</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presentStage || 'N/A'}</Text>
                 </Grid.Col>
-                <Grid.Col span={12}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Division</Text>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Court Division</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtDivision || 'N/A'}</Text>
                 </Grid.Col>
-                <Grid.Col span={12}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Address</Text>
-                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtAddress || 'N/A'}</Text>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Presiding Officer</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presidingOfficer || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={12}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
-                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presidingOfficer || 'N/A'}</Text>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Court Address</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtAddress || 'N/A'}</Text>
                 </Grid.Col>
               </Grid>
             </Paper>
@@ -2106,8 +2115,16 @@ export default function AppointmentTracker() {
       <Modal
         opened={reviewModalOpened}
         onClose={() => setReviewModalOpened(false)}
-        title={<Title order={3} c={PRIMARY_BROWN}>Recommendation for Action</Title>}
+        title={
+          <Group gap={8}>
+            <Box style={{ width: 28, height: 28, borderRadius: 7, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconCircleCheck size={14} color="white" stroke={2.5} />
+            </Box>
+            <Text fw={700} size="lg" c={CHARCOAL}>Recommendation for Action</Text>
+          </Group>
+        }
         size="xl"
+        radius="lg"
         styles={{
           title: { fontWeight: 700 },
           body: { maxHeight: '70vh', overflowY: 'auto' },
@@ -2115,58 +2132,62 @@ export default function AppointmentTracker() {
       >
         {loadingReview ? (
           <Center py="xl">
-            <Loader size="lg" color={PRIMARY_BROWN} />
+            <Loader size="md" color={ACCENT_TAN} />
           </Center>
         ) : reviewData ? (
-          <Stack gap="lg">
+          <Stack gap="md" mt="sm">
             <Stepper 
               active={activeStep} 
-              color={PRIMARY_BROWN}
-              completedIcon={<IconCircleCheck size={20} />}
+              color={CHARCOAL}
+              size="sm"
+              completedIcon={<IconCircleCheck size={16} />}
               styles={{
-                stepLabel: { fontWeight: 600, fontSize: '14px' },
-                stepDescription: { fontSize: '12px', color: MUTED_OLIVE },
+                stepLabel: { fontWeight: 600, fontSize: '13px' },
+                stepDescription: { fontSize: '11px', color: MUTED_OLIVE },
               }}
             >
               <Stepper.Step label="Interview" description="Client & Evidence" />
               <Stepper.Step label="Action" description="Lawyer & Director" />
             </Stepper>
 
-            <Divider />
-
             {/* Step 0: Interview Info */}
             {activeStep === 0 && (
-              <Paper p="md" withBorder>
-                <Title order={4} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
-                <SimpleGrid cols={2} spacing="sm" mb="md">
-                  <Box>
-                    <Text size="xs" c="dimmed">Date of Interview</Text>
-                    <Text fw={500}>{reviewData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
+              <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+                <Group gap={8} mb="md">
+                  <Box style={{ width: 28, height: 28, borderRadius: 7, background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconUser size={14} color="white" stroke={2.5} />
                   </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Date Submitted</Text>
-                    <Text fw={500}>{reviewData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Client's Name</Text>
-                    <Text fw={500}>{reviewData.content?.interviewInfo?.clientName || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
-                    <Text fw={500}>{reviewData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
-                  </Box>
-                </SimpleGrid>
-                <Divider my="md" />
+                  <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Client Interview Information</Text>
+                </Group>
+                <Grid gutter="sm" mb="md">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Date of Interview</Text>
+                    <Text size="sm" fw={500} c={CHARCOAL}>{reviewData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Date Submitted</Text>
+                    <Text size="sm" fw={500} c={CHARCOAL}>{reviewData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Client's Name</Text>
+                    <Text size="sm" fw={500} c={CHARCOAL}>{reviewData.content?.interviewInfo?.clientName || '-'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Interviewing Intern/s</Text>
+                    <Text size="sm" fw={500} c={CHARCOAL}>{reviewData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
+                  </Grid.Col>
+                </Grid>
+                <Divider my="sm" color="#F0F0F0" />
                 <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Fast Facts</Text>
-                  <Text size="sm">{reviewData.content?.interviewInfo?.fastFacts || '-'}</Text>
+                  <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={4}>Fast Facts</Text>
+                  <Text size="sm" c={CHARCOAL}>{reviewData.content?.interviewInfo?.fastFacts || '-'}</Text>
                 </Box>
-                <Divider my="md" />
+                <Divider my="sm" color="#F0F0F0" />
                 {/* Evidence tables */}
                 {reviewData.content?.interviewInfo?.clientEvidence && reviewData.content.interviewInfo.clientEvidence.length > 0 && (
                   <Box mb="md">
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Evidence on Hand / Available for the Client(s)</Text>
-                    <Table withTableBorder withColumnBorders>
+                    <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={6}>Evidence on Hand — Client(s)</Text>
+                    <Table withTableBorder withColumnBorders styles={{ th: { fontSize: '12px', color: MUTED_OLIVE, fontWeight: 600 }, td: { fontSize: '13px' } }}>
                       <Table.Thead>
                         <Table.Tr>
                           <Table.Th>Type/Description</Table.Th>
@@ -2190,8 +2211,8 @@ export default function AppointmentTracker() {
                 )}
                 {reviewData.content?.interviewInfo?.adversePartyEvidence && reviewData.content.interviewInfo.adversePartyEvidence.length > 0 && (
                   <Box mb="md">
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Evidence on Hand / Available for the Adverse Party(ies)</Text>
-                    <Table withTableBorder withColumnBorders>
+                    <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={6}>Evidence on Hand — Adverse Party(ies)</Text>
+                    <Table withTableBorder withColumnBorders styles={{ th: { fontSize: '12px', color: MUTED_OLIVE, fontWeight: 600 }, td: { fontSize: '13px' } }}>
                       <Table.Thead>
                         <Table.Tr>
                           <Table.Th>Type/Description</Table.Th>
@@ -2214,29 +2235,34 @@ export default function AppointmentTracker() {
                   </Box>
                 )}
                 <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
-                  <Text size="sm">{reviewData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                  <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={4}>Intern's Initial Advice</Text>
+                  <Text size="sm" c={CHARCOAL}>{reviewData.content?.interviewInfo?.internAdvice || '-'}</Text>
                 </Box>
                 <Box>
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
-                  <Text size="sm">{reviewData.content?.interviewInfo?.legalOpinion || '-'}</Text>
+                  <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={4}>Legal Opinion</Text>
+                  <Text size="sm" c={CHARCOAL}>{reviewData.content?.interviewInfo?.legalOpinion || '-'}</Text>
                 </Box>
               </Paper>
             )}
 
             {/* Step 1: Action Info */}
             {activeStep === 1 && (
-              <Paper p="md" withBorder>
-                <Title order={4} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
+              <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+                <Group gap={8} mb="md">
+                  <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#4DABF7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconGavel size={14} color="white" stroke={2.5} />
+                  </Box>
+                  <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Supervising Lawyer & Director Action</Text>
+                </Group>
                 <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
-                  <Text size="sm">{reviewData.content?.actionInfo?.supervisingComment || '-'}</Text>
+                  <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={4}>Supervising Lawyer's Comment</Text>
+                  <Text size="sm" c={CHARCOAL}>{reviewData.content?.actionInfo?.supervisingComment || '-'}</Text>
                 </Box>
-                <Divider my="md" />
+                <Divider my="sm" color="#F0F0F0" />
                 <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
+                  <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={4}>Director's Decision</Text>
                   <Badge 
-                    size="lg" 
+                    size="md" 
                     color={
                       reviewData.decision === 'accepted' ? 'green' : 
                       reviewData.decision === 'rejected' ? 'red' : 
@@ -2247,41 +2273,40 @@ export default function AppointmentTracker() {
                   </Badge>
                 </Box>
                 <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
-                  <Text size="sm">{reviewData.content?.actionInfo?.decisionNote || '-'}</Text>
+                  <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={4}>Decision Note</Text>
+                  <Text size="sm" c={CHARCOAL}>{reviewData.content?.actionInfo?.decisionNote || '-'}</Text>
                 </Box>
-                <Divider my="md" />
-                <SimpleGrid cols={2} spacing="sm">
-                  <Box>
-                    <Text size="xs" c="dimmed">Assigned To</Text>
-                    <Text fw={500}>{reviewData.content?.actionInfo?.assignedTo || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Supervising Lawyer</Text>
-                    <Text fw={500}>{reviewData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Director's Signature</Text>
-                    <Text fw={500}>{reviewData.content?.actionInfo?.directorSignature || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Signature Date</Text>
-                    <Text fw={500}>{reviewData.content?.actionInfo?.signatureDate || '-'}</Text>
-                  </Box>
-                </SimpleGrid>
+                <Divider my="sm" color="#F0F0F0" />
+                <Grid gutter="sm">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Assigned To</Text>
+                    <Text size="sm" fw={500} c={CHARCOAL}>{reviewData.content?.actionInfo?.assignedTo || '-'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Supervising Lawyer</Text>
+                    <Text size="sm" fw={500} c={CHARCOAL}>{reviewData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Director's Signature</Text>
+                    <Text size="sm" fw={500} c={CHARCOAL}>{reviewData.content?.actionInfo?.directorSignature || '-'}</Text>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Signature Date</Text>
+                    <Text size="sm" fw={500} c={CHARCOAL}>{reviewData.content?.actionInfo?.signatureDate || '-'}</Text>
+                  </Grid.Col>
+                </Grid>
               </Paper>
             )}
 
-            <Divider />
             <Group justify="space-between">
               {activeStep > 0 ? (
                 <Button 
                   variant="outline" 
-                  leftSection={<IconChevronLeft size={20} />}
-                  onClick={() => setActiveStep(activeStep - 1)}
                   size="sm"
+                  leftSection={<IconChevronLeft size={16} />}
+                  onClick={() => setActiveStep(activeStep - 1)}
                   styles={{
-                    root: { borderColor: '#E0E0E0', color: MUTED_OLIVE, '&:hover': { backgroundColor: THEMED_LIGHT_BG } },
+                    root: { borderColor: '#E0E0E0', color: MUTED_OLIVE },
                   }}
                 >
                   Previous
@@ -2292,10 +2317,10 @@ export default function AppointmentTracker() {
               
               {activeStep < 1 && (
                 <Button 
-                  rightSection={<IconChevronRight size={20} />}
-                  onClick={() => setActiveStep(activeStep + 1)}
                   size="sm"
-                  style={{ backgroundColor: PRIMARY_BROWN }}
+                  rightSection={<IconChevronRight size={16} />}
+                  onClick={() => setActiveStep(activeStep + 1)}
+                  style={{ backgroundColor: CHARCOAL }}
                 >
                   Next Step
                 </Button>
@@ -2314,19 +2339,22 @@ export default function AppointmentTracker() {
         opened={chatModalOpened}
         onClose={closeChatModal}
         title={
-          <Group gap="sm">
-            <IconMessageCircle size={24} color={PRIMARY_BROWN} />
+          <Group gap={8}>
+            <Box style={{ width: 28, height: 28, borderRadius: 7, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconMessageCircle size={14} color="white" stroke={2.5} />
+            </Box>
             <Box>
-              <Text size="lg" fw={700} c={PRIMARY_BROWN}>
+              <Text size="sm" fw={700} c={CHARCOAL}>
                 Chat with Attorney
               </Text>
-              <Text size="xs" c="dimmed">
+              <Text size="xs" c={MUTED_OLIVE}>
                 {currentChatCase?.caseRecord?.title || currentChatCase?.caseTitle || 'Case Discussion'}
               </Text>
             </Box>
           </Group>
         }
         size="lg"
+        radius="lg"
         centered
         styles={{
           content: {
@@ -2357,8 +2385,8 @@ export default function AppointmentTracker() {
             ) : chatMessages.length === 0 ? (
               <Center style={{ minHeight: '200px' }}>
                 <Stack align="center" gap="sm">
-                  <IconMessageCircle size={48} color={MUTED_OLIVE} opacity={0.5} />
-                  <Text c="dimmed" size="sm">No messages yet. Start the conversation!</Text>
+                  <IconMessageCircle size={40} color={MUTED_OLIVE} opacity={0.4} />
+                  <Text c={MUTED_OLIVE} size="sm">No messages yet. Start the conversation!</Text>
                 </Stack>
               </Center>
             ) : (
@@ -2382,7 +2410,7 @@ export default function AppointmentTracker() {
                       <Avatar
                         size="sm"
                         radius="xl"
-                        color={isCurrentUser ? PRIMARY_GOLD : PRIMARY_BROWN}
+                        color={isCurrentUser ? ACCENT_TAN : CHARCOAL}
                       >
                         <IconUser size={16} />
                       </Avatar>
@@ -2395,7 +2423,7 @@ export default function AppointmentTracker() {
                           maxWidth: '70%',
                         }}
                       >
-                        <Text size="xs" c="dimmed" mb={4}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4}>
                           {senderName} • {new Date(msg.createdAt).toLocaleString()}
                         </Text>
                         <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -2446,15 +2474,15 @@ export default function AppointmentTracker() {
                 loading={sendingMessage}
                 disabled={!newMessage.trim()}
                 style={{
-                  backgroundColor: PRIMARY_BROWN,
+                  backgroundColor: CHARCOAL,
                   minWidth: '100px',
                 }}
-                rightSection={<IconSend size={18} />}
+                rightSection={<IconSend size={16} />}
               >
                 Send
               </Button>
             </Group>
-            <Text size="xs" c="dimmed" mt="xs">
+            <Text size="xs" c={MUTED_OLIVE} mt="xs">
               Press Enter to send, Shift+Enter for new line
             </Text>
           </Box>
