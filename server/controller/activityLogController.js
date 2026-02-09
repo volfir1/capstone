@@ -48,23 +48,29 @@ export const createActivityLog = async (req, res) => {
 
     // Find all admin-role users (exclude the person who just logged in/out)
     const [adminUsers, adminAttorneys] = await Promise.all([
-      User.find({ role: { $in: ADMIN_ROLES }, firebaseUid: { $ne: uid } }).select('firebaseUid').lean(),
-      Attorney.find({ firebaseUid: { $ne: uid } }).select('firebaseUid').lean(),
+      User.find({ role: { $in: ADMIN_ROLES }, firebaseUid: { $ne: uid } }).select('firebaseUid role').lean(),
+      Attorney.find({ firebaseUid: { $ne: uid } }).select('firebaseUid role').lean(),
     ]);
 
     const recipientUids = new Set();
     adminUsers.forEach(u => { if (u.firebaseUid) recipientUids.add(u.firebaseUid); });
     adminAttorneys.forEach(a => { if (a.firebaseUid) recipientUids.add(a.firebaseUid); });
 
+    console.log(`[ActivityLog] ${action} by ${displayName} (${userRole}) — notifying ${recipientUids.size} admin(s)`);
+
+    const notifPromises = [];
     for (const recipientId of recipientUids) {
-      createNotification({
-        recipientId,
-        title: action === 'login' ? 'User Logged In' : 'User Logged Out',
-        message: `${displayName} (${roleLabel}) ${actionLabel} at ${now}.`,
-        type: 'general',
-        referenceId: log._id.toString(),
-      });
+      notifPromises.push(
+        createNotification({
+          recipientId,
+          title: action === 'login' ? 'User Logged In' : 'User Logged Out',
+          message: `${displayName} (${roleLabel}) ${actionLabel} at ${now}.`,
+          type: 'general',
+          referenceId: log._id.toString(),
+        })
+      );
     }
+    await Promise.all(notifPromises);
 
     res.status(201).json({ success: true, data: log });
   } catch (error) {

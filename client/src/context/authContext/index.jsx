@@ -26,7 +26,7 @@ export default function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('Auth state changed:', user ? 'User logged in' : 'No user');
       setLoading(true);
-      
+
       if (user) {
         setCurrentUser({ ...user });
         setUserLoggedIn(true);
@@ -36,7 +36,7 @@ export default function AuthProvider({ children }) {
 
           if (user.emailVerified) {
             console.log('User is verified in Firebase, syncing verification with backend...');
-            
+
             try {
               await verifyUser();
               console.log('Backend verification status updated');
@@ -46,29 +46,30 @@ export default function AuthProvider({ children }) {
 
             try {
               console.log('Fetching user data from backend...');
-              
+
               // First try to fetch as regular user
               try {
                 const backendUserData = await getUserData();
                 setUserData(backendUserData);
                 console.log('User data loaded:', backendUserData);
-              // Log login activity
-              if (!loginLoggedRef.current) {
-                loginLoggedRef.current = true;
-                apiClient.post('/activity-logs', {
-                  action: 'login',
-                  userEmail: user.email || '',
-                  userName: backendUserData.displayName || backendUserData.fullName || `${backendUserData.firstName || ''} ${backendUserData.lastName || ''}`.trim() || user.email,
-                  userRole: backendUserData.role || '',
-                }).catch(err => console.error('Activity log error:', err));
-              }              } catch (userError) {
+                // Log login activity
+                if (!loginLoggedRef.current) {
+                  loginLoggedRef.current = true;
+                  apiClient.post('/activity-logs', {
+                    action: 'login',
+                    userEmail: user.email || '',
+                    userName: backendUserData.displayName || backendUserData.fullName || `${backendUserData.firstName || ''} ${backendUserData.lastName || ''}`.trim() || user.email,
+                    userRole: backendUserData.role || '',
+                  }).catch(err => console.error('Activity log error:', err));
+                }
+              } catch (userError) {
                 // If regular user fetch fails, try to fetch as attorney
                 console.log('Not found as regular user, checking if attorney...');
                 try {
                   const attorneyResponse = await apiClient.post('/auth/verify-attorney', {
                     email: user.email,
                   });
-                  
+
                   if (attorneyResponse.data.success) {
                     const attorneyData = attorneyResponse.data.data;
                     setUserData(attorneyData);
@@ -126,14 +127,14 @@ export default function AuthProvider({ children }) {
         setUserLoggedIn(false);
         setUserData(null);
         loginLoggedRef.current = false;
-        
+
         // Clear localStorage
         localStorage.removeItem('token');
         localStorage.removeItem('userId');
         localStorage.removeItem('userEmail');
         localStorage.removeItem('userName');
         localStorage.removeItem('role');
-        
+
         console.log('Setting loading to false (no user)');
         setLoading(false);
       }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import apiClient from '@config/api/apiClient';
+import notificationSound from '@assets/audio/notification.mp3';
 
 const POLL_INTERVAL = 10000; // 10 seconds
 
@@ -10,6 +11,22 @@ export function useNotifications() {
   const [total, setTotal] = useState(0);
   const intervalRef = useRef(null);
   const mountedRef = useRef(true);
+  const prevUnreadRef = useRef(null);
+  const audioRef = useRef(null);
+
+  // Play notification sound when new unread notifications arrive
+  const playNotificationSound = useCallback(() => {
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(notificationSound);
+        audioRef.current.volume = 0.5;
+      }
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    } catch {
+      // silent — browser may block autoplay
+    }
+  }, []);
 
   // Always fetches the full notification list + count in one call
   const fetchNotifications = useCallback(async (page = 1) => {
@@ -17,8 +34,16 @@ export function useNotifications() {
       setLoading(true);
       const res = await apiClient.get(`/notifications?page=${page}&limit=20`);
       if (res.data.success && mountedRef.current) {
+        const newUnread = res.data.unreadCount;
+
+        // Play sound if unread count increased (skip initial fetch)
+        if (prevUnreadRef.current !== null && newUnread > prevUnreadRef.current) {
+          playNotificationSound();
+        }
+        prevUnreadRef.current = newUnread;
+
         setNotifications(res.data.data);
-        setUnreadCount(res.data.unreadCount);
+        setUnreadCount(newUnread);
         setTotal(res.data.total);
       }
     } catch (err) {
