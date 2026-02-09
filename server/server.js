@@ -12,7 +12,6 @@ import finalizeRoutes from './routes/finalizeRoutes.js'
 import clientsinfoRoutes from './routes/clientsinfoRoutes.js'
 import eventRoutes from './routes/eventRoutes.js'
 import caseRecordRoutes from './routes/caseRecordRoutes.js'
-import dotenv from 'dotenv'
 import cors from "cors"
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'

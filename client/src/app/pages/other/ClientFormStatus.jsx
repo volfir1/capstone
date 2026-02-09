@@ -24,6 +24,7 @@ const MUTED_OLIVE = '#8B8B5C';
 const THEMED_LIGHT_BG = '#F5F3F0';
 const CHARCOAL = '#333333';
 const ACCENT_TAN = '#C9A876';
+const PAGE_BG = '#F7F8FA';
 const APPOINTMENT_STATUS_OPTIONS = [
   { value: 'auto-scheduled', label: 'Auto-scheduled' },
   { value: 'confirmed', label: 'Confirmed' },
@@ -640,12 +641,6 @@ export default function StaffAppointmentManager() {
       adversePartyCounsel: appointmentForm.adversePartyCounsel || undefined,
       adversePartyCounselAddress: appointmentForm.adversePartyCounselAddress || undefined,
       adversePartyCounselPhone: appointmentForm.adversePartyCounselPhone || undefined,
-      employerTelephone: appointmentForm.employerTelephone || undefined,
-      spouseSourceOfIncome: appointmentForm.spouseSourceOfIncome || undefined,
-      spouseMonthlyIncome: appointmentForm.spouseMonthlyIncome ? Number(appointmentForm.spouseMonthlyIncome) : undefined,
-      spouseEmployerAddress: appointmentForm.spouseEmployerAddress || undefined,
-      totalCombinedIncome: appointmentForm.totalCombinedIncome ? Number(appointmentForm.totalCombinedIncome) : undefined,
-      caseNumber: appointmentForm.caseNumber || undefined,
       caseDescription: appointmentForm.caseDescription || undefined,
       caseNature: appointmentForm.caseNature || undefined,
       natureOfCase: appointmentForm.caseNature || undefined,
@@ -691,14 +686,13 @@ export default function StaffAppointmentManager() {
         </Menu>
       </Group>
 
-      <Paper p="lg" radius="md" mb="md" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
-        <Stack gap="sm">
+      <Paper p="md" radius="md" mb="md" style={{ backgroundColor: `${PRIMARY_GOLD}08`, border: `1px solid ${PRIMARY_GOLD}40` }}>
+        <Stack gap="xs">
           <Group gap="xs">
             <IconCalendarEvent size={14} color={PRIMARY_BROWN} />
             <Text size="sm" fw={600} c={CHARCOAL}>
               {item.scheduledDate}
               {item.appointmentTime && ` at ${
-                // Convert 24-hour to 12-hour format
                 (() => {
                   const [hours, minutes] = item.appointmentTime.split(':');
                   const hour = parseInt(hours);
@@ -707,6 +701,17 @@ export default function StaffAppointmentManager() {
                   return `${displayHour}:${minutes} ${ampm}`;
                 })()
               }`}
+              {item.appointmentTime && (
+                <Text span size="xs" c={MUTED_OLIVE} ml={4}>
+                  {(() => {
+                    const [hours, minutes] = item.appointmentTime.split(':');
+                    const endHour = parseInt(hours) + 1;
+                    const ampm = endHour >= 12 ? 'PM' : 'AM';
+                    const displayHour = endHour === 0 ? 12 : endHour > 12 ? endHour - 12 : endHour;
+                    return `- ${displayHour}:${minutes} ${ampm} (1 hr)`;
+                  })()}
+                </Text>
+              )}
             </Text>
           </Group>
           <Group gap="xs">
@@ -720,103 +725,138 @@ export default function StaffAppointmentManager() {
         </Stack>
       </Paper>
 
-      <Stack gap="xs" mb="md">
+      <Stack gap="xs" mb="sm">
         <Group gap="xs">
           <IconPhone size={14} color={MUTED_OLIVE} />
-          <Text size="xs" c={CHARCOAL}>{item.contactNumber}</Text>
+          <Text
+            size="xs"
+            c={CHARCOAL}
+            component="a"
+            href={`tel:${item.contactNumber}`}
+            style={{ textDecoration: 'none', color: CHARCOAL, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+          >
+            {item.contactNumber}
+          </Text>
         </Group>
         <Group gap="xs">
           <IconMail size={14} color={MUTED_OLIVE} />
-          <Text size="xs" c={CHARCOAL}>{item.email}</Text>
+          <Text
+            size="xs"
+            c={CHARCOAL}
+            component="a"
+            href={`mailto:${item.email}`}
+            style={{ textDecoration: 'none', color: CHARCOAL, cursor: 'pointer' }}
+          >
+            {item.email}
+          </Text>
         </Group>
       </Stack>
 
-      <Paper p="md" radius="md" mb="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
-        <Text size="xs" c={MUTED_OLIVE} mb={4}>Purpose</Text>
+      <Box mb="sm">
+        <Text size="xs" c={MUTED_OLIVE} fw={600} mb={2}>Purpose</Text>
         <Text size="sm" c={CHARCOAL}>{item.purpose}</Text>
-      </Paper>
+      </Box>
 
       <Group gap="xs" mb="md">
-        <Badge size="sm" color={item.priority === 'High' ? 'red' : 'yellow'}>
-          {item.priority} Priority
+        {item.priority === 'High' && (
+          <Badge size="sm" color="red" variant="light">
+            High Priority
+          </Badge>
+        )}
+        {item.priority === 'Medium' && (
+          <Badge size="sm" color="yellow" variant="light">
+            Medium
+          </Badge>
+        )}
+        <Badge size="sm" variant="light" color={
+          item.status === 'confirmed' ? 'green' : 
+          item.status === 'auto-scheduled' ? 'blue' : 
+          item.status === 'legal-advice' ? 'violet' : 
+          item.status === 'court-case' ? 'red' : 'gray'
+        }>
+          {item.status === 'auto-scheduled' ? 'Pending' : 
+           item.status === 'confirmed' ? 'Confirmed' : 
+           item.status?.replace('-', ' ')?.replace(/\b\w/g, l => l.toUpperCase()) || 'Pending'}
         </Badge>
       </Group>
 
-      {/* Show buttons based on status */}
+      {/* Primary actions */}
       {item.status === 'auto-scheduled' ? (
-        <SimpleGrid cols={2} spacing="sm">
-          <Button 
-            size="md" 
-            variant="filled" 
-            leftSection={<IconFileText size={18} />} 
-            onClick={() => {
-              // Get current date for auto-fill
-              const today = new Date();
-              const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-              
-              // Get logged-in intern's name and ID
-              const internName = userData?.firstName && userData?.lastName 
-                ? `${userData.firstName} ${userData.lastName}` 
-                : userData?.username || userData?.displayName || '';
-              const internId = userData?._id || userData?.id || null;
-              
-              // Navigate to recommendation page with client info and current date
-              navigate(`/admin/recommendation/${item.id}`, { 
-                state: { 
-                  caseId: item.id,
-                  clientInfo: {
-                    clientName: item.clientName,
-                    dateOfInterview: formattedDate,
-                    dateSubmitted: formattedDate,
-                    interviewingInterns: internName,
-                    interviewingInternsId: internId
-                  }
-                } 
-              });
-            }}
-            style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+        <Stack gap="xs">
+          <Group grow>
+            <Button 
+              size="sm" 
+              variant="filled" 
+              leftSection={<IconCheck size={16} />} 
+              onClick={() => {
+                const today = new Date();
+                const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                const internName = userData?.firstName && userData?.lastName 
+                  ? `${userData.firstName} ${userData.lastName}` 
+                  : userData?.username || userData?.displayName || '';
+                const internId = userData?._id || userData?.id || null;
+                navigate(`/admin/recommendation/${item.id}`, { 
+                  state: { 
+                    caseId: item.id,
+                    clientInfo: {
+                      clientName: item.clientName,
+                      dateOfInterview: formattedDate,
+                      dateSubmitted: formattedDate,
+                      interviewingInterns: internName,
+                      interviewingInternsId: internId
+                    }
+                  } 
+                });
+              }}
+              style={{ backgroundColor: PRIMARY_BROWN }}
+            >
+              Approve & Recommend
+            </Button>
+            <Button 
+              size="sm" 
+              variant="light" 
+              leftSection={<IconEdit size={16} />} 
+              onClick={() => handleOpenEditAppointment(item)} 
+              style={{ backgroundColor: THEMED_LIGHT_BG, color: PRIMARY_BROWN }}
+            >
+              Edit
+            </Button>
+          </Group>
+          <Button
+            fullWidth
+            size="xs"
+            variant="subtle"
+            leftSection={<IconEye size={14} />}
+            onClick={() => openAppointmentModal(item.id)}
+            c={MUTED_OLIVE}
           >
-            Recommend
+            View Full Details
           </Button>
-          <Button 
-            size="md" 
-            variant="light" 
-            leftSection={<IconEdit size={18} />} 
-            onClick={() => handleOpenEditAppointment(item)} 
-            style={{ backgroundColor: THEMED_LIGHT_BG, color: PRIMARY_BROWN }}
-          >
-            Edit
-          </Button>
-        </SimpleGrid>
+        </Stack>
       ) : (
-        <Button 
-          fullWidth 
-          size="md" 
-          variant="outline" 
-          leftSection={<IconFileText size={18} />}
-          onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } })}
-          style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-        >
-          View Recommendation
-        </Button>
+        <Stack gap="xs">
+          <Button 
+            fullWidth 
+            size="sm" 
+            variant="outline" 
+            leftSection={<IconFileText size={16} />}
+            onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } })}
+            style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+          >
+            View Recommendation
+          </Button>
+          <Button
+            fullWidth
+            size="xs"
+            variant="subtle"
+            leftSection={<IconEye size={14} />}
+            onClick={() => openAppointmentModal(item.id)}
+            c={MUTED_OLIVE}
+          >
+            View Full Details
+          </Button>
+        </Stack>
       )}
-      
-      {/* View Full Details Button */}
-      <Button
-        fullWidth
-        size="md"
-        variant="light"
-        mt="sm"
-        leftSection={<IconEye size={18} />}
-        onClick={() => openAppointmentModal(item.id)}
-        style={{
-          backgroundColor: THEMED_LIGHT_BG,
-          color: PRIMARY_BROWN,
-          fontWeight: 600,
-        }}
-      >
-        View Full Receipt
-      </Button>
     </Card>
   );
 
@@ -942,7 +982,7 @@ export default function StaffAppointmentManager() {
 
   if (loading) {
     return (
-      <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <Box bg={PAGE_BG} mih="100vh" py="xl">
         <Center mih="100vh">
           <Loader />
         </Center>
@@ -951,17 +991,38 @@ export default function StaffAppointmentManager() {
   }
 
   return (
-    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+    <Box bg={PAGE_BG} mih="100vh" py="xl">
       <Container size="xl">
-        <Paper shadow="xs" p="xl" mb="xl" radius="lg" style={{ background: PRIMARY_BROWN, border: 'none' }}>
-          <Group gap="md" align="center">
-            <Box style={{ width: 48, height: 48, borderRadius: '12px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <IconScale size={24} color={PRIMARY_BROWN} stroke={2.5} />
+        {/* Compact Page Header */}
+        <Group justify="space-between" align="center" mb="lg" px="xs">
+          <Group gap="sm" align="center">
+            <Box style={{ width: 36, height: 36, borderRadius: '10px', background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconScale size={20} color="white" stroke={2.5} />
             </Box>
             <Box>
-              <Title order={2} c="white" mb={4}>Staff Portal - {userRole.charAt(0).toUpperCase() + userRole.slice(1)}</Title>
-              <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>Manage client appointments and requests</Text>
+              <Title order={3} c={CHARCOAL}>Appointments</Title>
+              <Text size="xs" c={MUTED_OLIVE}>Manage client appointments and requests</Text>
             </Box>
+          </Group>
+          <Group gap="xs">
+            {/* Quick Stats */}
+            <Badge size="lg" variant="light" color="blue" style={{ fontWeight: 600 }}>
+              {pendingAppointments.length + events.length} Total
+            </Badge>
+            <Badge size="lg" variant="light" color="green" style={{ fontWeight: 600 }}>
+              {pendingAppointments.filter(a => a.status === 'confirmed').length} Confirmed
+            </Badge>
+            <Badge size="lg" variant="light" color="orange" style={{ fontWeight: 600 }}>
+              {pendingAppointments.filter(a => a.status === 'auto-scheduled').length} Pending
+            </Badge>
+          </Group>
+        </Group>
+
+        {/* Search & Filter Bar - above calendar */}
+        <Paper shadow="xs" p="sm" mb="md" radius="lg" bg="white">
+          <Group>
+            <TextInput placeholder="Search clients..." leftSection={<IconSearch size={16} />} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ flex: 1 }} size="sm" />
+            <Select placeholder="Filter by status" leftSection={<IconFilter size={16} />} data={['All', 'Pending', 'Scheduled', 'Completed']} value={filterStatus} onChange={setFilterStatus} w={180} size="sm" />
           </Group>
         </Paper>
 
@@ -993,17 +1054,46 @@ export default function StaffAppointmentManager() {
           onDateClick={handleDateClick}
         />
 
-        <Paper shadow="xs" p="lg" mb="xl" radius="lg" bg="white">
-          <Group>
-            <TextInput placeholder="Search clients..." leftSection={<IconSearch size={16} />} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ flex: 1 }} />
-            <Select placeholder="Filter by status" leftSection={<IconFilter size={16} />} data={['All', 'Pending', 'Scheduled', 'Completed']} value={filterStatus} onChange={setFilterStatus} w={200} />
+        {/* Appointment Tabs */}
+        <Box mt={32}>
+        <Paper shadow="xs" p="lg" radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
+          <Group justify="space-between" align="center" mb="md">
+            <Title order={4} c={CHARCOAL}>Client Appointments</Title>
+            <Text size="xs" c={MUTED_OLIVE}>{pendingAppointments.length} total records</Text>
           </Group>
-        </Paper>
-
-        <Tabs defaultValue="pending" variant="pills" styles={{ tab: { padding: '12px 24px', fontWeight: 600, '&[data-active]': { background: PRIMARY_BROWN, color: 'white' } } }}>
-          <Tabs.List mb="xl">
-            <Tabs.Tab value="pending" leftSection={<IconClock size={20} />}>
-              Auto-Scheduled ({pendingAppointments.filter(a => a.status === 'auto-scheduled').length})
+          <Divider mb="md" color="#F0F0F0" />
+        <Tabs defaultValue="pending" variant="outline" radius="md" styles={{
+          tab: {
+            padding: '10px 18px',
+            fontWeight: 600,
+            fontSize: '13px',
+            color: MUTED_OLIVE,
+            borderColor: '#E8E8E8',
+            '&[data-active]': {
+              color: PRIMARY_BROWN,
+              borderColor: PRIMARY_BROWN,
+              borderBottomColor: 'white',
+              background: 'white',
+            },
+            '&:hover': {
+              background: `${PRIMARY_GOLD}10`,
+              borderColor: '#ddd',
+            },
+          },
+          tabLabel: { gap: '6px' },
+        }}>
+          <Tabs.List mb="lg">
+            <Tabs.Tab value="pending" leftSection={<IconClock size={16} />} rightSection={<Badge size="sm" variant="filled" color="orange" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px' }}>{pendingAppointments.filter(a => a.status === 'auto-scheduled').length}</Badge>}>
+              Auto-Scheduled
+            </Tabs.Tab>
+            <Tabs.Tab value="confirmed" leftSection={<IconCheck size={16} />} rightSection={<Badge size="sm" variant="filled" color="green" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px' }}>{pendingAppointments.filter(a => a.status === 'confirmed').length}</Badge>}>
+              Confirmed
+            </Tabs.Tab>
+            <Tabs.Tab value="legal-advice" leftSection={<IconMessage2 size={16} />} rightSection={<Badge size="sm" variant="filled" color="violet" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px' }}>{pendingAppointments.filter(a => a.status === 'legal-advice').length}</Badge>}>
+              Legal Advice
+            </Tabs.Tab>
+            <Tabs.Tab value="court-case" leftSection={<IconGavel size={16} />} rightSection={<Badge size="sm" variant="filled" color="red" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px' }}>{pendingAppointments.filter(a => a.status === 'court-case').length}</Badge>}>
+              Court Case
             </Tabs.Tab>
           </Tabs.List>
 
@@ -1017,7 +1107,39 @@ export default function StaffAppointmentManager() {
             )}
           </Tabs.Panel>
 
+          <Tabs.Panel value="confirmed">
+            {pendingAppointments.filter(a => a.status === 'confirmed').length > 0 ? (
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+                {pendingAppointments.filter(a => a.status === 'confirmed').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+              </SimpleGrid>
+            ) : (
+              <Center mih={200}><Text c={MUTED_OLIVE}>No confirmed appointments</Text></Center>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="legal-advice">
+            {pendingAppointments.filter(a => a.status === 'legal-advice').length > 0 ? (
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+                {pendingAppointments.filter(a => a.status === 'legal-advice').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+              </SimpleGrid>
+            ) : (
+              <Center mih={200}><Text c={MUTED_OLIVE}>No legal advice requests</Text></Center>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="court-case">
+            {pendingAppointments.filter(a => a.status === 'court-case').length > 0 ? (
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+                {pendingAppointments.filter(a => a.status === 'court-case').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+              </SimpleGrid>
+            ) : (
+              <Center mih={200}><Text c={MUTED_OLIVE}>No court case appointments</Text></Center>
+            )}
+          </Tabs.Panel>
+
         </Tabs>
+        </Paper>
+        </Box>
 
         <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title="Edit Appointment" size="lg" styles={{ header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' }, body: { padding: '24px' } }}>
           {selectedAppointment && (
@@ -1507,24 +1629,29 @@ export default function StaffAppointmentManager() {
             <Box>
               {/* Header Section */}
               <Paper 
-                p="xl" 
+                p="lg" 
                 radius="0"
                 style={{ 
-                  background: PRIMARY_BROWN,
+                  background: `linear-gradient(135deg, ${PRIMARY_BROWN}, ${PRIMARY_BROWN}DD)`,
                   border: 'none',
                   borderTopLeftRadius: '12px',
                   borderTopRightRadius: '12px',
                 }}
               >
                 <Group justify="space-between" align="center">
-                  <Box>
-                    <Title order={2} c="white" mb={4}>
-                      Sebastinian Office of Legal Aid (SOLA)
-                    </Title>
-                    <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
-                      College of Law - San Sebastian College Recoletos, Manila
-                    </Text>
-                  </Box>
+                  <Group gap="sm">
+                    <Box style={{ width: 36, height: 36, borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <IconScale size={20} color="white" />
+                    </Box>
+                    <Box>
+                      <Text size="sm" c="white" fw={700}>
+                        SOLA - Client Information Sheet
+                      </Text>
+                      <Text size="xs" c="rgba(255, 255, 255, 0.7)">
+                        San Sebastian College Recoletos, Manila
+                      </Text>
+                    </Box>
+                  </Group>
                   {appointmentEditMode ? (
                     <Group gap="xs">
                       <Button

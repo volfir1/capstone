@@ -4,7 +4,7 @@ export const MUTED_OLIVE = "#6B6B5A";
 export const THEMED_LIGHT_BG = "#E8E3D5";
 export const CHARCOAL = "#2C2C2C";
 export const ACCENT_TAN = "#A68A64";
-
+export const BG = "#F7F8FA"
 // Form Options
 export const GENDER_OPTIONS = [
   'Male',

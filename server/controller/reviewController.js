@@ -12,10 +12,26 @@ export const createReview = async (req, res) => {
     if (clientName) toCreate.clientName = clientName
 
     const review = await Review.create(toCreate)
-    res.status(201).json(review)
+    
+    // Return only essential fields to avoid serialization issues with large content
+    const result = {
+      _id: review._id,
+      caseId: review.caseId,
+      caseTitle: review.caseTitle,
+      clientName: review.clientName,
+      reviewerId: review.reviewerId,
+      reviewerRole: review.reviewerRole,
+      step: review.step,
+      reviewStage: review.reviewStage,
+      createdAt: review.createdAt,
+      updatedAt: review.updatedAt,
+      success: true
+    }
+    res.status(201).json(result)
   } catch (err) {
-    console.error('createReview error', err)
-    res.status(500).json({ error: err.message })
+    console.error('createReview error:', err.name, err.message)
+    if (err.errors) console.error('Validation errors:', JSON.stringify(err.errors))
+    res.status(500).json({ error: err.message, name: err.name })
   }
 }
 

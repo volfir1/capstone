@@ -26,12 +26,17 @@ import {
   Grid,
   ScrollArea,
   Avatar,
+  Menu,
+  Tooltip,
+  Pagination,
+  PasswordInput,
+  Progress,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconUserPlus } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconUserPlus, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop } from '@tabler/icons-react';
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN, NATURE_OF_CASE_OPTIONS, CATEGORY_COLORS } from '@utils/constants';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, BG, CHARCOAL, ACCENT_TAN, NATURE_OF_CASE_OPTIONS, CATEGORY_COLORS } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { CaseInformationSection } from '../other/CaseInformationSection';
@@ -2035,167 +2040,180 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     );
   };
 
-  const renderCaseCard = (f) => (
-    <Paper
-      key={f._id || f.id || f.caseId}
-      p="md"
-      radius="md"
-      withBorder
-      style={{ borderRadius: 12, border: '1px solid #E6D9CC', background: 'white' }}
-    >
-      <Group noWrap align="center" justify="space-between">
-        <Group noWrap align="center" style={{ flex: 1 }}>
-          <Box style={{ width: 40, height: 40, borderRadius: 8, background: MUTED_OLIVE, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-            <IconBriefcase size={18} />
-          </Box>
-          <Box style={{ flex: 1 }}>
-            <Group spacing="xs" align="center">
-              {(() => {
-                const recordId = f._id || f.id;
-                const hasRecord = recordId ? state.caseRecordsMap[recordId] : false;
-                const clientName = f.clientName || f.content?.interviewInfo?.clientName || 'Unknown Client';
-                const displayTitle = hasRecord
-                  ? (f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || f.caseId || clientName)
-                  : clientName;
-                return <Text fw={600} size="sm">{displayTitle}</Text>;
-              })()}
-              {f.caseId && (
-                <Badge 
-                  size="sm" 
-                  variant="filled" 
-                  style={{ 
-                    backgroundColor: PRIMARY_GOLD, 
-                    color: CHARCOAL,
-                    fontWeight: 600
-                  }}
-                >
-                  {f.caseId}
-                </Badge>
-              )}
-            </Group>
-            <Text size="xs" c="dimmed" mt={4}>
-              {f.createdAt ? new Date(f.createdAt).toLocaleDateString() : 'No Date'}
-            </Text>
-            <Group spacing="xs" mt={4}>
-              {(f.content?.caseInfo?.nature || f.category) && (
-                <Badge 
-                  size="sm" 
-                  variant="light" 
-                  color={CATEGORY_COLORS[f.content?.caseInfo?.nature || f.category] || 'gray'}
-                >
-                  {f.content?.caseInfo?.nature || f.category}
-                </Badge>
-              )}
-              <Badge size="sm" variant="light" color="gray">
-                {f.finalizedRole || f.finalizedBy || 'Secretary'}
-              </Badge>
-            </Group>
-          </Box>
-        </Group>
-        <Stack spacing="xs" align="stretch" style={{ minWidth: '300px' }}>
-          <Group spacing="xs" grow>
-            <Button
-              size="sm"
-              variant="outline"
-              leftSection={<IconEye size={16} />}
-              onClick={(e) => {
-                e.stopPropagation();
-                openModal(f);
-              }}
-              style={{ flex: 1 }}
-            >
-              View Review
-            </Button>
-            {f.decision === 'accepted' && (
-              <Button
-                size="sm"
-                variant="outline"
-                style={{ borderColor: ACCENT_TAN, color: PRIMARY_BROWN, flex: 1 }}
-                leftSection={<IconReceipt size={16} />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openAppointmentModal(f);
-                }}
-              >
-                Full Receipt
-              </Button>
-            )}
+  // Helper to get case-type-specific icon and color
+  const getCaseTypeIcon = (f) => {
+    const caseNature = f.content?.caseInfo?.nature || f.category || '';
+    const n = caseNature.toLowerCase();
+    // Criminal / Human Rights
+    if (n.includes('criminal') || n.includes('human rights')) return { icon: IconScale, color: '#E03131' };
+    // Land & Property
+    if (n.includes('land') || n.includes('property') || n.includes('inheritance') || n.includes('estate')) return { icon: IconHome, color: '#0C8599' };
+    // Contract Disputes
+    if (n.includes('contract')) return { icon: IconFileInvoice, color: '#1971C2' };
+    // Labor & Employment
+    if (n.includes('labor') || n.includes('employment')) return { icon: IconUsersGroup, color: '#E8590C' };
+    // Family Law
+    if (n.includes('family')) return { icon: IconUsersGroup, color: '#C2255C' };
+    // Civil Case
+    if (n.includes('civil')) return { icon: IconGavel, color: '#1971C2' };
+    // Cybercrime
+    if (n.includes('cyber')) return { icon: IconDeviceDesktop, color: '#495057' };
+    // Consumer / Business / Admin / Tax
+    if (n.includes('business') || n.includes('consumer') || n.includes('admin') || n.includes('tax')) return { icon: IconShieldLock, color: '#4263EB' };
+    // Document Drafting
+    if (isDocumentDrafting(f)) return { icon: IconFileDescription, color: '#7048E8' };
+    // Legal Advice
+    if (isLegalAdvice(f)) return { icon: IconClipboardText, color: '#0C8599' };
+    // Default
+    return { icon: IconBriefcase, color: MUTED_OLIVE };
+  };
+
+  const renderCaseCard = (f) => {
+    const recordId = f._id || f.id;
+    const hasRecord = recordId ? state.caseRecordsMap[recordId] : false;
+    const clientName = f.clientName || f.content?.interviewInfo?.clientName || 'Unknown Client';
+    const displayTitle = hasRecord
+      ? (f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || f.caseId || clientName)
+      : clientName;
+    const caseNature = f.content?.caseInfo?.nature || f.category;
+    const truncatedId = f.caseId ? (f.caseId.length > 8 ? '#' + f.caseId.slice(0, 8) : '#' + f.caseId) : null;
+    const dateStr = f.createdAt ? new Date(f.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No Date';
+    const { icon: CaseIcon, color: iconColor } = getCaseTypeIcon(f);
+    const roleDisplay = (f.finalizedRole || f.finalizedBy || 'Secretary');
+    const capitalizedRole = roleDisplay.charAt(0).toUpperCase() + roleDisplay.slice(1);
+    const categoryColor = CATEGORY_COLORS[caseNature] || 'gray';
+    const MANTINE_COLORS = { red: '#E03131', blue: '#1971C2', pink: '#C2255C', orange: '#E8590C', teal: '#0C8599', cyan: '#0B7285', grape: '#862E9C', yellow: '#E67700', lime: '#66A80F', indigo: '#4263EB', green: '#2F9E44', violet: '#7048E8', gray: '#868E96', dark: '#495057' };
+    // Override: differentiate Contract (blue) from Land/Property (teal)
+    const colorOverrides = { 'Contract Disputes': '#1971C2', 'Land and Property Disputes': '#0C8599' };
+    const categoryTextColor = colorOverrides[caseNature] || MANTINE_COLORS[categoryColor] || '#868E96';
+
+    return (
+      <Paper
+        key={recordId || f.caseId}
+        px="md"
+        py={12}
+        radius="md"
+        className="case-row"
+        style={{ border: '1px solid #F0F1F3', background: 'white', cursor: 'pointer' }}
+      >
+        <Group wrap="nowrap" justify="space-between" align="center">
+          <Group wrap="nowrap" gap="sm" style={{ flex: 1, minWidth: 0 }}>
+            <Box style={{ width: 36, height: 36, borderRadius: 8, background: `${iconColor}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <CaseIcon size={16} color={iconColor} />
+            </Box>
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              <Group gap={8} wrap="nowrap" align="center">
+                <Text fw={700} size="sm" truncate>{displayTitle}</Text>
+                {truncatedId && (
+                  <Text size="xs" c="dimmed" ff="monospace" style={{ flexShrink: 0, opacity: 0.7 }}>{truncatedId}</Text>
+                )}
+              </Group>
+              <Group gap={4} mt={2} wrap="nowrap">
+                <Text size="xs" c="dimmed">{dateStr}</Text>
+                {caseNature && (
+                  <>
+                    <Text size="xs" c="dimmed">·</Text>
+                    <Text size="xs" fw={600} style={{ color: categoryTextColor, flexShrink: 0 }}>
+                      {caseNature}
+                    </Text>
+                  </>
+                )}
+                <Text size="xs" c="dimmed">·</Text>
+                <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+                  {capitalizedRole}
+                </Text>
+              </Group>
+            </Box>
           </Group>
-          {f.decision === 'accepted' && (
-            <Group spacing="xs" grow>
-              {!isLegalAdvice(f) && (
-                <Button
-                  size="sm"
-                  variant="filled"
-                  style={{ backgroundColor: PRIMARY_BROWN, flex: 1 }}
-                  leftSection={<IconFileText size={16} />}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openCaseRecordModal(f);
-                  }}
-                >
-                  Case Record
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN, flex: 1 }}
-                leftSection={<IconMessageCircle size={16} />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleChatNavigation(f);
-                }}
+
+          <Group gap={8} wrap="nowrap" style={{ flexShrink: 0, paddingRight: 4 }}>
+            <Tooltip label="View Review">
+              <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: '1px solid #E5E7EB' }}
+                onClick={(e) => { e.stopPropagation(); openModal(f); }}
               >
-                Chat
-              </Button>
-            </Group>
-          )}
-          {f.decision === 'accepted' && !f.linkedCaseId && !f.clientAccountCreated && (
-            <Button
-              size="sm"
-              variant="light"
-              color="blue"
-              fullWidth
-              leftSection={<IconUserPlus size={16} />}
-              onClick={(e) => {
-                e.stopPropagation();
-                dispatch({ type: 'OPEN_CREATE_ACCOUNT_MODAL', payload: f });
-              }}
-            >
-              Create Client Account
-            </Button>
-          )}
-          {f.decision === 'accepted' && isDocumentDrafting(f) && (
-            <Button
-              size="sm"
-              variant="light"
-              color="violet"
-              fullWidth
-              leftSection={<IconHistory size={16} />}
-              onClick={(e) => {
-                e.stopPropagation();
-                const versions = f.content?.interviewInfo?.documentVersions || [];
-                dispatch({ 
-                  type: 'OPEN_VERSION_HISTORY_MODAL', 
-                  payload: { case: f, versions } 
-                });
-              }}
-            >
-              View Version History
-            </Button>
-          )}
-        </Stack>
-      </Group>
-    </Paper>
-  );
+                <IconEye size={15} />
+              </ActionIcon>
+            </Tooltip>
+
+            <Menu shadow="md" width={220} position="bottom-end">
+              <Menu.Target>
+                <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: '1px solid #E5E7EB' }}>
+                  <IconDots size={15} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>Actions</Menu.Label>
+                <Menu.Item leftSection={<IconEye size={16} />}
+                  onClick={() => openModal(f)}
+                >
+                  View Review
+                </Menu.Item>
+                {f.decision === 'accepted' && (
+                  <Menu.Item leftSection={<IconReceipt size={16} />}
+                    onClick={() => openAppointmentModal(f)}
+                  >
+                    Full Receipt
+                  </Menu.Item>
+                )}
+                {f.decision === 'accepted' && !isLegalAdvice(f) && (
+                  <Menu.Item leftSection={<IconFileText size={16} />}
+                    onClick={() => openCaseRecordModal(f)}
+                  >
+                    Case Record
+                  </Menu.Item>
+                )}
+                {f.decision === 'accepted' && (
+                  <Menu.Item leftSection={<IconMessageCircle size={16} />}
+                    onClick={() => handleChatNavigation(f)}
+                  >
+                    Chat
+                  </Menu.Item>
+                )}
+                {f.decision === 'accepted' && isDocumentDrafting(f) && (
+                  <Menu.Item leftSection={<IconHistory size={16} />} color="violet"
+                    onClick={() => {
+                      const versions = f.content?.interviewInfo?.documentVersions || [];
+                      dispatch({ type: 'OPEN_VERSION_HISTORY_MODAL', payload: { case: f, versions } });
+                    }}
+                  >
+                    Version History
+                  </Menu.Item>
+                )}
+                {f.decision === 'accepted' && !f.linkedCaseId && !f.clientAccountCreated && (
+                  <>
+                    <Menu.Divider />
+                    <Menu.Item leftSection={<IconUserPlus size={16} />} color="blue"
+                      onClick={() => dispatch({ type: 'OPEN_CREATE_ACCOUNT_MODAL', payload: f })}
+                    >
+                      Create Client Account
+                    </Menu.Item>
+                  </>
+                )}
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
+        </Group>
+      </Paper>
+    );
+  };
 
   const appointmentStatusLabel = state.appointmentEditMode
     ? (state.appointmentForm.status || state.appointmentDetails?.status || 'For Appointment')
     : (state.appointmentDetails?.status || 'For Appointment');
 
   return (
-    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+    <Box bg={BG} mih="100vh" py="xl">
+      <style>
+        {`
+          ::-webkit-scrollbar { width: 8px; }
+          ::-webkit-scrollbar-track { background: transparent; }
+          ::-webkit-scrollbar-thumb { background: ${MUTED_OLIVE}; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb:hover { background: ${PRIMARY_BROWN}; }
+          * { scrollbar-width: thin; scrollbar-color: ${MUTED_OLIVE} transparent; }
+          .case-row { transition: all 0.15s ease; }
+          .case-row:hover { background: #F5F6F8 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        `}
+      </style>
       <Container size="xl">
         {/* Modal for Case Record */}
         <Modal
@@ -3486,272 +3504,280 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
           opened={state.createAccountModalOpened}
           onClose={() => dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' })}
           title={
-            <Group>
-              <IconUserPlus size={24} color={PRIMARY_BROWN} />
-              <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+            <Group gap="xs">
+              <IconUserPlus size={20} color={PRIMARY_BROWN} />
+              <Text fw={700} size="md" c={PRIMARY_BROWN}>
                 Create Client Account
               </Text>
             </Group>
           }
-          size="md"
+          size="sm"
           radius="lg"
+          styles={{
+            body: { padding: '16px 24px 24px' },
+          }}
         >
-          {state.selectedCaseForAccount && (
-            <Stack gap="md">
-              <Paper p="md" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
-                <Text size="sm" fw={600} mb={4}>
-                  {state.selectedCaseForAccount.caseId}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  Client: {state.selectedCaseForAccount.content?.interviewInfo?.clientName || state.selectedCaseForAccount.clientName || 'Unknown'}
-                </Text>
-              </Paper>
+          {state.selectedCaseForAccount && (() => {
+            const clientName = state.selectedCaseForAccount.content?.interviewInfo?.clientName || state.selectedCaseForAccount.clientName || 'Unknown';
+            const shortId = state.selectedCaseForAccount.caseId
+              ? (state.selectedCaseForAccount.caseId.length > 8 ? '#' + state.selectedCaseForAccount.caseId.slice(0, 8) : '#' + state.selectedCaseForAccount.caseId)
+              : '';
+            const pw = state.accountForm.password || '';
+            const pwStrength = pw.length === 0 ? 0 : pw.length < 6 ? 25 : pw.length < 8 ? 50 : (pw.length >= 8 && /[A-Z]/.test(pw) && /[0-9]/.test(pw)) ? 100 : 75;
+            const pwColor = pwStrength <= 25 ? 'red' : pwStrength <= 50 ? 'orange' : pwStrength <= 75 ? 'yellow' : 'green';
+            const pwLabel = pwStrength <= 25 ? 'Weak' : pwStrength <= 50 ? 'Fair' : pwStrength <= 75 ? 'Good' : 'Strong';
 
-              <Text size="sm" c="dimmed">
-                Create login credentials for this client. They will be able to access their case information through the client dashboard.
-              </Text>
+            return (
+              <Stack gap="md">
+                <Box>
+                  <Group gap={6} mb={2}>
+                    <Text size="sm" c={CHARCOAL}>Client: <Text component="span" fw={700} inherit>{clientName}</Text></Text>
+                    <Text size="xs" c="dimmed" ff="monospace">{shortId}</Text>
+                  </Group>
+                  <Text size="xs" c="dimmed" lh={1.4}>
+                    Client will use these credentials to access their case information via the dashboard.
+                  </Text>
+                </Box>
 
-              <TextInput
-                label="Username"
-                placeholder="Enter username"
-                required
-                value={state.accountForm.username}
-                onChange={(e) => dispatch({ 
-                  type: 'SET_ACCOUNT_FORM', 
-                  payload: { ...state.accountForm, username: e.target.value } 
-                })}
-                styles={{
-                  label: { color: PRIMARY_BROWN, fontWeight: 600 },
-                  input: {
-                    borderColor: '#E6D9CC',
-                    '&:focus': { borderColor: PRIMARY_BROWN },
+                <Divider color="#F0F0F0" />
+
+                <TextInput
+                  label="Username"
+                  placeholder="Enter username"
+                  required
+                  value={state.accountForm.username}
+                  onChange={(e) => dispatch({ 
+                    type: 'SET_ACCOUNT_FORM', 
+                    payload: { ...state.accountForm, username: e.target.value } 
+                  })}
+                  styles={{
+                    label: { color: CHARCOAL, fontWeight: 700, fontSize: '13px', marginBottom: 4 },
+                    input: {
+                      borderColor: '#D1D5DB',
+                      '&:focus': { borderColor: PRIMARY_BROWN, boxShadow: `0 0 0 3px rgba(139, 69, 19, 0.1)` },
+                      '&::placeholder': { color: '#9CA3AF' },
+                    },
+                    required: { color: '#E03131', fontSize: '14px' },
+                  }}
+                />
+
+                <Box>
+                  <PasswordInput
+                    label="Password"
+                    placeholder="Enter password"
+                    required
+                    value={state.accountForm.password}
+                    onChange={(e) => dispatch({ 
+                      type: 'SET_ACCOUNT_FORM', 
+                      payload: { ...state.accountForm, password: e.target.value } 
+                    })}
+                    styles={{
+                      label: { color: CHARCOAL, fontWeight: 700, fontSize: '13px', marginBottom: 4 },
+                      input: {
+                        borderColor: '#D1D5DB',
+                        '&:focus': { borderColor: PRIMARY_BROWN, boxShadow: `0 0 0 3px rgba(139, 69, 19, 0.1)` },
+                        '&::placeholder': { color: '#9CA3AF' },
+                      },
+                      required: { color: '#E03131', fontSize: '14px' },
+                    }}
+                  />
+                  {pw.length > 0 ? (
+                    <Box mt={6}>
+                      <Progress value={pwStrength} color={pwColor} size="xs" radius="xl" />
+                      <Text size="xs" c={pwColor === 'red' ? '#E03131' : pwColor === 'orange' ? '#E8590C' : pwColor === 'yellow' ? '#E67700' : '#2F9E44'} mt={2} fw={500}>
+                        {pwLabel}
+                      </Text>
+                    </Box>
+                  ) : (
+                    <Text size="xs" c="dimmed" mt={4}>Minimum 8 characters</Text>
+                  )}
+                </Box>
+
+                <TextInput
+                  label={
+                    <Group gap={4}>
+                      <Text size="xs" fw={700} c={CHARCOAL}>Email</Text>
+                      <Text size="xs" c="dimmed" fw={400}>(Optional)</Text>
+                    </Group>
                   }
-                }}
-              />
+                  type="email"
+                  placeholder="client@example.com"
+                  value={state.accountForm.email}
+                  onChange={(e) => dispatch({ 
+                    type: 'SET_ACCOUNT_FORM', 
+                    payload: { ...state.accountForm, email: e.target.value } 
+                  })}
+                  styles={{
+                    input: {
+                      borderColor: '#D1D5DB',
+                      '&:focus': { borderColor: PRIMARY_BROWN, boxShadow: `0 0 0 3px rgba(139, 69, 19, 0.1)` },
+                      '&::placeholder': { color: '#9CA3AF' },
+                    },
+                  }}
+                />
 
-              <TextInput
-                label="Password"
-                type="password"
-                placeholder="Enter password"
-                required
-                value={state.accountForm.password}
-                onChange={(e) => dispatch({ 
-                  type: 'SET_ACCOUNT_FORM', 
-                  payload: { ...state.accountForm, password: e.target.value } 
-                })}
-                styles={{
-                  label: { color: PRIMARY_BROWN, fontWeight: 600 },
-                  input: {
-                    borderColor: '#E6D9CC',
-                    '&:focus': { borderColor: PRIMARY_BROWN },
-                  }
-                }}
-              />
+                <Divider color="#F0F0F0" mt={4} />
 
-              <TextInput
-                label="Email (Optional)"
-                type="email"
-                placeholder="Enter email address (optional)"
-                value={state.accountForm.email}
-                onChange={(e) => dispatch({ 
-                  type: 'SET_ACCOUNT_FORM', 
-                  payload: { ...state.accountForm, email: e.target.value } 
-                })}
-                styles={{
-                  label: { color: MUTED_OLIVE, fontWeight: 500 },
-                  input: {
-                    borderColor: '#E6D9CC',
-                    '&:focus': { borderColor: PRIMARY_BROWN },
-                  }
-                }}
-              />
-
-              <Divider />
-
-              <Group justify="flex-end" gap="sm">
-                <Button
-                  variant="subtle"
-                  onClick={() => dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' })}
-                  disabled={state.creatingAccount}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  style={{ backgroundColor: PRIMARY_BROWN }}
-                  onClick={handleCreateClientAccount}
-                  loading={state.creatingAccount}
-                  disabled={!state.accountForm.username || !state.accountForm.password}
-                >
-                  Create Account
-                </Button>
-              </Group>
-            </Stack>
-          )}
+                <Group justify="flex-end" gap="sm">
+                  <Button
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' })}
+                    disabled={state.creatingAccount}
+                    styles={{
+                      root: { color: '#6B7280', '&:hover': { backgroundColor: '#F3F4F6' } },
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    style={{ backgroundColor: PRIMARY_BROWN }}
+                    onClick={handleCreateClientAccount}
+                    loading={state.creatingAccount}
+                    disabled={!state.accountForm.username || !state.accountForm.password}
+                  >
+                    Create Account
+                  </Button>
+                </Group>
+              </Stack>
+            );
+          })()}
         </Modal>
 
-        {/* Header */}
-        <Paper
-          shadow="xs"
-          p="xl"
-          mb="xl"
-          radius="lg"
-          style={{ background: PRIMARY_BROWN, border: 'none' }}
-        >
-          <Group gap="md" align="center">
-            <Box
-              style={{ width: 48, height: 48, borderRadius: '12px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <IconBriefcase size={24} color={PRIMARY_BROWN} stroke={2.5} />
-            </Box>
-            <Title order={2} c="white">
-              Finalized Cases Management
+        {/* Page Header */}
+        <Group justify="space-between" align="center" mb="lg">
+          <Box>
+            <Title order={3} c={CHARCOAL} lh={1.2}>
+              Finalized Cases
             </Title>
-          </Group>
-        </Paper>
-
-        {/* Tabbed Content */}
-        <Paper shadow="xs" p="xl" radius="lg" bg="white">
-          {/* Search and Filter Bar */}
-          <Group mb="xl" align="flex-start" grow>
-            <TextInput
-              placeholder="Search by Case ID (e.g., case-26-0001) or Client Name"
+            <Text size="sm" c={MUTED_OLIVE} mt={2}>
+              Manage accepted, reviewed, and finalized client cases
+            </Text>
+          </Box>
+          <Tooltip label="Refresh data">
+            <ActionIcon
               size="md"
+              variant="subtle"
+              color="gray"
+              onClick={() => fetchFinalized()}
+              loading={state.loadingFinalized}
+              radius="md"
+            >
+              <IconRefresh size={18} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+
+        {/* Search, Filter & Tabs */}
+        <Paper shadow="xs" p="lg" radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
+          <Group mb="md" gap="sm" wrap="nowrap">
+            <TextInput
+              placeholder="Search by Case ID or Client Name..."
+              size="sm"
               value={state.searchTerm}
               onChange={(e) => dispatch({ type: 'SET_SEARCH_TERM', payload: e.target.value })}
-              leftSection={
-                <Box style={{ display: 'flex', alignItems: 'center', color: MUTED_OLIVE }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                  </svg>
-                </Box>
-              }
+              leftSection={<IconSearch size={16} color={MUTED_OLIVE} />}
               rightSection={
                 state.searchTerm && (
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    onClick={() => dispatch({ type: 'SET_SEARCH_TERM', payload: '' })}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
+                  <ActionIcon size="xs" variant="subtle" onClick={() => dispatch({ type: 'SET_SEARCH_TERM', payload: '' })}>
+                    <IconX size={14} />
                   </ActionIcon>
                 )
               }
-              styles={{
-                input: {
-                  borderRadius: '8px',
-                  border: '1px solid #E6D9CC',
-                  '&:focus': {
-                    borderColor: PRIMARY_BROWN,
-                  }
-                }
-              }}
+              style={{ flex: 1 }}
+              styles={{ input: { border: '1px solid #E5E7EB', fontSize: '13px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' } }}
+              radius="md"
             />
             <Select
-              placeholder="Filter by Category"
-              size="md"
+              placeholder="Category"
+              size="sm"
+              radius="md"
               value={state.categoryFilter}
-              onChange={(val) => dispatch({ type: 'SET_CATEGORY_FILTER', payload: val })}
+              onChange={(val) => dispatch({ type: 'SET_CATEGORY_FILTER', payload: val || 'all' })}
               data={[
                 { value: 'all', label: 'All Categories' },
                 ...NATURE_OF_CASE_OPTIONS.map(cat => ({ value: cat, label: cat }))
               ]}
-              clearable
-              onClear={() => dispatch({ type: 'SET_CATEGORY_FILTER', payload: 'all' })}
-              leftSection={
-                <Box style={{ display: 'flex', alignItems: 'center', color: MUTED_OLIVE }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
-                  </svg>
-                </Box>
-              }
-              styles={{
-                input: {
-                  borderRadius: '8px',
-                  border: '1px solid #E6D9CC',
-                  '&:focus': {
-                    borderColor: PRIMARY_BROWN,
-                  }
-                }
-              }}
+              leftSection={<IconFilter size={16} color={MUTED_OLIVE} />}
+              style={{ width: 200 }}
+              styles={{ input: { border: '1px solid #E5E7EB', fontSize: '13px' } }}
+              allowDeselect={false}
             />
           </Group>
           
-          <Tabs value={state.activeTab} onChange={(val) => dispatch({ type: 'SET_ACTIVE_TAB', payload: val })}>
-            <Tabs.List mb="xl" style={{ borderBottom: '1px solid #e9ecef' }}>
-              <Tabs.Tab
-                value="accepted"
-                rightSection={<Badge size="sm" color="green" variant="light">{acceptedWithRecord.length}</Badge>}
+          <Tabs value={state.activeTab} onChange={(val) => dispatch({ type: 'SET_ACTIVE_TAB', payload: val })}
+            styles={{ tab: { '&[data-active]': { backgroundColor: '#F9FAFB', fontWeight: 600 } } }}
+          >
+            <Tabs.List mb="md" style={{ borderBottom: '1px solid #E5E7EB' }}>
+              <Tabs.Tab value="accepted"
+                rightSection={<Badge size="xs" variant="light" color="green" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{acceptedWithRecord.length}</Badge>}
+                style={{ fontSize: '13px', padding: '10px 14px' }}
               >
                 With Record
               </Tabs.Tab>
-              <Tabs.Tab
-                value="without-record"
-                rightSection={<Badge size="sm" color="blue" variant="light">{acceptedWithoutRecord.length}</Badge>}
+              <Tabs.Tab value="without-record"
+                rightSection={<Badge size="xs" variant="light" color="blue" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{acceptedWithoutRecord.length}</Badge>}
+                style={{ fontSize: '13px', padding: '10px 14px' }}
               >
                 Without Record
               </Tabs.Tab>
-              <Tabs.Tab
-                value="legal-advice"
-                rightSection={<Badge size="sm" color="teal" variant="light">{legalAdviceCases.length}</Badge>}
+              <Tabs.Tab value="legal-advice"
+                rightSection={<Badge size="xs" variant="light" color="teal" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{legalAdviceCases.length}</Badge>}
+                style={{ fontSize: '13px', padding: '10px 14px' }}
               >
-                Legal Advice Only
+                Legal Advice
               </Tabs.Tab>
-              <Tabs.Tab
-                value="document-drafting"
-                rightSection={<Badge size="sm" color="violet" variant="light">{documentDraftingCases.length}</Badge>}
+              <Tabs.Tab value="document-drafting"
+                rightSection={<Badge size="xs" variant="light" color="violet" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{documentDraftingCases.length}</Badge>}
+                style={{ fontSize: '13px', padding: '10px 14px' }}
               >
                 Document Drafting
               </Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="accepted" pb="md">
-              <Stack>
+              <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center><Loader /></Center>
+                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
                 ) : (
                   acceptedWithRecord.length ? acceptedWithRecord.map(renderCaseCard) : (
-                    <Text size="sm" c={MUTED_OLIVE}>No accepted cases with case records found</Text>
+                    <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases with case records found</Text>
                   )
                 )}
               </Stack>
             </Tabs.Panel>
 
             <Tabs.Panel value="without-record" pb="md">
-              <Stack>
+              <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center><Loader /></Center>
+                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
                 ) : (
                   acceptedWithoutRecord.length ? acceptedWithoutRecord.map(renderCaseCard) : (
-                    <Text size="sm" c={MUTED_OLIVE}>No accepted cases without case records found</Text>
+                    <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases without case records found</Text>
                   )
                 )}
               </Stack>
             </Tabs.Panel>
 
             <Tabs.Panel value="legal-advice" pb="md">
-              <Stack>
+              <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center><Loader /></Center>
+                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
                 ) : (
                   legalAdviceCases.length ? legalAdviceCases.map(renderCaseCard) : (
-                    <Text size="sm" c={MUTED_OLIVE}>No accepted legal advice cases found</Text>
+                    <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No legal advice cases found</Text>
                   )
                 )}
               </Stack>
             </Tabs.Panel>
 
             <Tabs.Panel value="document-drafting" pb="md">
-              <Stack>
+              <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center><Loader /></Center>
+                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
                 ) : (
                   documentDraftingCases.length ? documentDraftingCases.map(renderCaseCard) : (
-                    <Text size="sm" c={MUTED_OLIVE}>No document drafting cases found</Text>
+                    <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No document drafting cases found</Text>
                   )
                 )}
               </Stack>
