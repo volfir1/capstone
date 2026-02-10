@@ -38,6 +38,7 @@ export const getProfile = async (req, res) =>{
                 isVerified: profile.isVerified,
                 createdAt: profile.createdAt,
                 accountStatus: isAttorney ? profile.accountStatus : undefined,
+                profileImage: profile.profileImage || '',
             }
         })
 
@@ -256,3 +257,51 @@ export const sendPasswordResetEmail = async (req, res) => {
         res.status(500).json({ success: false, message: error.message})
     }
 }
+
+// Update profile image (saves a Cloudinary URL)
+export const updateProfileImage = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' });
+        }
+
+        const idToken = authHeader.split(' ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+        const { profileImage } = req.body;
+
+        if (!profileImage || typeof profileImage !== 'string') {
+            return res.status(400).json({ success: false, message: 'profileImage URL is required' });
+        }
+
+        // Try User collection first, then Attorney
+        let profile = await User.findOneAndUpdate(
+            { firebaseUid: decodedToken.uid },
+            { profileImage },
+            { new: true }
+        );
+
+        if (!profile) {
+            profile = await Attorney.findOneAndUpdate(
+                { firebaseUid: decodedToken.uid },
+                { profileImage },
+                { new: true }
+            );
+        }
+
+        if (!profile) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        res.json({
+            success: true,
+            data: { profileImage: profile.profileImage },
+            message: 'Profile image updated successfully',
+        });
+    } catch (error) {
+        console.error('Update profile image error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};

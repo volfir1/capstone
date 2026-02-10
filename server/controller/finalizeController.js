@@ -1,4 +1,6 @@
 import Finalize from '../models/finalize.js'
+import User from '../models/user.js'
+import { createNotification } from './notificationController.js'
 
 export const createFinalize = async (req, res) => {
   try {
@@ -17,6 +19,26 @@ export const createFinalize = async (req, res) => {
 
     const rec = await Finalize.create(toCreate)
     console.log('Created finalize record with caseId:', rec.caseId)
+
+    // ── Notify client if decision was made ──
+    if (rec.clientUserId) {
+      const client = await User.findById(rec.clientUserId);
+      if (client?.firebaseUid && rec.decision) {
+        const isAccepted = rec.decision === 'accepted';
+        createNotification({
+          recipientId: client.firebaseUid,
+          title: isAccepted ? 'Case Accepted' : rec.decision === 'rejected' ? 'Case Update' : 'Case Under Review',
+          message: isAccepted
+            ? `Your case "${rec.caseTitle || rec.caseId}" has been accepted.`
+            : rec.decision === 'rejected'
+            ? `Your case "${rec.caseTitle || rec.caseId}" was not accepted. Please contact the office for details.`
+            : `Your case "${rec.caseTitle || rec.caseId}" is being reviewed.`,
+          type: isAccepted ? 'case_accepted' : 'case_rejected',
+          referenceId: rec._id.toString(),
+        });
+      }
+    }
+
     res.status(201).json(rec)
   } catch (err) {
     console.error('createFinalize error', err)
@@ -49,10 +71,29 @@ export const updateFinalized = async (req, res) => {
     if (clientName) toUpdate.clientName = clientName
     if (decision) toUpdate.decision = decision
 
+    const oldDoc = await Finalize.findById(id);
     const updated = await Finalize.findByIdAndUpdate(id, toUpdate, { new: true })
     if (!updated) {
       return res.status(404).json({ error: 'Finalized record not found' })
     }
+
+    // ── Notify client if decision just changed ──
+    if (decision && oldDoc && decision !== oldDoc.decision && updated.clientUserId) {
+      const client = await User.findById(updated.clientUserId);
+      if (client?.firebaseUid) {
+        const isAccepted = decision === 'accepted';
+        createNotification({
+          recipientId: client.firebaseUid,
+          title: isAccepted ? 'Case Accepted' : 'Case Update',
+          message: isAccepted
+            ? `Your case "${updated.caseTitle || updated.caseId}" has been accepted.`
+            : `Your case "${updated.caseTitle || updated.caseId}" status has been updated to: ${decision}.`,
+          type: isAccepted ? 'case_accepted' : 'case_rejected',
+          referenceId: id,
+        });
+      }
+    }
+
     res.json(updated)
   } catch (err) {
     console.error('updateFinalized error', err)

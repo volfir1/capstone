@@ -28,6 +28,18 @@ import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconA
 import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
+import apiClient from '@config/api/apiClient';
+import {
+    reviewSavedNotif, reviewSaveFailedNotif,
+    changesSavedNotif, changesSaveFailedNotif,
+    reviewResubmittedNotif, reviewResubmitFailedNotif,
+    caseFinalizedNotif, legalAdviceFinalizedNotif,
+    statusUpdateFailedNotif, statusUpdateHaltedNotif,
+    returnedToInternNotif, returnToInternFailedNotif,
+    returnedToSupervisingNotif, returnToSupervisingFailedNotif,
+    approvedToDirectorNotif, approveToDirectorFailedNotif,
+    noReviewIdNotif, fileRequiredNotif, fileNotUploadedNotif, fileUploadFailedNotif,
+} from '@utils/notification';
 
 // --- Consolidated Constants ---
 const PRIMARY_GOLD = '#FFD700';
@@ -1042,7 +1054,7 @@ export default function CaseRecordFormsDisplay() {
                 });
             } catch (error) {
                 console.error('Error uploading document:', error);
-                alert('Failed to upload document. Please try again.');
+                fileUploadFailedNotif();
                 return;
             }
         } else {
@@ -1088,7 +1100,7 @@ export default function CaseRecordFormsDisplay() {
         
         // Check if file is required but not uploaded
         if (interviewInfo.caseType === 'legal-document' && !uploadedFile) {
-            alert('Please upload a Word document for legal document drafting cases.');
+            fileRequiredNotif();
             return;
         }
         
@@ -1119,7 +1131,7 @@ export default function CaseRecordFormsDisplay() {
                 };
             } else {
                 // Shouldn't happen with current logic, but handle as fallback
-                alert('File was not uploaded to server. Please try uploading again.');
+                fileNotUploadedNotif();
                 return;
             }
         }
@@ -1155,7 +1167,6 @@ export default function CaseRecordFormsDisplay() {
         // Helper to ensure status updates actually persist before proceeding
         const updateCaseStatus = async (status) => {
             try {
-                const { default: apiClient } = await import('@config/api/apiClient');
                 const resp = await apiClient.put(`/clientsinfo/${caseId}`, { status });
                 if (resp?.status >= 200 && resp.status < 300) return true;
                 console.error('Primary status update failed', resp?.status, resp?.data);
@@ -1164,14 +1175,9 @@ export default function CaseRecordFormsDisplay() {
             }
 
             try {
-                const fallback = await fetch(`/api/clientsinfo/${caseId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status }),
-                });
-                if (fallback.ok) return true;
-                const text = await fallback.text();
-                console.error('Fallback status update failed', fallback.status, text);
+                const fallback = await apiClient.put(`/clientsinfo/${caseId}`, { status });
+                if (fallback?.status >= 200 && fallback.status < 300) return true;
+                console.error('Fallback status update failed', fallback?.status);
             } catch (fallbackErr) {
                 console.error('Fallback status update error', fallbackErr);
             }
@@ -1192,13 +1198,13 @@ export default function CaseRecordFormsDisplay() {
                     // Intern finalizing a legal advice case
                     const statusOk = await updateCaseStatus('legal-advice');
                     if (!statusOk) {
-                        alert('Failed to update case status. Please try again.');
+                        statusUpdateFailedNotif();
                         setSaving(false);
                         return;
                     }
 
                     console.log('Status updated to legal-advice for intern finalize');
-                    alert('Legal advice case finalized successfully!');
+                    legalAdviceFinalizedNotif();
                     
                     // Redirect to Client Form Status
                     navigate('/admin/clientformstatus');
@@ -1207,7 +1213,7 @@ export default function CaseRecordFormsDisplay() {
                     // Intern submitting for review (or finalizing non-legal-advice)
                     const statusOk = await updateCaseStatus('confirmed');
                     if (!statusOk) {
-                        alert('Failed to update case status. Please try again.');
+                        statusUpdateFailedNotif();
                         setSaving(false);
                         return;
                     }
@@ -1234,7 +1240,7 @@ export default function CaseRecordFormsDisplay() {
 
                 const statusOk = await updateCaseStatus(finalStatus);
                 if (!statusOk) {
-                    alert('Failed to update case status. Finalization halted. Please try again.');
+                    statusUpdateHaltedNotif();
                     setSaving(false);
                     return;
                 }
@@ -1251,36 +1257,19 @@ export default function CaseRecordFormsDisplay() {
                         actionInfo: { ...actionInfo, decision: finalDecision }
                     }
                 }
-                const resFinalize = await fetch('/api/finalize', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(finalizePayload)
-                })
-                const finalizeText = await resFinalize.text()
-                if (!resFinalize.ok) {
-                    console.error('POST /api/finalize failed', resFinalize.status, finalizeText)
-                    throw new Error(`Finalize save failed: ${resFinalize.status} ${finalizeText}`)
-                }
-                const savedFinalize = finalizeText ? JSON.parse(finalizeText) : null
-                console.log('Saved finalize', savedFinalize)
+                const resFinalize = await apiClient.post('/finalize', finalizePayload)
+                console.log('Saved finalize', resFinalize.data)
                 
                 // Delete the review record from reviews collection after finalizing
                 try {
-                    const deleteRes = await fetch(`/api/reviews/case/${caseId}`, {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' }
-                    })
-                    if (deleteRes.ok) {
-                        console.log('Review deleted successfully after finalization')
-                    } else {
-                        console.error('Failed to delete review after finalization', deleteRes.status)
-                    }
+                    await apiClient.delete(`/reviews/case/${caseId}`)
+                    console.log('Review deleted successfully after finalization')
                 } catch (deleteErr) {
                     console.error('Error deleting review:', deleteErr)
                     // Don't throw here, finalization was successful
                 }
                 
-                alert('Case finalized and saved successfully!')
+                caseFinalizedNotif()
                 await fetchReviews(caseId)
                 
                 // Redirect to dashboard
@@ -1288,21 +1277,12 @@ export default function CaseRecordFormsDisplay() {
                 return
             }
 
-            const resReview = await fetch('/api/reviews', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(reviewPayload)
-            });
-            const reviewText = await resReview.text();
-            if (!resReview.ok) {
-                console.error('POST /api/reviews failed', resReview.status, reviewText);
-                throw new Error(`Review save failed: ${resReview.status} ${reviewText}`);
-            }
-            const saved = reviewText ? JSON.parse(reviewText) : null;
+            const resReview = await apiClient.post('/reviews', reviewPayload);
+            const saved = resReview.data;
             console.log('Successfully saved review:', saved);
             await fetchReviews(caseId);
 
-            alert('Interview and evidence data saved successfully!');
+            reviewSavedNotif();
             console.log('Saved review', saved);
             
             // Redirect to dashboard based on user role
@@ -1318,7 +1298,7 @@ export default function CaseRecordFormsDisplay() {
             navigate(getDashboardPath(), { replace: true });
         } catch (err) {
             console.error('handleSubmit error:', err);
-            alert(`Failed to save data: ${err.message}`);
+            reviewSaveFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1327,17 +1307,8 @@ export default function CaseRecordFormsDisplay() {
     const fetchReviews = async (caseIdParam) => {
         const caseId = caseIdParam || getCaseId();
         try {
-            const res = await fetch(`/api/reviews/${caseId}`)
-            if (!res.ok) {
-                // If no reviews found, that's okay - it's a new case
-                if (res.status === 404) {
-                    console.log('No existing reviews found for case:', caseId);
-                    return;
-                }
-                throw new Error('Failed to fetch reviews')
-            }
-            const data = await res.json()
-            setReviews(data)
+            const res = await apiClient.get(`/reviews/${caseId}`)
+            setReviews(res.data)
             // Only load data if opened from dashboard and data exists
             // (Data from location.state is already loaded in the location useEffect)
             // Don't auto-load data when opened from sidebar - keep it clean
@@ -1348,13 +1319,13 @@ export default function CaseRecordFormsDisplay() {
 
     const handleSaveChanges = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
         // Check if file is required but not uploaded (only if there was never a file)
         if (interviewInfo.caseType === 'legal-document' && !uploadedFile && !interviewInfo.uploadedDocument) {
-            alert('Please upload a Word document for legal document drafting cases.');
+            fileRequiredNotif();
             return;
         }
 
@@ -1387,7 +1358,7 @@ export default function CaseRecordFormsDisplay() {
                 };
             } else {
                 // Shouldn't happen with current logic, but handle as fallback
-                alert('File was not uploaded to server. Please try uploading again.');
+                fileNotUploadedNotif();
                 return;
             }
         } else if (interviewInfo.uploadedDocument) {
@@ -1417,22 +1388,12 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully updated review:', updated);
-            alert('Changes saved successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully updated review:', response.data);
+            changesSavedNotif();
         } catch (err) {
             console.error('handleSaveChanges error:', err);
-            alert(`Failed to save changes: ${err.message}`);
+            changesSaveFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1441,7 +1402,7 @@ export default function CaseRecordFormsDisplay() {
     // Handler for intern to resubmit review after making revisions
     const handleResubmitForReview = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
@@ -1484,25 +1445,15 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully resubmitted review:', updated);
-            alert('Review resubmitted successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully resubmitted review:', response.data);
+            reviewResubmittedNotif();
             
             // Redirect to dashboard
             navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleResubmitForReview error:', err);
-            alert(`Failed to resubmit review: ${err.message}`);
+            reviewResubmitFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1511,7 +1462,7 @@ export default function CaseRecordFormsDisplay() {
     // Handler for supervising lawyer to return review to intern
     const handleReturnToIntern = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
@@ -1554,25 +1505,15 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully returned to intern:', updated);
-            alert('Review returned to intern successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully returned to intern:', response.data);
+            returnedToInternNotif();
             
             // Redirect to dashboard
             navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleReturnToIntern error:', err);
-            alert(`Failed to return review: ${err.message}`);
+            returnToInternFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1581,7 +1522,7 @@ export default function CaseRecordFormsDisplay() {
     // Handler for director to return review to supervising lawyer
     const handleReturnToSupervisingLawyer = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
@@ -1624,25 +1565,15 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully returned to supervising lawyer:', updated);
-            alert('Review returned to supervising lawyer successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully returned to supervising lawyer:', response.data);
+            returnedToSupervisingNotif();
             
             // Redirect to dashboard
             navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleReturnToSupervisingLawyer error:', err);
-            alert(`Failed to return review: ${err.message}`);
+            returnToSupervisingFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1651,7 +1582,7 @@ export default function CaseRecordFormsDisplay() {
     // Handler for supervising lawyer to approve and send to director
     const handleApproveToDirector = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
@@ -1694,25 +1625,15 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully moved to director review:', updated);
-            alert('Review approved and sent to director successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully moved to director review:', response.data);
+            approvedToDirectorNotif();
             
             // Redirect to dashboard
             navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleApproveToDirector error:', err);
-            alert(`Failed to approve review: ${err.message}`);
+            approveToDirectorFailedNotif(err.message);
         } finally {
             setSaving(false);
         }

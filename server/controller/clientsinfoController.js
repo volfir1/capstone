@@ -1,6 +1,7 @@
 import ClientsInfo from '../models/clientsinfo.js'
 import admin from 'firebase-admin'
 import User from '../models/user.js'
+import { createNotification } from './notificationController.js'
 
 const normalizeDate = (value) => {
   if (!value) return null;
@@ -236,6 +237,9 @@ export const updateClientsInfo = async (req, res) => {
     const { id } = req.params
     const payload = req.body || {}
 
+    // Fetch old record BEFORE updating (for notification comparison)
+    const oldRecord = await ClientsInfo.findById(id)
+
     const update = {}
     const setField = (key, transform) => {
       if (Object.prototype.hasOwnProperty.call(payload, key)) {
@@ -310,6 +314,73 @@ export const updateClientsInfo = async (req, res) => {
 
     const updated = await ClientsInfo.findByIdAndUpdate(id, update, { new: true })
     if (!updated) return res.status(404).json({ message: 'ClientsInfo not found' })
+
+    // ── Notify client about appointment changes ──
+    if (oldRecord && updated.firebaseUid) {
+      // Determine who is making the change
+      let requesterUid = null;
+      if (req.headers.authorization?.startsWith('Bearer ')) {
+        try {
+          const decoded = await admin.auth().verifyIdToken(req.headers.authorization.split(' ')[1]);
+          requesterUid = decoded.uid;
+        } catch (_) { /* ignore */ }
+      }
+
+      const dateChanged = update.appointedDate && oldRecord.appointedDate &&
+        new Date(update.appointedDate).getTime() !== new Date(oldRecord.appointedDate).getTime();
+      const timeChanged = update.appointmentTime !== undefined &&
+        update.appointmentTime !== (oldRecord.appointmentTime || '');
+      const statusChanged = update.status && update.status !== oldRecord.status;
+
+      const shouldNotify = dateChanged || timeChanged || statusChanged;
+
+      if (shouldNotify) {
+        // Build identifying info for the appointment
+        const appointmentLabel = updated.appointmentType || updated.caseNature || updated.legalMatter || '';
+        const caseNum = updated.caseNumber ? ` (Case #${updated.caseNumber})` : '';
+        const clientName = updated.fullName || updated.name || '';
+        const identifier = appointmentLabel
+          ? `"${appointmentLabel}"${caseNum}`
+          : clientName
+            ? `for ${clientName}${caseNum}`
+            : caseNum || 'Your appointment';
+
+        // Build a human-readable change description
+        const changes = [];
+        if (dateChanged) {
+          const oldDate = new Date(oldRecord.appointedDate).toLocaleDateString();
+          const newDate = new Date(update.appointedDate).toLocaleDateString();
+          changes.push(`rescheduled from ${oldDate} to ${newDate}`);
+        }
+        if (timeChanged && update.appointmentTime) {
+          changes.push(`time changed to ${update.appointmentTime}`);
+        }
+        if (statusChanged) {
+          changes.push(`status updated to ${update.status}`);
+        }
+
+        const changeDesc = changes.join(' and ');
+        const notifTitle = statusChanged
+          ? `Appointment ${update.status.charAt(0).toUpperCase() + update.status.slice(1)}`
+          : 'Appointment Rescheduled';
+
+        // Notify the CLIENT if the change was made by someone else (admin/attorney)
+        if (requesterUid !== updated.firebaseUid) {
+          createNotification({
+            recipientId: updated.firebaseUid,
+            title: notifTitle,
+            message: `${identifier} has been ${changeDesc}.`,
+            type: 'appointment_updated',
+            referenceId: id,
+          });
+        }
+
+        // Also notify the admin/requester if the client made the change (unlikely but safe)
+        if (requesterUid === updated.firebaseUid && requesterUid) {
+          // Find admins/secretaries to notify — skip for now, client-initiated reschedules are rare
+        }
+      }
+    }
 
     return res.json(updated)
   } catch (err) {

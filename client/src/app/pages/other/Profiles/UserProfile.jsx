@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Container,
   Paper,
-  Title,
   Text,
   Box,
   Group,
@@ -13,45 +12,42 @@ import {
   Divider,
   Grid,
   Badge,
-  ActionIcon,
+  Progress,
   Loader,
   Center,
+  FileButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconUser,
   IconMail,
-  IconPhone,
-  IconMapPin,
   IconEdit,
   IconCheck,
   IconX,
   IconShieldCheck,
+  IconCamera,
 } from '@tabler/icons-react';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL } from '@utils/constants';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
+import { uploadToCloudinary } from '@utils/cloudinary';
+import { useAuth } from '@context/authContext';
 
 export default function ClientProfile() {
+  const { refreshUserData } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+  const [uploadingImage, setUploadingImage] = useState(false);
+
   const [userData, setUserData] = useState({
     firstName: '',
-    middleName: '',
     lastName: '',
     email: '',
-    phoneNumber: '',
-    address: {
-      street: '',
-      barangay: '',
-      city: '',
-      province: '',
-      region: '',
-      zipCode: '',
-    },
+    username: '',
+    role: '',
     verified: false,
     memberSince: '',
+    profileImage: '',
   });
 
   const [editedData, setEditedData] = useState(userData);
@@ -65,18 +61,18 @@ export default function ClientProfile() {
       setLoading(true);
       const response = await apiClient.get('/users/profile');
       if (response.data.success) {
-        const profileData = response.data.data;
-        // Ensure address object exists
+        const d = response.data.data;
         const normalizedData = {
-          ...profileData,
-          address: profileData.address || {
-            street: '',
-            barangay: '',
-            city: '',
-            province: '',
-            region: '',
-            zipCode: '',
-          }
+          firstName: d.firstName || '',
+          lastName: d.lastName || '',
+          email: d.email || '',
+          username: d.username || '',
+          role: d.role || 'user',
+          verified: d.isVerified || false,
+          memberSince: d.createdAt
+            ? new Date(d.createdAt).getFullYear().toString()
+            : '',
+          profileImage: d.profileImage || '',
         };
         setUserData(normalizedData);
         setEditedData(normalizedData);
@@ -92,6 +88,12 @@ export default function ClientProfile() {
       setLoading(false);
     }
   };
+
+  const completeness = useMemo(() => {
+    const fields = [userData.firstName, userData.lastName, userData.email];
+    const filled = fields.filter((f) => f && f.trim()).length;
+    return Math.round((filled / fields.length) * 100);
+  }, [userData]);
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -129,25 +131,41 @@ export default function ClientProfile() {
   };
 
   const handleInputChange = (field, value) => {
-    setEditedData(prev => ({
-      ...prev,
-      [field]: value,
-    }));
+    setEditedData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleAddressChange = (field, value) => {
-    setEditedData(prev => ({
-      ...prev,
-      address: {
-        ...(prev.address || {}),
-        [field]: value,
-      }
-    }));
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    // Validate file type and size (max 5 MB)
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      return notifications.show({ title: 'Invalid File', message: 'Please upload a JPG, PNG, WebP, or GIF image.', color: 'red' });
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return notifications.show({ title: 'File Too Large', message: 'Image must be under 5 MB.', color: 'red' });
+    }
+
+    try {
+      setUploadingImage(true);
+      const imageUrl = await uploadToCloudinary(file);
+      // Save to backend
+      await apiClient.put('/users/profile/image', { profileImage: imageUrl });
+      setUserData((prev) => ({ ...prev, profileImage: imageUrl }));
+      setEditedData((prev) => ({ ...prev, profileImage: imageUrl }));
+      // Sync layout header/navbar avatar
+      refreshUserData().catch(() => {});
+      notifications.show({ title: 'Photo Updated', message: 'Profile photo uploaded successfully.', color: 'green' });
+    } catch (error) {
+      console.error('Image upload error:', error);
+      notifications.show({ title: 'Upload Failed', message: error.message || 'Failed to upload image.', color: 'red' });
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   if (loading) {
     return (
-      <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <Box bg={BG} mih="100vh" py="xl">
         <Center py="xl">
           <Stack align="center" gap="md">
             <Loader size="lg" color={PRIMARY_BROWN} />
@@ -160,499 +178,257 @@ export default function ClientProfile() {
 
   const displayData = isEditing ? editedData : userData;
 
+  const inputStyles = {
+    input: { borderColor: '#E5E0D8', '&:focus': { borderColor: PRIMARY_GOLD } },
+  };
+
   return (
-    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
-      <style>
-        {`
-          ::-webkit-scrollbar {
-            width: 8px;
-          }
-          ::-webkit-scrollbar-track {
-            background: transparent;
-          }
-          ::-webkit-scrollbar-thumb {
-            background: ${MUTED_OLIVE};
-            border-radius: 4px;
-          }
-          ::-webkit-scrollbar-thumb:hover {
-            background: ${PRIMARY_BROWN};
-          }
-          * {
-            scrollbar-width: thin;
-            scrollbar-color: ${MUTED_OLIVE} transparent;
-          }
-        `}
-      </style>
-
-      <Container size="md">
-        {/* Header */}
-        <Paper 
-          shadow="xs" 
-          p="xl" 
-          mb="xl" 
-          radius="lg"
-          style={{ 
-            background: PRIMARY_BROWN,
-            border: 'none',
-          }}
-        >
-          <Group justify="space-between" align="center">
-            <Box>
-              <Title order={2} c="white" mb={4}>
-                My Profile
-              </Title>
-              <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
-                Manage your personal information
-              </Text>
-            </Box>
-            {!isEditing && (
-              <ActionIcon
-                size="lg"
-                variant="white"
-                color={PRIMARY_BROWN}
-                onClick={handleEdit}
-                radius="md"
-              >
-                <IconEdit size={20} />
-              </ActionIcon>
-            )}
-          </Group>
-        </Paper>
-
-        {/* Profile Card */}
-        <Paper shadow="xs" p="xl" radius="lg" bg="white" mb="lg">
-          {/* Avatar Section */}
-          <Box mb="xl">
-            <Center>
+    <Box bg={BG} mih="100vh" py="xl">
+      <style>{`
+        .avatar-upload-overlay { opacity: 0; transition: opacity 0.2s; }
+        .avatar-upload-overlay:hover, 
+        [style*="cursor: pointer"]:hover .avatar-upload-overlay { opacity: 1 !important; }
+      `}</style>
+      <Container size="lg">
+        <Grid gutter="xl">
+          {/* ── Sidebar ── */}
+          <Grid.Col span={{ base: 12, md: 4 }}>
+            <Paper shadow="xs" p="xl" radius="lg" bg="white">
               <Stack align="center" gap="md">
+                {/* Avatar */}
                 <Box style={{ position: 'relative' }}>
-                  <Avatar
-                    size={120}
-                    radius={60}
-                    style={{
-                      background: PRIMARY_GOLD,
-                      border: `4px solid ${PRIMARY_GOLD}`,
-                    }}
-                  >
-                    <IconUser size={60} color="white" />
-                  </Avatar>
+                  <FileButton onChange={handleImageUpload} accept="image/png,image/jpeg,image/webp,image/gif">
+                    {(props) => (
+                      <Box
+                        {...props}
+                        style={{ position: 'relative', cursor: 'pointer' }}
+                      >
+                        <Avatar
+                          size={140}
+                          radius={70}
+                          src={userData.profileImage || null}
+                          style={{
+                            background: PRIMARY_GOLD,
+                            border: `4px solid ${PRIMARY_GOLD}`,
+                          }}
+                        >
+                          <IconUser size={70} color="white" />
+                        </Avatar>
+
+                        {/* Camera overlay */}
+                        <Box
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: '40%',
+                            borderBottomLeftRadius: 70,
+                            borderBottomRightRadius: 70,
+                            background: 'rgba(0,0,0,0.45)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: uploadingImage ? 1 : 0,
+                            transition: 'opacity 0.2s',
+                            '&:hover': { opacity: 1 },
+                          }}
+                          className="avatar-upload-overlay"
+                        >
+                          {uploadingImage ? (
+                            <Loader size={20} color="white" />
+                          ) : (
+                            <IconCamera size={22} color="white" />
+                          )}
+                        </Box>
+                      </Box>
+                    )}
+                  </FileButton>
+
                   {userData.verified && (
                     <Box
                       style={{
                         position: 'absolute',
-                        bottom: 0,
-                        right: 0,
-                        width: 36,
-                        height: 36,
+                        bottom: 4,
+                        right: 4,
+                        width: 34,
+                        height: 34,
                         borderRadius: '50%',
-                        background: 'white',
+                        background: PRIMARY_GOLD,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        border: `3px solid white`,
+                        border: '3px solid white',
                       }}
                     >
-                      <Box
-                        style={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: '50%',
-                          background: PRIMARY_GOLD,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <IconShieldCheck size={18} color="white" />
-                      </Box>
+                      <IconShieldCheck size={18} color="white" />
                     </Box>
                   )}
                 </Box>
+
+                {/* Name */}
                 <Box ta="center">
-                  <Text size="xl" fw={700} c={CHARCOAL} mb={4}>
-                    {displayData.firstName} {displayData.middleName} {displayData.lastName}
+                  <Text size="xl" fw={700} c={CHARCOAL} mb={2}>
+                    {userData.firstName} {userData.lastName}
                   </Text>
-                  <Badge
-                    size="sm"
-                    variant="light"
-                    style={{
-                      background: '#FEF8F0',
-                      color: PRIMARY_BROWN,
-                    }}
-                  >
-                    Member since {userData.memberSince}
-                  </Badge>
+                  <Text size="sm" c={MUTED_OLIVE}>
+                    @{userData.username}
+                  </Text>
                 </Box>
+
+                {/* Badges */}
+                <Group gap="xs" justify="center">
+                  <Badge size="sm" variant="light" color="blue" radius="sm">
+                    Client
+                  </Badge>
+                  {userData.memberSince && (
+                    <Badge size="sm" variant="light" color="gray" radius="sm">
+                      Since {userData.memberSince}
+                    </Badge>
+                  )}
+                </Group>
+
+                <Divider w="100%" color="#F0F0F0" />
+
+                {/* Profile Completeness */}
+                <Box w="100%">
+                  <Group justify="space-between" mb={6}>
+                    <Text size="xs" fw={500} c={MUTED_OLIVE}>
+                      Profile Completeness
+                    </Text>
+                    <Text size="xs" fw={600} c={CHARCOAL}>
+                      {completeness}%
+                    </Text>
+                  </Group>
+                  <Progress
+                    value={completeness}
+                    size="sm"
+                    radius="xl"
+                    color={completeness === 100 ? 'green' : PRIMARY_GOLD}
+                  />
+                </Box>
+
+                <Divider w="100%" color="#F0F0F0" />
+
+                {/* Actions */}
+                {!isEditing ? (
+                  <Button
+                    fullWidth
+                    variant="outline"
+                    leftSection={<IconEdit size={16} />}
+                    onClick={handleEdit}
+                    style={{ borderColor: PRIMARY_BROWN, color: PRIMARY_BROWN }}
+                  >
+                    Edit Profile
+                  </Button>
+                ) : (
+                  <Stack w="100%" gap="xs">
+                    <Button
+                      fullWidth
+                      leftSection={<IconCheck size={16} />}
+                      onClick={handleSave}
+                      loading={saving}
+                      style={{ background: PRIMARY_BROWN }}
+                    >
+                      Save Changes
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="outline"
+                      leftSection={<IconX size={16} />}
+                      onClick={handleCancel}
+                      disabled={saving}
+                      style={{ borderColor: MUTED_OLIVE, color: MUTED_OLIVE }}
+                    >
+                      Cancel
+                    </Button>
+                  </Stack>
+                )}
               </Stack>
-            </Center>
-          </Box>
+            </Paper>
+          </Grid.Col>
 
-          <Divider mb="xl" style={{ borderColor: '#F0F0F0' }} />
+          {/* ── Main Content ── */}
+          <Grid.Col span={{ base: 12, md: 8 }}>
+            <Stack gap="lg">
+              {/* Personal Information */}
+              <Paper shadow="xs" p="xl" radius="lg" bg="white">
+                <Group mb="lg" gap={8}>
+                  <IconUser size={18} color={ACCENT_TAN} stroke={2} />
+                  <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
+                    Personal Information
+                  </Text>
+                </Group>
 
-          {/* Personal Information Section */}
-          <Box mb="xl">
-            <Group mb="md" gap="xs">
-              <Box
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  background: PRIMARY_BROWN,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconUser size={18} color="white" stroke={2.5} />
-              </Box>
-              <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
-                Personal Information
-              </Text>
-            </Group>
-
-            <Stack gap="md">
-              <Grid gutter="md">
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
+                <Grid gutter="lg">
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
                       First Name
                     </Text>
                     {isEditing ? (
                       <TextInput
                         value={editedData.firstName}
                         onChange={(e) => handleInputChange('firstName', e.target.value)}
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
+                        styles={inputStyles}
                       />
                     ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.firstName}
+                      <Text fw={500} c={displayData.firstName ? CHARCOAL : '#bbb'}>
+                        {displayData.firstName || 'Not set'}
                       </Text>
                     )}
-                  </Box>
-                </Grid.Col>
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Middle Name
+                  </Grid.Col>
+
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                      Last Name
                     </Text>
                     {isEditing ? (
                       <TextInput
-                        value={editedData.middleName}
-                        onChange={(e) => handleInputChange('middleName', e.target.value)}
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
+                        value={editedData.lastName}
+                        onChange={(e) => handleInputChange('lastName', e.target.value)}
+                        styles={inputStyles}
                       />
                     ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.middleName || 'N/A'}
+                      <Text fw={500} c={displayData.lastName ? CHARCOAL : '#bbb'}>
+                        {displayData.lastName || 'Not set'}
                       </Text>
                     )}
-                  </Box>
-                </Grid.Col>
-              </Grid>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
 
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                  Last Name
-                </Text>
-                {isEditing ? (
-                  <TextInput
-                    value={editedData.lastName}
-                    onChange={(e) => handleInputChange('lastName', e.target.value)}
-                    styles={{
-                      input: {
-                        borderColor: '#E5E0D8',
-                        '&:focus': { borderColor: PRIMARY_GOLD },
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text fw={500} c={CHARCOAL}>
-                    {displayData.lastName}
-                  </Text>
-                )}
-              </Box>
-            </Stack>
-          </Box>
-
-          <Divider mb="xl" style={{ borderColor: '#F0F0F0' }} />
-
-          {/* Contact Information Section */}
-          <Box mb="xl">
-            <Group mb="md" gap="xs">
-              <Box
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  background: PRIMARY_GOLD,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconMail size={18} color="white" stroke={2.5} />
-              </Box>
-              <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
-                Contact Information
-              </Text>
-            </Group>
-
-            <Stack gap="md">
-              <Box>
-                <Group gap="xs" mb={6}>
-                  <IconMail size={14} color={MUTED_OLIVE} />
-                  <Text size="xs" c={MUTED_OLIVE} fw={500}>
-                    Email Address
+              {/* Account Information */}
+              <Paper shadow="xs" p="xl" radius="lg" bg="white">
+                <Group mb="lg" gap={8}>
+                  <IconMail size={18} color={ACCENT_TAN} stroke={2} />
+                  <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
+                    Account Information
                   </Text>
                 </Group>
-                <Text fw={500} c={CHARCOAL}>
-                  {displayData.email}
-                </Text>
-              </Box>
 
-              <Box>
-                <Group gap="xs" mb={6}>
-                  <IconPhone size={14} color={MUTED_OLIVE} />
-                  <Text size="xs" c={MUTED_OLIVE} fw={500}>
-                    Phone Number
-                  </Text>
-                </Group>
-                {isEditing ? (
-                  <TextInput
-                    value={editedData.phoneNumber}
-                    onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                    placeholder="+639171234567"
-                    styles={{
-                      input: {
-                        borderColor: '#E5E0D8',
-                        '&:focus': { borderColor: PRIMARY_GOLD },
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text fw={500} c={CHARCOAL}>
-                    {displayData.phoneNumber || 'Not provided'}
-                  </Text>
-                )}
-              </Box>
+                <Grid gutter="lg">
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                      Email Address
+                    </Text>
+                    <Text fw={500} c={displayData.email ? CHARCOAL : '#bbb'}>
+                      {displayData.email || 'Not set'}
+                    </Text>
+                  </Grid.Col>
+
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                      Username
+                    </Text>
+                    <Text fw={500} c={displayData.username ? CHARCOAL : '#bbb'}>
+                      {displayData.username || 'Not set'}
+                    </Text>
+                  </Grid.Col>
+                </Grid>
+              </Paper>
             </Stack>
-          </Box>
-
-          <Divider mb="xl" style={{ borderColor: '#F0F0F0' }} />
-
-          {/* Address Section */}
-          {/* <Box>
-            <Group mb="md" gap="xs">
-              <Box
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  background: MUTED_OLIVE,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconMapPin size={18} color="white" stroke={2.5} />
-              </Box>
-              <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
-                Address
-              </Text>
-            </Group>
-
-            <Stack gap="md">
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                  Street Address
-                </Text>
-                {isEditing ? (
-                  <TextInput
-                    value={editedData.address?.street || ''}
-                    onChange={(e) => handleAddressChange('street', e.target.value)}
-                    placeholder="Building name, street number"
-                    styles={{
-                      input: {
-                        borderColor: '#E5E0D8',
-                        '&:focus': { borderColor: PRIMARY_GOLD },
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text fw={500} c={CHARCOAL}>
-                    {displayData.address?.street || 'Not provided'}
-                  </Text>
-                )}
-              </Box>
-
-              <Grid gutter="md">
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Barangay
-                    </Text>
-                    {isEditing ? (
-                      <TextInput
-                        value={editedData.address?.barangay || ''}
-                        onChange={(e) => handleAddressChange('barangay', e.target.value)}
-                        placeholder="Barangay name"
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.address?.barangay || 'Not provided'}
-                      </Text>
-                    )}
-                  </Box>
-                </Grid.Col>
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      City
-                    </Text>
-                    {isEditing ? (
-                      <TextInput
-                        value={editedData.address?.city || ''}
-                        onChange={(e) => handleAddressChange('city', e.target.value)}
-                        placeholder="City name"
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.address?.city || 'Not provided'}
-                      </Text>
-                    )}
-                  </Box>
-                </Grid.Col>
-              </Grid>
-
-              <Grid gutter="md">
-                <Grid.Col span={12} md={8}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Province
-                    </Text>
-                    {isEditing ? (
-                      <TextInput
-                        value={editedData.address?.province || ''}
-                        onChange={(e) => handleAddressChange('province', e.target.value)}
-                        placeholder="Province name"
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.address?.province || 'Not provided'}
-                      </Text>
-                    )}
-                  </Box>
-                </Grid.Col>
-                <Grid.Col span={12} md={4}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Zip Code
-                    </Text>
-                    {isEditing ? (
-                      <TextInput
-                        value={editedData.address?.zipCode || ''}
-                        onChange={(e) => handleAddressChange('zipCode', e.target.value)}
-                        placeholder="1000"
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.address?.zipCode || 'Not provided'}
-                      </Text>
-                    )}
-                  </Box>
-                </Grid.Col>
-              </Grid>
-
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                  Region
-                </Text>
-                {isEditing ? (
-                  <TextInput
-                    value={editedData.address?.region || ''}
-                    onChange={(e) => handleAddressChange('region', e.target.value)}
-                    placeholder="e.g., NCR, Region III"
-                    styles={{
-                      input: {
-                        borderColor: '#E5E0D8',
-                        '&:focus': { borderColor: PRIMARY_GOLD },
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text fw={500} c={CHARCOAL}>
-                    {displayData.address?.region || 'Not provided'}
-                  </Text>
-                )}
-              </Box>
-            </Stack>
-          </Box> */}
-
-          {/* Edit Actions */}
-          {isEditing && (
-            <>
-              <Divider my="xl" style={{ borderColor: '#F0F0F0' }} />
-              <Group justify="flex-end" gap="md">
-                <Button
-                  variant="outline"
-                  leftIcon={<IconX size={16} />}
-                  onClick={handleCancel}
-                  disabled={saving}
-                  style={{
-                    borderColor: MUTED_OLIVE,
-                    color: MUTED_OLIVE,
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  leftIcon={<IconCheck size={16} />}
-                  onClick={handleSave}
-                  loading={saving}
-                  style={{
-                    background: PRIMARY_BROWN,
-                  }}
-                >
-                  Save Changes
-                </Button>
-              </Group>
-            </>
-          )}
-        </Paper>
+          </Grid.Col>
+        </Grid>
       </Container>
     </Box>
   );
