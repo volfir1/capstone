@@ -1086,15 +1086,6 @@ export default function StaffAppointmentManager() {
             <Tabs.Tab value="pending" leftSection={<IconClock size={16} />} rightSection={<Badge size="sm" variant="filled" color="orange" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px' }}>{pendingAppointments.filter(a => a.status === 'auto-scheduled').length}</Badge>}>
               Auto-Scheduled
             </Tabs.Tab>
-            <Tabs.Tab value="confirmed" leftSection={<IconCheck size={16} />} rightSection={<Badge size="sm" variant="filled" color="green" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px' }}>{pendingAppointments.filter(a => a.status === 'confirmed').length}</Badge>}>
-              Confirmed
-            </Tabs.Tab>
-            <Tabs.Tab value="legal-advice" leftSection={<IconMessage2 size={16} />} rightSection={<Badge size="sm" variant="filled" color="violet" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px' }}>{pendingAppointments.filter(a => a.status === 'legal-advice').length}</Badge>}>
-              Legal Advice
-            </Tabs.Tab>
-            <Tabs.Tab value="court-case" leftSection={<IconGavel size={16} />} rightSection={<Badge size="sm" variant="filled" color="red" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px' }}>{pendingAppointments.filter(a => a.status === 'court-case').length}</Badge>}>
-              Court Case
-            </Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="pending">
@@ -1104,36 +1095,6 @@ export default function StaffAppointmentManager() {
               </SimpleGrid>
             ) : (
               <Center mih={300}><Text c={MUTED_OLIVE}>No auto-scheduled appointments</Text></Center>
-            )}
-          </Tabs.Panel>
-
-          <Tabs.Panel value="confirmed">
-            {pendingAppointments.filter(a => a.status === 'confirmed').length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.filter(a => a.status === 'confirmed').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={200}><Text c={MUTED_OLIVE}>No confirmed appointments</Text></Center>
-            )}
-          </Tabs.Panel>
-
-          <Tabs.Panel value="legal-advice">
-            {pendingAppointments.filter(a => a.status === 'legal-advice').length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.filter(a => a.status === 'legal-advice').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={200}><Text c={MUTED_OLIVE}>No legal advice requests</Text></Center>
-            )}
-          </Tabs.Panel>
-
-          <Tabs.Panel value="court-case">
-            {pendingAppointments.filter(a => a.status === 'court-case').length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.filter(a => a.status === 'court-case').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={200}><Text c={MUTED_OLIVE}>No court case appointments</Text></Center>
             )}
           </Tabs.Panel>
 

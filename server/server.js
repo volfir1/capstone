@@ -111,8 +111,8 @@ app.post('/api/upload/document', upload.single('document'), (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Return file information
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/documents/${req.file.filename}`;
+    // Return file information with relative path (will be proxied by Vite in dev)
+    const fileUrl = `/uploads/documents/${req.file.filename}`;
     
     res.json({
       success: true,
@@ -122,7 +122,7 @@ app.post('/api/upload/document', upload.single('document'), (req, res) => {
         size: req.file.size,
         mimetype: req.file.mimetype,
         url: fileUrl,
-        path: `/uploads/documents/${req.file.filename}`
+        path: fileUrl
       }
     });
   } catch (error) {
