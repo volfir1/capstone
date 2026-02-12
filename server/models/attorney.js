@@ -10,6 +10,9 @@ const attorneySchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   firebaseUid: { type: String, required: true, unique: true },
   
+  // Profile Image
+  profileImage: { type: String, default: '' },
+
   // Professional Information
   role: { 
     type: String, 

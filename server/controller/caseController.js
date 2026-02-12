@@ -1,7 +1,11 @@
 import Case from "../models/case.js";
 import User from "../models/user.js";
 import Attorney from "../models/attorney.js";
+import Review from "../models/review.js";
+import Finalize from "../models/finalize.js";
+import CaseRecord from "../models/caserecord.js";
 import admin from "firebase-admin";
+import { createNotification } from "./notificationController.js";
 
 // Submit a new case
 export const submitCase = async (req, res) => {
@@ -232,6 +236,27 @@ export const assignAttorney = async (req, res) => {
       .populate("userId", "firstName lastName email")
       .populate("attorneyId", "firstName lastName email");
 
+    // ── Notifications ──
+    const user = await User.findById(caseData.userId);
+    if (user?.firebaseUid) {
+      createNotification({
+        recipientId: user.firebaseUid,
+        title: 'Attorney Assigned',
+        message: `Atty. ${attorney.firstName} ${attorney.lastName} has been assigned to your case "${caseData.caseTitle}".`,
+        type: 'case_assigned',
+        referenceId: caseId,
+      });
+    }
+    if (attorney?.firebaseUid) {
+      createNotification({
+        recipientId: attorney.firebaseUid,
+        title: 'New Case Assigned',
+        message: `You have been assigned to case "${caseData.caseTitle}" (${caseData.caseNumber}).`,
+        type: 'new_case',
+        referenceId: caseId,
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: updatedCase,
@@ -249,10 +274,68 @@ export const assignAttorney = async (req, res) => {
 // Get dashboard stats (Admin)
 export const getDashboardStats = async (req, res) => {
   try {
+    // Core counts
     const totalCases = await Case.countDocuments();
     const totalUsers = await User.countDocuments();
     const totalAttorneys = await Attorney.countDocuments({ isVerified: true });
     const unassignedCases = await Case.countDocuments({ attorneyId: null });
+    const assignedCases = totalCases - unassignedCases;
+
+    // User role breakdown
+    const userRoleCounts = await User.aggregate([
+      { $group: { _id: '$role', count: { $sum: 1 } } }
+    ]);
+    const roleBreakdown = {};
+    userRoleCounts.forEach(r => { roleBreakdown[r._id || 'unknown'] = r.count; });
+
+    // Case type breakdown
+    const caseTypeCounts = await Case.aggregate([
+      { $group: { _id: '$caseType', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    // Service type breakdown from finalized accepted records
+    // Matches FinalizedCases.jsx classification:
+    //   Legal Advice:  content.interviewInfo.forLegalAdvice is truthy
+    //   Legal Drafting: content.interviewInfo.caseType === 'legal-document'
+    //   Court Representation: everything else (split by CaseRecord existence)
+    const acceptedFinalized = await Finalize.find({ decision: 'accepted' }).lean();
+    let legalAdviceCount = 0;
+    let legalDraftingCount = 0;
+    let courtWithRecordCount = 0;
+    let courtWithoutRecordCount = 0;
+
+    for (const f of acceptedFinalized) {
+      const flag = f.content?.interviewInfo?.forLegalAdvice;
+      const isLA = flag === true || flag === 'true' || flag === 1 || flag === '1';
+      const caseType = f.content?.interviewInfo?.caseType;
+      const isDoc = caseType === 'legal-document';
+
+      if (isLA) legalAdviceCount++;
+      else if (isDoc) legalDraftingCount++;
+      else {
+        const hasRecord = await CaseRecord.exists({ finalizeId: f._id });
+        if (hasRecord) courtWithRecordCount++;
+        else courtWithoutRecordCount++;
+      }
+    }
+
+    // Review stage counts
+    const reviewStageCounts = await Review.aggregate([
+      { $group: { _id: '$reviewStage', count: { $sum: 1 } } }
+    ]);
+    const reviewBreakdown = {};
+    reviewStageCounts.forEach(r => { reviewBreakdown[r._id || 'unknown'] = r.count; });
+    const totalReviews = await Review.countDocuments();
+    const pendingReviews = (reviewBreakdown['supervising_lawyer'] || 0) + (reviewBreakdown['director'] || 0);
+
+    // Finalized decision breakdown
+    const finalizeDecisionCounts = await Finalize.aggregate([
+      { $group: { _id: '$decision', count: { $sum: 1 } } }
+    ]);
+    const finalizeBreakdown = {};
+    finalizeDecisionCounts.forEach(r => { finalizeBreakdown[r._id || 'unknown'] = r.count; });
+    const totalFinalized = await Finalize.countDocuments();
 
     res.status(200).json({
       success: true,
@@ -261,6 +344,20 @@ export const getDashboardStats = async (req, res) => {
         totalUsers,
         totalAttorneys,
         unassignedCases,
+        assignedCases,
+        roleBreakdown,
+        caseTypeBreakdown: caseTypeCounts.map(c => ({ type: c._id, count: c.count })),
+        serviceBreakdown: {
+          legalAdvice: legalAdviceCount,
+          legalDrafting: legalDraftingCount,
+          courtWithRecord: courtWithRecordCount,
+          courtWithoutRecord: courtWithoutRecordCount,
+        },
+        totalReviews,
+        pendingReviews,
+        reviewBreakdown,
+        totalFinalized,
+        finalizeBreakdown,
       },
       message: "Dashboard stats retrieved successfully",
     });

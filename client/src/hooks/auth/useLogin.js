@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
 import { useAuth } from "@/context/authContext";
+import apiClient from "@config/api/apiClient";
 import NProgress from 'nprogress';
 import 'nprogress/nprogress.css';
 import {
@@ -102,8 +103,39 @@ export const useLogin = () => {
     notificationShown.current = false; // Reset on new login attempt
 
     try {
-      await doSigninWithEmailAndPassword(data.email, data.password);
+      let emailToUse = data.email;
+      console.log('Login attempt with input:', data.email);
+
+      // Check if the input is a username (doesn't contain @)
+      if (!data.email.includes('@')) {
+        console.log('Input is username, fetching email...');
+        try {
+          const response = await apiClient.post('/auth/get-email-from-username', {
+            username: data.email,
+          });
+
+          console.log('Username lookup response:', response.data);
+
+          if (response.data.success) {
+            emailToUse = response.data.email;
+            console.log('Using email:', emailToUse);
+          } else {
+            throw new Error('Username not found');
+          }
+        } catch (error) {
+          console.error('Username lookup error:', error);
+          setErrorMessage('Username not found. Please check your credentials.');
+          setIsSigningIn(false);
+          failNotif();
+          return;
+        }
+      }
+
+      console.log('Attempting Firebase sign in with email:', emailToUse);
+      await doSigninWithEmailAndPassword(emailToUse, data.password);
+      console.log('Firebase sign in successful');
     } catch (error) {
+      console.error('Sign in error:', error);
       setErrorMessage(error.message);
       setIsSigningIn(false);
       failNotif();

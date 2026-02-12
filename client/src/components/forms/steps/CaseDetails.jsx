@@ -1,338 +1,230 @@
 import React from 'react';
-import { IconBriefcase } from '@tabler/icons-react';
+import { IconBriefcase, IconGavel, IconScale } from '@tabler/icons-react';
 import { TextInput, Textarea, Group, Title, Paper, Grid, Stack, Text, Box } from '@mantine/core';
-import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG, MUTED_OLIVE, CHARCOAL } from '@utils/constants';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, CHARCOAL } from '@utils/constants';
 import { validationRules } from '@utils/validation';
 
 export default function CaseDetailsForm({ register, errors }) {
   return (
-    <Stack gap="lg" mt="lg">
-      {/* Section Header */}
-      <Group gap="xs">
-        <Box
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: '8px',
-            background: PRIMARY_BROWN,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <IconBriefcase size={18} color="white" />
-        </Box>
-        <Title order={3} c={CHARCOAL}>Case Details</Title>
-      </Group>
-      
-      {/* Party Represented */}
-      <Box>
-        <Group gap={8} mb={8}>
-          <Text size="sm" fw={600} c={CHARCOAL}>Party Represented</Text>
-          <Text size="sm" c="red">*</Text>
+    <Stack gap="md" mt="md">
+      {/* Case Information */}
+      <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+        <Group gap={8} mb="md">
+          <Box style={{ width: 28, height: 28, borderRadius: 7, background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconBriefcase size={14} color="white" stroke={2.5} />
+          </Box>
+          <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Case Information</Text>
         </Group>
-        <TextInput
-          placeholder="Plaintiff/Defendant"
-          size="md"
-          {...register('partyRepresented', validationRules.partyRepresented)}
-          error={errors.partyRepresented?.message}
-          styles={{
-            input: {
-              borderColor: errors.partyRepresented ? '#E74C3C' : '#E0E0E0',
-              '&:focus': {
-                borderColor: errors.partyRepresented ? '#E74C3C' : PRIMARY_BROWN,
-              },
-            },
-          }}
-        />
-      </Box>
-      
-      {/* Venue and Case Number */}
-      <Grid>
-        <Grid.Col span={6}>
+
+        <Stack gap="sm">
+          <Grid gutter="sm">
+            <Grid.Col span={6}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Party Represented</Text>
+                <Text size="sm" c="red">*</Text>
+              </Group>
+              <TextInput
+                placeholder="Plaintiff/Defendant"
+                size="sm"
+                {...register('partyRepresented', validationRules.partyRepresented)}
+                error={errors.partyRepresented?.message}
+                styles={{ input: { borderColor: errors.partyRepresented ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Case / Docket Number</Text>
+                <Text size="sm" c="red">*</Text>
+              </Group>
+              <TextInput
+                placeholder="Case No. 2024-123"
+                size="sm"
+                {...register('caseNumber', validationRules.caseNumber)}
+                error={errors.caseNumber?.message}
+                styles={{ input: { borderColor: errors.caseNumber ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+          </Grid>
+
+          <Grid gutter="sm">
+            <Grid.Col span={6}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Venue / City</Text>
+                <Text size="sm" c="red">*</Text>
+              </Group>
+              <TextInput
+                placeholder="Manila"
+                size="sm"
+                {...register('venue', validationRules.venue)}
+                error={errors.venue?.message}
+                styles={{ input: { borderColor: errors.venue ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Present Stage</Text>
+                <Text size="sm" c="red">*</Text>
+              </Group>
+              <TextInput
+                placeholder="Pre-trial, Trial, etc."
+                size="sm"
+                {...register('presentStage', validationRules.presentStage)}
+                error={errors.presentStage?.message}
+                styles={{ input: { borderColor: errors.presentStage ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+          </Grid>
+
           <Box>
-            <Group gap={8} mb={8}>
-              <Text size="sm" fw={600} c={CHARCOAL}>Venue / City</Text>
+            <Group gap={4} mb={6}>
+              <Text size="sm" fw={600} c={CHARCOAL}>Nature of Case</Text>
               <Text size="sm" c="red">*</Text>
             </Group>
-            <TextInput
-              placeholder="Manila"
-              size="md"
-              {...register('venue', validationRules.venue)}
-              error={errors.venue?.message}
-              styles={{
-                input: {
-                  borderColor: errors.venue ? '#E74C3C' : '#E0E0E0',
-                  '&:focus': {
-                    borderColor: errors.venue ? '#E74C3C' : PRIMARY_BROWN,
-                  },
-                },
-              }}
+            <Textarea
+              placeholder="Describe the nature of the case..."
+              size="sm"
+              minRows={3}
+              {...register('caseNature', validationRules.caseNature)}
+              error={errors.caseNature?.message}
+              styles={{ input: { borderColor: errors.caseNature ? '#E74C3C' : '#E0E0E0' } }}
             />
+            <Text size="xs" c={MUTED_OLIVE} mt={4}>Provide a brief description of the legal matter</Text>
           </Box>
-        </Grid.Col>
-        <Grid.Col span={6}>
-          <Box>
-            <Group gap={8} mb={8}>
-              <Text size="sm" fw={600} c={CHARCOAL}>Case / Docket Number</Text>
-              <Text size="sm" c="red">*</Text>
-            </Group>
-            <TextInput
-              placeholder="Case No. 2024-123"
-              size="md"
-              {...register('caseNumber', validationRules.caseNumber)}
-              error={errors.caseNumber?.message}
-              styles={{
-                input: {
-                  borderColor: errors.caseNumber ? '#E74C3C' : '#E0E0E0',
-                  '&:focus': {
-                    borderColor: errors.caseNumber ? '#E74C3C' : PRIMARY_BROWN,
-                  },
-                },
-              }}
-            />
+        </Stack>
+      </Paper>
+
+      {/* Court / Tribunal Information */}
+      <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+        <Group gap={8} mb="md">
+          <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#4DABF7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconGavel size={14} color="white" stroke={2.5} />
           </Box>
-        </Grid.Col>
-      </Grid>
-      
-      {/* Present Stage of the Case */}
-      <Box>
-        <Group gap={8} mb={8}>
-          <Text size="sm" fw={600} c={CHARCOAL}>Present Stage of the Case</Text>
-          <Text size="sm" c="red">*</Text>
+          <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Court / Tribunal</Text>
         </Group>
-        <TextInput
-          placeholder="Pre-trial, Trial, etc."
-          size="md"
-          {...register('presentStage', validationRules.presentStage)}
-          error={errors.presentStage?.message}
-          styles={{
-            input: {
-              borderColor: errors.presentStage ? '#E74C3C' : '#E0E0E0',
-              '&:focus': {
-                borderColor: errors.presentStage ? '#E74C3C' : PRIMARY_BROWN,
-              },
-            },
-          }}
-        />
-      </Box>
-      
-      {/* Nature of Case */}
-      <Box>
-        <Group gap={8} mb={8}>
-          <Text size="sm" fw={600} c={CHARCOAL}>Nature of Case</Text>
-          <Text size="sm" c="red">*</Text>
+
+        <Stack gap="sm">
+          <Grid gutter="sm">
+            <Grid.Col span={6}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Division</Text>
+                <Text size="sm" c="red">*</Text>
+              </Group>
+              <TextInput
+                placeholder="RTC Branch 1"
+                size="sm"
+                {...register('courtDivision', validationRules.courtDivision)}
+                error={errors.courtDivision?.message}
+                styles={{ input: { borderColor: errors.courtDivision ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Presiding Officer</Text>
+                <Text size="sm" c="red">*</Text>
+              </Group>
+              <TextInput
+                placeholder="Hon. Judge Name"
+                size="sm"
+                {...register('presidingOfficer', validationRules.presidingOfficer)}
+                error={errors.presidingOfficer?.message}
+                styles={{ input: { borderColor: errors.presidingOfficer ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+          </Grid>
+
+          <Grid gutter="sm">
+            <Grid.Col span={8}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Court Address</Text>
+                <Text size="sm" c="red">*</Text>
+              </Group>
+              <TextInput
+                placeholder="Justice Hall, City"
+                size="sm"
+                {...register('courtAddress', validationRules.courtAddress)}
+                error={errors.courtAddress?.message}
+                styles={{ input: { borderColor: errors.courtAddress ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+            <Grid.Col span={4}>
+              <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Phone Number</Text>
+              <TextInput
+                placeholder="(02) 1111-2222"
+                size="sm"
+                {...register('courtPhoneNumber', validationRules.courtPhoneNumber)}
+                error={errors.courtPhoneNumber?.message}
+                styles={{ input: { borderColor: errors.courtPhoneNumber ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+          </Grid>
+        </Stack>
+      </Paper>
+
+      {/* Adverse Party Information */}
+      <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+        <Group gap={8} mb="md">
+          <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#FA5252', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconScale size={14} color="white" stroke={2.5} />
+          </Box>
+          <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Adverse Party</Text>
         </Group>
-        <Textarea
-          placeholder="Describe the nature of the case..."
-          size="md"
-          minRows={3}
-          {...register('caseNature', validationRules.caseNature)}
-          error={errors.caseNature?.message}
-          styles={{
-            input: {
-              borderColor: errors.caseNature ? '#E74C3C' : '#E0E0E0',
-              '&:focus': {
-                borderColor: errors.caseNature ? '#E74C3C' : PRIMARY_BROWN,
-              },
-            },
-          }}
-        />
-        <Text size="xs" c={MUTED_OLIVE} mt={4}>
-          Provide a brief description of the legal matter
-        </Text>
-      </Box>
-      
-      {/* Court / Agency / Tribunal Division */}
-      <Box>
-        <Group gap={8} mb={8}>
-          <Text size="sm" fw={600} c={CHARCOAL}>Court / Agency / Tribunal Division</Text>
-          <Text size="sm" c="red">*</Text>
-        </Group>
-        <TextInput
-          placeholder="RTC Branch 1"
-          size="md"
-          {...register('courtDivision', validationRules.courtDivision)}
-          error={errors.courtDivision?.message}
-          styles={{
-            input: {
-              borderColor: errors.courtDivision ? '#E74C3C' : '#E0E0E0',
-              '&:focus': {
-                borderColor: errors.courtDivision ? '#E74C3C' : PRIMARY_BROWN,
-              },
-            },
-          }}
-        />
-      </Box>
-      
-      {/* Court / Agency / Tribunal Address */}
-      <Box>
-        <Group gap={8} mb={8}>
-          <Text size="sm" fw={600} c={CHARCOAL}>Court / Agency / Tribunal Address</Text>
-          <Text size="sm" c="red">*</Text>
-        </Group>
-        <TextInput
-          placeholder="Justice Hall, City"
-          size="md"
-          {...register('courtAddress', validationRules.courtAddress)}
-          error={errors.courtAddress?.message}
-          styles={{
-            input: {
-              borderColor: errors.courtAddress ? '#E74C3C' : '#E0E0E0',
-              '&:focus': {
-                borderColor: errors.courtAddress ? '#E74C3C' : PRIMARY_BROWN,
-              },
-            },
-          }}
-        />
-      </Box>
-      
-      {/* Phone Number */}
-      <Box>
-        <Text size="sm" fw={600} c={CHARCOAL} mb={8}>Phone Number</Text>
-        <TextInput
-          placeholder="(02) 1111-2222"
-          size="md"
-          {...register('courtPhoneNumber', validationRules.courtPhoneNumber)}
-          error={errors.courtPhoneNumber?.message}
-          styles={{
-            input: {
-              borderColor: errors.courtPhoneNumber ? '#E74C3C' : '#E0E0E0',
-              '&:focus': {
-                borderColor: errors.courtPhoneNumber ? '#E74C3C' : PRIMARY_BROWN,
-              },
-            },
-          }}
-        />
-      </Box>
-      
-      {/* Presiding Officer */}
-      <Box>
-        <Group gap={8} mb={8}>
-          <Text size="sm" fw={600} c={CHARCOAL}>Presiding Officer</Text>
-          <Text size="sm" c="red">*</Text>
-        </Group>
-        <TextInput
-          placeholder="Hon. Judge Name"
-          size="md"
-          {...register('presidingOfficer', validationRules.presidingOfficer)}
-          error={errors.presidingOfficer?.message}
-          styles={{
-            input: {
-              borderColor: errors.presidingOfficer ? '#E74C3C' : '#E0E0E0',
-              '&:focus': {
-                borderColor: errors.presidingOfficer ? '#E74C3C' : PRIMARY_BROWN,
-              },
-            },
-          }}
-        />
-      </Box>
-      
-      {/* Adverse Party Information Section */}
-      <Paper p="lg" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
-        <Title order={4} mb="md" c={CHARCOAL}>
-          Adverse Party Information
-        </Title>
-        <Stack gap="md">
-          {/* Adverse Party(ies) */}
-          <Box>
-            <Text size="sm" fw={600} c={CHARCOAL} mb={8}>Adverse Party(ies)</Text>
-            <TextInput
-              placeholder="Name of opposing party"
-              size="md"
-              {...register('adverseParty', validationRules.adverseParty)}
-              error={errors.adverseParty?.message}
-              styles={{
-                input: {
-                  backgroundColor: 'white',
-                  borderColor: errors.adverseParty ? '#E74C3C' : '#E0E0E0',
-                  '&:focus': {
-                    borderColor: errors.adverseParty ? '#E74C3C' : PRIMARY_BROWN,
-                  },
-                },
-              }}
-            />
-          </Box>
-          
-          {/* Adverse Party(ies) Address */}
-          <Box>
-            <Text size="sm" fw={600} c={CHARCOAL} mb={8}>Adverse Party(ies) Address</Text>
-            <TextInput
-              placeholder="Address of opposing party"
-              size="md"
-              {...register('adversePartyAddress', validationRules.adversePartyAddress)}
-              error={errors.adversePartyAddress?.message}
-              styles={{
-                input: {
-                  backgroundColor: 'white',
-                  borderColor: errors.adversePartyAddress ? '#E74C3C' : '#E0E0E0',
-                  '&:focus': {
-                    borderColor: errors.adversePartyAddress ? '#E74C3C' : PRIMARY_BROWN,
-                  },
-                },
-              }}
-            />
-          </Box>
-          
-          {/* Adverse Party(ies) Counsel */}
-          <Box>
-            <Text size="sm" fw={600} c={CHARCOAL} mb={8}>Adverse Party(ies) Counsel</Text>
-            <TextInput
-              placeholder="Atty. Name"
-              size="md"
-              {...register('adversePartyCounsel', validationRules.adversePartyCounsel)}
-              error={errors.adversePartyCounsel?.message}
-              styles={{
-                input: {
-                  backgroundColor: 'white',
-                  borderColor: errors.adversePartyCounsel ? '#E74C3C' : '#E0E0E0',
-                  '&:focus': {
-                    borderColor: errors.adversePartyCounsel ? '#E74C3C' : PRIMARY_BROWN,
-                  },
-                },
-              }}
-            />
-          </Box>
-          
-          {/* Adverse Party(ies) Counsel Address */}
-          <Box>
-            <Text size="sm" fw={600} c={CHARCOAL} mb={8}>Adverse Party(ies) Counsel Address</Text>
-            <TextInput
-              placeholder="Law Office Address"
-              size="md"
-              {...register('adversePartyCounselAddress', validationRules.adversePartyCounselAddress)}
-              error={errors.adversePartyCounselAddress?.message}
-              styles={{
-                input: {
-                  backgroundColor: 'white',
-                  borderColor: errors.adversePartyCounselAddress ? '#E74C3C' : '#E0E0E0',
-                  '&:focus': {
-                    borderColor: errors.adversePartyCounselAddress ? '#E74C3C' : PRIMARY_BROWN,
-                  },
-                },
-              }}
-            />
-          </Box>
-          
-          {/* Adverse Party(ies) Counsel Phone Number */}
-          <Box>
-            <Text size="sm" fw={600} c={CHARCOAL} mb={8}>Adverse Party(ies) Counsel Phone Number</Text>
-            <TextInput
-              placeholder="(02) 3333-4444"
-              size="md"
-              {...register('adversePartyCounselPhone', validationRules.adversePartyCounselPhone)}
-              error={errors.adversePartyCounselPhone?.message}
-              styles={{
-                input: {
-                  backgroundColor: 'white',
-                  borderColor: errors.adversePartyCounselPhone ? '#E74C3C' : '#E0E0E0',
-                  '&:focus': {
-                    borderColor: errors.adversePartyCounselPhone ? '#E74C3C' : PRIMARY_BROWN,
-                  },
-                },
-              }}
-            />
-          </Box>
+
+        <Stack gap="sm">
+          <Grid gutter="sm">
+            <Grid.Col span={6}>
+              <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Adverse Party(ies)</Text>
+              <TextInput
+                placeholder="Name of opposing party"
+                size="sm"
+                {...register('adverseParty', validationRules.adverseParty)}
+                error={errors.adverseParty?.message}
+                styles={{ input: { borderColor: errors.adverseParty ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Address</Text>
+              <TextInput
+                placeholder="Address of opposing party"
+                size="sm"
+                {...register('adversePartyAddress', validationRules.adversePartyAddress)}
+                error={errors.adversePartyAddress?.message}
+                styles={{ input: { borderColor: errors.adversePartyAddress ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+          </Grid>
+
+          <Grid gutter="sm">
+            <Grid.Col span={4}>
+              <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Counsel</Text>
+              <TextInput
+                placeholder="Atty. Name"
+                size="sm"
+                {...register('adversePartyCounsel', validationRules.adversePartyCounsel)}
+                error={errors.adversePartyCounsel?.message}
+                styles={{ input: { borderColor: errors.adversePartyCounsel ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+            <Grid.Col span={4}>
+              <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Counsel Address</Text>
+              <TextInput
+                placeholder="Law Office Address"
+                size="sm"
+                {...register('adversePartyCounselAddress', validationRules.adversePartyCounselAddress)}
+                error={errors.adversePartyCounselAddress?.message}
+                styles={{ input: { borderColor: errors.adversePartyCounselAddress ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+            <Grid.Col span={4}>
+              <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Counsel Phone</Text>
+              <TextInput
+                placeholder="(02) 3333-4444"
+                size="sm"
+                {...register('adversePartyCounselPhone', validationRules.adversePartyCounselPhone)}
+                error={errors.adversePartyCounselPhone?.message}
+                styles={{ input: { borderColor: errors.adversePartyCounselPhone ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+          </Grid>
         </Stack>
       </Paper>
     </Stack>

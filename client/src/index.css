@@ -1,1 +1,12 @@
 @import "tailwindcss";
+
+/* Calendar day cell hover effects */
+.calendar-day-cell:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #D4A574 !important;
+}
+
+.calendar-day-cell:hover .add-event-hint {
+  opacity: 1 !important;
+}

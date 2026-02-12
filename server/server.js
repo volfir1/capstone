@@ -12,7 +12,8 @@ import finalizeRoutes from './routes/finalizeRoutes.js'
 import clientsinfoRoutes from './routes/clientsinfoRoutes.js'
 import eventRoutes from './routes/eventRoutes.js'
 import caseRecordRoutes from './routes/caseRecordRoutes.js'
-import dotenv from 'dotenv'
+import notificationRoutes from './routes/notificationRoutes.js'
+import activityLogRoutes from './routes/activityLogRoutes.js'
 import cors from "cors"
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
@@ -110,8 +111,8 @@ app.post('/api/upload/document', upload.single('document'), (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Return file information
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/documents/${req.file.filename}`;
+    // Return file information with relative path (will be proxied by Vite in dev)
+    const fileUrl = `/uploads/documents/${req.file.filename}`;
     
     res.json({
       success: true,
@@ -121,7 +122,7 @@ app.post('/api/upload/document', upload.single('document'), (req, res) => {
         size: req.file.size,
         mimetype: req.file.mimetype,
         url: fileUrl,
-        path: `/uploads/documents/${req.file.filename}`
+        path: fileUrl
       }
     });
   } catch (error) {
@@ -158,6 +159,8 @@ app.use('/api/finalize', finalizeRoutes)
 app.use('/api/clientsinfo', clientsinfoRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/caserecords', caseRecordRoutes)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api/activity-logs', activityLogRoutes)
 
 // MongoDB Connection with improved configuration
 const mongoOptions = {

@@ -37,6 +37,9 @@ const FinalizeSchema = new mongoose.Schema({
   finalizedRole: { type: String },
   decision: { type: String, enum: ['accepted', 'rejected', 'pending'], index: true },
   content: { type: mongoose.Schema.Types.Mixed },
+  // Client account tracking
+  clientAccountCreated: { type: Boolean, default: false, index: true },
+  clientUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true })
 
 // Pre-save hook to auto-generate caseId if not provided
