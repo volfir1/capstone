@@ -29,6 +29,7 @@ import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
 import apiClient from '@config/api/apiClient';
+import { generateGoogleCalendarUrl } from '@utils/googleCalendar';
 import {
     reviewSavedNotif, reviewSaveFailedNotif,
     changesSavedNotif, changesSaveFailedNotif,
@@ -688,6 +689,8 @@ export default function CaseRecordFormsDisplay() {
     const { caseId: caseIdParam } = useParams();
     const navigate = useNavigate();
 
+    const isFromAutoScheduledApproveFlow = Boolean(location?.state?.fromAutoScheduled);
+
     // Get caseId from URL params, search params, or location state
     const getCaseId = () => {
         if (caseIdParam) return caseIdParam;
@@ -1187,6 +1190,72 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
+
+            // Special flow: opened from Auto-Scheduled "Approve & Recommend"
+            // - Save the recommendation form
+            // - Record to calendar (create event)
+            // - Open pre-filled Google Calendar event
+            // - Do NOT redirect to dashboard yet
+            // - Do NOT change clientsinfo status here (card must remain in Auto-Scheduled)
+            if (isFromAutoScheduledApproveFlow && active === totalSteps - 1) {
+                // Pre-open a tab to avoid popup blockers (best-effort).
+                const calendarTab = window.open('about:blank', '_blank');
+                const resReview = await apiClient.post('/reviews', reviewPayload);
+                const saved = resReview.data;
+                await fetchReviews(caseId);
+
+                try {
+                    const clientResp = await apiClient.get(`/clientsinfo/${caseId}`);
+                    const clientData = clientResp?.data;
+
+                    const eventDate = clientData?.appointedDate || clientData?.createdAt;
+                    const appointmentTime = clientData?.appointmentTime || '';
+                    const clientName = clientData?.fullName || clientData?.name || completeInterviewInfo?.clientName || '';
+                    const locationValue = clientData?.caseDetails?.location || '';
+                    const purposeValue = clientData?.caseDetails?.purpose || '';
+
+                    if (eventDate) {
+                        const title = clientName ? `${clientName} - Interview` : 'Client Interview';
+                        const description = [
+                            purposeValue ? `Purpose: ${purposeValue}` : '',
+                            appointmentTime ? `Time: ${appointmentTime}` : '',
+                            'Saved from Recommendation for Action form.'
+                        ].filter(Boolean).join('\n');
+
+                        await apiClient.post('/events', {
+                            title,
+                            description,
+                            eventDate,
+                            eventType: 'appointment',
+                            location: locationValue,
+                            clientName,
+                            assignedTo: userData?.email || (userData?.firstName && userData?.lastName ? `${userData.firstName} ${userData.lastName}` : ''),
+                            priority: 'Medium',
+                            status: 'scheduled',
+                        });
+
+                        const googleCalendarUrl = generateGoogleCalendarUrl({
+                            title,
+                            appointmentDate: eventDate,
+                            appointmentTime,
+                            location: locationValue,
+                            description,
+                        });
+                        if (calendarTab) {
+                            calendarTab.location.href = googleCalendarUrl;
+                        } else {
+                            window.open(googleCalendarUrl, '_blank');
+                        }
+                    }
+                } catch (calendarErr) {
+                    console.error('Calendar recording/open failed:', calendarErr);
+                }
+
+                reviewSavedNotif();
+                console.log('Saved review (auto-scheduled flow)', saved);
+                navigate('/admin/clientformstatus', { replace: true });
+                return;
+            }
             
             // Intern behavior on Step 1 - check which button was clicked via a flag
             // This will be set by the button click handler

@@ -253,6 +253,12 @@ export const updateClientsInfo = async (req, res) => {
     setField('fullName')
     setField('caseNumber')
 
+    // Calendar recording fields
+    setField('calendarRecorded', (v) => Boolean(v))
+    setField('calendarEventId')
+    setField('calendarRecordedAt', (v) => (v ? new Date(v) : v))
+    setField('calendarRecordedBy')
+
     // Personal Details
     setField('name')
     setField('age', (v) => (v === '' || v === null || v === undefined ? v : Number(v)))

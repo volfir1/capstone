@@ -13,7 +13,6 @@ import {
   IconCalendarEvent, IconMessage2, IconFileDescription, IconClock, IconCheck, 
   IconMapPin, IconScale, IconUser, IconCheckbox, IconPhone, IconMail, IconDots,
   IconEdit, IconX, IconSearch, IconFilter, IconGavel, IconFileText, IconEye, IconCalendar,
-  IconBrandGoogle,
 } from '@tabler/icons-react';
 import { GENDER_OPTIONS, CIVIL_STATUS_OPTIONS, DEFAULT_CITIZENSHIP } from '@utils/constants';
 import { generateGoogleCalendarUrl } from '@utils/googleCalendar';
@@ -68,6 +67,95 @@ export default function StaffAppointmentManager() {
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const navigate = useNavigate();
+
+  const handleRecordToCalendars = async (appointment) => {
+    if (!appointment?.id) return;
+    if (!appointment?.rawAppointedDate) {
+      notifications.show({
+        title: 'Missing date',
+        message: 'This appointment has no date yet. Please set a date/time first.',
+        color: 'orange',
+      });
+      return;
+    }
+
+    setIsUpdating(true);
+    let calendarTab = null;
+
+    try {
+      // Pre-open a tab to reduce popup-blocking risk.
+      calendarTab = window.open('about:blank', '_blank');
+
+      const { default: apiClient } = await import('@config/api/apiClient');
+
+      const title = appointment.clientName ? `${appointment.clientName} - Interview` : 'Client Interview';
+      const description = [
+        appointment.purpose ? `Purpose: ${appointment.purpose}` : '',
+        appointment.appointmentTime ? `Time: ${appointment.appointmentTime}` : '',
+        `Case ID: ${appointment.id}`,
+      ].filter(Boolean).join('\n');
+
+      // 1) Record to system calendar
+      const createEventResp = await apiClient.post('/events', {
+        title,
+        description,
+        eventDate: appointment.rawAppointedDate,
+        eventType: 'appointment',
+        location: appointment.location,
+        clientName: appointment.clientName,
+        assignedTo: appointment.assignedTo,
+        priority: appointment.priority || 'Medium',
+        status: 'scheduled',
+      });
+
+      const createdEvent = createEventResp?.data;
+
+      // Mark the appointment as calendar-recorded (but keep it auto-scheduled)
+      await apiClient.put(`/clientsinfo/${appointment.id}`, {
+        calendarRecorded: true,
+        calendarEventId: createdEvent?._id ? String(createdEvent._id) : undefined,
+        calendarRecordedAt: new Date().toISOString(),
+        calendarRecordedBy: userData?.email || userData?.username || userData?.displayName || '',
+      });
+
+      // 2) Open Google Calendar pre-filled
+      const googleCalendarUrl = generateGoogleCalendarUrl({
+        title,
+        appointmentDate: appointment.rawAppointedDate,
+        appointmentTime: appointment.appointmentTime,
+        location: appointment.location,
+        description,
+      });
+
+      if (calendarTab) {
+        calendarTab.location.href = googleCalendarUrl;
+      } else {
+        window.open(googleCalendarUrl, '_blank');
+      }
+
+      notifications.show({
+        title: 'Recorded',
+        message: 'Saved to system calendar and opened Google Calendar.',
+        color: 'green',
+      });
+
+      await loadAllData();
+    } catch (err) {
+      console.error('Failed to record to calendars:', err);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to record to calendars.',
+        color: 'red',
+      });
+      try {
+        if (calendarTab && !calendarTab.closed) calendarTab.close();
+      } catch (_) {
+        // ignore
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  };
   
   // Appointment Details Modal states
   const [appointmentModalOpened, setAppointmentModalOpened] = useState(false);
@@ -169,11 +257,6 @@ export default function StaffAppointmentManager() {
         const pendingResp = await apiClient.get('/clientsinfo');
         const docs = pendingResp?.data || [];
         const mapped = (Array.isArray(docs) ? docs : [])
-          .filter(d => {
-            // Filter out appointments that have a review submitted
-            const appointmentId = d._id;
-            return !appointmentsWithReviews.has(appointmentId);
-          })
           .map((d, idx) => ({
             id: d._id || idx,
             clientName: d.fullName || d.personal?.fullName || `${d.personal?.firstName || ''} ${d.personal?.lastName || ''}`.trim() || '',
@@ -183,6 +266,8 @@ export default function StaffAppointmentManager() {
             rawAppointedDate: d.appointedDate || null,
             appointmentTime: d.appointmentTime || '',
             status: d.status || 'auto-scheduled',
+            calendarRecorded: Boolean(d.calendarRecorded),
+            calendarEventId: d.calendarEventId || null,
             contactNumber: d.personal?.contactNumber || '+63 000 000 0000',
             email: d.personal?.email || 'email@sola.com',
             assignedTo: d.assignedTo || 'Atty. Maria Cruz',
@@ -784,34 +869,48 @@ export default function StaffAppointmentManager() {
       {item.status === 'auto-scheduled' ? (
         <Stack gap="xs">
           <Group grow>
-            <Button 
-              size="sm" 
-              variant="filled" 
-              leftSection={<IconCheck size={16} />} 
-              onClick={() => {
-                const today = new Date();
-                const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                const internName = userData?.firstName && userData?.lastName 
-                  ? `${userData.firstName} ${userData.lastName}` 
-                  : userData?.username || userData?.displayName || '';
-                const internId = userData?._id || userData?.id || null;
-                navigate(`/admin/recommendation/${item.id}`, { 
-                  state: { 
-                    caseId: item.id,
-                    clientInfo: {
-                      clientName: item.clientName,
-                      dateOfInterview: formattedDate,
-                      dateSubmitted: formattedDate,
-                      interviewingInterns: internName,
-                      interviewingInternsId: internId
-                    }
-                  } 
-                });
-              }}
-              style={{ backgroundColor: PRIMARY_BROWN }}
-            >
-              Approve & Recommend
-            </Button>
+            {!item.calendarRecorded ? (
+              <Button 
+                size="sm" 
+                variant="filled" 
+                leftSection={<IconCheck size={16} />} 
+                onClick={() => handleRecordToCalendars(item)}
+                disabled={isUpdating}
+                style={{ backgroundColor: PRIMARY_BROWN }}
+              >
+                Approve & Recommend
+              </Button>
+            ) : (
+              <Button 
+                size="sm" 
+                variant="filled" 
+                leftSection={<IconFileText size={16} />} 
+                onClick={() => {
+                  const today = new Date();
+                  const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                  const internName = userData?.firstName && userData?.lastName 
+                    ? `${userData.firstName} ${userData.lastName}` 
+                    : userData?.username || userData?.displayName || '';
+                  const internId = userData?._id || userData?.id || null;
+                  navigate(`/admin/recommendation/${item.id}`, { 
+                    state: { 
+                      caseId: item.id,
+                      clientInfo: {
+                        clientName: item.clientName,
+                        dateOfInterview: formattedDate,
+                        dateSubmitted: formattedDate,
+                        interviewingInterns: internName,
+                        interviewingInternsId: internId
+                      }
+                    } 
+                  });
+                }}
+                disabled={isUpdating}
+                style={{ backgroundColor: PRIMARY_BROWN }}
+              >
+                Interview
+              </Button>
+            )}
             <Button 
               size="sm" 
               variant="light" 
@@ -1289,36 +1388,6 @@ export default function StaffAppointmentManager() {
                         </Box>
                       )}
                     </Stack>
-
-                    {/* Transfer to Google Calendar Button */}
-                    <Button
-                      fullWidth
-                      mt="md"
-                      variant="outline"
-                      leftSection={<IconBrandGoogle size={18} />}
-                      onClick={() => {
-                        const googleCalendarUrl = generateGoogleCalendarUrl({
-                          title: item.clientName || item.title,
-                          appointmentDate: item.rawAppointedDate || item.eventDate,
-                          appointmentTime: item.appointmentTime || item.time,
-                          location: item.location,
-                          description: item.purpose || item.description,
-                          purpose: item.purpose
-                        });
-                        window.open(googleCalendarUrl, '_blank');
-                      }}
-                      styles={{
-                        root: {
-                          borderColor: '#4285F4',
-                          color: '#4285F4',
-                          '&:hover': {
-                            backgroundColor: '#4285F410',
-                          }
-                        }
-                      }}
-                    >
-                      Transfer to Google Calendar
-                    </Button>
                   </Paper>
                 ))}
               </Stack>
