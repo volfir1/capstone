@@ -1,6 +1,7 @@
 import Review from '../models/review.js'
 import User from '../models/user.js'
 import Attorney from '../models/attorney.js'
+import Case from '../models/case.js'
 import { createNotification } from './notificationController.js'
 
 export const createReview = async (req, res) => {
@@ -13,6 +14,16 @@ export const createReview = async (req, res) => {
     const toCreate = { ...payload }
     if (caseTitle) toCreate.caseTitle = caseTitle
     if (clientName) toCreate.clientName = clientName
+
+    // If the case already has an assignee, copy it into the review so reviewers see assignment
+    try {
+      if (!toCreate.assignedTo && toCreate.caseId) {
+        const c = await Case.findById(toCreate.caseId).select('assignedTo').lean();
+        if (c && c.assignedTo) toCreate.assignedTo = c.assignedTo;
+      }
+    } catch (err) {
+      console.warn('Could not copy case.assignedTo into review:', err.message);
+    }
 
     const review = await Review.create(toCreate)
     

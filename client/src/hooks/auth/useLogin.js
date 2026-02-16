@@ -10,6 +10,7 @@ import {
   doSignInWithGoogle,
   doSignOut,
 } from "@/firebase/auth";
+import { GoogleAuthProvider } from 'firebase/auth';
 import {
   successNotif,
   failNotif,
@@ -153,7 +154,18 @@ export const useLogin = () => {
     notificationShown.current = false; // Reset on new login attempt
 
     try {
-      await doSignInWithGoogle();
+      const result = await doSignInWithGoogle();
+      // Attempt to extract the OAuth access token from the popup result and cache it locally
+      try {
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const accessToken = credential?.accessToken;
+        if (accessToken) {
+          localStorage.setItem('googleAccessToken', accessToken);
+        }
+      } catch (credErr) {
+        // ignore if credential extraction fails
+        console.warn('Failed to extract Google credential from result', credErr);
+      }
     } catch (err) {
       console.error("Google sign-in error:", err);
       setErrorMessage(err.message);

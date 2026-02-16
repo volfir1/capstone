@@ -32,7 +32,7 @@ const APPOINTMENT_STATUS_OPTIONS = [
 ];
 
 export default function StaffAppointmentManager() {
-  const { userData } = useAuth();
+  const { userData, currentUser } = useAuth();
   const [userRole] = useState('attorney');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -66,6 +66,7 @@ export default function StaffAppointmentManager() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [activeTab, setActiveTab] = useState('pending');
   const navigate = useNavigate();
 
   const handleRecordToCalendars = async (appointment) => {
@@ -95,49 +96,115 @@ export default function StaffAppointmentManager() {
         `Case ID: ${appointment.id}`,
       ].filter(Boolean).join('\n');
 
-      // 1) Record to system calendar
-      const createEventResp = await apiClient.post('/events', {
-        title,
-        description,
-        eventDate: appointment.rawAppointedDate,
-        eventType: 'appointment',
-        location: appointment.location,
-        clientName: appointment.clientName,
-        assignedTo: appointment.assignedTo,
-        priority: appointment.priority || 'Medium',
-        status: 'scheduled',
-      });
+      // Atomic: create Google event, then create system event and mark appointment
+      try {
+        // Build Google Event resource
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        const startDate = appointment.rawAppointedDate; // expect ISO date or date string
+        let startDateTime;
+        if (appointment.appointmentTime) {
+          const [hour, minute] = appointment.appointmentTime.split(':');
+          const d = new Date(startDate);
+          d.setHours(Number(hour), Number(minute || 0), 0, 0);
+          startDateTime = d.toISOString();
+        } else {
+          const d = new Date(startDate);
+          d.setHours(9, 0, 0, 0);
+          startDateTime = d.toISOString();
+        }
+        const end = new Date(startDateTime);
+        end.setHours(end.getHours() + 1);
 
-      const createdEvent = createEventResp?.data;
+        const googleEvent = {
+          summary: title,
+          location: appointment.location || undefined,
+          description,
+          start: { dateTime: startDateTime, timeZone: timezone },
+          end: { dateTime: end.toISOString(), timeZone: timezone },
+        };
 
-      // Mark the appointment as calendar-recorded (but keep it auto-scheduled)
-      await apiClient.put(`/clientsinfo/${appointment.id}`, {
-        calendarRecorded: true,
-        calendarEventId: createdEvent?._id ? String(createdEvent._id) : undefined,
-        calendarRecordedAt: new Date().toISOString(),
-        calendarRecordedBy: userData?.email || userData?.username || userData?.displayName || '',
-      });
+        if (!currentUser?.uid) {
+          // fallback to opening prefilled Google Calendar
+          const googleCalendarUrl = generateGoogleCalendarUrl({ title, appointmentDate: appointment.rawAppointedDate, appointmentTime: appointment.appointmentTime, location: appointment.location, description });
+          if (calendarTab) calendarTab.location.href = googleCalendarUrl; else window.open(googleCalendarUrl, '_blank');
+          notifications.show({ title: 'Recorded', message: 'Saved to system calendar. Opened Google Calendar as fallback.', color: 'yellow' });
+        } else {
+          const payload = {
+            firebaseUid: currentUser.uid,
+            event: googleEvent,
+            meta: {
+              appointmentId: appointment.id,
+              title,
+              description,
+              eventDate: appointment.rawAppointedDate,
+              eventType: 'appointment',
+              location: appointment.location,
+              clientName: appointment.clientName,
+              assignedTo: appointment.assignedTo,
+              priority: appointment.priority || 'Medium',
+              status: 'scheduled',
+            }
+          };
 
-      // 2) Open Google Calendar pre-filled
-      const googleCalendarUrl = generateGoogleCalendarUrl({
-        title,
-        appointmentDate: appointment.rawAppointedDate,
-        appointmentTime: appointment.appointmentTime,
-        location: appointment.location,
-        description,
-      });
+          await apiClient.post('/google/events/atomic', payload);
 
-      if (calendarTab) {
-        calendarTab.location.href = googleCalendarUrl;
-      } else {
-        window.open(googleCalendarUrl, '_blank');
+          notifications.show({ title: 'Recorded', message: 'Saved to system calendar and synced to your Google Calendar.', color: 'green' });
+
+          if (calendarTab && !calendarTab.closed) try { calendarTab.close(); } catch(_){}
+        }
+      } catch (googleErr) {
+        console.error('Google sync failed, falling back to prefill URL:', googleErr);
+        try {
+          const respStatus = googleErr?.response?.status;
+          const respData = googleErr?.response?.data;
+          // If user hasn't connected via server-side OAuth (no refresh token)
+          if (respStatus === 400 && respData && typeof respData.error === 'string' && respData.error.toLowerCase().includes('has not connected')) {
+            try {
+              const connectResp = await apiClient.post('/google/connect', { firebaseUid: currentUser?.uid });
+              const { url } = connectResp?.data || {};
+              if (url) {
+                if (calendarTab) calendarTab.location.href = url; else window.open(url, '_blank');
+                notifications.show({ title: 'Connect Google', message: 'Please complete Google connection to enable calendar sync.', color: 'yellow' });
+                await loadAllData();
+                setIsUpdating(false);
+                return;
+              }
+            } catch (connectErr) {
+              console.error('Failed to get Google connect URL:', connectErr);
+            }
+          }
+
+          // If token was issued without calendar scopes or the Calendar API is not enabled
+          if (respStatus === 403 && respData && respData.error === 'insufficient_scopes') {
+            notifications.show({ title: 'Permission Needed', message: 'Google access token lacks Calendar scopes. Please sign out and sign in again granting Calendar permissions.', color: 'yellow' });
+            setIsUpdating(false);
+            return;
+          }
+
+          if (respStatus === 422 && respData && respData.error === 'api_not_enabled') {
+            // Ask the user to complete server-side connection so the server can use its own OAuth client (recommended)
+            try {
+              const connectResp = await apiClient.post('/google/connect', { firebaseUid: currentUser?.uid });
+              const { url } = connectResp?.data || {};
+              if (url) {
+                if (calendarTab) calendarTab.location.href = url; else window.open(url, '_blank');
+                notifications.show({ title: 'Connect Google', message: 'Google Calendar API appears disabled for the token project. Please complete the server connect flow.', color: 'yellow' });
+                await loadAllData();
+                setIsUpdating(false);
+                return;
+              }
+            } catch (connectErr) {
+              console.error('Failed to get Google connect URL for api_not_enabled:', connectErr);
+            }
+          }
+        } catch (e) {
+          console.error('Error while handling google error:', e);
+        }
+
+        const googleCalendarUrl = generateGoogleCalendarUrl({ title, appointmentDate: appointment.rawAppointedDate, appointmentTime: appointment.appointmentTime, location: appointment.location, description });
+        if (calendarTab) calendarTab.location.href = googleCalendarUrl; else window.open(googleCalendarUrl, '_blank');
+        notifications.show({ title: 'Recorded (partial)', message: 'Saved to system calendar. Google sync failed; opened Google Calendar so you can save manually.', color: 'orange' });
       }
-
-      notifications.show({
-        title: 'Recorded',
-        message: 'Saved to system calendar and opened Google Calendar.',
-        color: 'green',
-      });
 
       await loadAllData();
     } catch (err) {
@@ -235,8 +302,9 @@ export default function StaffAppointmentManager() {
   }, [appointmentForm.monthlyIncome, appointmentForm.spouseMonthlyIncome]);
 
   // Fetch all data function
-  const loadAllData = async () => {
-    setLoading(true);
+  const loadAllData = async (opts = {}) => {
+    const silent = opts.silent === true;
+    if (!silent) setLoading(true);
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
       
@@ -348,19 +416,46 @@ export default function StaffAppointmentManager() {
       // }
       } catch (err) {
         console.error('Failed to initialize apiClient:', err);
-        notifications.show({
-          title: 'Error',
-          message: 'Failed to load data from server.',
-          color: 'red',
-        });
+        if (!silent) {
+          notifications.show({
+            title: 'Error',
+            message: 'Failed to load data from server.',
+            color: 'red',
+          });
+        }
       } finally {
-      setLoading(false);
-    }
+        if (!silent) setLoading(false);
+      }
   };
 
-  // Fetch all data on mount
+  // Fetch all data on mount and poll periodically (silent) so new appointments appear without a full page refresh
   useEffect(() => {
+    let mounted = true;
+    // initial (visible) load
     loadAllData();
+
+    // poll for updates every 10 seconds (silent)
+    const interval = setInterval(() => {
+      if (mounted) loadAllData({ silent: true });
+    }, 10000);
+
+    // listen for storage events from other tabs when an appointment is submitted
+    const onStorage = (e) => {
+      if (e.key === 'appointments_needs_refresh') loadAllData({ silent: true });
+    };
+
+    // custom event for same-tab triggers
+    const onCustom = () => loadAllData({ silent: true });
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('appointments_needs_refresh', onCustom);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('appointments_needs_refresh', onCustom);
+    };
   }, []);
 
   const handleDateClick = (date) => {
@@ -1161,41 +1256,65 @@ export default function StaffAppointmentManager() {
             <Text size="xs" c={MUTED_OLIVE}>{pendingAppointments.length} total records</Text>
           </Group>
           <Divider mb="md" color="#F0F0F0" />
-        <Tabs defaultValue="pending" variant="outline" radius="md" styles={{
+        <Tabs value={activeTab} onTabChange={setActiveTab} variant="outline" radius="md" styles={{
           tab: {
             padding: '10px 18px',
             fontWeight: 600,
             fontSize: '13px',
             color: MUTED_OLIVE,
             borderColor: '#E8E8E8',
+            background: 'transparent',
+            transition: 'all 150ms ease',
             '&[data-active]': {
-              color: PRIMARY_BROWN,
+              color: 'white',
+              background: PRIMARY_BROWN,
               borderColor: PRIMARY_BROWN,
-              borderBottomColor: 'white',
-              background: 'white',
+              boxShadow: '0 4px 12px rgba(107,68,35,0.12)',
+              transform: 'translateY(-2px)',
             },
             '&:hover': {
               background: `${PRIMARY_GOLD}10`,
               borderColor: '#ddd',
             },
           },
-          tabLabel: { gap: '6px' },
+          tabLabel: { gap: '6px', fontWeight: 700 },
         }}>
           <Tabs.List mb="lg">
-            <Tabs.Tab value="pending" leftSection={<IconClock size={16} />} rightSection={<Badge size="sm" variant="filled" color="orange" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px' }}>{pendingAppointments.filter(a => a.status === 'auto-scheduled').length}</Badge>}>
-              Auto-Scheduled
-            </Tabs.Tab>
-          </Tabs.List>
+              <Tabs.Tab value="pending" onClick={() => setActiveTab('pending')} leftSection={<IconClock size={16} />} rightSection={
+                <Badge size="sm" variant="filled" color="orange" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px', pointerEvents: 'none' }}>
+                  {pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length}
+                </Badge>
+              }>
+                Auto-Scheduled
+              </Tabs.Tab>
+              <Tabs.Tab value="forInterview" onClick={() => setActiveTab('forInterview')} leftSection={<IconFileText size={16} />} rightSection={
+                <Badge size="sm" variant="light" color="green" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px', pointerEvents: 'none' }}>
+                  {pendingAppointments.filter(a => a.calendarRecorded).length}
+                </Badge>
+              }>
+                For Interview
+              </Tabs.Tab>
+            </Tabs.List>
 
-          <Tabs.Panel value="pending">
-            {pendingAppointments.filter(a => a.status === 'auto-scheduled').length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.filter(a => a.status === 'auto-scheduled').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={300}><Text c={MUTED_OLIVE}>No auto-scheduled appointments</Text></Center>
-            )}
-          </Tabs.Panel>
+            <Tabs.Panel value="pending">
+              {pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length > 0 ? (
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+                  {pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+                </SimpleGrid>
+              ) : (
+                <Center mih={300}><Text c={MUTED_OLIVE}>No auto-scheduled appointments</Text></Center>
+              )}
+            </Tabs.Panel>
+
+            <Tabs.Panel value="forInterview">
+              {pendingAppointments.filter(a => a.calendarRecorded).length > 0 ? (
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+                  {pendingAppointments.filter(a => a.calendarRecorded).map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+                </SimpleGrid>
+              ) : (
+                <Center mih={300}><Text c={MUTED_OLIVE}>No appointments ready for interview</Text></Center>
+              )}
+            </Tabs.Panel>
 
         </Tabs>
         </Paper>

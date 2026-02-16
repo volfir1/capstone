@@ -305,3 +305,55 @@ export const updateProfileImage = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+    // Get user by id (returns null data when not found to avoid noisy 404s)
+    export const getUserById = async (req, res) => {
+        try {
+            const { userId } = req.params
+
+            // Validate ObjectId-ish string (best-effort)
+            if (!userId || typeof userId !== 'string') {
+                return res.status(400).json({ success: false, message: 'Invalid user id' })
+            }
+
+            let user = null
+
+            // Try User collection first
+            try {
+                user = await User.findById(userId).select('-password')
+            } catch (e) {
+                // ignore cast errors
+                user = null
+            }
+
+            // If not found in User, check Attorney
+            if (!user) {
+                try {
+                    user = await Attorney.findById(userId).select('-password')
+                } catch (e) {
+                    user = null
+                }
+            }
+
+            // Return success with null when missing to match frontend expectations and avoid 404 spam
+            if (!user) {
+                return res.json({ success: true, data: null })
+            }
+
+            // Normalize returned payload
+            const payload = {
+                id: user._id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                username: user.username,
+                role: user.role,
+                profileImage: user.profileImage || '',
+                createdAt: user.createdAt,
+            }
+
+            res.json({ success: true, data: payload })
+        } catch (error) {
+            res.status(500).json({ success: false, message: error.message })
+        }
+    }

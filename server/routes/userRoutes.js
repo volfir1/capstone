@@ -1,5 +1,5 @@
 import express from 'express'
-import { getProfile, fetchUsers, updateUserRole, toggleUserStatus, sendPasswordResetEmail, updateProfileImage } from '../controller/userController.js'
+import { getProfile, fetchUsers, updateUserRole, toggleUserStatus, sendPasswordResetEmail, updateProfileImage, getUserById } from '../controller/userController.js'
 
 const router = express.Router()
 
@@ -15,6 +15,7 @@ router.get('/test', (req, res) => {
 router.get('/profile', getProfile)
 router.put('/profile/image', updateProfileImage)
 router.get('/fetchusers', fetchUsers)
+router.get('/:userId', getUserById)
 
 // User management routes (admin only)
 router.put('/:userId/role', updateUserRole)

@@ -19,7 +19,10 @@ import {
   Pagination,
   RingProgress,
   TextInput,
+  Tabs,
   Select,
+  Modal,
+  Textarea,
 } from '@mantine/core';
 import { DonutChart } from '@mantine/charts';
 import '@mantine/charts/styles.css';
@@ -68,10 +71,24 @@ export default function AdminDashboard() {
   const [finalized, setFinalized] = useState([]);
   const [loadingFinalized, setLoadingFinalized] = useState(false);
   const [caseRecordsMap, setCaseRecordsMap] = useState({});
+  // Assign modal state
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignMessage, setAssignMessage] = useState('');
+  const [assignSelected, setAssignSelected] = useState(null);
+  const [assignees, setAssignees] = useState([]);
+  const [assigneeLoading, setAssigneeLoading] = useState(false);
+  const [assigningCaseId, setAssigningCaseId] = useState(null);
+  const [assignedCases, setAssignedCases] = useState([]);
+  const [assignedTab, setAssignedTab] = useState('pending');
+  const [markLoadingId, setMarkLoadingId] = useState(null);
+  const [assignModalRoleTab, setAssignModalRoleTab] = useState('intern');
+  const [assignModalSearch, setAssignModalSearch] = useState('');
   const [slPage, setSlPage] = useState(1);
   const [dirPage, setDirPage] = useState(1);
   const [retPage, setRetPage] = useState(1);
   const [finPage, setFinPage] = useState(1);
+  const [finalizedTab, setFinalizedTab] = useState('all');
   const ITEMS_PER_PAGE = 5;
   const { userData, loading: authLoading } = useAuth();
   const location = useLocation();
@@ -237,6 +254,21 @@ export default function AdminDashboard() {
     return true;
   });
 
+  // Finalized tab filtering: 'all' or 'done'
+  // 'done' should show every finalized record marked as completed across accounts.
+  const isMarkedDone = (f) => {
+    if (!f) return false;
+    const v = f.assignedCompleted;
+    return v === true || v === 'true' || v === 1 || v === '1';
+  };
+
+  // Show 'All' = not-done items (including assigned but not completed),
+  // 'Done' = items marked completed. Apply the same search/decision/service filters.
+  const displayedFinalized = filteredFinalized.filter((f) => {
+    if (finalizedTab === 'all') return !isMarkedDone(f);
+    return isMarkedDone(f);
+  });
+
   const fetchFinalized = async () => {
     try {
       setLoadingFinalized(true);
@@ -271,6 +303,146 @@ export default function AdminDashboard() {
       setLoadingFinalized(false);
     }
   }
+
+  // Fetch eligible assignees when modal opens (exclude current user and role 'user')
+  const fetchAssignees = async () => {
+    try {
+      setAssigneeLoading(true);
+      // try specific endpoint first
+      let res;
+      try {
+        res = await apiClient.get('/users/eligibleAssignees');
+      } catch (err) {
+        // fallback to generic users list
+        res = await apiClient.get('/users');
+      }
+      const data = res.data?.data ?? res.data ?? [];
+      const list = Array.isArray(data) ? data : [];
+      const filtered = list.filter(u => {
+        const role = (u.role || '').toLowerCase();
+        const id = u._id || u.id;
+        if (!id) return false;
+        if (userData && (userData._id === id || userData.id === id)) return false; // exclude current user
+        if (role === 'user') return false; // exclude plain users
+        return true;
+      });
+      setAssignees(filtered);
+    } catch (err) {
+      console.error('fetchAssignees error', err);
+      setAssignees([]);
+    } finally {
+      setAssigneeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (assignModalOpen) fetchAssignees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignModalOpen]);
+
+  const handleDoAssign = async () => {
+    if (!assigningCaseId) return;
+    if (!assignSelected) {
+      notifications.show({ title: 'Select user', message: 'Please select a user to assign', color: 'yellow' });
+      return;
+    }
+    try {
+      setAssignLoading(true);
+      await apiClient.post(`/cases/${assigningCaseId}/assign`, { assigneeId: assignSelected, message: assignMessage });
+      notifications.show({ title: 'Assigned', message: 'Case assigned successfully', color: 'teal' });
+      setAssignModalOpen(false);
+      setAssignSelected(null);
+      setAssignMessage('');
+      setAssigningCaseId(null);
+      fetchFinalized();
+      try { await fetchAssignedCases(); } catch (e) { console.warn('refresh assigned after assign failed', e); }
+    } catch (err) {
+      console.error('Assignment failed', err);
+      notifications.show({ title: 'Error', message: 'Assignment failed', color: 'red' });
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  // Fetch finalize documents assigned to current user from server
+  const fetchAssignedCases = useCallback(async () => {
+    if (!userData) return;
+    try {
+      const res = await apiClient.get('/finalize/assigned');
+      const data = res.data?.data ?? res.data ?? [];
+      const list = Array.isArray(data) ? data : [];
+
+      // Only keep items assigned to current user (server may return broader set)
+      const userId = userData?._id || userData?.id;
+      const firebaseUid = userData?.firebaseUid || userData?.uid;
+      const email = userData?.email;
+      const filtered = list.filter((f) => {
+        const assigned = f.assignedTo || f.content?.interviewInfo?.assignedTo || f.content?.caseInfo?.assignedTo;
+        if (!assigned) return false;
+        if (typeof assigned === 'string') {
+          return assigned === userId || assigned === firebaseUid || assigned === email;
+        }
+        if (typeof assigned === 'object') {
+          return (
+            assigned._id === userId ||
+            assigned.id === userId ||
+            assigned.firebaseUid === firebaseUid ||
+            assigned.email === email ||
+            assigned.userId === userId
+          );
+        }
+        return false;
+      });
+
+      // Enrich each finalize with any linked Case document (if available)
+      const enriched = await Promise.all(filtered.map(async (f) => {
+        const out = { ...f };
+        try {
+          const linked = f.linkedCaseId || null;
+          if (linked) {
+            const caseResp = await apiClient.get(`/cases/${linked}`);
+            out._case = caseResp.data?.data ?? caseResp.data ?? null;
+          }
+        } catch (err) {
+          // ignore; leave _case undefined
+        }
+        return out;
+      }));
+
+      setAssignedCases(enriched);
+    } catch (err) {
+      console.error('fetchAssignedCases error', err);
+      setAssignedCases([]);
+    }
+  }, [userData]);
+
+  useEffect(() => {
+    if (userData) fetchAssignedCases();
+  }, [userData, fetchAssignedCases]);
+
+  // Mark assigned case/finalize as completed. If a linked Case exists, call the Case complete endpoint.
+  const handleMarkDone = async (caseId, finalizeId) => {
+    if (!caseId && !finalizeId) return;
+    const loadingId = finalizeId || caseId;
+    try {
+      setMarkLoadingId(loadingId);
+      if (caseId) {
+        await apiClient.post(`/cases/${caseId}/complete`);
+      } else {
+        await apiClient.post(`/finalize/${finalizeId}/complete`);
+      }
+      notifications.show({ title: 'Marked Done', message: 'Case marked as done', color: 'teal' });
+        // refresh lists and show finished tab
+        await fetchFinalized();
+        await fetchAssignedCases();
+        setAssignedTab('finished');
+    } catch (err) {
+      console.error('Mark done error', err);
+      notifications.show({ title: 'Error', message: 'Failed to mark case as done', color: 'red' });
+    } finally {
+      setMarkLoadingId(null);
+    }
+  };
 
   // Chart data derived from live stats
   const serviceData = [
@@ -400,14 +572,76 @@ export default function AdminDashboard() {
               })}
             </SimpleGrid>
 
+            {/* Your Assigned Cases (Pending / Finished tabs) */}
+            <Paper shadow="xs" radius="lg" bg="white" mt="md" mb="md" style={{ overflow: 'hidden' }}>
+              <Box px="lg" py={10} style={{ background: '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
+                <Group justify="space-between" align="center">
+                  <Text size="sm" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={0.5}>Your Assigned Cases</Text>
+                  <Text size="xs" c="dimmed">Assigned to you</Text>
+                </Group>
+              </Box>
+              <Box px="lg" py="sm">
+                <Tabs defaultValue={assignedTab} onTabChange={setAssignedTab} keepMounted={false}>
+                  <Tabs.List>
+                    <Tabs.Tab value="pending">Pending</Tabs.Tab>
+                    <Tabs.Tab value="finished">Finished</Tabs.Tab>
+                  </Tabs.List>
+
+                  {['pending', 'finished'].map((tabKey) => {
+                    const list = assignedCases.filter(a => !!a); // ensure array
+                    const items = tabKey === 'pending'
+                      ? list.filter(a => !a.assignedCompleted)
+                      : list.filter(a => a.assignedCompleted);
+
+                    return (
+                      <Tabs.Panel key={tabKey} value={tabKey} pt="sm">
+                        {items.length ? (
+                          items.slice(0, 5).map((f) => {
+                            const finalizeId = f._id || f.id;
+                            const caseDoc = f._case || null;
+                            const clientName = caseDoc?.userId?.firstName ? `${caseDoc.userId.firstName} ${caseDoc.userId.lastName || ''}`.trim() : (f.clientName || f.content?.interviewInfo?.clientName || '');
+                            const caseTitle = caseDoc?.caseTitle || f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || '';
+                            const displayTitle = caseTitle && caseTitle !== clientName ? caseTitle : (clientName || 'Untitled Case');
+                            const assignedBy = f.assignedBy || f.assignedFrom || f.content?.assignedBy;
+                            const assignerName = assignedBy && typeof assignedBy === 'object' ? (assignedBy.name || assignedBy.fullName || assignedBy.displayName || assignedBy.email) : assignedBy;
+                            const assignerRole = assignedBy && typeof assignedBy === 'object' ? (assignedBy.role || assignedBy.userRole || '') : '';
+                            const linkedCaseId = caseDoc?._id || f.linkedCaseId || null;
+                            const loadingKey = markLoadingId === (finalizeId || linkedCaseId);
+
+                            return (
+                              <div key={finalizeId}>
+                                <Group align="center" position="apart" px={4} py={8} style={{ gap: 12 }}>
+                                  <Box style={{ flex: 1, minWidth: 0 }}>
+                                    <Text size="sm" fw={600} c={CHARCOAL} truncate>{displayTitle}</Text>
+                                    <Text size="xs" c="dimmed">Assigned by: {assignerName || 'Unknown'}{assignerRole ? ` (${assignerRole.replace(/_/g, ' ')})` : ''}</Text>
+                                    {caseDoc && (
+                                      <Text size="xs" c="dimmed">Assigned to case: {caseDoc.caseTitle || (caseDoc._id || '').toString()}</Text>
+                                    )}
+                                  </Box>
+                                  <Button size="xs" color="green" loading={loadingKey} onClick={() => handleMarkDone(linkedCaseId, finalizeId)} disabled={tabKey === 'finished'}>Mark as Done</Button>
+                                </Group>
+                                <Divider color="#EDEDED" />
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <Text size="sm" c="dimmed">No cases here.</Text>
+                        )}
+                      </Tabs.Panel>
+                    );
+                  })}
+                </Tabs>
+              </Box>
+            </Paper>
+
             {/* Chart row */}
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mb="xl">
               {/* Legal Services Donut */}
               <Paper shadow="xs" p="md" radius="lg" style={{ background: 'white', border: '1px solid #F0F0F0' }}>
                 <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.5} mb="sm">Legal Services</Text>
                 {serviceData.length > 0 ? (
-                  <Group gap="md" wrap="nowrap" align="center">
-                    <DonutChart data={serviceData} size={100} thickness={18} tooltipDataSource="segment" chartLabel={`${totalServices}`} />
+                  <Group gap="md" wrap="nowrap" align="center" style={{ minWidth: 0, minHeight: 0 }}>
+                    <DonutChart data={serviceData} size={100} thickness={18} tooltipDataSource="segment" chartLabel={`${totalServices}`} width={120} height={120} aspect={undefined} style={{ minWidth: 0, minHeight: 0 }} />
                     <Box style={{ flex: 1 }}>
                       {/* Legal Advice & Legal Drafting */}
                       <Box style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
@@ -443,8 +677,8 @@ export default function AdminDashboard() {
               <Paper shadow="xs" p="md" radius="lg" style={{ background: 'white', border: '1px solid #F0F0F0' }}>
                 <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.5} mb="sm">Review Pipeline</Text>
                 {reviewStageData.length > 0 ? (
-                  <Group gap="md" wrap="nowrap" align="center">
-                    <DonutChart data={reviewStageData} size={100} thickness={18} tooltipDataSource="segment" chartLabel={`${stats.totalReviews}`} />
+                  <Group gap="md" wrap="nowrap" align="center" style={{ minWidth: 0, minHeight: 0 }}>
+                    <DonutChart data={reviewStageData} size={100} thickness={18} tooltipDataSource="segment" chartLabel={`${stats.totalReviews}`} width={120} height={120} aspect={undefined} style={{ minWidth: 0, minHeight: 0 }} />
                     <Box style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
                       {reviewStageData.map(d => (
                         <Group key={d.name} gap={6} wrap="nowrap">
@@ -463,8 +697,8 @@ export default function AdminDashboard() {
               <Paper shadow="xs" p="md" radius="lg" style={{ background: 'white', border: '1px solid #F0F0F0' }}>
                 <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.5} mb="sm">Finalized Decisions</Text>
                 {finalizeData.length > 0 ? (
-                  <Group gap="md" wrap="nowrap" align="center">
-                    <DonutChart data={finalizeData} size={100} thickness={18} tooltipDataSource="segment" chartLabel={`${stats.totalFinalized}`} />
+                  <Group gap="md" wrap="nowrap" align="center" style={{ minWidth: 0, minHeight: 0 }}>
+                    <DonutChart data={finalizeData} size={100} thickness={18} tooltipDataSource="segment" chartLabel={`${stats.totalFinalized}`} width={120} height={120} aspect={undefined} style={{ minWidth: 0, minHeight: 0 }} />
                     <Box style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
                       {finalizeData.map(d => (
                         <Group key={d.name} gap={6} wrap="nowrap">
@@ -483,8 +717,8 @@ export default function AdminDashboard() {
               <Paper shadow="xs" p="md" radius="lg" style={{ background: 'white', border: '1px solid #F0F0F0' }}>
                 <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.5} mb="sm">Users by Role</Text>
                 {userRoleData.length > 0 ? (
-                  <Group gap="md" wrap="nowrap" align="center">
-                    <DonutChart data={userRoleData} size={100} thickness={18} tooltipDataSource="segment" chartLabel={`${stats.totalUsers}`} />
+                  <Group gap="md" wrap="nowrap" align="center" style={{ minWidth: 0, minHeight: 0 }}>
+                    <DonutChart data={userRoleData} size={100} thickness={18} tooltipDataSource="segment" chartLabel={`${stats.totalUsers}`} width={120} height={120} aspect={undefined} style={{ minWidth: 0, minHeight: 0 }} />
                     <Box style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
                       {userRoleData.map(d => (
                         <Group key={d.name} gap={6} wrap="nowrap">
@@ -767,16 +1001,23 @@ export default function AdminDashboard() {
 
         {/* Finalized Records */}
         <Paper shadow="xs" radius="lg" bg="white" mt="xl" style={{ overflow: 'hidden' }}>
-          <Box px="lg" py={10} style={{ background: '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
-            <Group justify="space-between" align="center">
-              <Text size="sm" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={0.5}>Finalized Records</Text>
-              <Badge size="sm" circle variant="filled" style={{ backgroundColor: MUTED_OLIVE, color: 'white' }}>
-                {filteredFinalized.length}
-              </Badge>
-            </Group>
-          </Box>
-          {/* Finalized Search & Filter Bar */}
-          <Box px="lg" py="sm" style={{ borderBottom: '1px solid #F0F0F0' }}>
+          <Tabs value={finalizedTab} onTabChange={setFinalizedTab} keepMounted={false}>
+            <Box px="lg" py={10} style={{ background: '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
+              <Group justify="space-between" align="center">
+                <Text size="sm" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={0.5}>Finalized Records</Text>
+                <Group align="center" spacing={8} style={{ position: 'relative' }}>
+                  <Tabs.List style={{ position: 'relative', zIndex: 3, pointerEvents: 'auto', display: 'inline-flex' }}>
+                    <Tabs.Tab value="all" style={{ cursor: 'pointer', pointerEvents: 'auto' }} onClick={() => setFinalizedTab('all')}>All</Tabs.Tab>
+                    <Tabs.Tab value="done" style={{ cursor: 'pointer', pointerEvents: 'auto' }} onClick={() => setFinalizedTab('done')}>Done</Tabs.Tab>
+                  </Tabs.List>
+                  <Badge size="sm" circle variant="filled" style={{ backgroundColor: MUTED_OLIVE, color: 'white', position: 'relative', zIndex: 2, pointerEvents: 'none' }}>
+                    {displayedFinalized.length}
+                  </Badge>
+                </Group>
+              </Group>
+            </Box>
+            {/* Finalized Search & Filter Bar */}
+            <Box px="lg" py="sm" style={{ borderBottom: '1px solid #F0F0F0' }}>
             <Group gap="sm" wrap="nowrap">
               <TextInput
                 placeholder="Search by case title or client name..."
@@ -828,9 +1069,9 @@ export default function AdminDashboard() {
           {loadingFinalized ? (
             <Center py="xl"><Loader size="sm" color={PRIMARY_BROWN} /></Center>
           ) : (
-            filteredFinalized.length ? (
+            displayedFinalized.length ? (
               <>
-                {filteredFinalized.slice((finPage - 1) * ITEMS_PER_PAGE, finPage * ITEMS_PER_PAGE).map((f, idx) => {
+                {displayedFinalized.slice((finPage - 1) * ITEMS_PER_PAGE, finPage * ITEMS_PER_PAGE).map((f, idx) => {
                   const recordId = f._id || f.id;
                   const hasRecord = recordId ? caseRecordsMap[recordId] : false;
                   const clientName = f.clientName || f.content?.interviewInfo?.clientName || '';
@@ -844,6 +1085,7 @@ export default function AdminDashboard() {
                   const timeLabel = daysAgo !== null
                     ? (daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo}d ago`)
                     : '';
+                  const assignedTo = f.assignedTo || f.content?.interviewInfo?.assignedTo || f.content?.caseInfo?.assignedTo;
 
                   return (
                     <Box key={f._id || f.id || f.caseId}>
@@ -871,6 +1113,18 @@ export default function AdminDashboard() {
                             <Text size="sm" c="dimmed">
                               {finalizedDate}{timeLabel ? ` (${timeLabel})` : ''} by {finalizedBy}
                             </Text>
+                            {assignedTo && (
+                              <>
+                                <Text size="sm" c={MUTED_OLIVE} ml={8}>
+                                  Assigned: {assignedTo && typeof assignedTo === 'object' ? (assignedTo.name || assignedTo.email || assignedTo.id) : (assignedTo || '—')}{assignedTo && typeof assignedTo === 'object' && (assignedTo.role || assignedTo.userRole) ? ` (${(assignedTo.role || assignedTo.userRole).replace(/_/g, ' ')})` : ''}
+                                </Text>
+                                {f.assignedBy && (
+                                  <Text size="sm" c={MUTED_OLIVE} ml={8}>
+                                    Assigned by: {typeof f.assignedBy === 'object' ? (f.assignedBy.name || f.assignedBy.email || f.assignedBy.id) : f.assignedBy}{f.assignedBy && typeof f.assignedBy === 'object' && (f.assignedBy.role || f.assignedBy.userRole) ? ` (${(f.assignedBy.role || f.assignedBy.userRole).replace(/_/g, ' ')})` : ''}
+                                  </Text>
+                                )}
+                              </>
+                            )}
                           </Group>
                         </Box>
                         <Divider orientation="vertical" color="#DEDEDE" />
@@ -885,16 +1139,38 @@ export default function AdminDashboard() {
                         <ActionIcon variant="subtle" color="gray" size="sm" style={{ flexShrink: 0 }}>
                           <IconChevronRight size={16} />
                         </ActionIcon>
+                        {(userData && (userData.role === 'secretary' || userData.role === 'director')) && (
+                        <ActionIcon
+                          variant="light"
+                          color="blue"
+                          size="sm"
+                          style={{ marginLeft: 8 }}
+                            onClick={(e) => {
+                            e.stopPropagation();
+                            // Prefer linkedCaseId (reference to Case), then caseId (string),
+                            // fall back to finalize _id only if no case reference exists.
+                            const rid = f.linkedCaseId || f.caseId || f._id || f.id || recordId;
+                            setAssigningCaseId(rid);
+                            setAssignSelected(null);
+                            setAssignMessage('');
+                            setAssignModalSearch('');
+                            setAssignModalRoleTab('intern');
+                            setAssignModalOpen(true);
+                          }}
+                        >
+                          <IconUserPlus size={16} />
+                        </ActionIcon>
+                        )}
                       </Group>
-                      {idx < Math.min(ITEMS_PER_PAGE, filteredFinalized.length - (finPage - 1) * ITEMS_PER_PAGE) - 1 && <Divider color="#E0E0E0" />}
+                      {idx < Math.min(ITEMS_PER_PAGE, displayedFinalized.length - (finPage - 1) * ITEMS_PER_PAGE) - 1 && <Divider color="#E0E0E0" />}
                     </Box>
                   );
                 })}
-                {filteredFinalized.length > ITEMS_PER_PAGE && (
+                {displayedFinalized.length > ITEMS_PER_PAGE && (
                   <Group justify="center" py="xs">
                     <Pagination
                       size="sm"
-                      total={Math.ceil(filteredFinalized.length / ITEMS_PER_PAGE)}
+                      total={Math.ceil(displayedFinalized.length / ITEMS_PER_PAGE)}
                       value={finPage}
                       onChange={setFinPage}
                       color={PRIMARY_BROWN}
@@ -906,7 +1182,110 @@ export default function AdminDashboard() {
               <Text size="sm" c={MUTED_OLIVE} px="lg" py="sm">{finalizedSearch || finalizedDecisionFilter !== 'all' || finalizedServiceFilter !== 'all' ? 'No matching records found' : 'No finalized records found'}</Text>
             )
           )}
+          </Tabs>
         </Paper>
+
+        {(userData && (userData.role === 'secretary' || userData.role === 'director')) && (
+        <Modal
+          opened={assignModalOpen}
+          onClose={() => { setAssignModalOpen(false); setAssignSelected(null); setAssignMessage(''); setAssigningCaseId(null); }}
+          title="Assign Case"
+          size="lg"
+        >
+          <Text size="sm" c="dimmed" mb="sm">Select a staff member to assign this case to (yourself and plain users are excluded).</Text>
+          <TextInput
+            placeholder="Search assignees by name or email"
+            size="sm"
+            radius="md"
+            value={assignModalSearch}
+            onChange={(e) => setAssignModalSearch(e.currentTarget.value)}
+            mb="sm"
+            leftSection={<IconSearch size={14} />}
+          />
+
+          {assigneeLoading ? (
+            <Center py="lg"><Loader size="sm" color={PRIMARY_BROWN} /></Center>
+          ) : (
+            <Tabs defaultValue={assignModalRoleTab} onTabChange={(v) => setAssignModalRoleTab(v)} keepMounted={false}>
+              <Tabs.List>
+                <Tabs.Tab value="intern">Intern</Tabs.Tab>
+                <Tabs.Tab value="supervising_lawyer">Supervising</Tabs.Tab>
+                <Tabs.Tab value="director">Director</Tabs.Tab>
+                <Tabs.Tab value="secretary">Secretary</Tabs.Tab>
+              </Tabs.List>
+
+              {['intern', 'supervising_lawyer', 'director', 'secretary'].map((roleKey) => (
+                <Tabs.Panel key={roleKey} value={roleKey} pt="sm">
+                  <div style={{ maxHeight: 220, overflowY: 'auto', marginBottom: 12 }}>
+                    {assignees.filter(u => {
+                      const r = (u.role || '').toLowerCase();
+                      const q = assignModalSearch.toLowerCase().trim();
+                      const name = (u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.displayName || u.name || u.username || '').toLowerCase();
+                      const email = (u.email || u.userEmail || u.gmail || '').toLowerCase();
+                      // role matching
+                      if (roleKey === 'intern' && !r.includes('intern')) return false;
+                      if (roleKey === 'supervising_lawyer' && !(r.includes('supervising') || r.includes('supervising_lawyer'))) return false;
+                      if (roleKey === 'director' && !r.includes('director')) return false;
+                      if (roleKey === 'secretary' && !r.includes('secretary')) return false;
+                      if (q && !name.includes(q) && !email.includes(q)) return false;
+                      return true;
+                    }).length ? assignees.filter(u => {
+                      const r = (u.role || '').toLowerCase();
+                      const q = assignModalSearch.toLowerCase().trim();
+                      const name = (u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.displayName || u.name || u.username || '').toLowerCase();
+                      const email = (u.email || u.userEmail || u.gmail || '').toLowerCase();
+                      if (roleKey === 'intern' && !r.includes('intern')) return false;
+                      if (roleKey === 'supervising_lawyer' && !(r.includes('supervising') || r.includes('supervising_lawyer'))) return false;
+                      if (roleKey === 'director' && !r.includes('director')) return false;
+                      if (roleKey === 'secretary' && !r.includes('secretary')) return false;
+                      if (q && !name.includes(q) && !email.includes(q)) return false;
+                      return true;
+                    }).map((u) => {
+                      const id = u._id || u.id;
+                      const name = u.fullName || ((u.firstName || u.lastName) ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : (u.displayName || u.name || u.username || u.email || 'Staff'));
+                      const email = u.email || u.userEmail || u.gmail || '';
+                      const role = (u.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                      return (
+                        <Paper
+                          key={id}
+                          withBorder
+                          p="xs"
+                          radius="md"
+                          onClick={() => setAssignSelected(id)}
+                          style={{ cursor: 'pointer', marginBottom: 8, background: assignSelected === id ? '#F1F8FF' : 'white' }}
+                        >
+                          <Group position="apart">
+                            <div>
+                              <Text fw={600}>{name}</Text>
+                              {email && <Text size="xs" c="dimmed">{email}</Text>}
+                            </div>
+                            <Text size="xs" c="dimmed">{role}</Text>
+                          </Group>
+                        </Paper>
+                      );
+                    }) : (
+                      <Text size="sm" c="dimmed">No eligible assignees found.</Text>
+                    )}
+                  </div>
+                </Tabs.Panel>
+              ))}
+            </Tabs>
+          )}
+
+          <Textarea
+            placeholder="Optional message to assignee"
+            value={assignMessage}
+            onChange={(e) => setAssignMessage(e.currentTarget.value)}
+            mb="sm"
+            minRows={3}
+          />
+
+          <Group position="right">
+            <Button variant="default" onClick={() => { setAssignModalOpen(false); setAssignSelected(null); setAssignMessage(''); setAssigningCaseId(null); }}>Cancel</Button>
+            <Button onClick={handleDoAssign} loading={assignLoading} color="blue">Assign</Button>
+          </Group>
+        </Modal>
+        )}
 
         {/* ── Activity Log Monitoring ── */}
         <Paper shadow="xs" radius="lg" bg="white" mt="xl" style={{ overflow: 'hidden' }}>

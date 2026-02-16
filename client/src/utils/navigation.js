@@ -32,6 +32,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
@@ -41,6 +42,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
@@ -50,6 +52,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
@@ -59,6 +62,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
@@ -68,6 +72,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
@@ -131,12 +136,14 @@ export const PAGE_TITLES = {
 };
 
 // Layout configuration for specific pages
+// NOTE: Chat routes disabled per project checklist. Keeping entries commented
+// so they can be re-enabled later if needed.
 export const LAYOUT_CONFIG = {
   // Pages with custom layout settings (no header/sidebar or custom)
-  '/user/chat': { showHeader: false, showNavbar: true },
-  '/admin/chat': { showHeader: false, showNavbar: true },
-  '/admin/chat/:caseId': { showHeader: false, showNavbar: false },
-  
+  // '/user/chat': { showHeader: false, showNavbar: true },
+  // '/admin/chat': { showHeader: false, showNavbar: true },
+  // '/admin/chat/:caseId': { showHeader: false, showNavbar: false },
+
   // Add more custom pages here as needed
   // Example: '/user/profile': { showHeader: true, showNavbar: false },
 };

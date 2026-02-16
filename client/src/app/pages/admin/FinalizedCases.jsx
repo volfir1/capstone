@@ -41,6 +41,35 @@ import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { CaseInformationSection } from '../other/CaseInformationSection';
 
+// Normalize server file URLs so client always requests the backend, not the dev server origin
+const getServerFileUrl = (pathOrUrl) => {
+  if (!pathOrUrl) return null;
+  try {
+    // If it's already an absolute URL, prefer IPv4 loopback when hostname is localhost
+    const parsed = new URL(pathOrUrl);
+    if (parsed.protocol && parsed.host) {
+      if (parsed.hostname === 'localhost') parsed.hostname = '127.0.0.1';
+      return parsed.href;
+    }
+  } catch (e) {
+    // not an absolute URL
+  }
+
+  let apiHost = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : 'http://127.0.0.1:5000';
+  try {
+    const parsed = new URL(apiHost);
+    if (parsed.hostname === 'localhost') {
+      parsed.hostname = '127.0.0.1';
+      apiHost = parsed.href.replace(/\/$/, '');
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  if (pathOrUrl.startsWith('/')) return `${apiHost}${pathOrUrl}`;
+  return `${apiHost}/${pathOrUrl}`;
+};
+
 const APPOINTMENT_STATUS_OPTIONS = [
   { value: 'auto-scheduled', label: 'Auto-scheduled' },
   { value: 'confirmed', label: 'Confirmed' },
@@ -49,204 +78,14 @@ const APPOINTMENT_STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
-// Chat Modal Component
+/* Chat UI disabled per checklist. Keeping component here commented
+   so it can be restored later if needed. */
+/*
 function ChatModal({ opened, onClose, caseData, messages, loading, sending, onSendMessage, onRefresh, userData }) {
-  const [messageText, setMessageText] = useState('');
-  const viewport = useRef(null);
-
-  useEffect(() => {
-    if (viewport.current && messages.length > 0) {
-      viewport.current.scrollTo({ top: viewport.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [messages]);
-
-  // Auto-refresh messages every 10 seconds
-  useEffect(() => {
-    if (opened && caseData) {
-      const interval = setInterval(() => {
-        onRefresh();
-      }, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [opened, caseData, onRefresh]);
-
-  const handleSend = () => {
-    if (messageText.trim() && !sending) {
-      onSendMessage(messageText);
-      setMessageText('');
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  if (!caseData) return null;
-
-  const clientName = caseData.userId ? 
-    `${caseData.userId.firstName || ''} ${caseData.userId.lastName || ''}`.trim() : 
-    'Client';
-
-  return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={
-        <Group>
-          <Avatar color={PRIMARY_BROWN} radius="xl">
-            <IconUser size={24} />
-          </Avatar>
-          <Box>
-            <Text fw={700} size="lg" c={PRIMARY_BROWN}>
-              {clientName}
-            </Text>
-            <Text size="xs" c={MUTED_OLIVE}>
-              {caseData.caseNumber} • {caseData.caseType}
-            </Text>
-          </Box>
-        </Group>
-      }
-      size="lg"
-      padding={0}
-      styles={{
-        body: { padding: 0 },
-        header: { borderBottom: `1px solid #F0F0F0`, padding: '16px 24px', margin: 0 },
-        content: { display: 'flex', flexDirection: 'column', maxHeight: '80vh' },
-      }}
-    >
-      <Box style={{ display: 'flex', flexDirection: 'column', height: '600px', maxHeight: '70vh' }}>
-        {/* Messages Area */}
-        <ScrollArea
-          viewportRef={viewport}
-          style={{ flex: 1, padding: '16px 24px' }}
-          styles={{
-            viewport: { '& > div': { display: 'block !important' } }
-          }}
-        >
-          {loading ? (
-            <Center py="xl">
-              <Loader size="lg" color={PRIMARY_BROWN} />
-            </Center>
-          ) : messages.length === 0 ? (
-            <Center py="xl">
-              <Stack align="center" gap="sm">
-                <IconMessageCircle size={48} color={MUTED_OLIVE} />
-                <Text c={MUTED_OLIVE} size="sm">
-                  No messages yet. Start the conversation!
-                </Text>
-              </Stack>
-            </Center>
-          ) : (
-            <Stack gap="md">
-              {messages.map((msg, idx) => {
-                // Admin messages have senderRole as attorney/intern/secretary
-                // Client messages have senderRole as undefined or 'user'
-                const isCurrentUser = msg.senderRole && ['attorney', 'intern', 'secretary'].includes(msg.senderRole);
-                const senderName = msg.senderId?.firstName && msg.senderId?.lastName 
-                  ? `${msg.senderId.firstName} ${msg.senderId.lastName}`
-                  : msg.senderId?.email || 'Unknown';
-                
-                console.log('Message:', {
-                  message: msg.message,
-                  senderRole: msg.senderRole,
-                  senderId: msg.senderId,
-                  senderName,
-                  isCurrentUser
-                });
-                
-                return (
-                  <Box
-                    key={idx}
-                    style={{
-                      alignSelf: isCurrentUser ? 'flex-end' : 'flex-start',
-                      maxWidth: '70%',
-                    }}
-                  >
-                    <Paper
-                      p="md"
-                      radius="lg"
-                      style={{
-                        backgroundColor: isCurrentUser ? PRIMARY_BROWN : THEMED_LIGHT_BG,
-                        color: isCurrentUser ? 'white' : CHARCOAL,
-                      }}
-                    >
-                      {!isCurrentUser && (
-                        <Text size="xs" fw={600} mb={4} style={{ opacity: 0.8 }}>
-                          {msg.senderId?.firstName || msg.senderId?.lastName ? 
-                            `${msg.senderId.firstName || ''} ${msg.senderId.lastName || ''}`.trim() : 
-                            clientName}
-                          {msg.senderRole && ` (${msg.senderRole})`}
-                        </Text>
-                      )}
-                      <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                        {msg.message}
-                      </Text>
-                      <Text
-                        size="xs"
-                        mt={4}
-                        style={{ opacity: 0.7, textAlign: 'right' }}
-                      >
-                        {new Date(msg.createdAt).toLocaleString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </Text>
-                    </Paper>
-                  </Box>
-                );
-              })}
-            </Stack>
-          )}
-        </ScrollArea>
-
-        {/* Message Input */}
-        <Box
-          style={{
-            padding: '16px 24px',
-            borderTop: `1px solid #F0F0F0`,
-            backgroundColor: 'white',
-          }}
-        >
-          <Group gap="sm" align="flex-end">
-            <Textarea
-              placeholder="Type your message..."
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              onKeyPress={handleKeyPress}
-              minRows={1}
-              maxRows={4}
-              autosize
-              style={{ flex: 1 }}
-              styles={{
-                input: {
-                  borderRadius: '20px',
-                  border: `1px solid ${PRIMARY_GOLD}`,
-                  '&:focus': { borderColor: PRIMARY_BROWN },
-                },
-              }}
-            />
-            <ActionIcon
-              size="lg"
-              radius="xl"
-              variant="filled"
-              style={{ backgroundColor: PRIMARY_BROWN }}
-              onClick={handleSend}
-              loading={sending}
-              disabled={!messageText.trim() || sending}
-            >
-              <IconSend size={18} />
-            </ActionIcon>
-          </Group>
-        </Box>
-      </Box>
-    </Modal>
-  );
+  // original ChatModal implementation removed for now
+  return null;
 }
+*/
 
 // Initial state
 const initialState = {
@@ -502,6 +341,60 @@ export default function FinalizedCases() {
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(stateReducer, initialState);
   const { userData } = useAuth();
+
+  // When document viewer opens with a Word document, attempt conversion to HTML
+  useEffect(() => {
+    const convertWordIfNeeded = async () => {
+      if (!state.documentViewerModalOpened || !state.currentViewingDoc) return;
+      const doc = state.currentViewingDoc;
+      const isWord = doc.fileType?.includes('word') || doc.fileName?.endsWith('.docx') || doc.fileName?.endsWith('.doc');
+      if (!isWord) return;
+
+      dispatch({ type: 'SET_WORD_DOC_LOADING', payload: true });
+      try {
+        const candidates = [];
+        if (doc.fileUrl) candidates.push(doc.fileUrl);
+        if (doc.fileData) candidates.push(doc.fileData);
+        if (doc.filename) {
+          candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(doc.filename)}`));
+          candidates.push(getServerFileUrl(`/uploads/documents/${doc.filename}`));
+        }
+        // Try document versions if present in payload
+        if (doc.documentVersions && Array.isArray(doc.documentVersions)) {
+          for (const v of doc.documentVersions) {
+            if (v.fileUrl) candidates.push(v.fileUrl);
+            if (v.filename) candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(v.filename)}`));
+          }
+        }
+
+        let arrayBuffer = null;
+        let lastErr = null;
+        for (const c of candidates) {
+          if (!c) continue;
+          try {
+            arrayBuffer = await fetchArrayBufferFromUrl(c);
+            if (arrayBuffer) break;
+          } catch (e) {
+            lastErr = e;
+            console.warn('FinalizedCases candidate failed:', c, e);
+            continue;
+          }
+        }
+        if (!arrayBuffer) throw lastErr || new Error('No candidate URLs worked');
+
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        dispatch({ type: 'SET_WORD_DOC_HTML', payload: result.value });
+        if (result.messages && result.messages.length) console.log('Mammoth messages', result.messages);
+      } catch (err) {
+        console.error('Error converting Word in FinalizedCases:', err);
+        dispatch({ type: 'SET_WORD_DOC_HTML', payload: '<div style="padding:20px;color:red">Preview not available. Please download the file.</div>' });
+      } finally {
+        dispatch({ type: 'SET_WORD_DOC_LOADING', payload: false });
+      }
+    };
+
+    convertWordIfNeeded();
+  }, [state.documentViewerModalOpened, state.currentViewingDoc]);
 
   const formatDate = (value) => {
     if (!value) return '-';
@@ -1683,7 +1576,12 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       fileUrl: documentData.fileUrl,
       isServerFile: documentData.isServerFile || false
     };
-    
+
+    // Normalize server-relative fileUrl to absolute backend URL so browser fetches from backend
+    if (docToView.fileUrl && typeof docToView.fileUrl === 'string' && docToView.fileUrl.startsWith('/')) {
+      docToView.fileUrl = getServerFileUrl(docToView.fileUrl);
+    }
+
     dispatch({ type: 'OPEN_DOCUMENT_VIEWER_MODAL', payload: docToView });
     
     // If it's a Word document, convert to HTML using mammoth
@@ -1695,14 +1593,13 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       dispatch({ type: 'SET_WORD_DOC_LOADING', payload: true });
       try {
         // Fetch the Word document from the server or use fileData
-        const url = docToView.fileUrl || docToView.fileData;
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        
+        const rawUrl = docToView.fileUrl || docToView.fileData;
+        const arrayBuffer = await fetchArrayBufferFromUrl(rawUrl);
+
         // Convert to HTML using mammoth
         const result = await mammoth.convertToHtml({ arrayBuffer });
         dispatch({ type: 'SET_WORD_DOC_HTML', payload: result.value });
-        
+
         if (result.messages.length > 0) {
           console.log('Mammoth conversion messages:', result.messages);
         }
@@ -2213,11 +2110,15 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   </Menu.Item>
                 )}
                 {f.decision === 'accepted' && (
-                  <Menu.Item leftSection={<IconMessageCircle size={16} />}
-                    onClick={() => handleChatNavigation(f)}
-                  >
-                    Chat
-                  </Menu.Item>
+                  <>
+                    {/* Chat action disabled per checklist. Uncomment to re-enable.
+                    <Menu.Item leftSection={<IconMessageCircle size={16} />}
+                      onClick={() => handleChatNavigation(f)}
+                    >
+                      Chat
+                    </Menu.Item>
+                    */}
+                  </>
                 )}
                 {f.decision === 'accepted' && isDocumentDrafting(f) && (
                   <Menu.Item leftSection={<IconHistory size={16} />} color="violet"
@@ -2329,7 +2230,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
           />
         </Modal>
 
-        {/* Chat Modal */}
+        {/* Chat Modal disabled per checklist. To re-enable, uncomment the
+            ChatModal invocation below and ensure the ChatModal component is active. */}
+        {/**
         <ChatModal 
           opened={state.chatModalOpened}
           onClose={() => dispatch({ type: 'CLOSE_CHAT_MODAL' })}
@@ -2341,6 +2244,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
           onRefresh={() => state.selectedCaseForChat && fetchChatMessages(state.selectedCaseForChat._id)}
           userData={userData}
         />
+        */}
 
         {/* Version History Modal */}
         <Modal
@@ -2423,7 +2327,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                                 color="green"
                                 leftSection={<IconDownload size={14} />}
                                 component="a"
-                                href={state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl}
+                                href={getServerFileUrl(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl)}
                                 download={state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileName}
                               >
                                 Download
@@ -2480,7 +2384,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                                 variant="subtle"
                                 leftSection={<IconDownload size={14} />}
                                 component="a"
-                                href={version.fileUrl}
+                                href={getServerFileUrl(version.fileUrl)}
                                 download={version.fileName}
                               >
                                 Download
@@ -2560,7 +2464,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     size="sm"
                     leftSection={<IconDownload size={16} />}
                     component="a"
-                    href={state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                    href={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
                     download={state.currentViewingDoc.fileName}
                     style={{ backgroundColor: PRIMARY_BROWN }}
                   >
@@ -2573,7 +2477,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 {state.currentViewingDoc.fileType?.includes('pdf') || state.currentViewingDoc.fileName?.endsWith('.pdf') ? (
                   // PDF - embed directly (works for both server URLs and base64)
                   <iframe
-                    src={state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                    src={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
                     style={{ width: '100%', height: '100%', minHeight: '75vh', border: 'none', flex: 1 }}
                     title="PDF Viewer"
                   />
@@ -2617,7 +2521,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                             size="lg"
                             leftSection={<IconDownload size={20} />}
                             component="a"
-                            href={state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                            href={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
                             download={state.currentViewingDoc.fileName}
                             style={{ backgroundColor: PRIMARY_BROWN }}
                           >
@@ -2641,7 +2545,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                       size="lg"
                       leftSection={<IconDownload size={20} />}
                       component="a"
-                      href={state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                      href={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
                       download={state.currentViewingDoc.fileName}
                       style={{ backgroundColor: PRIMARY_BROWN }}
                     >
@@ -4165,4 +4069,83 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
     margin + 2,
     footerY + 6
   );
+};
+// Robust fetch helper: tries absolute/relative and retries with 127.0.0.1 if localhost fails,
+// and avoids returning HTML pages (dev server 404) which break binary parsers like mammoth.
+const fetchArrayBufferFromUrl = async (rawUrl) => {
+  if (!rawUrl) throw new Error('No URL provided');
+
+  if (typeof rawUrl === 'string' && rawUrl.startsWith('data:')) {
+    const base64 = rawUrl.split(',')[1];
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  const tried = new Set();
+  const candidates = [];
+  if (typeof rawUrl === 'string') {
+    if (rawUrl.startsWith('/')) candidates.push(getServerFileUrl(rawUrl));
+    candidates.push(rawUrl);
+    try {
+      const u = new URL(rawUrl);
+      if (u.hostname === 'localhost') {
+        u.hostname = '127.0.0.1';
+        candidates.push(u.href);
+      }
+    } catch (e) {}
+    try {
+      const decoded = decodeURIComponent(rawUrl);
+      if (decoded !== rawUrl) candidates.push(decoded);
+    } catch (e) {}
+    try {
+      const encoded = encodeURI(rawUrl);
+      if (encoded !== rawUrl) candidates.push(encoded);
+    } catch (e) {}
+    // Try filename-based candidates
+    try {
+      const last = rawUrl.split('/').pop();
+      if (last) {
+        const decodedLast = decodeURIComponent(last);
+        candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(decodedLast)}`));
+        candidates.push(getServerFileUrl(`/uploads/documents/${decodedLast}`));
+      }
+    } catch (e) {}
+    candidates.push(getServerFileUrl(rawUrl));
+  }
+
+  console.debug('fetchArrayBufferFromUrl candidates:', candidates);
+
+  for (const c of candidates) {
+    if (!c || tried.has(c)) continue;
+    tried.add(c);
+    try {
+      console.debug('Attempting fetch for:', c);
+      const resp = await fetch(c);
+      console.debug('Response status for', c, resp.status);
+      if (!resp.ok) {
+        console.warn('Fetch not ok for', c, resp.status, resp.statusText);
+        continue;
+      }
+      const contentType = resp.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        try {
+          const text = await resp.text();
+          console.warn('Skipped HTML response for', c, 'snippet:', text.slice(0, 300));
+        } catch (e) {
+          console.warn('Skipped HTML response for', c);
+        }
+        continue;
+      }
+      const ab = await resp.arrayBuffer();
+      console.debug('Successfully fetched binary from', c);
+      return ab;
+    } catch (err) {
+      console.warn('Error fetching candidate', c, err);
+      continue;
+    }
+  }
+  throw new Error('Failed to fetch binary file from provided URL(s)');
 };

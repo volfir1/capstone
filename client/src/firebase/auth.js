@@ -12,7 +12,26 @@ export const doSigninWithEmailAndPassword = (email, password) =>{
 
 export const doSignInWithGoogle = async () =>{
     const provider =  new GoogleAuthProvider()
+    // Request Google Calendar scopes so the OAuth access token can be used to insert events
+    provider.addScope('https://www.googleapis.com/auth/calendar');
+    provider.addScope('https://www.googleapis.com/auth/calendar.events');
+    // Ask for consent to ensure scopes are granted
+    provider.setCustomParameters({ prompt: 'consent' });
     const result = await signInWithPopup(auth, provider)
+
+    // Try to extract credential and access token and attach to returned result
+    try {
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const accessToken = credential?.accessToken;
+        // attach for callers
+        result.credential = credential;
+        result.googleAccessToken = accessToken;
+        if (accessToken) {
+            try { localStorage.setItem('googleAccessToken', accessToken); } catch(_) {}
+        }
+    } catch (err) {
+        console.warn('doSignInWithGoogle: failed to extract credential', err);
+    }
 
     // save to firestore
     // result.user
@@ -27,6 +46,8 @@ export const doSignOut = () =>{
     localStorage.removeItem('userName');
     localStorage.removeItem('role');
     localStorage.removeItem('taguig_geocoding_cache');
+    // Clear cached Google access token
+    localStorage.removeItem('googleAccessToken');
     
     return auth.signOut()
 }

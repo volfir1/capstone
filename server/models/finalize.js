@@ -40,6 +40,23 @@ const FinalizeSchema = new mongoose.Schema({
   // Client account tracking
   clientAccountCreated: { type: Boolean, default: false, index: true },
   clientUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  // Assignment fields
+  assignedTo: {
+    id: { type: String },
+    name: { type: String },
+    email: { type: String },
+    role: { type: String },
+  },
+  assignedBy: {
+    id: { type: String },
+    name: { type: String },
+    email: { type: String },
+    role: { type: String },
+  },
+  assignedNote: { type: String },
+  assignedAt: { type: Date },
+  assignedCompleted: { type: Boolean, default: false },
+  assignedCompletedAt: { type: Date },
 }, { timestamps: true })
 
 // Pre-save hook to auto-generate caseId if not provided

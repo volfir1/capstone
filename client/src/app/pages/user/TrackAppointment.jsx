@@ -901,24 +901,28 @@ export default function AppointmentTracker() {
         {/* Action buttons */}
         <Group gap="xs">
           {item.caseId && (
-            <Button 
-              variant="light"
-              onClick={() => openChatModal(item)}
-              flex={1}
-              size="sm"
-              radius="md"
-              leftSection={<IconMessageCircle size={15} />}
-              styles={{
-                root: {
-                  backgroundColor: `${PRIMARY_GOLD}12`,
-                  color: ACCENT_TAN,
-                  fontWeight: 600,
-                  fontSize: '13px',
-                },
-              }}
-            >
-              Chat with Attorney
-            </Button>
+            <>
+              {/* Chat button disabled per checklist. Uncomment to re-enable.
+              <Button 
+                variant="light"
+                onClick={() => openChatModal(item)}
+                flex={1}
+                size="sm"
+                radius="md"
+                leftSection={<IconMessageCircle size={15} />}
+                styles={{
+                  root: {
+                    backgroundColor: `${PRIMARY_GOLD}12`,
+                    color: ACCENT_TAN,
+                    fontWeight: 600,
+                    fontSize: '13px',
+                  },
+                }}
+              >
+                Chat with Attorney
+              </Button>
+              */}
+            </>
           )}
           {item.status === "Completed" && (
             <>
@@ -1044,7 +1048,7 @@ export default function AppointmentTracker() {
           {item.isRejected ? 'Case Rejected' : 'View Case Folder'}
         </Button>
         {item.caseId && !item.isRejected && (
-          <Group gap={6}>
+            <Group gap={6}>
             <Button 
               variant="light"
               flex={1}
@@ -1063,6 +1067,7 @@ export default function AppointmentTracker() {
             >
               Review
             </Button>
+            {/* Chat button disabled per checklist. Uncomment to re-enable.
             <Button 
               variant="light"
               flex={1}
@@ -1081,6 +1086,7 @@ export default function AppointmentTracker() {
             >
               Chat
             </Button>
+            */}
           </Group>
         )}
       </Stack>
@@ -1855,160 +1861,7 @@ export default function AppointmentTracker() {
         )}
       </Modal>
 
-      {/* Chat Modal */}
-      <Modal
-        opened={chatModalOpened}
-        onClose={closeChatModal}
-        title={
-          <Group gap={8}>
-            <Box style={{ width: 28, height: 28, borderRadius: 7, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <IconMessageCircle size={14} color="white" stroke={2.5} />
-            </Box>
-            <Box>
-              <Text size="sm" fw={700} c={CHARCOAL}>
-                Chat with Attorney
-              </Text>
-              <Text size="xs" c={MUTED_OLIVE}>
-                {currentChatCase?.caseRecord?.title || currentChatCase?.caseTitle || 'Case Discussion'}
-              </Text>
-            </Box>
-          </Group>
-        }
-        size="lg"
-        radius="lg"
-        centered
-        styles={{
-          content: {
-            maxHeight: '80vh',
-            display: 'flex',
-            flexDirection: 'column',
-          },
-          body: {
-            padding: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            overflow: 'hidden',
-          },
-        }}
-      >
-        <Stack style={{ height: '60vh', display: 'flex', flexDirection: 'column' }} gap={0}>
-          {/* Messages Area */}
-          <ScrollArea 
-            viewportRef={chatViewportRef}
-            style={{ flex: 1, padding: '1rem' }}
-            type="auto"
-          >
-            {loadingChat ? (
-              <Center style={{ minHeight: '200px' }}>
-                <Loader size="md" color={PRIMARY_BROWN} />
-              </Center>
-            ) : chatMessages.length === 0 ? (
-              <Center style={{ minHeight: '200px' }}>
-                <Stack align="center" gap="sm">
-                  <IconMessageCircle size={40} color={MUTED_OLIVE} opacity={0.4} />
-                  <Text c={MUTED_OLIVE} size="sm">No messages yet. Start the conversation!</Text>
-                </Stack>
-              </Center>
-            ) : (
-              <Stack gap="md">
-                {chatMessages.map((msg) => {
-                  // Client messages have senderRole undefined or 'user'
-                  const isCurrentUser = !msg.senderRole || msg.senderRole === 'user';
-                  const senderName = msg.senderId?.firstName && msg.senderId?.lastName 
-                    ? `${msg.senderId.firstName} ${msg.senderId.lastName}`
-                    : msg.senderId?.email || 'Unknown';
-                  
-                  return (
-                    <Group
-                      key={msg._id}
-                      gap="sm"
-                      align="flex-start"
-                      style={{
-                        flexDirection: isCurrentUser ? 'row-reverse' : 'row',
-                      }}
-                    >
-                      <Avatar
-                        size="sm"
-                        radius="xl"
-                        color={isCurrentUser ? ACCENT_TAN : CHARCOAL}
-                      >
-                        <IconUser size={16} />
-                      </Avatar>
-                      <Paper
-                        p="sm"
-                        radius="md"
-                        style={{
-                          backgroundColor: isCurrentUser ? `${PRIMARY_GOLD}15` : `${THEMED_LIGHT_BG}`,
-                          border: `1px solid ${isCurrentUser ? PRIMARY_GOLD : '#E0E0E0'}30`,
-                          maxWidth: '70%',
-                        }}
-                      >
-                        <Text size="xs" c={MUTED_OLIVE} mb={4}>
-                          {senderName} • {new Date(msg.createdAt).toLocaleString()}
-                        </Text>
-                        <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                          {msg.message}
-                        </Text>
-                      </Paper>
-                    </Group>
-                  );
-                })}
-              </Stack>
-            )}
-          </ScrollArea>
-
-          {/* Input Area */}
-          <Box
-            p="md"
-            style={{
-              borderTop: `1px solid #E0E0E0`,
-              backgroundColor: 'white',
-            }}
-          >
-            <Group gap="sm" align="flex-end">
-              <Textarea
-                placeholder="Type your message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                minRows={1}
-                maxRows={4}
-                autosize
-                style={{ flex: 1 }}
-                styles={{
-                  input: {
-                    borderColor: `${PRIMARY_BROWN}30`,
-                    '&:focus': {
-                      borderColor: PRIMARY_BROWN,
-                    },
-                  },
-                }}
-              />
-              <Button
-                onClick={handleSendMessage}
-                loading={sendingMessage}
-                disabled={!newMessage.trim()}
-                style={{
-                  backgroundColor: CHARCOAL,
-                  minWidth: '100px',
-                }}
-                rightSection={<IconSend size={16} />}
-              >
-                Send
-              </Button>
-            </Group>
-            <Text size="xs" c={MUTED_OLIVE} mt="xs">
-              Press Enter to send, Shift+Enter for new line
-            </Text>
-          </Box>
-        </Stack>
-      </Modal>
+      {/* Chat UI disabled per checklist. To re-enable, uncomment the Chat modal and buttons above. */}
     </>
   );
 }
