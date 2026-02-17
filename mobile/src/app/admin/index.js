@@ -1,697 +1,406 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  ActivityIndicator, RefreshControl, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from 'context/authContext';
-import { useAdminDashboard } from '../../hooks/admin/useAdminDashboard';
 import apiClient from '../../api/apiClient';
+import { fetchDashboardStats, fetchReviews, fetchFinalizedCases, fetchActivityLogs, fetchUsers } from '../../api/adminApi';
+import { PRIMARY_BROWN, PRIMARY_GOLD, CHARCOAL, MUTED_OLIVE, ACCENT_TAN, CATEGORY_COLORS, ROLE_DISPLAY } from 'utils/constants';
 
-const AdminDashboard = () => {
+const REVIEW_STAGES = [
+  { key: 'all', label: 'All' },
+  { key: 'supervising_lawyer', label: 'Supervising' },
+  { key: 'director', label: 'Director' },
+  { key: 'returned', label: 'Returned' },
+];
+
+export default function AdminDashboard() {
   const router = useRouter();
   const { logout, userData } = useAuth();
   const isIntern = userData?.role === 'intern';
-  const { stats, loading, refreshStats } = useAdminDashboard();
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({ totalCases: 0, totalUsers: 0, pendingReviews: 0, finalized: 0, totalAttorneys: 0, unassignedCases: 0 });
   const [reviews, setReviews] = useState([]);
-  const [loadingReviews, setLoadingReviews] = useState(false);
   const [finalized, setFinalized] = useState([]);
-  const [loadingFinalized, setLoadingFinalized] = useState(false);
-  const [caseRecordsMap, setCaseRecordsMap] = useState({});
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [reviewStage, setReviewStage] = useState('all');
 
-  useEffect(() => {
-    fetchReviews();
-    fetchFinalized();
-  }, []);
+  // Distribution data
+  const [serviceDistribution, setServiceDistribution] = useState([]);
+  const [roleDistribution, setRoleDistribution] = useState([]);
+  const [decisionDistribution, setDecisionDistribution] = useState([]);
 
-  // Refresh whenever this screen regains focus (e.g., after finalize/back)
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchReviews();
-      fetchFinalized();
-    }, [])
-  );
-
-  const fetchReviews = async () => {
+  const loadData = useCallback(async () => {
     try {
-      setLoadingReviews(true);
-      // Interns should see their own submissions; other roles see latest 5 overall
-      const query = isIntern && userData?._id ? `?reviewerId=${encodeURIComponent(userData._id)}` : '';
-      const resp = await apiClient.get(`/reviews${query}`);
-      const data = resp.data?.data ?? resp.data ?? [];
-      const reviewsArray = Array.isArray(data) ? data : [];
-      
-      // Fetch user details for reviewer names
-      const reviewsWithNames = await Promise.all(
-        reviewsArray.map(async (review) => {
-          if (review.reviewerId) {
-            try {
-              const userResp = await apiClient.get(`/users/${review.reviewerId}`);
-              const user = userResp.data?.data ?? userResp.data;
-              const reviewerName = user?.displayName || user?.fullName || user?.username || review.reviewerRole || 'Staff';
-              return { ...review, reviewerName };
-            } catch (err) {
-              return { ...review, reviewerName: review.reviewerRole || 'Staff' };
-            }
-          }
-          return { ...review, reviewerName: review.reviewerRole || 'Staff' };
-        })
-      );
-      
-      setReviews(reviewsWithNames.slice(0, 5)); // Show only 5 most recent (or all intern submissions)
-    } catch (err) {
-      console.error('Error fetching reviews', err);
-      setReviews([]);
-    } finally {
-      setLoadingReviews(false);
-    }
-  };
+      const [statsRes, reviewsRes, finalizedRes, logsRes, usersRes] = await Promise.all([
+        fetchDashboardStats().catch(() => ({})),
+        fetchReviews().catch(() => []),
+        fetchFinalizedCases().catch(() => ({ data: [] })),
+        fetchActivityLogs().catch(() => []),
+        fetchUsers().catch(() => []),
+      ]);
 
-  const fetchFinalized = async () => {
-    try {
-      setLoadingFinalized(true);
-      const resp = await apiClient.get('/finalize');
-      const data = resp.data?.data ?? resp.data ?? [];
-      const finalizedArray = Array.isArray(data) ? data : [];
+      // Stats
+      const s = statsRes || {};
+      setStats({
+        totalCases: s.totalCases || 0,
+        totalUsers: s.totalUsers || 0,
+        pendingReviews: s.pendingReviews || 0,
+        finalized: s.finalized || 0,
+        totalAttorneys: s.totalAttorneys || 0,
+        unassignedCases: s.unassignedCases || 0,
+      });
 
-      // Detect accepted cases that already have case records
-      const accepted = finalizedArray.filter(f => f.decision === 'accepted');
-      const recordsMap = {};
-
-      await Promise.all(
-        accepted.map(async (caseData) => {
-          const key = caseData._id || caseData.id;
-          if (!key) return;
-          try {
-            const caseRecordResp = await apiClient.get(`/caserecords/finalize/${key}`);
-            recordsMap[key] = !!caseRecordResp.data;
-          } catch (err) {
-            recordsMap[key] = false;
-          }
-        })
+      // Reviews
+      const reviewsData = Array.isArray(reviewsRes) ? reviewsRes : reviewsRes?.data || [];
+      setReviews(isIntern && userData?._id
+        ? reviewsData.filter(r => r.reviewerId === userData._id).slice(0, 10)
+        : reviewsData.slice(0, 10)
       );
 
-      setCaseRecordsMap(recordsMap);
-      setFinalized(finalizedArray.slice(0, 5)); // Show only 5 most recent
+      // Finalized
+      const finalData = Array.isArray(finalizedRes) ? finalizedRes : finalizedRes?.data || [];
+      setFinalized(finalData.slice(0, 10));
+
+      // Calculate distributions from finalized data
+      const serviceCounts = {};
+      const decisionCounts = { accepted: 0, rejected: 0, pending: 0 };
+      finalData.forEach(f => {
+        const svc = f.serviceType || f.caseNature || 'Other';
+        serviceCounts[svc] = (serviceCounts[svc] || 0) + 1;
+        const d = (f.decision || f.status || 'pending').toLowerCase();
+        if (decisionCounts[d] !== undefined) decisionCounts[d]++;
+      });
+      setServiceDistribution(Object.entries(serviceCounts).sort((a, b) => b[1] - a[1]).slice(0, 6));
+      setDecisionDistribution([
+        { label: 'Accepted', count: decisionCounts.accepted, color: '#22c55e' },
+        { label: 'Rejected', count: decisionCounts.rejected, color: '#ef4444' },
+        { label: 'Pending', count: decisionCounts.pending, color: PRIMARY_GOLD },
+      ]);
+
+      // Users by role
+      const usersData = Array.isArray(usersRes) ? usersRes : usersRes?.data || [];
+      setUsers(usersData);
+      const roleCounts = {};
+      usersData.forEach(u => {
+        const r = u.role || 'user';
+        roleCounts[r] = (roleCounts[r] || 0) + 1;
+      });
+      setRoleDistribution(Object.entries(roleCounts).sort((a, b) => b[1] - a[1]));
+
+      // Activity logs
+      const logsData = Array.isArray(logsRes) ? logsRes : logsRes?.data || [];
+      setActivityLogs(logsData.slice(0, 10));
     } catch (err) {
-      console.error('Error fetching finalized records', err);
-      setFinalized([]);
-      setCaseRecordsMap({});
+      console.error('Dashboard load error:', err);
     } finally {
-      setLoadingFinalized(false);
+      setLoading(false);
     }
+  }, [isIntern, userData?._id]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      router.replace('/');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    try { await logout(); router.replace('/'); } catch (e) { console.error(e); }
   };
 
-  const features = [
-    {
-      id: 'cases',
-      title: 'Total Cases',
-      count: stats.totalCases,
-      icon: 'documents-outline',
-      color: '#8B6F47',
-      bgColor: '#F5EFE7',
-      route: null, // Not clickable yet
-    },
-    {
-      id: 'users',
-      title: 'Total Users',
-      count: stats.totalUsers,
-      icon: 'people-outline',
-      color: '#6B8E23',
-      bgColor: '#F0F8E8',
-      route: null, // Not clickable yet
-    },
-    {
-      id: 'attorneys',
-      title: 'Total Attorneys',
-      count: stats.totalAttorneys,
-      icon: 'briefcase-outline',
-      color: '#4682B4',
-      bgColor: '#E8F4F8',
-      route: '/admin/manageAttorneys', // Clickable - goes to manage attorneys
-    },
-    {
-      id: 'unassigned',
-      title: 'Unassigned Cases',
-      count: stats.unassignedCases,
-      icon: 'alert-circle-outline',
-      color: '#D2691E',
-      bgColor: '#FFF3E6',
-      route: '/admin/assignCases', // Clickable - goes to assign cases
-    },
+  // Filter reviews by stage
+  const filteredReviews = reviewStage === 'all' ? reviews :
+    reviewStage === 'returned' ? reviews.filter(r => r.status === 'returned') :
+    reviews.filter(r => r.currentStage === reviewStage || r.reviewerRole === reviewStage);
+
+  const statCards = [
+    { label: 'Total Cases', value: stats.totalCases, icon: 'documents-outline', color: '#8B6F47', bg: '#F5EFE7' },
+    { label: 'Total Users', value: stats.totalUsers, icon: 'people-outline', color: '#6B8E23', bg: '#F0F8E8' },
+    { label: 'Pending Reviews', value: stats.pendingReviews, icon: 'hourglass-outline', color: '#D2691E', bg: '#FFF3E6' },
+    { label: 'Finalized', value: stats.finalized, icon: 'checkmark-done-outline', color: '#4682B4', bg: '#E8F4F8' },
   ];
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* Custom Header */}
-      <View style={styles.customHeader}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logoPlaceholder}>
-            <Image
-              source={require('../../assets/images/logo.png')}
-              style={styles.logoImage}
-            />
-          </View>
-          <Text style={styles.appName}>JustReach Admin</Text>
+  const ROLE_COLORS_MAP = {
+    user: '#4A90D9', secretary: '#7B68EE', intern: '#20B2AA',
+    director: '#E67E22', supervising_lawyer: '#9B59B6',
+    pao_lawyer: '#2ECC71', attorney: '#E74C3C', legal_volunteer: '#1ABC9C',
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.loadingCenter}>
+          <ActivityIndicator size="large" color={PRIMARY_BROWN} />
         </View>
-        <TouchableOpacity style={styles.headerLogoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={22} color="#2D2D2D" />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={s.container}>
+      {/* Header */}
+      <View style={s.header}>
+        <View style={s.logoRow}>
+          <Image source={require('../../assets/images/logo.png')} style={s.logo} />
+          <Text style={s.appName}>JustReach Admin</Text>
+        </View>
+        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={22} color={CHARCOAL} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.nameText}>{isIntern ? 'Intern' : 'Administrator'}</Text>
-          <Text style={styles.subtitle}>Manage your legal services platform</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_BROWN]} />}
+      >
+        {/* Welcome */}
+        <View style={s.welcomeSection}>
+          <Text style={s.welcomeLabel}>Welcome back,</Text>
+          <Text style={s.welcomeName}>{isIntern ? 'Intern' : (userData?.firstName || 'Administrator')}</Text>
         </View>
 
-        {/* Dashboard Overview */}
-        <View style={styles.content}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Dashboard Overview</Text>
-            <TouchableOpacity onPress={refreshStats} disabled={loading}>
-              <Ionicons
-                name="refresh"
-                size={20}
-                color="#8B6F47"
-                style={loading && styles.rotating}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#8B6F47" />
+        {/* Stat Cards */}
+        <View style={s.statsGrid}>
+          {statCards.map(card => (
+            <View key={card.label} style={[s.statCard, { backgroundColor: card.bg }]}>
+              <View style={[s.statIcon, { backgroundColor: card.color }]}>
+                <Ionicons name={card.icon} size={22} color="#fff" />
+              </View>
+              <Text style={s.statValue}>{card.value}</Text>
+              <Text style={s.statLabel}>{card.label}</Text>
             </View>
-          ) : (
-            <View style={styles.statsGrid}>
-              {features.map((feature) => (
-                <TouchableOpacity
-                  key={feature.id}
-                  style={[
-                    styles.featureCard,
-                    { backgroundColor: feature.bgColor },
-                  ]}
-                  onPress={() => {
-                    if (isIntern) return; // interns view-only on stats
-                    if (feature.route) {
-                      router.push(feature.route);
-                    } else if (feature.id === 'cases') {
-                      router.push('/admin/finalized');
-                    } else if (feature.id === 'users') {
-                      router.push('/admin/users');
-                    }
-                  }}
-                  activeOpacity={isIntern ? 1 : 0.7}
-                >
-                  <View style={[styles.iconContainer, { backgroundColor: feature.color }]}>
-                    <Ionicons name={feature.icon} size={28} color="#FFFFFF" />
+          ))}
+        </View>
+
+        {/* Service Distribution */}
+        {serviceDistribution.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Legal Services Distribution</Text>
+            {serviceDistribution.map(([label, count]) => {
+              const max = serviceDistribution[0][1];
+              const pct = max > 0 ? (count / max) * 100 : 0;
+              return (
+                <View key={label} style={s.distItem}>
+                  <View style={s.distHeader}>
+                    <Text style={s.distLabel} numberOfLines={1}>{label}</Text>
+                    <Text style={s.distCount}>{count}</Text>
                   </View>
-                  <Text style={styles.featureCount}>{feature.count}</Text>
-                  <Text style={styles.featureTitle}>{feature.title}</Text>
-                  <View style={styles.clickableIndicator}>
-                    <Ionicons name="arrow-forward" size={16} color={feature.color} />
+                  <View style={s.distBarBg}>
+                    <View style={[s.distBarFill, { width: `${pct}%`, backgroundColor: CATEGORY_COLORS[label] || PRIMARY_BROWN }]} />
                   </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Decision Summary */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Finalized Decisions</Text>
+          <View style={s.decisionRow}>
+            {decisionDistribution.map(d => (
+              <View key={d.label} style={s.decisionCard}>
+                <Text style={[s.decisionValue, { color: d.color }]}>{d.count}</Text>
+                <Text style={s.decisionLabel}>{d.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Users by Role */}
+        {roleDistribution.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Users by Role</Text>
+            <View style={s.roleGrid}>
+              {roleDistribution.map(([role, count]) => (
+                <View key={role} style={s.roleItem}>
+                  <View style={[s.roleDot, { backgroundColor: ROLE_COLORS_MAP[role] || '#999' }]} />
+                  <Text style={s.roleText}>{ROLE_DISPLAY[role] || role}</Text>
+                  <Text style={s.roleCount}>{count}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Case Reviews */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Case Reviews</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+            {REVIEW_STAGES.map(stage => (
+              <TouchableOpacity
+                key={stage.key}
+                style={[s.stageBtn, reviewStage === stage.key && s.stageBtnActive]}
+                onPress={() => setReviewStage(stage.key)}
+              >
+                <Text style={[s.stageBtnText, reviewStage === stage.key && s.stageBtnTextActive]}>
+                  {stage.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          {filteredReviews.length > 0 ? filteredReviews.slice(0, 5).map(review => {
+            const clientName = review.content?.interviewInfo?.clientName || review.clientName || 'Unknown Client';
+            return (
+              <TouchableOpacity
+                key={review._id || review.caseId}
+                style={s.reviewCard}
+                onPress={() => {
+                  const reviewParam = encodeURIComponent(JSON.stringify(review));
+                  router.push(`/admin/recommendation?caseId=${review.caseId || ''}&review=${reviewParam}`);
+                }}
+              >
+                <View style={s.reviewIcon}>
+                  <Ionicons name="document-text" size={20} color={PRIMARY_BROWN} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.reviewName}>{clientName}</Text>
+                  <Text style={s.reviewMeta}>
+                    {review.reviewerRole || 'Intern'} • {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : ''}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#ccc" />
+              </TouchableOpacity>
+            );
+          }) : (
+            <Text style={s.emptyText}>No reviews for this filter</Text>
+          )}
+        </View>
+
+        {/* Finalized Records */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Finalized Records</Text>
+          {finalized.length > 0 ? finalized.slice(0, 5).map(record => {
+            const clientName = record.clientName || record.content?.interviewInfo?.clientName || 'Client';
+            const decision = record.decision || record.status || 'pending';
+            return (
+              <TouchableOpacity
+                key={record._id}
+                style={s.reviewCard}
+                onPress={() => router.push('/admin/finalized')}
+              >
+                <View style={[s.reviewIcon, { backgroundColor: decision === 'accepted' ? '#22c55e15' : decision === 'rejected' ? '#ef444415' : '#f5f5f5' }]}>
+                  <Ionicons
+                    name={decision === 'accepted' ? 'checkmark-circle' : decision === 'rejected' ? 'close-circle' : 'time'}
+                    size={20}
+                    color={decision === 'accepted' ? '#22c55e' : decision === 'rejected' ? '#ef4444' : PRIMARY_GOLD}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.reviewName}>{clientName}</Text>
+                  <Text style={s.reviewMeta}>
+                    {decision.charAt(0).toUpperCase() + decision.slice(1)} • {record.createdAt ? new Date(record.createdAt).toLocaleDateString() : ''}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#ccc" />
+              </TouchableOpacity>
+            );
+          }) : (
+            <Text style={s.emptyText}>No finalized records</Text>
+          )}
+        </View>
+
+        {/* Activity Log */}
+        {activityLogs.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Activity Log</Text>
+            {activityLogs.slice(0, 5).map((log, i) => (
+              <View key={log._id || i} style={s.logItem}>
+                <View style={[s.logDot, { backgroundColor: log.action === 'login' ? '#22c55e' : log.action === 'logout' ? '#ef4444' : PRIMARY_GOLD }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.logText}>{log.userName || log.userId?.firstName || 'User'} - {log.action || 'action'}</Text>
+                  <Text style={s.logTime}>{log.createdAt ? new Date(log.createdAt).toLocaleString() : ''}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Quick Actions */}
+        {!isIntern && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Quick Actions</Text>
+            <View style={s.actionsGrid}>
+              {[
+                { label: 'Assign Cases', icon: 'person-add-outline', route: '/admin/assignCases' },
+                { label: 'Manage Attorneys', icon: 'briefcase-outline', route: '/admin/manageAttorneys' },
+                { label: 'Analytics', icon: 'bar-chart-outline', route: '/admin/analytics' },
+                { label: 'Recommendations', icon: 'star-outline', route: '/admin/recommendation' },
+              ].map(action => (
+                <TouchableOpacity key={action.label} style={s.actionCard} onPress={() => router.push(action.route)}>
+                  <View style={s.actionIcon}><Ionicons name={action.icon} size={22} color={PRIMARY_BROWN} /></View>
+                  <Text style={s.actionLabel}>{action.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          )}
+          </View>
+        )}
 
-          {/* Submitted For Review */}
-          <Text style={styles.sectionTitle}>Submitted For Review</Text>
-          <Text style={styles.sectionSubtitle}>
-            {userData?.role === 'intern' 
-              ? 'Your submissions awaiting review (view only)'
-              : 'Recent submissions from interns'}
-          </Text>
-          {loadingReviews ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#8B6F47" />
-            </View>
-          ) : reviews.length > 0 ? (
-            <View style={styles.reviewsList}>
-              {reviews.map((review) => {
-                const submitterName = review.content?.interviewInfo?.clientName || review.clientName || 'Unknown Client';
-                const submittedBy = review.reviewerName || 'Staff';
-                const caseId = review.caseId || 'new-case';
-                return (
-                  <TouchableOpacity
-                    key={review._id || review.id || review.caseId}
-                    style={styles.reviewCard}
-                    onPress={() => {
-                      const reviewParam = encodeURIComponent(JSON.stringify(review));
-                      router.push(`/admin/recommendation?caseId=${caseId}&review=${reviewParam}`);
-                    }}
-                  >
-                    <View style={styles.reviewIconContainer}>
-                      <Ionicons name="document-text" size={24} color="#8B6F47" />
-                    </View>
-                    <View style={styles.reviewContent}>
-                      <Text style={styles.reviewClientName}>{submitterName}</Text>
-                      <Text style={styles.reviewSubmitter}>Submitted by: {submittedBy} ({review.reviewerRole || 'Intern'})</Text>
-                      <View style={styles.reviewBadges}>
-                        <View style={styles.reviewBadge}>
-                          <Text style={styles.reviewBadgeText}>
-                            {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'No Date'}
-                          </Text>
-                        </View>
-                        {caseId && caseId !== 'new-case' && (
-                          <View style={[styles.reviewBadge, styles.reviewBadgePrimary]}>
-                            <Text style={styles.reviewBadgeTextPrimary}>{caseId}</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#8B6F47" />
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ) : (
-            <Text style={styles.emptyText}>
-              {userData?.role === 'intern' 
-                ? 'You have no submissions pending review'
-                : 'No reviews pending finalization'}
-            </Text>
-          )}
-
-          {/* Finalized Records */}
-          <Text style={styles.sectionTitle}>Finalized Records</Text>
-          <Text style={styles.sectionSubtitle}>Recently finalized case records</Text>
-          {loadingFinalized ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#8B6F47" />
-            </View>
-          ) : finalized.length > 0 ? (
-            <View style={styles.finalizedList}>
-              {finalized.map((record) => {
-                const recordId = record._id || record.id;
-                const hasRecord = recordId ? caseRecordsMap[recordId] : false;
-                const clientName = record.clientName || record.content?.interviewInfo?.clientName || 'Unknown Client';
-                const displayTitle = hasRecord
-                  ? (record.caseTitle || record.content?.caseInfo?.caseTitle || record.caseId || clientName)
-                  : clientName;
-
-                return (
-                <TouchableOpacity
-                  key={record._id || record.id || record.caseId}
-                  style={styles.finalizedCard}
-                  onPress={() => router.push('/admin/recommendation')}
-                >
-                  <View style={styles.finalizedIconContainer}>
-                    <Ionicons name="briefcase" size={24} color="#9BA17B" />
-                  </View>
-                  <View style={styles.finalizedContent}>
-                    <Text style={styles.finalizedTitle}>
-                      {displayTitle}
-                    </Text>
-                    <Text style={styles.finalizedClient}>
-                      {record.clientName || record.content?.interviewInfo?.clientName || ''}
-                    </Text>
-                    <Text style={styles.finalizedMeta}>
-                      Finalized: {record.createdAt ? new Date(record.createdAt).toLocaleDateString() : ''} • By: {record.finalizedRole || record.finalizedBy}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color="#9BA17B" />
-                </TouchableOpacity>
-              );})}
-            </View>
-          ) : (
-            <Text style={styles.emptyText}>No finalized records found</Text>
-          )}
-
-          {/* Quick Actions */}
-          {!isIntern && (
-            <>
-              <Text style={styles.sectionTitle}>Quick Actions</Text>
-              <View style={styles.actionsContainer}>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => router.push('/admin/assignCases')}
-                >
-                  <View style={styles.actionIconContainer}>
-                    <Ionicons name="person-add-outline" size={24} color="#8B6F47" />
-                  </View>
-                  <Text style={styles.actionButtonText}>Assign Cases</Text>
-                  <Text style={styles.actionDescription}>Assign cases to attorneys</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => router.push('/admin/manageAttorneys')}
-                >
-                  <View style={styles.actionIconContainer}>
-                    <Ionicons name="checkmark-done-outline" size={24} color="#8B6F47" />
-                  </View>
-                  <Text style={styles.actionButtonText}>Manage Attorneys</Text>
-                  <Text style={styles.actionDescription}>Review attorney applications</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => router.push('/admin/recommendation')}
-                >
-                  <View style={styles.actionIconContainer}>
-                    <Ionicons name="star-outline" size={24} color="#8B6F47" />
-                  </View>
-                  <Text style={styles.actionButtonText}>Recommendations</Text>
-                  <Text style={styles.actionDescription}>View case recommendations</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-        </View>
+        <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F0',
-  },
-  customHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  logoPlaceholder: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#C5A572',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#8B6F47',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  logoImage: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    resizeMode: 'contain',
-  },
-  appName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#8B6F47',
-    marginLeft: 14,
-    letterSpacing: -0.5,
-  },
-  headerLogoutButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#F5EFE7',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  welcomeSection: {
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: 28,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 16,
-  },
-  welcomeText: {
-    fontSize: 15,
-    color: '#8B6F47',
-    marginBottom: 6,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  nameText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#2D2D2D',
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '400',
-  },
-  content: {
-    paddingHorizontal: 24,
-    paddingBottom: 32,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#2D2D2D',
-    marginBottom: 8,
-    letterSpacing: -0.3,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 16,
-  },
-  loadingContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -6,
-    marginBottom: 32,
-  },
-  featureCard: {
-    width: '48%',
-    margin: '1%',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-    position: 'relative',
-  },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  featureCount: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#2D2D2D',
-    marginBottom: 8,
-    letterSpacing: -1,
-  },
-  featureTitle: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  clickableIndicator: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionsContainer: {
-    gap: 12,
-  },
-  actionButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-    marginBottom: 12,
-  },
-  actionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#F5EFE7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2D2D2D',
-    marginBottom: 4,
-  },
-  actionDescription: {
-    fontSize: 13,
-    color: '#666',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    paddingVertical: 20,
-    marginBottom: 20,
-  },
-  reviewsList: {
-    marginBottom: 24,
-  },
-  reviewCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FBF7F4',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E6D9CC',
-  },
-  reviewIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: '#8B6F47',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  reviewContent: {
-    flex: 1,
-  },
-  reviewClientName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2D2D2D',
-    marginBottom: 4,
-  },
-  reviewSubmitter: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 8,
-  },
-  reviewBadges: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  reviewBadge: {
-    backgroundColor: '#E0E0E0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  reviewBadgeText: {
-    fontSize: 11,
-    color: '#666',
-  },
-  reviewBadgePrimary: {
-    backgroundColor: '#C4AB7D',
-  },
-  reviewBadgeTextPrimary: {
-    fontSize: 11,
-    color: '#2D2D2D',
-    fontWeight: '600',
-  },
-  finalizedList: {
-    marginBottom: 24,
-  },
-  finalizedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F7FBF9',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E6D9CC',
-  },
-  finalizedIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: '#9BA17B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  finalizedContent: {
-    flex: 1,
-  },
-  finalizedTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2D2D2D',
-    marginBottom: 2,
-  },
-  finalizedClient: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  finalizedMeta: {
-    fontSize: 11,
-    color: '#999',
-  },
-  rotating: {
-    transform: [{ rotate: '180deg' }],
-  },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F7F8FA' },
+  loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  logoRow: { flexDirection: 'row', alignItems: 'center' },
+  logo: { width: 36, height: 36, borderRadius: 10, resizeMode: 'contain' },
+  appName: { fontSize: 20, fontWeight: '700', color: PRIMARY_BROWN, marginLeft: 10 },
+  logoutBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#f5f5f5', justifyContent: 'center', alignItems: 'center' },
+  welcomeSection: { paddingHorizontal: 16, paddingVertical: 16 },
+  welcomeLabel: { fontSize: 14, color: MUTED_OLIVE },
+  welcomeName: { fontSize: 22, fontWeight: '700', color: CHARCOAL },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8 },
+  statCard: { width: '48%', borderRadius: 12, padding: 14, flexGrow: 1 },
+  statIcon: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  statValue: { fontSize: 24, fontWeight: '700', color: CHARCOAL },
+  statLabel: { fontSize: 11, color: MUTED_OLIVE, marginTop: 2 },
+  section: { backgroundColor: '#fff', marginHorizontal: 12, marginTop: 10, borderRadius: 12, padding: 16 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: CHARCOAL, marginBottom: 12 },
+  distItem: { marginBottom: 10 },
+  distHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  distLabel: { fontSize: 12, color: CHARCOAL, flex: 1, marginRight: 8 },
+  distCount: { fontSize: 12, fontWeight: '600', color: CHARCOAL },
+  distBarBg: { height: 6, backgroundColor: '#f0f0f0', borderRadius: 3, overflow: 'hidden' },
+  distBarFill: { height: '100%', borderRadius: 3 },
+  decisionRow: { flexDirection: 'row', gap: 8 },
+  decisionCard: { flex: 1, backgroundColor: '#f9f9f9', borderRadius: 10, padding: 14, alignItems: 'center' },
+  decisionValue: { fontSize: 24, fontWeight: '700' },
+  decisionLabel: { fontSize: 11, color: MUTED_OLIVE, marginTop: 2 },
+  roleGrid: { gap: 6 },
+  roleItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  roleDot: { width: 10, height: 10, borderRadius: 5 },
+  roleText: { flex: 1, fontSize: 13, color: CHARCOAL },
+  roleCount: { fontSize: 13, fontWeight: '600', color: CHARCOAL },
+  stageBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: '#f5f5f5', marginRight: 6 },
+  stageBtnActive: { backgroundColor: PRIMARY_BROWN },
+  stageBtnText: { fontSize: 12, color: MUTED_OLIVE },
+  stageBtnTextActive: { color: '#fff', fontWeight: '600' },
+  reviewCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
+  reviewIcon: { width: 36, height: 36, borderRadius: 8, backgroundColor: '#f5f5f5', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  reviewName: { fontSize: 14, fontWeight: '600', color: CHARCOAL },
+  reviewMeta: { fontSize: 11, color: MUTED_OLIVE, marginTop: 2 },
+  emptyText: { textAlign: 'center', color: '#aaa', paddingVertical: 16, fontSize: 13 },
+  logItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10 },
+  logDot: { width: 8, height: 8, borderRadius: 4 },
+  logText: { fontSize: 13, color: CHARCOAL },
+  logTime: { fontSize: 10, color: '#999' },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  actionCard: { width: '48%', backgroundColor: '#f9f9f9', borderRadius: 10, padding: 14, alignItems: 'center', flexGrow: 1 },
+  actionIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: `${PRIMARY_BROWN}10`, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+  actionLabel: { fontSize: 12, fontWeight: '600', color: CHARCOAL },
 });
-
-export default AdminDashboard;

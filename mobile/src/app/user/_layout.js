@@ -1,14 +1,15 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNotifications } from '../../hooks/useNotifications';
+import { View, Text, StyleSheet } from 'react-native';
 
 const PRIMARY_BROWN = '#7D5A3B';
-const PRIMARY_GOLD = '#C4AB7D';
 
-export default function AdminLayout() {
+export default function UserLayout() {
   const insets = useSafeAreaInsets();
-  
+  const { unreadCount } = useNotifications();
+
   return (
     <Tabs
       screenOptions={{
@@ -32,45 +33,27 @@ export default function AdminLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: 'Home',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="speedometer-outline" size={size} color={color} />
+            <Ionicons name="home-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="finalized"
+        name="appointment"
         options={{
-          title: 'Cases',
+          title: 'Appointment',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="briefcase-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="clientformstatus"
+        name="track"
         options={{
-          title: 'Appointments',
+          title: 'Track',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="messenger"
-        options={{
-          title: 'Messages',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="users"
-        options={{
-          title: 'Users',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
+            <Ionicons name="search-outline" size={size} color={color} />
           ),
         }}
       />
@@ -83,28 +66,22 @@ export default function AdminLayout() {
           ),
         }}
       />
-      
-      {/* Hidden screens */}
+
+      {/* Hidden screens - accessible via navigation but not in tab bar */}
       <Tabs.Screen
-        name="analytics"
+        name="chat"
         options={{
           href: null,
         }}
       />
       <Tabs.Screen
-        name="manageAttorneys"
+        name="trackCase"
         options={{
           href: null,
         }}
       />
       <Tabs.Screen
-        name="assignCases"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="recommendation"
+        name="notifications"
         options={{
           href: null,
         }}
