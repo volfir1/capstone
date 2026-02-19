@@ -1,6 +1,6 @@
 import { Grid, Paper, Box } from "@mantine/core";
 import { Toaster } from "react-hot-toast";
-import { LoginHero } from "./hero";
+import { LoginHero } from "./Hero";
 import { LoginForm } from "@/components/forms/LoginForm";
 import { useLogin } from "@/hooks/auth/useLogin"; 
 
