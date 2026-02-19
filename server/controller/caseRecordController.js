@@ -75,11 +75,12 @@ export const getCaseRecord = async (req, res) => {
 
     const caseRecord = await CaseRecord.findOne({ caseId }).populate('finalizeId')
     
-    if (!caseRecord) {
-      return res.status(404).json({ error: 'Case record not found' })
-    }
+      if (!caseRecord) {
+        // Return null for not-found so frontend can distinguish absence without triggering HTTP error
+        return res.json(null)
+      }
 
-    res.json(caseRecord)
+      return res.json(caseRecord)
   } catch (err) {
     console.error('getCaseRecord error', err)
     res.status(500).json({ error: err.message })
@@ -199,11 +200,12 @@ export const getCaseRecordByFinalizeId = async (req, res) => {
 
     const caseRecord = await CaseRecord.findOne({ finalizeId }).populate('finalizeId')
     
-    if (!caseRecord) {
-      return res.status(404).json({ error: 'Case record not found' })
-    }
+      if (!caseRecord) {
+        // Return null when no case record exists for this finalize id
+        return res.json(null)
+      }
 
-    res.json(caseRecord)
+      return res.json(caseRecord)
   } catch (err) {
     console.error('getCaseRecordByFinalizeId error', err)
     res.status(500).json({ error: err.message })

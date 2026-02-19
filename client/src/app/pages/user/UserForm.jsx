@@ -1,21 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconCheck, IconTrash } from '@tabler/icons-react';
-import { Button, Stepper, Group, Box, Text, Title, Paper, Stack, Divider, Container, Tooltip } from '@mantine/core';
+import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconCheck, IconTrash, IconRefresh } from '@tabler/icons-react';
+import { Button, Stepper, Group, Box, Text, Title, Paper, Stack, Divider, Container, Tooltip, ActionIcon } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL } from '@utils/constants';
-// Import the separated form components
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL } from '@utils/constants';
 import PersonalDetailsForm from '@components/forms/steps/PersonalDetails';
 import FinancialDetailsForm from '@components/forms/steps/FinancialDetails';
 import CaseDetailsForm from '@components/forms/steps/CaseDetails';
 import ReviewForm from '@components/forms/steps/ReviewForm';
-import apiClient from '@config/api/apiClient'; // <--- added import
+import apiClient from '@config/api/apiClient';
 
 const FORM_STORAGE_KEY = 'justreach_form_draft';
+const PROFILE_STORAGE_KEY = 'justreach_user_profile';
+
+// Fields that should persist across submissions (personal & financial info)
+const PERSISTENT_FIELDS = [
+  'name', 'age', 'birthday', 'contactNumber', 'cellphoneNumber', 'telephoneNumber',
+  'sex', 'civilStatus', 'citizenship',
+  'presentAddress', 'permanentAddress', 'throughRelator', 'relatorName', 'relationshipToClient',
+  'currentSourceOfIncome', 'monthlyIncome', 'natureOfWork',
+  'employerName', 'employerAddress', 'employerTelephone',
+  'spouse', 'spouseSourceOfIncome', 'spouseMonthlyIncome', 'spouseEmployerAddress',
+];
+
+// Read saved data synchronously before form init
+function loadSavedData() {
+  try {
+    const draft = localStorage.getItem(FORM_STORAGE_KEY);
+    if (draft) return { data: JSON.parse(draft), source: 'draft' };
+    const profile = localStorage.getItem(PROFILE_STORAGE_KEY);
+    if (profile) return { data: JSON.parse(profile), source: 'profile' };
+  } catch (e) {
+    console.error('Error loading saved form data:', e);
+  }
+  return null;
+}
 
 export default function UserForm() {
   const [active, setActive] = useState(0);
   const [formData, setFormData] = useState({});
+  const notifiedRef = useRef(false);
+  const savedRef = useRef(loadSavedData());
   
   const { register, handleSubmit, formState: { errors }, trigger, getValues, setValue, watch, reset } = useForm({
     mode: 'onChange',
@@ -25,37 +50,39 @@ export default function UserForm() {
       throughRelator: 'no',
       relatorName: '',
       relationshipToClient: '',
+      ...(savedRef.current?.data || {}),
     }
   });
   
   const totalSteps = 4;
   
-  // Load saved form data on mount
+  // Restore saved data on mount and force-populate all inputs
   useEffect(() => {
-    const savedData = localStorage.getItem(FORM_STORAGE_KEY);
-    if (savedData) {
-      try {
-        const parsedData = JSON.parse(savedData);
-        setFormData(parsedData);
-        
-        // Pre-fill form fields
-        Object.keys(parsedData).forEach(key => {
-          if (parsedData[key] !== null && parsedData[key] !== undefined) {
-            setValue(key, parsedData[key]);
-          }
-        });
-        
-        notifications.show({
-          title: 'Draft Restored',
-          message: 'Your previous form data has been restored',
-          color: 'blue',
-          icon: <IconCircleCheck size={18} />,
-        });
-      } catch (error) {
-        console.error('Error loading saved form data:', error);
-      }
+    if (savedRef.current && !notifiedRef.current) {
+      notifiedRef.current = true;
+      const { data, source } = savedRef.current;
+      setFormData(data);
+
+      // Force all registered inputs to display saved values
+      reset({
+        appointedDate: '',
+        appointmentTime: '',
+        throughRelator: 'no',
+        relatorName: '',
+        relationshipToClient: '',
+        ...data,
+      });
+
+      notifications.show({
+        title: source === 'draft' ? 'Draft Restored' : 'Profile Loaded',
+        message: source === 'draft'
+          ? 'Your previous form draft has been restored'
+          : 'Your saved personal details have been pre-filled',
+        color: 'blue',
+        icon: <IconCircleCheck size={18} />,
+      });
     }
-  }, [setValue]);
+  }, []);
   
   // Save form data to localStorage whenever it changes
   useEffect(() => {
@@ -171,10 +198,31 @@ export default function UserForm() {
         autoClose: 6000,
       });
 
-      // Clear saved draft after successful submission
+      // Save personal & financial details for future pre-filling
+      const profileData = {};
+      PERSISTENT_FIELDS.forEach(field => {
+        if (finalData[field] !== null && finalData[field] !== undefined && finalData[field] !== '') {
+          profileData[field] = finalData[field];
+        }
+      });
+      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileData));
+
+      // Clear the draft but keep profile
       localStorage.removeItem(FORM_STORAGE_KEY);
-      reset();
-      setFormData({});
+      // Reset form with profile data pre-filled for next appointment
+      reset({
+        appointedDate: '',
+        appointmentTime: '',
+        throughRelator: profileData.throughRelator || 'no',
+        relatorName: profileData.relatorName || '',
+        relationshipToClient: profileData.relationshipToClient || '',
+        ...profileData,
+        // Clear case-specific fields
+        partyRepresented: '', venue: '', caseNumber: '', presentStage: '',
+        caseNature: '', courtDivision: '', courtAddress: '', presidingOfficer: '',
+        adverseParty: '', adversePartyAddress: '', adversePartyCounsel: '',
+      });
+      setFormData(profileData);
       setActive(0);
     } catch (error) {
       console.error('Submit error:', error);
@@ -195,9 +243,29 @@ export default function UserForm() {
           autoClose: 6000,
         });
 
+        // Save personal & financial details for future pre-filling
+        const profileData = {};
+        PERSISTENT_FIELDS.forEach(field => {
+          if (finalData[field] !== null && finalData[field] !== undefined && finalData[field] !== '') {
+            profileData[field] = finalData[field];
+          }
+        });
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileData));
+
         localStorage.removeItem(FORM_STORAGE_KEY);
-        reset();
-        setFormData({});
+        // Reset form with profile data pre-filled for next appointment
+        reset({
+          appointedDate: '',
+          appointmentTime: '',
+          throughRelator: profileData.throughRelator || 'no',
+          relatorName: profileData.relatorName || '',
+          relationshipToClient: profileData.relationshipToClient || '',
+          ...profileData,
+          partyRepresented: '', venue: '', caseNumber: '', presentStage: '',
+          caseNature: '', courtDivision: '', courtAddress: '', presidingOfficer: '',
+          adverseParty: '', adversePartyAddress: '', adversePartyCounsel: '',
+        });
+        setFormData(profileData);
         setActive(0);
         return;
       } catch (fallbackErr) {
@@ -239,162 +307,99 @@ export default function UserForm() {
   };
   
   return (
-    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+    <Box bg={BG} mih="100vh" py="xl">
       <style>
         {`
-          ::-webkit-scrollbar {
-            width: 8px;
-          }
-          ::-webkit-scrollbar-track {
-            background: transparent;
-          }
-          ::-webkit-scrollbar-thumb {
-            background: ${MUTED_OLIVE};
-            border-radius: 4px;
-          }
-          ::-webkit-scrollbar-thumb:hover {
-            background: ${PRIMARY_BROWN};
-          }
-          * {
-            scrollbar-width: thin;
-            scrollbar-color: ${MUTED_OLIVE} transparent;
-          }
+          ::-webkit-scrollbar { width: 8px; }
+          ::-webkit-scrollbar-track { background: transparent; }
+          ::-webkit-scrollbar-thumb { background: ${MUTED_OLIVE}; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb:hover { background: ${PRIMARY_BROWN}; }
+          * { scrollbar-width: thin; scrollbar-color: ${MUTED_OLIVE} transparent; }
         `}
       </style>
       <Container size="xl">
-        {/* Header */}
-        <Paper 
-          shadow="xs" 
-          p="xl" 
-          mb="xl" 
-          radius="lg"
-          style={{ 
-            background: PRIMARY_BROWN,
-            border: 'none',
-          }}
-        >
-          <Group gap="md" align="center" justify="space-between">
-            <Group gap="md" align="center">
-              <Box
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: '12px',
-                  background: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconFileText size={24} color={PRIMARY_BROWN} stroke={2.5} />
+        {/* Clean Page Header */}
+        <Group justify="space-between" align="flex-start" mb="lg">
+          <Box>
+            <Group gap="sm" align="center" mb={4}>
+              <Box style={{
+                width: 36, height: 36, borderRadius: 9,
+                background: PRIMARY_BROWN,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <IconFileText size={18} color="white" stroke={2.5} />
               </Box>
               <Box>
-                <Title order={2} c="white" mb={4}>
-                  Sebastinian Office of Legal Aid (SOLA)
+                <Title order={3} c={CHARCOAL} lh={1.2}>
+                  Client's Information Sheet
                 </Title>
-                <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
-                  College of Law - San Sebastian College Recoletos, Manila
+                <Text size="sm" c={MUTED_OLIVE} mt={2}>
+                  Sebastinian Office of Legal Aid (SOLA) — College of Law
                 </Text>
               </Box>
             </Group>
-            {localStorage.getItem(FORM_STORAGE_KEY) && (
-              <Tooltip label="Clear all saved form data">
-                <Button
-                  variant="light"
-                  color="red"
-                  size="sm"
-                  leftSection={<IconTrash size={16} />}
-                  onClick={clearSavedData}
-                >
-                  Clear Draft
-                </Button>
-              </Tooltip>
-            )}
-          </Group>
-        </Paper>
+          </Box>
+          {localStorage.getItem(FORM_STORAGE_KEY) && (
+            <Tooltip label="Clear all saved form data">
+              <ActionIcon
+                variant="light"
+                color="red"
+                size="md"
+                radius="md"
+                onClick={clearSavedData}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
 
         {/* Form Paper */}
-        <Paper shadow="xs" p="xl" radius="lg" bg="white">
+        <Paper shadow="xs" p="xl" radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
           <Stack gap="xl">
-            {/* Form Title Badge */}
-            <Box style={{ textAlign: 'center' }}>
-              <Paper 
-                p="sm" 
-                radius="md"
-                style={{ 
-                  display: 'inline-block',
-                  backgroundColor: `${PRIMARY_GOLD}15`,
-                  border: `1px solid ${PRIMARY_GOLD}`,
-                }}
-              >
-                <Text size="sm" fw={600} c={PRIMARY_BROWN}>
-                  CLIENT'S INFORMATION SHEET
-                </Text>
-              </Paper>
-            </Box>
-            
             {/* Stepper */}
-            <Stepper 
-              active={active} 
+            <Stepper
+              active={active}
               color={PRIMARY_BROWN}
               completedIcon={<IconCircleCheck size={20} />}
               styles={{
-                step: {
-                  padding: '8px',
-                },
-                stepIcon: {
-                  borderWidth: '2px',
-                },
-                separator: {
-                  marginLeft: '8px',
-                  marginRight: '8px',
-                  height: '2px',
-                },
-                stepLabel: {
-                  fontWeight: 600,
-                  fontSize: '14px',
-                },
-                stepDescription: {
-                  fontSize: '12px',
-                  color: MUTED_OLIVE,
-                },
+                step: { padding: '8px' },
+                stepIcon: { borderWidth: '2px' },
+                separator: { marginLeft: '8px', marginRight: '8px', height: '2px' },
+                stepLabel: { fontWeight: 600, fontSize: '14px' },
+                stepDescription: { fontSize: '12px', color: MUTED_OLIVE },
               }}
             >
               <Stepper.Step label="Personal" description="Personal Details">
                 {active === 0 && renderStep()}
               </Stepper.Step>
-              
+
               <Stepper.Step label="Financial" description="Financial Details">
                 {active === 1 && renderStep()}
               </Stepper.Step>
-              
+
               <Stepper.Step label="Case Details" description="Case Information">
                 {active === 2 && renderStep()}
               </Stepper.Step>
-              
+
               <Stepper.Step label="Review" description="Review & Submit">
                 {active === 3 && renderStep()}
               </Stepper.Step>
             </Stepper>
-            
+
             <Divider color="#F0F0F0" />
-            
+
             {/* Navigation Buttons */}
             <Group justify="space-between">
               {active > 0 ? (
-                <Button 
-                  variant="outline" 
-                  leftSection={<IconChevronLeft size={20} />}
+                <Button
+                  variant="default"
+                  leftSection={<IconChevronLeft size={18} />}
                   onClick={prevStep}
                   size="md"
+                  radius="md"
                   styles={{
-                    root: {
-                      borderColor: '#E0E0E0',
-                      color: MUTED_OLIVE,
-                      '&:hover': {
-                        backgroundColor: THEMED_LIGHT_BG,
-                      },
-                    },
+                    root: { borderColor: '#E0E0E0', color: MUTED_OLIVE },
                   }}
                 >
                   Previous
@@ -402,26 +407,24 @@ export default function UserForm() {
               ) : (
                 <Box />
               )}
-              
+
               {active < totalSteps - 1 ? (
-                <Button 
-                  rightSection={<IconChevronRight size={20} />}
+                <Button
+                  rightSection={<IconChevronRight size={18} />}
                   onClick={nextStep}
                   size="md"
-                  style={{ 
-                    backgroundColor: PRIMARY_BROWN,
-                  }}
+                  radius="md"
+                  style={{ backgroundColor: PRIMARY_BROWN }}
                 >
                   Next Step
                 </Button>
               ) : (
-                <Button 
-                  leftSection={<IconCircleCheck size={20} />}
+                <Button
+                  leftSection={<IconCircleCheck size={18} />}
                   onClick={handleFormSubmit}
                   size="md"
-                  style={{ 
-                    backgroundColor: PRIMARY_BROWN,
-                  }}
+                  radius="md"
+                  style={{ backgroundColor: PRIMARY_BROWN }}
                 >
                   Submit Application
                 </Button>

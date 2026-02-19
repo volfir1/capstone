@@ -84,6 +84,11 @@ export default function Appointment() {
         });
         form.reset();
         form.setFieldValue("phone", "09");
+        try {
+          // notify other tabs/pages (admin) to refresh silently
+          localStorage.setItem('appointments_needs_refresh', Date.now().toString());
+          window.dispatchEvent(new Event('appointments_needs_refresh'));
+        } catch (_) {}
       })
       .catch((err) => {
         const msg = err?.response?.data?.message || "Failed to submit appointment";

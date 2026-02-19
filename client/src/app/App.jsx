@@ -34,7 +34,6 @@ const HowItWorks = lazy(()=> import('./pages/How'))
 const UserForm = lazy(() => import('./pages/user/UserForm'))
 const Appointment = lazy(() => import('./pages/Appointment'))
 const TrackCase = lazy(() => import('./pages/user/TrackCase'))
-const UserChat = lazy(() => import('./pages/user/Chat'))
 const ProfilePage = lazy(() => import('./pages/other/Profile'))
 const ClientApplicationStatus = lazy(() => import('./pages/other/ClientFormStatus'))
 
@@ -43,6 +42,7 @@ const AssignCase = lazy(() => import('./pages/admin/AssingCase'))
 const UserManagement = lazy(() => import('./pages/admin/userManagement'))
 const RecommendationForAction = lazy(() => import('./pages/other/RecommendationForAction'))
 const FinalizedCases = lazy(() => import('./pages/admin/FinalizedCases'))
+const ReturnedCases = lazy(() => import('./pages/other/Returned_Cases'))
 const Analytics = lazy(() => import('./pages/admin/Analytics'))
 
 // Intern
@@ -137,7 +137,10 @@ function AppRoutes() {
         >
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<Home />} />
-          <Route path="chat/:caseId?" element={<UserChat/>}/>
+{/* Chat route disabled per checklist. Commented out to preserve code for future use.
+  const UserChat = lazy(() => import('./pages/user/Chat'))
+  <Route path="chat/:caseId?" element={<UserChat/>}/>
+*/}
           <Route path="profile" element={<UserProfile />} />
           <Route path="appointment" element={<UserForm />} />
           <Route path="track" element={<TrackAppointment />} />
@@ -157,6 +160,7 @@ function AppRoutes() {
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="recommendation/:caseId?" element={<RecommendationForAction />} />
+          <Route path="returned" element={<ReturnedCases />} />
           <Route path="finalized" element={<FinalizedCases />} />
           <Route path="clientformstatus" element={<ClientApplicationStatus />} />
           <Route path="analytics" element={<Analytics />} />

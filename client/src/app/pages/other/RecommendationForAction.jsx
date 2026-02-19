@@ -19,6 +19,7 @@ import {
     Stepper,
     Badge,
     FileButton,
+    
     Alert,
     Modal,
     Timeline,
@@ -28,6 +29,148 @@ import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconA
 import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+// Import the worker as a URL so Vite can serve it as an asset
+import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.js?url';
+
+// Configure PDF.js worker to the imported asset URL
+try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+} catch (err) {
+    console.warn('Could not set pdfjs workerSrc', err);
+}
+
+// Normalize server file URLs so client always requests the backend, not the dev server origin
+const getServerFileUrl = (pathOrUrl) => {
+    if (!pathOrUrl) return pathOrUrl;
+    try {
+        // If already absolute URL, prefer IPv4 loopback when hostname is localhost
+        const parsed = new URL(pathOrUrl);
+        if (parsed.hostname === 'localhost') parsed.hostname = '127.0.0.1';
+        return parsed.href;
+    } catch (e) {
+        // Not an absolute URL, treat as relative path (e.g., /uploads/..)
+    }
+
+    let apiHost = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : 'http://127.0.0.1:5000';
+    // Prefer IPv4 loopback to avoid environments where `localhost` resolves to IPv6 ::1
+    try {
+        const parsedHost = new URL(apiHost);
+        if (parsedHost.hostname === 'localhost') {
+            parsedHost.hostname = '127.0.0.1';
+            apiHost = parsedHost.href.replace(/\/$/, '');
+        }
+    } catch (e) {
+        // ignore
+    }
+    if (pathOrUrl.startsWith('/')) return `${apiHost}${pathOrUrl}`;
+    return `${apiHost}/${pathOrUrl}`;
+};
+// Robust fetch helper: tries absolute/relative and retries with 127.0.0.1 if localhost fails,
+// and avoids returning HTML pages (dev server 404) which break binary parsers like mammoth.
+const fetchArrayBufferFromUrl = async (rawUrl) => {
+    if (!rawUrl) throw new Error('No URL provided');
+
+    // Data URL -> convert directly
+    if (typeof rawUrl === 'string' && rawUrl.startsWith('data:')) {
+        const base64 = rawUrl.split(',')[1];
+        const binary = atob(base64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+    }
+
+    const tried = new Set();
+    const candidates = [];
+    if (typeof rawUrl === 'string') {
+        // If relative path
+        if (rawUrl.startsWith('/')) candidates.push(getServerFileUrl(rawUrl));
+        // Always try the raw string as given (could be absolute or blob/object URL)
+        candidates.push(rawUrl);
+        // If absolute and hostname is localhost, try 127.0.0.1 variant
+        try {
+            const u = new URL(rawUrl);
+            if (u.hostname === 'localhost') {
+                u.hostname = '127.0.0.1';
+                candidates.push(u.href);
+            }
+        } catch (e) {
+            // not an absolute URL
+        }
+        // Try decoded/encoded variants
+        try {
+            const decoded = decodeURIComponent(rawUrl);
+            if (decoded !== rawUrl) candidates.push(decoded);
+        } catch (e) {}
+        try {
+            const encoded = encodeURI(rawUrl);
+            if (encoded !== rawUrl) candidates.push(encoded);
+        } catch (e) {}
+        // If rawUrl looks like a path, try constructing from the uploads/documents location using last segment
+        try {
+            const last = rawUrl.split('/').pop();
+            if (last) {
+                const decodedLast = decodeURIComponent(last);
+                candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(decodedLast)}`));
+                // also try unencoded variant
+                candidates.push(getServerFileUrl(`/uploads/documents/${decodedLast}`));
+            }
+        } catch (e) {}
+        // Finally try constructing via getServerFileUrl as fallback
+        candidates.push(getServerFileUrl(rawUrl));
+    }
+
+    // Diagnostic: log candidate URLs
+    console.debug('fetchArrayBufferFromUrl candidates:', candidates);
+
+    for (const c of candidates) {
+        if (!c || tried.has(c)) continue;
+        tried.add(c);
+        try {
+            console.debug('Attempting fetch for:', c);
+            const resp = await fetch(c);
+            console.debug('Response status for', c, resp.status);
+            if (!resp.ok) {
+                // If 404, log and continue
+                console.warn('Fetch not ok for', c, resp.status, resp.statusText);
+                continue;
+            }
+            const contentType = resp.headers.get('content-type') || '';
+            // If server returned HTML (dev index/404), log snippet and skip it
+            if (contentType.includes('text/html')) {
+                try {
+                    const text = await resp.text();
+                    console.warn('Skipped HTML response for', c, 'snippet:', text.slice(0, 300));
+                } catch (e) {
+                    console.warn('Skipped HTML response for', c);
+                }
+                continue;
+            }
+            const ab = await resp.arrayBuffer();
+            console.debug('Successfully fetched binary from', c);
+            return ab;
+        } catch (err) {
+            console.warn('Error fetching candidate', c, err);
+            // try next
+            continue;
+        }
+    }
+    throw new Error('Failed to fetch binary file from provided URL(s)');
+};
+import apiClient from '@config/api/apiClient';
+import { generateGoogleCalendarUrl } from '@utils/googleCalendar';
+import {
+    reviewSavedNotif, reviewSaveFailedNotif,
+    changesSavedNotif, changesSaveFailedNotif,
+    reviewResubmittedNotif, reviewResubmitFailedNotif,
+    caseFinalizedNotif, legalAdviceFinalizedNotif,
+    statusUpdateFailedNotif, statusUpdateHaltedNotif,
+    returnedToInternNotif, returnToInternFailedNotif,
+    returnedToSupervisingNotif, returnToSupervisingFailedNotif,
+    approvedToDirectorNotif, approveToDirectorFailedNotif,
+    noReviewIdNotif, fileRequiredNotif, fileNotUploadedNotif, fileUploadFailedNotif,
+} from '@utils/notification';
 
 // --- Consolidated Constants ---
 const PRIMARY_GOLD = '#FFD700';
@@ -139,6 +282,77 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
     );
 });
 EvidenceTable.displayName = 'EvidenceTable';
+
+// Simple PDF viewer using pdfjs-dist
+const PdfViewer = ({ url, fileData }) => {
+    const [loading, setLoading] = React.useState(true);
+    const containerRef = React.useRef(null);
+
+    React.useEffect(() => {
+        let cancelled = false;
+        const renderPdf = async () => {
+            setLoading(true);
+            try {
+                // Get ArrayBuffer either from provided fileData (data URL) or fetch url
+                let arrayBuffer = null;
+                if (fileData && typeof fileData === 'string' && fileData.startsWith('data:')) {
+                    // convert base64 data URL to ArrayBuffer
+                    const base64 = fileData.split(',')[1];
+                    const binary = atob(base64);
+                    const len = binary.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+                    arrayBuffer = bytes.buffer;
+                } else if (fileData && fileData instanceof ArrayBuffer) {
+                    arrayBuffer = fileData;
+                } else if (url) {
+                    const resp = await fetch(url);
+                    arrayBuffer = await resp.arrayBuffer();
+                }
+
+                if (!arrayBuffer) throw new Error('No PDF data');
+
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                // Clear previous
+                if (containerRef.current) containerRef.current.innerHTML = '';
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 1.25 });
+                    const canvas = document.createElement('canvas');
+                    canvas.style.display = 'block';
+                    canvas.style.margin = '0 auto 12px';
+                    canvas.width = Math.floor(viewport.width);
+                    canvas.height = Math.floor(viewport.height);
+                    const ctx = canvas.getContext('2d');
+                    await page.render({ canvasContext: ctx, viewport }).promise;
+                    if (containerRef.current) containerRef.current.appendChild(canvas);
+                }
+            } catch (err) {
+                console.error('PDF render error', err);
+                if (containerRef.current) containerRef.current.innerHTML = '<div style="padding:20px;color:red;">Unable to preview PDF. Please download to view.</div>';
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        renderPdf();
+
+        return () => { cancelled = true; };
+    }, [url, fileData]);
+
+    return (
+        <div style={{ flex: 1, overflow: 'auto' }}>
+            {loading && (
+                <div style={{ textAlign: 'center', padding: 40 }}>
+                    <Text size="lg" fw={700} c={PRIMARY_BROWN}>Loading PDF...</Text>
+                </div>
+            )}
+            <div ref={containerRef} />
+        </div>
+    );
+};
 
 // ====================================================================================
 // 2. Client Interview and Evidence Section (Based on image_588eb7.png)
@@ -670,11 +884,14 @@ export default function CaseRecordFormsDisplay() {
     const [currentViewingDoc, setCurrentViewingDoc] = useState(null);
     const [wordDocHtml, setWordDocHtml] = useState(null);
     const [wordDocLoading, setWordDocLoading] = useState(false);
+    
     const [fileInputKey, setFileInputKey] = useState(Date.now()); // Key to reset file input
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const { caseId: caseIdParam } = useParams();
     const navigate = useNavigate();
+
+    const isFromAutoScheduledApproveFlow = Boolean(location?.state?.fromAutoScheduled);
 
     // Get caseId from URL params, search params, or location state
     const getCaseId = () => {
@@ -850,6 +1067,8 @@ export default function CaseRecordFormsDisplay() {
         fetchClientInfo();
     }, [getCaseId, isViewingExistingReview, interviewInfo.clientName, location]);
 
+    
+
     // Clear uploaded file when switching away from 'legal-document' case type
     useEffect(() => {
         if (interviewInfo.caseType && interviewInfo.caseType !== 'legal-document' && uploadedFile) {
@@ -920,6 +1139,31 @@ export default function CaseRecordFormsDisplay() {
         }
         
         setCurrentViewingDoc(docToView);
+        // Normalize server-relative or localhost URLs so fetches target the backend
+        try {
+            if (docToView?.fileUrl && typeof docToView.fileUrl === 'string') {
+                // If backend returned a relative path like "/uploads/..." convert it to absolute
+                if (docToView.fileUrl.startsWith('/')) {
+                    docToView.fileUrl = getServerFileUrl(docToView.fileUrl);
+                }
+
+                // Replace localhost with 127.0.0.1 to avoid IPv6 ::1 resolution issues
+                if (docToView.fileUrl.includes('localhost')) {
+                    docToView.fileUrl = docToView.fileUrl.replace('localhost', '127.0.0.1');
+                }
+
+                // If somehow the dev server origin was prepended (vite) adjust to backend API URL
+                if (docToView.fileUrl.includes(':5173/uploads')) {
+                    const backend = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
+                    const path = docToView.fileUrl.split(':5173')[1] || docToView.fileUrl;
+                    docToView.fileUrl = `${backend}${path}`;
+                }
+
+                console.log('Normalized document URL for preview:', docToView.fileUrl);
+            }
+        } catch (normalizeErr) {
+            console.warn('Error normalizing document URL', normalizeErr);
+        }
         
         // If it's a Word document, convert to HTML using mammoth
         const isWordDoc = docToView.fileType?.includes('word') || 
@@ -929,15 +1173,64 @@ export default function CaseRecordFormsDisplay() {
         if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
             setWordDocLoading(true);
             try {
-                // Fetch the Word document from the server or use fileData
-                const url = docToView.fileUrl || docToView.fileData;
-                const response = await fetch(url);
-                const arrayBuffer = await response.arrayBuffer();
-                
+                // Build candidate URLs to try (order matters)
+                const candidates = [];
+                if (docToView.fileData) candidates.push(docToView.fileData);
+                if (docToView.fileUrl) candidates.push(docToView.fileUrl);
+                // serverFile filename may exist
+                if (file?.serverFile?.filename) {
+                    candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(file.serverFile.filename)}`));
+                }
+                if (docToView.filename) {
+                    candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(docToView.filename)}`));
+                    candidates.push(getServerFileUrl(`/uploads/documents/${docToView.filename}`));
+                }
+                // try any documentVersions attached to interviewInfo or documentData
+                if (documentData?.fileUrl) candidates.push(documentData.fileUrl);
+                if (interviewInfo?.documentVersions && Array.isArray(interviewInfo.documentVersions)) {
+                    for (const v of interviewInfo.documentVersions) {
+                        if (v?.fileUrl) candidates.push(v.fileUrl);
+                        if (v?.filename) candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(v.filename)}`));
+                    }
+                }
+
+                let arrayBuffer = null;
+                let lastErr = null;
+                for (const cand of candidates) {
+                    if (!cand) continue;
+                    try {
+                        arrayBuffer = await fetchArrayBufferFromUrl(cand);
+                        if (arrayBuffer) break;
+                    } catch (e) {
+                        lastErr = e;
+                        console.warn('Candidate failed:', cand, e);
+                        continue;
+                    }
+                }
+                if (!arrayBuffer) {
+                    // Try server-side resolver to find a matching file
+                    try {
+                        const backend = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
+                        const resolveUrl = `${backend}/api/uploads/resolve?path=${encodeURIComponent(docToView.fileUrl || docToView.fileName || '')}`;
+                        console.debug('Attempting resolver:', resolveUrl);
+                        const r = await fetch(resolveUrl);
+                        if (r.ok) {
+                            const jr = await r.json();
+                            if (jr?.found && jr?.url) {
+                                console.debug('Resolver returned', jr.url);
+                                arrayBuffer = await fetchArrayBufferFromUrl(getServerFileUrl(jr.url));
+                            }
+                        }
+                    } catch (resErr) {
+                        console.warn('Resolver attempt failed', resErr);
+                    }
+                }
+                if (!arrayBuffer) throw lastErr || new Error('No candidate URLs worked');
+
                 // Convert to HTML using mammoth
                 const result = await mammoth.convertToHtml({ arrayBuffer });
                 setWordDocHtml(result.value);
-                
+
                 if (result.messages.length > 0) {
                     console.log('Mammoth conversion messages:', result.messages);
                 }
@@ -951,6 +1244,8 @@ export default function CaseRecordFormsDisplay() {
         
         setViewerModalOpened(true);
     };
+
+    
     
     // Handler for downloading document
     const handleDownloadDocument = (file, documentData) => {
@@ -970,6 +1265,11 @@ export default function CaseRecordFormsDisplay() {
         
         const fileName = file?.name || docData?.fileName || 'document';
         
+        // Normalize server-relative URLs to backend absolute URLs
+        if (typeof url === 'string' && url.startsWith('/')) {
+            url = getServerFileUrl(url);
+        }
+
         if (!url) {
             console.error('No URL available for download');
             return;
@@ -1042,7 +1342,7 @@ export default function CaseRecordFormsDisplay() {
                 });
             } catch (error) {
                 console.error('Error uploading document:', error);
-                alert('Failed to upload document. Please try again.');
+                fileUploadFailedNotif();
                 return;
             }
         } else {
@@ -1088,7 +1388,7 @@ export default function CaseRecordFormsDisplay() {
         
         // Check if file is required but not uploaded
         if (interviewInfo.caseType === 'legal-document' && !uploadedFile) {
-            alert('Please upload a Word document for legal document drafting cases.');
+            fileRequiredNotif();
             return;
         }
         
@@ -1119,7 +1419,7 @@ export default function CaseRecordFormsDisplay() {
                 };
             } else {
                 // Shouldn't happen with current logic, but handle as fallback
-                alert('File was not uploaded to server. Please try uploading again.');
+                fileNotUploadedNotif();
                 return;
             }
         }
@@ -1155,7 +1455,6 @@ export default function CaseRecordFormsDisplay() {
         // Helper to ensure status updates actually persist before proceeding
         const updateCaseStatus = async (status) => {
             try {
-                const { default: apiClient } = await import('@config/api/apiClient');
                 const resp = await apiClient.put(`/clientsinfo/${caseId}`, { status });
                 if (resp?.status >= 200 && resp.status < 300) return true;
                 console.error('Primary status update failed', resp?.status, resp?.data);
@@ -1164,14 +1463,9 @@ export default function CaseRecordFormsDisplay() {
             }
 
             try {
-                const fallback = await fetch(`/api/clientsinfo/${caseId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status }),
-                });
-                if (fallback.ok) return true;
-                const text = await fallback.text();
-                console.error('Fallback status update failed', fallback.status, text);
+                const fallback = await apiClient.put(`/clientsinfo/${caseId}`, { status });
+                if (fallback?.status >= 200 && fallback.status < 300) return true;
+                console.error('Fallback status update failed', fallback?.status);
             } catch (fallbackErr) {
                 console.error('Fallback status update error', fallbackErr);
             }
@@ -1181,6 +1475,72 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
+
+            // Special flow: opened from Auto-Scheduled "Approve & Recommend"
+            // - Save the recommendation form
+            // - Record to calendar (create event)
+            // - Open pre-filled Google Calendar event
+            // - Do NOT redirect to dashboard yet
+            // - Do NOT change clientsinfo status here (card must remain in Auto-Scheduled)
+            if (isFromAutoScheduledApproveFlow && active === totalSteps - 1) {
+                // Pre-open a tab to avoid popup blockers (best-effort).
+                const calendarTab = window.open('about:blank', '_blank');
+                const resReview = await apiClient.post('/reviews', reviewPayload);
+                const saved = resReview.data;
+                await fetchReviews(caseId);
+
+                try {
+                    const clientResp = await apiClient.get(`/clientsinfo/${caseId}`);
+                    const clientData = clientResp?.data;
+
+                    const eventDate = clientData?.appointedDate || clientData?.createdAt;
+                    const appointmentTime = clientData?.appointmentTime || '';
+                    const clientName = clientData?.fullName || clientData?.name || completeInterviewInfo?.clientName || '';
+                    const locationValue = clientData?.caseDetails?.location || '';
+                    const purposeValue = clientData?.caseDetails?.purpose || '';
+
+                    if (eventDate) {
+                        const title = clientName ? `${clientName} - Interview` : 'Client Interview';
+                        const description = [
+                            purposeValue ? `Purpose: ${purposeValue}` : '',
+                            appointmentTime ? `Time: ${appointmentTime}` : '',
+                            'Saved from Recommendation for Action form.'
+                        ].filter(Boolean).join('\n');
+
+                        await apiClient.post('/events', {
+                            title,
+                            description,
+                            eventDate,
+                            eventType: 'appointment',
+                            location: locationValue,
+                            clientName,
+                            assignedTo: userData?.email || (userData?.firstName && userData?.lastName ? `${userData.firstName} ${userData.lastName}` : ''),
+                            priority: 'Medium',
+                            status: 'scheduled',
+                        });
+
+                        const googleCalendarUrl = generateGoogleCalendarUrl({
+                            title,
+                            appointmentDate: eventDate,
+                            appointmentTime,
+                            location: locationValue,
+                            description,
+                        });
+                        if (calendarTab) {
+                            calendarTab.location.href = googleCalendarUrl;
+                        } else {
+                            window.open(googleCalendarUrl, '_blank');
+                        }
+                    }
+                } catch (calendarErr) {
+                    console.error('Calendar recording/open failed:', calendarErr);
+                }
+
+                reviewSavedNotif();
+                console.log('Saved review (auto-scheduled flow)', saved);
+                navigate('/admin/clientformstatus', { replace: true });
+                return;
+            }
             
             // Intern behavior on Step 1 - check which button was clicked via a flag
             // This will be set by the button click handler
@@ -1192,13 +1552,13 @@ export default function CaseRecordFormsDisplay() {
                     // Intern finalizing a legal advice case
                     const statusOk = await updateCaseStatus('legal-advice');
                     if (!statusOk) {
-                        alert('Failed to update case status. Please try again.');
+                        statusUpdateFailedNotif();
                         setSaving(false);
                         return;
                     }
 
                     console.log('Status updated to legal-advice for intern finalize');
-                    alert('Legal advice case finalized successfully!');
+                    legalAdviceFinalizedNotif();
                     
                     // Redirect to Client Form Status
                     navigate('/admin/clientformstatus');
@@ -1207,7 +1567,7 @@ export default function CaseRecordFormsDisplay() {
                     // Intern submitting for review (or finalizing non-legal-advice)
                     const statusOk = await updateCaseStatus('confirmed');
                     if (!statusOk) {
-                        alert('Failed to update case status. Please try again.');
+                        statusUpdateFailedNotif();
                         setSaving(false);
                         return;
                     }
@@ -1234,7 +1594,7 @@ export default function CaseRecordFormsDisplay() {
 
                 const statusOk = await updateCaseStatus(finalStatus);
                 if (!statusOk) {
-                    alert('Failed to update case status. Finalization halted. Please try again.');
+                    statusUpdateHaltedNotif();
                     setSaving(false);
                     return;
                 }
@@ -1251,36 +1611,19 @@ export default function CaseRecordFormsDisplay() {
                         actionInfo: { ...actionInfo, decision: finalDecision }
                     }
                 }
-                const resFinalize = await fetch('/api/finalize', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(finalizePayload)
-                })
-                const finalizeText = await resFinalize.text()
-                if (!resFinalize.ok) {
-                    console.error('POST /api/finalize failed', resFinalize.status, finalizeText)
-                    throw new Error(`Finalize save failed: ${resFinalize.status} ${finalizeText}`)
-                }
-                const savedFinalize = finalizeText ? JSON.parse(finalizeText) : null
-                console.log('Saved finalize', savedFinalize)
+                const resFinalize = await apiClient.post('/finalize', finalizePayload)
+                console.log('Saved finalize', resFinalize.data)
                 
                 // Delete the review record from reviews collection after finalizing
                 try {
-                    const deleteRes = await fetch(`/api/reviews/case/${caseId}`, {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' }
-                    })
-                    if (deleteRes.ok) {
-                        console.log('Review deleted successfully after finalization')
-                    } else {
-                        console.error('Failed to delete review after finalization', deleteRes.status)
-                    }
+                    await apiClient.delete(`/reviews/case/${caseId}`)
+                    console.log('Review deleted successfully after finalization')
                 } catch (deleteErr) {
                     console.error('Error deleting review:', deleteErr)
                     // Don't throw here, finalization was successful
                 }
                 
-                alert('Case finalized and saved successfully!')
+                caseFinalizedNotif()
                 await fetchReviews(caseId)
                 
                 // Redirect to dashboard
@@ -1288,21 +1631,12 @@ export default function CaseRecordFormsDisplay() {
                 return
             }
 
-            const resReview = await fetch('/api/reviews', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(reviewPayload)
-            });
-            const reviewText = await resReview.text();
-            if (!resReview.ok) {
-                console.error('POST /api/reviews failed', resReview.status, reviewText);
-                throw new Error(`Review save failed: ${resReview.status} ${reviewText}`);
-            }
-            const saved = reviewText ? JSON.parse(reviewText) : null;
+            const resReview = await apiClient.post('/reviews', reviewPayload);
+            const saved = resReview.data;
             console.log('Successfully saved review:', saved);
             await fetchReviews(caseId);
 
-            alert('Interview and evidence data saved successfully!');
+            reviewSavedNotif();
             console.log('Saved review', saved);
             
             // Redirect to dashboard based on user role
@@ -1318,7 +1652,7 @@ export default function CaseRecordFormsDisplay() {
             navigate(getDashboardPath(), { replace: true });
         } catch (err) {
             console.error('handleSubmit error:', err);
-            alert(`Failed to save data: ${err.message}`);
+            reviewSaveFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1327,17 +1661,8 @@ export default function CaseRecordFormsDisplay() {
     const fetchReviews = async (caseIdParam) => {
         const caseId = caseIdParam || getCaseId();
         try {
-            const res = await fetch(`/api/reviews/${caseId}`)
-            if (!res.ok) {
-                // If no reviews found, that's okay - it's a new case
-                if (res.status === 404) {
-                    console.log('No existing reviews found for case:', caseId);
-                    return;
-                }
-                throw new Error('Failed to fetch reviews')
-            }
-            const data = await res.json()
-            setReviews(data)
+            const res = await apiClient.get(`/reviews/${caseId}`)
+            setReviews(res.data)
             // Only load data if opened from dashboard and data exists
             // (Data from location.state is already loaded in the location useEffect)
             // Don't auto-load data when opened from sidebar - keep it clean
@@ -1348,13 +1673,13 @@ export default function CaseRecordFormsDisplay() {
 
     const handleSaveChanges = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
         // Check if file is required but not uploaded (only if there was never a file)
         if (interviewInfo.caseType === 'legal-document' && !uploadedFile && !interviewInfo.uploadedDocument) {
-            alert('Please upload a Word document for legal document drafting cases.');
+            fileRequiredNotif();
             return;
         }
 
@@ -1387,7 +1712,7 @@ export default function CaseRecordFormsDisplay() {
                 };
             } else {
                 // Shouldn't happen with current logic, but handle as fallback
-                alert('File was not uploaded to server. Please try uploading again.');
+                fileNotUploadedNotif();
                 return;
             }
         } else if (interviewInfo.uploadedDocument) {
@@ -1417,22 +1742,12 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully updated review:', updated);
-            alert('Changes saved successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully updated review:', response.data);
+            changesSavedNotif();
         } catch (err) {
             console.error('handleSaveChanges error:', err);
-            alert(`Failed to save changes: ${err.message}`);
+            changesSaveFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1441,7 +1756,7 @@ export default function CaseRecordFormsDisplay() {
     // Handler for intern to resubmit review after making revisions
     const handleResubmitForReview = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
@@ -1484,25 +1799,15 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully resubmitted review:', updated);
-            alert('Review resubmitted successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully resubmitted review:', response.data);
+            reviewResubmittedNotif();
             
             // Redirect to dashboard
             navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleResubmitForReview error:', err);
-            alert(`Failed to resubmit review: ${err.message}`);
+            reviewResubmitFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1511,7 +1816,7 @@ export default function CaseRecordFormsDisplay() {
     // Handler for supervising lawyer to return review to intern
     const handleReturnToIntern = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
@@ -1554,25 +1859,15 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully returned to intern:', updated);
-            alert('Review returned to intern successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully returned to intern:', response.data);
+            returnedToInternNotif();
             
             // Redirect to dashboard
             navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleReturnToIntern error:', err);
-            alert(`Failed to return review: ${err.message}`);
+            returnToInternFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1581,7 +1876,7 @@ export default function CaseRecordFormsDisplay() {
     // Handler for director to return review to supervising lawyer
     const handleReturnToSupervisingLawyer = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
@@ -1624,25 +1919,15 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully returned to supervising lawyer:', updated);
-            alert('Review returned to supervising lawyer successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully returned to supervising lawyer:', response.data);
+            returnedToSupervisingNotif();
             
             // Redirect to dashboard
             navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleReturnToSupervisingLawyer error:', err);
-            alert(`Failed to return review: ${err.message}`);
+            returnToSupervisingFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1651,7 +1936,7 @@ export default function CaseRecordFormsDisplay() {
     // Handler for supervising lawyer to approve and send to director
     const handleApproveToDirector = async () => {
         if (!reviewId) {
-            alert('No review ID found');
+            noReviewIdNotif();
             return;
         }
 
@@ -1694,25 +1979,15 @@ export default function CaseRecordFormsDisplay() {
 
         try {
             setSaving(true);
-            const response = await fetch(`/api/reviews/${reviewId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Update failed: ${response.status}`);
-            }
-
-            const updated = await response.json();
-            console.log('Successfully moved to director review:', updated);
-            alert('Review approved and sent to director successfully!');
+            const response = await apiClient.put(`/reviews/${reviewId}`, updatePayload);
+            console.log('Successfully moved to director review:', response.data);
+            approvedToDirectorNotif();
             
             // Redirect to dashboard
             navigate('/admin', { replace: true });
         } catch (err) {
             console.error('handleApproveToDirector error:', err);
-            alert(`Failed to approve review: ${err.message}`);
+            approveToDirectorFailedNotif(err.message);
         } finally {
             setSaving(false);
         }
@@ -1794,7 +2069,7 @@ export default function CaseRecordFormsDisplay() {
                                 <IconFileText size={24} color={PRIMARY_BROWN} stroke={2.5} />
                             </Box>
                             <Title order={2} c="white">
-                                Case Documentation Process
+                                
                             </Title>
                         </Group>
                         <Button
@@ -1874,6 +2149,8 @@ export default function CaseRecordFormsDisplay() {
                                 </Group>
                             </Paper>
                         )}
+
+                        
 
                         {/* Stepper Display */}
                         <Stepper 
@@ -2159,12 +2436,8 @@ export default function CaseRecordFormsDisplay() {
                         
                         <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
                             {currentViewingDoc.fileType?.includes('pdf') || currentViewingDoc.fileName?.endsWith('.pdf') ? (
-                                // PDF - embed directly (works for both server URLs and base64)
-                                <iframe
-                                    src={currentViewingDoc.fileUrl || currentViewingDoc.fileData}
-                                    style={{ width: '100%', height: '100%', minHeight: '75vh', border: 'none', flex: 1 }}
-                                    title="PDF Viewer"
-                                />
+                                // PDF - use PdfViewer for reliable in-app rendering
+                                <PdfViewer url={currentViewingDoc.fileUrl ? getServerFileUrl(currentViewingDoc.fileUrl) : null} fileData={currentViewingDoc.fileData} />
                             ) : (currentViewingDoc.fileType?.includes('word') || currentViewingDoc.fileName?.endsWith('.docx') || currentViewingDoc.fileName?.endsWith('.doc')) ? (
                                 // Word Document - Render using mammoth.js
                                 <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

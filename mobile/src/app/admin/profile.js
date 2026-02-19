@@ -1,521 +1,535 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  Alert,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  TextInput, ActivityIndicator, Alert, Image, Modal, FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from 'context/authContext';
-import apiClient from '../../api/apiClient';
+import { updateAdminProfile, updateAttorneyProfile, updateProfileImage, fetchUserProfile } from '../../api/userApi';
+import { uploadToCloudinary } from 'utils/cloudinary';
+import { PRIMARY_BROWN, PRIMARY_GOLD, CHARCOAL, MUTED_OLIVE, ACCENT_TAN } from 'utils/constants';
 
-const PRIMARY_BROWN = '#7D5A3B';
-const PRIMARY_GOLD = '#C4AB7D';
-const MUTED_OLIVE = '#9BA17B';
-const CHARCOAL = '#2C2C2C';
-const THEMED_LIGHT_BG = '#FAF8F3';
+const ATTORNEY_ROLES = ['attorney', 'pao_lawyer', 'legal_volunteer'];
 
-const AdminProfile = () => {
-  const router = useRouter();
-  const { user: authUser } = useAuth();
+const ROLE_LABELS = {
+  secretary: 'Secretary', intern: 'Intern', director: 'Director',
+  supervising_lawyer: 'Supervising Lawyer', attorney: 'Attorney',
+  pao_lawyer: 'PAO Lawyer', legal_volunteer: 'Legal Volunteer',
+};
+
+const SPECIALIZATIONS = [
+  'Criminal Law', 'Civil Law', 'Family Law', 'Labor Law', 'Commercial Law',
+  'Tax Law', 'Immigration Law', 'Land and Property Law', 'Human Rights',
+  'Environmental Law', 'Agrarian Law', 'Administrative Law',
+  'Corporate Law', 'Intellectual Property', 'Other',
+];
+
+const LANGUAGES = [
+  'English', 'Filipino/Tagalog', 'Cebuano', 'Ilocano', 'Hiligaynon',
+  'Waray', 'Kapampangan', 'Bikol', 'Pangasinan', 'Other',
+];
+
+const CONSULTATION_MODES = ['In-person', 'Virtual', 'Phone'];
+
+export default function AdminProfile() {
+  const { userData: authUserData, loading: authLoading, refreshUserData } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [profileImage, setProfileImage] = useState('');
+  const [editedData, setEditedData] = useState({});
+  const [multiSelectModal, setMultiSelectModal] = useState(null); // 'specializations' | 'languages' | 'consultationMode'
 
-  const [userData, setUserData] = useState({
-    firstName: '',
-    middleName: '',
-    lastName: '',
-    email: '',
-    phoneNumber: '',
-    address: {
-      street: '',
-      barangay: '',
-      city: '',
-      province: '',
-      region: '',
-      zipCode: '',
-    },
-    adminRole: '',
-    department: '',
-  });
-
-  const [editedData, setEditedData] = useState(userData);
+  const isAttorney = ATTORNEY_ROLES.includes(authUserData?.role);
+  const userRole = authUserData?.role || 'secretary';
+  const roleLabel = ROLE_LABELS[userRole] || userRole;
 
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    if (!authUserData) return;
+    fetchUserProfile().then(data => {
+      if (data?.profileImage) setProfileImage(data.profileImage);
+    }).catch(() => {});
 
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get('/admin/profile');
-      if (response.data.success) {
-        const profileData = response.data.data;
-        setUserData(profileData);
-        setEditedData(profileData);
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      Alert.alert('Error', 'Failed to load profile data');
-    } finally {
-      setLoading(false);
+    const base = {
+      firstName: authUserData.firstName || '',
+      lastName: authUserData.lastName || '',
+      email: authUserData.email || '',
+      username: authUserData.username || '',
+      role: authUserData.role || '',
+      verified: authUserData.isVerified || false,
+      memberSince: authUserData.createdAt ? new Date(authUserData.createdAt).getFullYear().toString() : '',
+    };
+
+    if (isAttorney) {
+      setEditedData({
+        ...base,
+        middleName: authUserData.middleName || '',
+        suffix: authUserData.suffix || '',
+        prcLicenseNumber: authUserData.prcLicenseNumber || '',
+        ibrNumber: authUserData.ibrNumber || '',
+        barAdmissionDate: authUserData.barAdmissionDate
+          ? new Date(authUserData.barAdmissionDate).toISOString().split('T')[0] : '',
+        lawFirm: authUserData.lawFirm || '',
+        isPAOLawyer: authUserData.isPAOLawyer || false,
+        paoOffice: authUserData.paoOffice || '',
+        specializations: authUserData.specializations || [],
+        languages: authUserData.languages || [],
+        consultationMode: authUserData.consultationMode || [],
+        biography: authUserData.biography || '',
+        isAvailable: authUserData.isAvailable ?? true,
+      });
+    } else {
+      setEditedData(base);
     }
-  };
+  }, [authUserData, isAttorney]);
+
+  const completeness = useMemo(() => {
+    if (isAttorney) {
+      const fields = [
+        editedData.firstName, editedData.lastName, editedData.email,
+        editedData.prcLicenseNumber, editedData.ibrNumber,
+        editedData.barAdmissionDate, editedData.lawFirm,
+        editedData.specializations?.length > 0 ? 'filled' : '',
+        editedData.languages?.length > 0 ? 'filled' : '',
+        editedData.biography,
+      ];
+      const filled = fields.filter(f => f && (typeof f === 'string' ? f.trim() : true)).length;
+      return Math.round((filled / fields.length) * 100);
+    }
+    const fields = [editedData.firstName, editedData.lastName, editedData.email];
+    const filled = fields.filter(f => f && f.trim()).length;
+    return Math.round((filled / fields.length) * 100);
+  }, [editedData, isAttorney]);
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      const response = await apiClient.put('/admin/profile', editedData);
-      if (response.data.success) {
-        setUserData(editedData);
-        setIsEditing(false);
-        Alert.alert('Success', 'Profile updated successfully');
+      if (isAttorney) {
+        await updateAttorneyProfile(editedData);
+      } else {
+        await updateAdminProfile(editedData);
       }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      Alert.alert('Error', 'Failed to update profile');
+      Alert.alert('Success', 'Profile updated successfully');
+      setIsEditing(false);
+      refreshUserData?.();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleCancel = () => {
-    setEditedData(userData);
-    setIsEditing(false);
+  const handleImageUpload = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled) return;
+      setUploadingImage(true);
+      const imageUrl = await uploadToCloudinary(result.assets[0].uri);
+      await updateProfileImage(imageUrl);
+      setProfileImage(imageUrl);
+      refreshUserData?.();
+      Alert.alert('Success', 'Profile photo updated');
+    } catch (err) {
+      Alert.alert('Error', 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
-  const handleInputChange = (field, value) => {
+  const handleChange = (field, value) => {
     setEditedData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleAddressChange = (field, value) => {
-    setEditedData(prev => ({
-      ...prev,
-      address: { ...prev.address, [field]: value }
-    }));
+  const toggleMultiSelect = (field, value) => {
+    setEditedData(prev => {
+      const current = prev[field] || [];
+      return {
+        ...prev,
+        [field]: current.includes(value) ? current.filter(v => v !== value) : [...current, value],
+      };
+    });
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Profile</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_BROWN} />
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  if (authLoading) return (
+    <View style={s.loadingContainer}>
+      <ActivityIndicator size="large" color={PRIMARY_BROWN} />
+    </View>
+  );
 
-  const displayData = isEditing ? editedData : userData;
+  const initials = `${(editedData.firstName || '?')[0]}${(editedData.lastName || '?')[0]}`.toUpperCase();
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Profile</Text>
-        {!isEditing ? (
-          <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.editButton}>
-            <Ionicons name="create-outline" size={24} color="white" />
+    <View style={s.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Profile Card */}
+        <View style={s.profileCard}>
+          <TouchableOpacity style={s.avatarContainer} onPress={handleImageUpload} disabled={uploadingImage}>
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={s.avatar} />
+            ) : (
+              <View style={[s.avatar, s.avatarPlaceholder]}>
+                <Ionicons name={isAttorney ? 'briefcase' : 'shield-checkmark'} size={40} color="#fff" />
+              </View>
+            )}
+            <View style={s.cameraOverlay}>
+              {uploadingImage ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="camera" size={16} color="#fff" />
+              )}
+            </View>
+            {editedData.verified && (
+              <View style={s.verifiedBadge}>
+                <Ionicons name="shield-checkmark" size={14} color="#fff" />
+              </View>
+            )}
           </TouchableOpacity>
-        ) : (
-          <View style={styles.placeholder} />
-        )}
-      </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {/* Avatar Section */}
-        <View style={styles.avatarSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {userData.firstName?.[0]}{userData.lastName?.[0]}
-            </Text>
-          </View>
-          <Text style={styles.displayName}>
-            {userData.firstName} {userData.middleName} {userData.lastName}
+          <Text style={s.profileName}>
+            {editedData.firstName} {isAttorney && editedData.middleName ? `${editedData.middleName} ` : ''}
+            {editedData.lastName}{isAttorney && editedData.suffix ? ` ${editedData.suffix}` : ''}
           </Text>
-          <View style={styles.roleBadge}>
-            <Ionicons name="shield-checkmark" size={16} color="white" />
-            <Text style={styles.roleText}>{userData.adminRole || 'Administrator'}</Text>
+          <Text style={s.profileUsername}>@{editedData.username}</Text>
+
+          <View style={s.badgeRow}>
+            <View style={[s.badge, { backgroundColor: `${PRIMARY_BROWN}20` }]}>
+              <Text style={[s.badgeText, { color: PRIMARY_BROWN }]}>{roleLabel}</Text>
+            </View>
+            {isAttorney && editedData.isPAOLawyer && (
+              <View style={[s.badge, { backgroundColor: '#00BCD420' }]}>
+                <Text style={[s.badgeText, { color: '#00BCD4' }]}>PAO</Text>
+              </View>
+            )}
+            {editedData.memberSince && (
+              <View style={[s.badge, { backgroundColor: '#eee' }]}>
+                <Text style={[s.badgeText, { color: '#666' }]}>Since {editedData.memberSince}</Text>
+              </View>
+            )}
           </View>
+
+          {/* Completeness */}
+          <View style={s.completenessContainer}>
+            <View style={s.completenessHeader}>
+              <Text style={s.completenessLabel}>Profile Completeness</Text>
+              <Text style={s.completenessValue}>{completeness}%</Text>
+            </View>
+            <View style={s.progressBg}>
+              <View style={[s.progressFill, { width: `${completeness}%`, backgroundColor: completeness === 100 ? '#22c55e' : PRIMARY_GOLD }]} />
+            </View>
+          </View>
+
+          {!isEditing ? (
+            <TouchableOpacity style={s.editBtn} onPress={() => setIsEditing(true)}>
+              <Ionicons name="create-outline" size={18} color={PRIMARY_BROWN} />
+              <Text style={s.editBtnText}>Edit Profile</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={s.actionBtns}>
+              <TouchableOpacity style={s.saveBtn} onPress={handleSave} disabled={saving}>
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : (
+                  <>
+                    <Ionicons name="checkmark" size={18} color="#fff" />
+                    <Text style={s.saveBtnText}>Save Changes</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={s.cancelBtn} onPress={() => setIsEditing(false)} disabled={saving}>
+                <Text style={s.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Personal Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>First Name</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.input}
-                value={displayData.firstName}
-                onChangeText={(text) => handleInputChange('firstName', text)}
-              />
-            ) : (
-              <Text style={styles.valueText}>{displayData.firstName}</Text>
-            )}
+        <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <Ionicons name="person-outline" size={16} color={ACCENT_TAN} />
+            <Text style={s.sectionTitle}>PERSONAL INFORMATION</Text>
           </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Middle Name</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.input}
-                value={displayData.middleName}
-                onChangeText={(text) => handleInputChange('middleName', text)}
-              />
-            ) : (
-              <Text style={styles.valueText}>{displayData.middleName || 'Not specified'}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last Name</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.input}
-                value={displayData.lastName}
-                onChangeText={(text) => handleInputChange('lastName', text)}
-              />
-            ) : (
-              <Text style={styles.valueText}>{displayData.lastName}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.emailContainer}>
-              <Text style={styles.valueText}>{displayData.email}</Text>
-              {userData.verified && (
-                <Ionicons name="checkmark-circle" size={18} color={MUTED_OLIVE} />
-              )}
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone Number</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.input}
-                value={displayData.phoneNumber}
-                onChangeText={(text) => handleInputChange('phoneNumber', text)}
-                keyboardType="phone-pad"
-              />
-            ) : (
-              <Text style={styles.valueText}>{displayData.phoneNumber || 'Not specified'}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Department</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.input}
-                value={displayData.department}
-                onChangeText={(text) => handleInputChange('department', text)}
-              />
-            ) : (
-              <Text style={styles.valueText}>{displayData.department || 'Not specified'}</Text>
-            )}
+          <View style={s.fieldGrid}>
+            {renderField('First Name', 'firstName')}
+            {isAttorney && renderField('Middle Name', 'middleName')}
+            {renderField('Last Name', 'lastName')}
+            {isAttorney && renderField('Suffix', 'suffix', 'Jr., Sr., III, etc.')}
           </View>
         </View>
 
-        {/* Address Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Address Information</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Street</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.input}
-                value={displayData.address?.street}
-                onChangeText={(text) => handleAddressChange('street', text)}
-              />
-            ) : (
-              <Text style={styles.valueText}>{displayData.address?.street || 'Not specified'}</Text>
-            )}
+        {/* Account Information */}
+        <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <Ionicons name="mail-outline" size={16} color={ACCENT_TAN} />
+            <Text style={s.sectionTitle}>ACCOUNT INFORMATION</Text>
           </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Barangay</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.input}
-                value={displayData.address?.barangay}
-                onChangeText={(text) => handleAddressChange('barangay', text)}
-              />
-            ) : (
-              <Text style={styles.valueText}>{displayData.address?.barangay || 'Not specified'}</Text>
-            )}
-          </View>
-
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.label}>City</Text>
-              {isEditing ? (
-                <TextInput
-                  style={styles.input}
-                  value={displayData.address?.city}
-                  onChangeText={(text) => handleAddressChange('city', text)}
-                />
-              ) : (
-                <Text style={styles.valueText}>{displayData.address?.city || 'N/A'}</Text>
-              )}
+          <View style={s.fieldGrid}>
+            <View style={s.fieldItem}>
+              <Text style={s.fieldLabel}>Email Address</Text>
+              <Text style={s.fieldValue}>{editedData.email || 'Not set'}</Text>
             </View>
-
-            <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-              <Text style={styles.label}>Zip Code</Text>
-              {isEditing ? (
-                <TextInput
-                  style={styles.input}
-                  value={displayData.address?.zipCode}
-                  onChangeText={(text) => handleAddressChange('zipCode', text)}
-                  keyboardType="numeric"
-                />
-              ) : (
-                <Text style={styles.valueText}>{displayData.address?.zipCode || 'N/A'}</Text>
-              )}
+            <View style={s.fieldItem}>
+              <Text style={s.fieldLabel}>Username</Text>
+              <Text style={s.fieldValue}>{editedData.username || 'Not set'}</Text>
             </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Province</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.input}
-                value={displayData.address?.province}
-                onChangeText={(text) => handleAddressChange('province', text)}
-              />
-            ) : (
-              <Text style={styles.valueText}>{displayData.address?.province || 'Not specified'}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Region</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.input}
-                value={displayData.address?.region}
-                onChangeText={(text) => handleAddressChange('region', text)}
-              />
-            ) : (
-              <Text style={styles.valueText}>{displayData.address?.region || 'Not specified'}</Text>
-            )}
+            <View style={s.fieldItem}>
+              <Text style={s.fieldLabel}>Role</Text>
+              <Text style={s.fieldValue}>{roleLabel}</Text>
+            </View>
           </View>
         </View>
 
-        {/* Action Buttons */}
-        {isEditing && (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={handleCancel}
-              disabled={saving}
-            >
-              <Ionicons name="close" size={20} color={CHARCOAL} />
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
+        {/* Attorney Professional Credentials */}
+        {isAttorney && (
+          <>
+            <View style={s.section}>
+              <View style={s.sectionHeader}>
+                <Ionicons name="ribbon-outline" size={16} color={ACCENT_TAN} />
+                <Text style={s.sectionTitle}>PROFESSIONAL CREDENTIALS</Text>
+              </View>
+              <View style={s.fieldGrid}>
+                {renderField('PRC License Number', 'prcLicenseNumber')}
+                {renderField('IBR Number', 'ibrNumber')}
+                {renderField('Bar Admission Date', 'barAdmissionDate', 'YYYY-MM-DD')}
+                {renderField('Law Firm / Office', 'lawFirm')}
+                {isEditing && (
+                  <TouchableOpacity
+                    style={s.checkboxRow}
+                    onPress={() => handleChange('isPAOLawyer', !editedData.isPAOLawyer)}
+                  >
+                    <Ionicons name={editedData.isPAOLawyer ? 'checkbox' : 'square-outline'} size={22} color={PRIMARY_BROWN} />
+                    <Text style={s.checkboxLabel}>PAO Lawyer</Text>
+                  </TouchableOpacity>
+                )}
+                {editedData.isPAOLawyer && renderField('PAO Office', 'paoOffice')}
+              </View>
+            </View>
 
-            <TouchableOpacity
-              style={[styles.button, styles.saveButton]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="white" />
+            {/* Specializations & Languages */}
+            <View style={s.section}>
+              <View style={s.sectionHeader}>
+                <Ionicons name="briefcase-outline" size={16} color={ACCENT_TAN} />
+                <Text style={s.sectionTitle}>PRACTICE AREAS & LANGUAGES</Text>
+              </View>
+
+              <Text style={s.fieldLabel}>Specializations</Text>
+              {isEditing ? (
+                <TouchableOpacity style={s.multiSelectBtn} onPress={() => setMultiSelectModal('specializations')}>
+                  <Text style={s.multiSelectBtnText}>
+                    {editedData.specializations?.length > 0
+                      ? `${editedData.specializations.length} selected`
+                      : 'Select specializations'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={MUTED_OLIVE} />
+                </TouchableOpacity>
+              ) : null}
+              <View style={s.chipRow}>
+                {(editedData.specializations || []).map(sp => (
+                  <View key={sp} style={s.chip}>
+                    <Text style={s.chipText}>{sp}</Text>
+                  </View>
+                ))}
+                {editedData.specializations?.length === 0 && !isEditing && (
+                  <Text style={s.notSet}>Not set</Text>
+                )}
+              </View>
+
+              <Text style={[s.fieldLabel, { marginTop: 16 }]}>Languages</Text>
+              {isEditing ? (
+                <TouchableOpacity style={s.multiSelectBtn} onPress={() => setMultiSelectModal('languages')}>
+                  <Text style={s.multiSelectBtnText}>
+                    {editedData.languages?.length > 0
+                      ? `${editedData.languages.length} selected`
+                      : 'Select languages'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={MUTED_OLIVE} />
+                </TouchableOpacity>
+              ) : null}
+              <View style={s.chipRow}>
+                {(editedData.languages || []).map(lang => (
+                  <View key={lang} style={[s.chip, { backgroundColor: '#E8F5E920' }]}>
+                    <Text style={[s.chipText, { color: '#2E7D32' }]}>{lang}</Text>
+                  </View>
+                ))}
+                {editedData.languages?.length === 0 && !isEditing && (
+                  <Text style={s.notSet}>Not set</Text>
+                )}
+              </View>
+
+              <Text style={[s.fieldLabel, { marginTop: 16 }]}>Consultation Mode</Text>
+              {isEditing ? (
+                <TouchableOpacity style={s.multiSelectBtn} onPress={() => setMultiSelectModal('consultationMode')}>
+                  <Text style={s.multiSelectBtnText}>
+                    {editedData.consultationMode?.length > 0
+                      ? editedData.consultationMode.join(', ')
+                      : 'Select modes'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={MUTED_OLIVE} />
+                </TouchableOpacity>
+              ) : null}
+              <View style={s.chipRow}>
+                {(editedData.consultationMode || []).map(mode => (
+                  <View key={mode} style={[s.chip, { backgroundColor: '#E3F2FD20' }]}>
+                    <Text style={[s.chipText, { color: '#1565C0' }]}>{mode}</Text>
+                  </View>
+                ))}
+                {editedData.consultationMode?.length === 0 && !isEditing && (
+                  <Text style={s.notSet}>Not set</Text>
+                )}
+              </View>
+            </View>
+
+            {/* Biography */}
+            <View style={s.section}>
+              <View style={s.sectionHeader}>
+                <Ionicons name="document-text-outline" size={16} color={ACCENT_TAN} />
+                <Text style={s.sectionTitle}>BIOGRAPHY</Text>
+              </View>
+              {isEditing ? (
+                <TextInput
+                  style={s.textArea}
+                  value={editedData.biography || ''}
+                  onChangeText={val => handleChange('biography', val)}
+                  multiline
+                  numberOfLines={4}
+                  placeholder="Write a brief biography..."
+                  placeholderTextColor="#bbb"
+                />
               ) : (
-                <>
-                  <Ionicons name="checkmark" size={20} color="white" />
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
-                </>
+                <Text style={editedData.biography ? s.bioText : s.notSet}>
+                  {editedData.biography || 'Not set'}
+                </Text>
               )}
-            </TouchableOpacity>
-          </View>
+            </View>
+
+            {/* Availability */}
+            {isEditing && (
+              <View style={s.section}>
+                <TouchableOpacity
+                  style={s.checkboxRow}
+                  onPress={() => handleChange('isAvailable', !editedData.isAvailable)}
+                >
+                  <Ionicons name={editedData.isAvailable ? 'checkbox' : 'square-outline'} size={22} color={editedData.isAvailable ? '#22c55e' : '#999'} />
+                  <Text style={[s.checkboxLabel, { color: editedData.isAvailable ? '#22c55e' : '#999' }]}>
+                    Available for Consultations
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
         )}
+
+        <View style={{ height: 30 }} />
       </ScrollView>
-    </SafeAreaView>
+
+      {/* Multi-Select Modal */}
+      <Modal visible={!!multiSelectModal} animationType="slide" presentationStyle="pageSheet">
+        <View style={s.modalContainer}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>
+              {multiSelectModal === 'specializations' ? 'Specializations' :
+               multiSelectModal === 'languages' ? 'Languages' : 'Consultation Mode'}
+            </Text>
+            <TouchableOpacity onPress={() => setMultiSelectModal(null)}>
+              <Ionicons name="close" size={24} color={CHARCOAL} />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={multiSelectModal === 'specializations' ? SPECIALIZATIONS :
+                  multiSelectModal === 'languages' ? LANGUAGES : CONSULTATION_MODES}
+            keyExtractor={item => item}
+            renderItem={({ item }) => {
+              const selected = (editedData[multiSelectModal] || []).includes(item);
+              return (
+                <TouchableOpacity
+                  style={[s.selectItem, selected && s.selectItemActive]}
+                  onPress={() => toggleMultiSelect(multiSelectModal, item)}
+                >
+                  <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={22} color={selected ? PRIMARY_BROWN : '#ccc'} />
+                  <Text style={[s.selectItemText, selected && { color: PRIMARY_BROWN, fontWeight: '600' }]}>{item}</Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      </Modal>
+    </View>
   );
-};
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: THEMED_LIGHT_BG,
-  },
-  header: {
-    backgroundColor: PRIMARY_BROWN,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-    flex: 1,
-    textAlign: 'center',
-  },
-  editButton: {
-    padding: 8,
-  },
-  placeholder: {
-    width: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: MUTED_OLIVE,
-  },
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: 20,
-  },
-  avatarSection: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    backgroundColor: 'white',
-    marginBottom: 16,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: PRIMARY_BROWN,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  avatarText: {
-    fontSize: 40,
-    fontWeight: '600',
-    color: 'white',
-  },
-  displayName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: CHARCOAL,
-    marginBottom: 8,
-  },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: MUTED_OLIVE,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  roleText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
-  },
-  section: {
-    backgroundColor: 'white',
-    padding: 16,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: PRIMARY_BROWN,
-    marginBottom: 16,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: MUTED_OLIVE,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: THEMED_LIGHT_BG,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: CHARCOAL,
-  },
-  valueText: {
-    fontSize: 16,
-    color: CHARCOAL,
-    paddingVertical: 8,
-  },
-  emailContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 12,
-  },
-  button: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 8,
-    gap: 8,
-  },
-  cancelButton: {
-    backgroundColor: '#F0F0F0',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: CHARCOAL,
-  },
-  saveButton: {
-    backgroundColor: PRIMARY_BROWN,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-  },
+  function renderField(label, field, placeholder) {
+    return (
+      <View style={s.fieldItem}>
+        <Text style={s.fieldLabel}>{label}</Text>
+        {isEditing ? (
+          <TextInput
+            style={s.input}
+            value={editedData[field] || ''}
+            onChangeText={val => handleChange(field, val)}
+            placeholder={placeholder || label}
+            placeholderTextColor="#ccc"
+          />
+        ) : (
+          <Text style={editedData[field] ? s.fieldValue : s.notSet}>
+            {editedData[field] || 'Not set'}
+          </Text>
+        )}
+      </View>
+    );
+  }
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F7F8FA' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  profileCard: { backgroundColor: '#fff', marginHorizontal: 12, marginTop: 12, borderRadius: 16, padding: 24, alignItems: 'center' },
+  avatarContainer: { position: 'relative', marginBottom: 12 },
+  avatar: { width: 120, height: 120, borderRadius: 60, borderWidth: 3, borderColor: PRIMARY_GOLD },
+  avatarPlaceholder: { backgroundColor: ACCENT_TAN, justifyContent: 'center', alignItems: 'center' },
+  cameraOverlay: { position: 'absolute', bottom: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
+  verifiedBadge: { position: 'absolute', bottom: 4, left: 4, backgroundColor: PRIMARY_GOLD, width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
+  profileName: { fontSize: 20, fontWeight: '700', color: CHARCOAL, textAlign: 'center' },
+  profileUsername: { fontSize: 13, color: MUTED_OLIVE, marginTop: 2 },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, justifyContent: 'center' },
+  badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
+  badgeText: { fontSize: 11, fontWeight: '600' },
+  completenessContainer: { width: '100%', marginTop: 16 },
+  completenessHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  completenessLabel: { fontSize: 11, color: MUTED_OLIVE, fontWeight: '500' },
+  completenessValue: { fontSize: 11, fontWeight: '600', color: CHARCOAL },
+  progressBg: { height: 6, backgroundColor: '#f0f0f0', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 3 },
+  editBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, borderWidth: 1, borderColor: PRIMARY_BROWN, gap: 6 },
+  editBtnText: { fontSize: 14, color: PRIMARY_BROWN, fontWeight: '600' },
+  actionBtns: { width: '100%', marginTop: 16, gap: 8 },
+  saveBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: PRIMARY_BROWN, paddingVertical: 12, borderRadius: 10, gap: 6 },
+  saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  cancelBtn: { alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: MUTED_OLIVE },
+  cancelBtnText: { color: MUTED_OLIVE, fontSize: 14, fontWeight: '600' },
+  section: { backgroundColor: '#fff', marginHorizontal: 12, marginTop: 8, borderRadius: 12, padding: 16 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
+  sectionTitle: { fontSize: 11, fontWeight: '700', color: CHARCOAL, letterSpacing: 0.5 },
+  fieldGrid: { gap: 14 },
+  fieldItem: { },
+  fieldLabel: { fontSize: 11, color: MUTED_OLIVE, fontWeight: '500', marginBottom: 4 },
+  fieldValue: { fontSize: 15, fontWeight: '500', color: CHARCOAL },
+  notSet: { fontSize: 14, color: '#bbb', fontStyle: 'italic' },
+  input: { borderWidth: 1, borderColor: '#E5E0D8', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: CHARCOAL },
+  textArea: { borderWidth: 1, borderColor: '#E5E0D8', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: CHARCOAL, minHeight: 100, textAlignVertical: 'top' },
+  bioText: { fontSize: 14, color: CHARCOAL, lineHeight: 20 },
+  checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  checkboxLabel: { fontSize: 14, color: CHARCOAL },
+  multiSelectBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#E5E0D8', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
+  multiSelectBtnText: { fontSize: 14, color: MUTED_OLIVE },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  chip: { backgroundColor: `${PRIMARY_GOLD}15`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  chipText: { fontSize: 12, color: PRIMARY_BROWN, fontWeight: '500' },
+  modalContainer: { flex: 1, backgroundColor: '#F7F8FA' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 50, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: CHARCOAL },
+  selectItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', backgroundColor: '#fff', gap: 12 },
+  selectItemActive: { backgroundColor: `${PRIMARY_BROWN}08` },
+  selectItemText: { fontSize: 15, color: CHARCOAL },
 });
-
-export default AdminProfile;

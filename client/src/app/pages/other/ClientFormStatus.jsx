@@ -13,7 +13,6 @@ import {
   IconCalendarEvent, IconMessage2, IconFileDescription, IconClock, IconCheck, 
   IconMapPin, IconScale, IconUser, IconCheckbox, IconPhone, IconMail, IconDots,
   IconEdit, IconX, IconSearch, IconFilter, IconGavel, IconFileText, IconEye, IconCalendar,
-  IconBrandGoogle,
 } from '@tabler/icons-react';
 import { GENDER_OPTIONS, CIVIL_STATUS_OPTIONS, DEFAULT_CITIZENSHIP } from '@utils/constants';
 import { generateGoogleCalendarUrl } from '@utils/googleCalendar';
@@ -24,6 +23,7 @@ const MUTED_OLIVE = '#8B8B5C';
 const THEMED_LIGHT_BG = '#F5F3F0';
 const CHARCOAL = '#333333';
 const ACCENT_TAN = '#C9A876';
+const PAGE_BG = '#F7F8FA';
 const APPOINTMENT_STATUS_OPTIONS = [
   { value: 'auto-scheduled', label: 'Auto-scheduled' },
   { value: 'confirmed', label: 'Confirmed' },
@@ -32,7 +32,7 @@ const APPOINTMENT_STATUS_OPTIONS = [
 ];
 
 export default function StaffAppointmentManager() {
-  const { userData } = useAuth();
+  const { userData, currentUser } = useAuth();
   const [userRole] = useState('attorney');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -66,7 +66,163 @@ export default function StaffAppointmentManager() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [activeTab, setActiveTab] = useState('pending');
   const navigate = useNavigate();
+
+  const handleRecordToCalendars = async (appointment) => {
+    if (!appointment?.id) return;
+    if (!appointment?.rawAppointedDate) {
+      notifications.show({
+        title: 'Missing date',
+        message: 'This appointment has no date yet. Please set a date/time first.',
+        color: 'orange',
+      });
+      return;
+    }
+
+    setIsUpdating(true);
+    let calendarTab = null;
+
+    try {
+      // Pre-open a tab to reduce popup-blocking risk.
+      calendarTab = window.open('about:blank', '_blank');
+
+      const { default: apiClient } = await import('@config/api/apiClient');
+
+      const title = appointment.clientName ? `${appointment.clientName} - Interview` : 'Client Interview';
+      const description = [
+        appointment.purpose ? `Purpose: ${appointment.purpose}` : '',
+        appointment.appointmentTime ? `Time: ${appointment.appointmentTime}` : '',
+        `Case ID: ${appointment.id}`,
+      ].filter(Boolean).join('\n');
+
+      // Atomic: create Google event, then create system event and mark appointment
+      try {
+        // Build Google Event resource
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        const startDate = appointment.rawAppointedDate; // expect ISO date or date string
+        let startDateTime;
+        if (appointment.appointmentTime) {
+          const [hour, minute] = appointment.appointmentTime.split(':');
+          const d = new Date(startDate);
+          d.setHours(Number(hour), Number(minute || 0), 0, 0);
+          startDateTime = d.toISOString();
+        } else {
+          const d = new Date(startDate);
+          d.setHours(9, 0, 0, 0);
+          startDateTime = d.toISOString();
+        }
+        const end = new Date(startDateTime);
+        end.setHours(end.getHours() + 1);
+
+        const googleEvent = {
+          summary: title,
+          location: appointment.location || undefined,
+          description,
+          start: { dateTime: startDateTime, timeZone: timezone },
+          end: { dateTime: end.toISOString(), timeZone: timezone },
+        };
+
+        if (!currentUser?.uid) {
+          // fallback to opening prefilled Google Calendar
+          const googleCalendarUrl = generateGoogleCalendarUrl({ title, appointmentDate: appointment.rawAppointedDate, appointmentTime: appointment.appointmentTime, location: appointment.location, description });
+          if (calendarTab) calendarTab.location.href = googleCalendarUrl; else window.open(googleCalendarUrl, '_blank');
+          notifications.show({ title: 'Recorded', message: 'Saved to system calendar. Opened Google Calendar as fallback.', color: 'yellow' });
+        } else {
+          const payload = {
+            firebaseUid: currentUser.uid,
+            event: googleEvent,
+            meta: {
+              appointmentId: appointment.id,
+              title,
+              description,
+              eventDate: appointment.rawAppointedDate,
+              eventType: 'appointment',
+              location: appointment.location,
+              clientName: appointment.clientName,
+              assignedTo: appointment.assignedTo,
+              priority: appointment.priority || 'Medium',
+              status: 'scheduled',
+            }
+          };
+
+          await apiClient.post('/google/events/atomic', payload);
+
+          notifications.show({ title: 'Recorded', message: 'Saved to system calendar and synced to your Google Calendar.', color: 'green' });
+
+          if (calendarTab && !calendarTab.closed) try { calendarTab.close(); } catch(_){}
+        }
+      } catch (googleErr) {
+        console.error('Google sync failed, falling back to prefill URL:', googleErr);
+        try {
+          const respStatus = googleErr?.response?.status;
+          const respData = googleErr?.response?.data;
+          // If user hasn't connected via server-side OAuth (no refresh token)
+          if (respStatus === 400 && respData && typeof respData.error === 'string' && respData.error.toLowerCase().includes('has not connected')) {
+            try {
+              const connectResp = await apiClient.post('/google/connect', { firebaseUid: currentUser?.uid });
+              const { url } = connectResp?.data || {};
+              if (url) {
+                if (calendarTab) calendarTab.location.href = url; else window.open(url, '_blank');
+                notifications.show({ title: 'Connect Google', message: 'Please complete Google connection to enable calendar sync.', color: 'yellow' });
+                await loadAllData();
+                setIsUpdating(false);
+                return;
+              }
+            } catch (connectErr) {
+              console.error('Failed to get Google connect URL:', connectErr);
+            }
+          }
+
+          // If token was issued without calendar scopes or the Calendar API is not enabled
+          if (respStatus === 403 && respData && respData.error === 'insufficient_scopes') {
+            notifications.show({ title: 'Permission Needed', message: 'Google access token lacks Calendar scopes. Please sign out and sign in again granting Calendar permissions.', color: 'yellow' });
+            setIsUpdating(false);
+            return;
+          }
+
+          if (respStatus === 422 && respData && respData.error === 'api_not_enabled') {
+            // Ask the user to complete server-side connection so the server can use its own OAuth client (recommended)
+            try {
+              const connectResp = await apiClient.post('/google/connect', { firebaseUid: currentUser?.uid });
+              const { url } = connectResp?.data || {};
+              if (url) {
+                if (calendarTab) calendarTab.location.href = url; else window.open(url, '_blank');
+                notifications.show({ title: 'Connect Google', message: 'Google Calendar API appears disabled for the token project. Please complete the server connect flow.', color: 'yellow' });
+                await loadAllData();
+                setIsUpdating(false);
+                return;
+              }
+            } catch (connectErr) {
+              console.error('Failed to get Google connect URL for api_not_enabled:', connectErr);
+            }
+          }
+        } catch (e) {
+          console.error('Error while handling google error:', e);
+        }
+
+        const googleCalendarUrl = generateGoogleCalendarUrl({ title, appointmentDate: appointment.rawAppointedDate, appointmentTime: appointment.appointmentTime, location: appointment.location, description });
+        if (calendarTab) calendarTab.location.href = googleCalendarUrl; else window.open(googleCalendarUrl, '_blank');
+        notifications.show({ title: 'Recorded (partial)', message: 'Saved to system calendar. Google sync failed; opened Google Calendar so you can save manually.', color: 'orange' });
+      }
+
+      await loadAllData();
+    } catch (err) {
+      console.error('Failed to record to calendars:', err);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to record to calendars.',
+        color: 'red',
+      });
+      try {
+        if (calendarTab && !calendarTab.closed) calendarTab.close();
+      } catch (_) {
+        // ignore
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  };
   
   // Appointment Details Modal states
   const [appointmentModalOpened, setAppointmentModalOpened] = useState(false);
@@ -146,8 +302,9 @@ export default function StaffAppointmentManager() {
   }, [appointmentForm.monthlyIncome, appointmentForm.spouseMonthlyIncome]);
 
   // Fetch all data function
-  const loadAllData = async () => {
-    setLoading(true);
+  const loadAllData = async (opts = {}) => {
+    const silent = opts.silent === true;
+    if (!silent) setLoading(true);
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
       
@@ -168,11 +325,6 @@ export default function StaffAppointmentManager() {
         const pendingResp = await apiClient.get('/clientsinfo');
         const docs = pendingResp?.data || [];
         const mapped = (Array.isArray(docs) ? docs : [])
-          .filter(d => {
-            // Filter out appointments that have a review submitted
-            const appointmentId = d._id;
-            return !appointmentsWithReviews.has(appointmentId);
-          })
           .map((d, idx) => ({
             id: d._id || idx,
             clientName: d.fullName || d.personal?.fullName || `${d.personal?.firstName || ''} ${d.personal?.lastName || ''}`.trim() || '',
@@ -182,6 +334,8 @@ export default function StaffAppointmentManager() {
             rawAppointedDate: d.appointedDate || null,
             appointmentTime: d.appointmentTime || '',
             status: d.status || 'auto-scheduled',
+            calendarRecorded: Boolean(d.calendarRecorded),
+            calendarEventId: d.calendarEventId || null,
             contactNumber: d.personal?.contactNumber || '+63 000 000 0000',
             email: d.personal?.email || 'email@sola.com',
             assignedTo: d.assignedTo || 'Atty. Maria Cruz',
@@ -262,19 +416,46 @@ export default function StaffAppointmentManager() {
       // }
       } catch (err) {
         console.error('Failed to initialize apiClient:', err);
-        notifications.show({
-          title: 'Error',
-          message: 'Failed to load data from server.',
-          color: 'red',
-        });
+        if (!silent) {
+          notifications.show({
+            title: 'Error',
+            message: 'Failed to load data from server.',
+            color: 'red',
+          });
+        }
       } finally {
-      setLoading(false);
-    }
+        if (!silent) setLoading(false);
+      }
   };
 
-  // Fetch all data on mount
+  // Fetch all data on mount and poll periodically (silent) so new appointments appear without a full page refresh
   useEffect(() => {
+    let mounted = true;
+    // initial (visible) load
     loadAllData();
+
+    // poll for updates every 10 seconds (silent)
+    const interval = setInterval(() => {
+      if (mounted) loadAllData({ silent: true });
+    }, 10000);
+
+    // listen for storage events from other tabs when an appointment is submitted
+    const onStorage = (e) => {
+      if (e.key === 'appointments_needs_refresh') loadAllData({ silent: true });
+    };
+
+    // custom event for same-tab triggers
+    const onCustom = () => loadAllData({ silent: true });
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('appointments_needs_refresh', onCustom);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('appointments_needs_refresh', onCustom);
+    };
   }, []);
 
   const handleDateClick = (date) => {
@@ -640,12 +821,6 @@ export default function StaffAppointmentManager() {
       adversePartyCounsel: appointmentForm.adversePartyCounsel || undefined,
       adversePartyCounselAddress: appointmentForm.adversePartyCounselAddress || undefined,
       adversePartyCounselPhone: appointmentForm.adversePartyCounselPhone || undefined,
-      employerTelephone: appointmentForm.employerTelephone || undefined,
-      spouseSourceOfIncome: appointmentForm.spouseSourceOfIncome || undefined,
-      spouseMonthlyIncome: appointmentForm.spouseMonthlyIncome ? Number(appointmentForm.spouseMonthlyIncome) : undefined,
-      spouseEmployerAddress: appointmentForm.spouseEmployerAddress || undefined,
-      totalCombinedIncome: appointmentForm.totalCombinedIncome ? Number(appointmentForm.totalCombinedIncome) : undefined,
-      caseNumber: appointmentForm.caseNumber || undefined,
       caseDescription: appointmentForm.caseDescription || undefined,
       caseNature: appointmentForm.caseNature || undefined,
       natureOfCase: appointmentForm.caseNature || undefined,
@@ -691,14 +866,13 @@ export default function StaffAppointmentManager() {
         </Menu>
       </Group>
 
-      <Paper p="lg" radius="md" mb="md" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
-        <Stack gap="sm">
+      <Paper p="md" radius="md" mb="md" style={{ backgroundColor: `${PRIMARY_GOLD}08`, border: `1px solid ${PRIMARY_GOLD}40` }}>
+        <Stack gap="xs">
           <Group gap="xs">
             <IconCalendarEvent size={14} color={PRIMARY_BROWN} />
             <Text size="sm" fw={600} c={CHARCOAL}>
               {item.scheduledDate}
               {item.appointmentTime && ` at ${
-                // Convert 24-hour to 12-hour format
                 (() => {
                   const [hours, minutes] = item.appointmentTime.split(':');
                   const hour = parseInt(hours);
@@ -707,6 +881,17 @@ export default function StaffAppointmentManager() {
                   return `${displayHour}:${minutes} ${ampm}`;
                 })()
               }`}
+              {item.appointmentTime && (
+                <Text span size="xs" c={MUTED_OLIVE} ml={4}>
+                  {(() => {
+                    const [hours, minutes] = item.appointmentTime.split(':');
+                    const endHour = parseInt(hours) + 1;
+                    const ampm = endHour >= 12 ? 'PM' : 'AM';
+                    const displayHour = endHour === 0 ? 12 : endHour > 12 ? endHour - 12 : endHour;
+                    return `- ${displayHour}:${minutes} ${ampm} (1 hr)`;
+                  })()}
+                </Text>
+              )}
             </Text>
           </Group>
           <Group gap="xs">
@@ -720,103 +905,152 @@ export default function StaffAppointmentManager() {
         </Stack>
       </Paper>
 
-      <Stack gap="xs" mb="md">
+      <Stack gap="xs" mb="sm">
         <Group gap="xs">
           <IconPhone size={14} color={MUTED_OLIVE} />
-          <Text size="xs" c={CHARCOAL}>{item.contactNumber}</Text>
+          <Text
+            size="xs"
+            c={CHARCOAL}
+            component="a"
+            href={`tel:${item.contactNumber}`}
+            style={{ textDecoration: 'none', color: CHARCOAL, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+          >
+            {item.contactNumber}
+          </Text>
         </Group>
         <Group gap="xs">
           <IconMail size={14} color={MUTED_OLIVE} />
-          <Text size="xs" c={CHARCOAL}>{item.email}</Text>
+          <Text
+            size="xs"
+            c={CHARCOAL}
+            component="a"
+            href={`mailto:${item.email}`}
+            style={{ textDecoration: 'none', color: CHARCOAL, cursor: 'pointer' }}
+          >
+            {item.email}
+          </Text>
         </Group>
       </Stack>
 
-      <Paper p="md" radius="md" mb="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
-        <Text size="xs" c={MUTED_OLIVE} mb={4}>Purpose</Text>
+      <Box mb="sm">
+        <Text size="xs" c={MUTED_OLIVE} fw={600} mb={2}>Purpose</Text>
         <Text size="sm" c={CHARCOAL}>{item.purpose}</Text>
-      </Paper>
+      </Box>
 
       <Group gap="xs" mb="md">
-        <Badge size="sm" color={item.priority === 'High' ? 'red' : 'yellow'}>
-          {item.priority} Priority
+        {item.priority === 'High' && (
+          <Badge size="sm" color="red" variant="light">
+            High Priority
+          </Badge>
+        )}
+        {item.priority === 'Medium' && (
+          <Badge size="sm" color="yellow" variant="light">
+            Medium
+          </Badge>
+        )}
+        <Badge size="sm" variant="light" color={
+          item.status === 'confirmed' ? 'green' : 
+          item.status === 'auto-scheduled' ? 'blue' : 
+          item.status === 'legal-advice' ? 'violet' : 
+          item.status === 'court-case' ? 'red' : 'gray'
+        }>
+          {item.status === 'auto-scheduled' ? 'Pending' : 
+           item.status === 'confirmed' ? 'Confirmed' : 
+           item.status?.replace('-', ' ')?.replace(/\b\w/g, l => l.toUpperCase()) || 'Pending'}
         </Badge>
       </Group>
 
-      {/* Show buttons based on status */}
+      {/* Primary actions */}
       {item.status === 'auto-scheduled' ? (
-        <SimpleGrid cols={2} spacing="sm">
-          <Button 
-            size="md" 
-            variant="filled" 
-            leftSection={<IconFileText size={18} />} 
-            onClick={() => {
-              // Get current date for auto-fill
-              const today = new Date();
-              const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-              
-              // Get logged-in intern's name and ID
-              const internName = userData?.firstName && userData?.lastName 
-                ? `${userData.firstName} ${userData.lastName}` 
-                : userData?.username || userData?.displayName || '';
-              const internId = userData?._id || userData?.id || null;
-              
-              // Navigate to recommendation page with client info and current date
-              navigate(`/admin/recommendation/${item.id}`, { 
-                state: { 
-                  caseId: item.id,
-                  clientInfo: {
-                    clientName: item.clientName,
-                    dateOfInterview: formattedDate,
-                    dateSubmitted: formattedDate,
-                    interviewingInterns: internName,
-                    interviewingInternsId: internId
-                  }
-                } 
-              });
-            }}
-            style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+        <Stack gap="xs">
+          <Group grow>
+            {!item.calendarRecorded ? (
+              <Button 
+                size="sm" 
+                variant="filled" 
+                leftSection={<IconCheck size={16} />} 
+                onClick={() => handleRecordToCalendars(item)}
+                disabled={isUpdating}
+                style={{ backgroundColor: PRIMARY_BROWN }}
+              >
+                Approve & Recommend
+              </Button>
+            ) : (
+              <Button 
+                size="sm" 
+                variant="filled" 
+                leftSection={<IconFileText size={16} />} 
+                onClick={() => {
+                  const today = new Date();
+                  const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                  const internName = userData?.firstName && userData?.lastName 
+                    ? `${userData.firstName} ${userData.lastName}` 
+                    : userData?.username || userData?.displayName || '';
+                  const internId = userData?._id || userData?.id || null;
+                  navigate(`/admin/recommendation/${item.id}`, { 
+                    state: { 
+                      caseId: item.id,
+                      clientInfo: {
+                        clientName: item.clientName,
+                        dateOfInterview: formattedDate,
+                        dateSubmitted: formattedDate,
+                        interviewingInterns: internName,
+                        interviewingInternsId: internId
+                      }
+                    } 
+                  });
+                }}
+                disabled={isUpdating}
+                style={{ backgroundColor: PRIMARY_BROWN }}
+              >
+                Interview
+              </Button>
+            )}
+            <Button 
+              size="sm" 
+              variant="light" 
+              leftSection={<IconEdit size={16} />} 
+              onClick={() => handleOpenEditAppointment(item)} 
+              style={{ backgroundColor: THEMED_LIGHT_BG, color: PRIMARY_BROWN }}
+            >
+              Edit
+            </Button>
+          </Group>
+          <Button
+            fullWidth
+            size="xs"
+            variant="subtle"
+            leftSection={<IconEye size={14} />}
+            onClick={() => openAppointmentModal(item.id)}
+            c={MUTED_OLIVE}
           >
-            Recommend
+            View Full Details
           </Button>
-          <Button 
-            size="md" 
-            variant="light" 
-            leftSection={<IconEdit size={18} />} 
-            onClick={() => handleOpenEditAppointment(item)} 
-            style={{ backgroundColor: THEMED_LIGHT_BG, color: PRIMARY_BROWN }}
-          >
-            Edit
-          </Button>
-        </SimpleGrid>
+        </Stack>
       ) : (
-        <Button 
-          fullWidth 
-          size="md" 
-          variant="outline" 
-          leftSection={<IconFileText size={18} />}
-          onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } })}
-          style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-        >
-          View Recommendation
-        </Button>
+        <Stack gap="xs">
+          <Button 
+            fullWidth 
+            size="sm" 
+            variant="outline" 
+            leftSection={<IconFileText size={16} />}
+            onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } })}
+            style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+          >
+            View Recommendation
+          </Button>
+          <Button
+            fullWidth
+            size="xs"
+            variant="subtle"
+            leftSection={<IconEye size={14} />}
+            onClick={() => openAppointmentModal(item.id)}
+            c={MUTED_OLIVE}
+          >
+            View Full Details
+          </Button>
+        </Stack>
       )}
-      
-      {/* View Full Details Button */}
-      <Button
-        fullWidth
-        size="md"
-        variant="light"
-        mt="sm"
-        leftSection={<IconEye size={18} />}
-        onClick={() => openAppointmentModal(item.id)}
-        style={{
-          backgroundColor: THEMED_LIGHT_BG,
-          color: PRIMARY_BROWN,
-          fontWeight: 600,
-        }}
-      >
-        View Full Receipt
-      </Button>
     </Card>
   );
 
@@ -942,7 +1176,7 @@ export default function StaffAppointmentManager() {
 
   if (loading) {
     return (
-      <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <Box bg={PAGE_BG} mih="100vh" py="xl">
         <Center mih="100vh">
           <Loader />
         </Center>
@@ -951,17 +1185,38 @@ export default function StaffAppointmentManager() {
   }
 
   return (
-    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+    <Box bg={PAGE_BG} mih="100vh" py="xl">
       <Container size="xl">
-        <Paper shadow="xs" p="xl" mb="xl" radius="lg" style={{ background: PRIMARY_BROWN, border: 'none' }}>
-          <Group gap="md" align="center">
-            <Box style={{ width: 48, height: 48, borderRadius: '12px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <IconScale size={24} color={PRIMARY_BROWN} stroke={2.5} />
+        {/* Compact Page Header */}
+        <Group justify="space-between" align="center" mb="lg" px="xs">
+          <Group gap="sm" align="center">
+            <Box style={{ width: 36, height: 36, borderRadius: '10px', background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconScale size={20} color="white" stroke={2.5} />
             </Box>
             <Box>
-              <Title order={2} c="white" mb={4}>Staff Portal - {userRole.charAt(0).toUpperCase() + userRole.slice(1)}</Title>
-              <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>Manage client appointments and requests</Text>
+              <Title order={3} c={CHARCOAL}>Appointments</Title>
+              <Text size="xs" c={MUTED_OLIVE}>Manage client appointments and requests</Text>
             </Box>
+          </Group>
+          <Group gap="xs">
+            {/* Quick Stats */}
+            <Badge size="lg" variant="light" color="blue" style={{ fontWeight: 600 }}>
+              {pendingAppointments.length + events.length} Total
+            </Badge>
+            <Badge size="lg" variant="light" color="green" style={{ fontWeight: 600 }}>
+              {pendingAppointments.filter(a => a.status === 'confirmed').length} Confirmed
+            </Badge>
+            <Badge size="lg" variant="light" color="orange" style={{ fontWeight: 600 }}>
+              {pendingAppointments.filter(a => a.status === 'auto-scheduled').length} Pending
+            </Badge>
+          </Group>
+        </Group>
+
+        {/* Search & Filter Bar - above calendar */}
+        <Paper shadow="xs" p="sm" mb="md" radius="lg" bg="white">
+          <Group>
+            <TextInput placeholder="Search clients..." leftSection={<IconSearch size={16} />} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ flex: 1 }} size="sm" />
+            <Select placeholder="Filter by status" leftSection={<IconFilter size={16} />} data={['All', 'Pending', 'Scheduled', 'Completed']} value={filterStatus} onChange={setFilterStatus} w={180} size="sm" />
           </Group>
         </Paper>
 
@@ -993,31 +1248,77 @@ export default function StaffAppointmentManager() {
           onDateClick={handleDateClick}
         />
 
-        <Paper shadow="xs" p="lg" mb="xl" radius="lg" bg="white">
-          <Group>
-            <TextInput placeholder="Search clients..." leftSection={<IconSearch size={16} />} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ flex: 1 }} />
-            <Select placeholder="Filter by status" leftSection={<IconFilter size={16} />} data={['All', 'Pending', 'Scheduled', 'Completed']} value={filterStatus} onChange={setFilterStatus} w={200} />
+        {/* Appointment Tabs */}
+        <Box mt={32}>
+        <Paper shadow="xs" p="lg" radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
+          <Group justify="space-between" align="center" mb="md">
+            <Title order={4} c={CHARCOAL}>Client Appointments</Title>
+            <Text size="xs" c={MUTED_OLIVE}>{pendingAppointments.length} total records</Text>
           </Group>
-        </Paper>
+          <Divider mb="md" color="#F0F0F0" />
+        <Tabs value={activeTab} onTabChange={setActiveTab} variant="outline" radius="md" styles={{
+          tab: {
+            padding: '10px 18px',
+            fontWeight: 600,
+            fontSize: '13px',
+            color: MUTED_OLIVE,
+            borderColor: '#E8E8E8',
+            background: 'transparent',
+            transition: 'all 150ms ease',
+            '&[data-active]': {
+              color: 'white',
+              background: PRIMARY_BROWN,
+              borderColor: PRIMARY_BROWN,
+              boxShadow: '0 4px 12px rgba(107,68,35,0.12)',
+              transform: 'translateY(-2px)',
+            },
+            '&:hover': {
+              background: `${PRIMARY_GOLD}10`,
+              borderColor: '#ddd',
+            },
+          },
+          tabLabel: { gap: '6px', fontWeight: 700 },
+        }}>
+          <Tabs.List mb="lg">
+              <Tabs.Tab value="pending" onClick={() => setActiveTab('pending')} leftSection={<IconClock size={16} />} rightSection={
+                <Badge size="sm" variant="filled" color="orange" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px', pointerEvents: 'none' }}>
+                  {pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length}
+                </Badge>
+              }>
+                Auto-Scheduled
+              </Tabs.Tab>
+              <Tabs.Tab value="forInterview" onClick={() => setActiveTab('forInterview')} leftSection={<IconFileText size={16} />} rightSection={
+                <Badge size="sm" variant="light" color="green" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px', pointerEvents: 'none' }}>
+                  {pendingAppointments.filter(a => a.calendarRecorded).length}
+                </Badge>
+              }>
+                For Interview
+              </Tabs.Tab>
+            </Tabs.List>
 
-        <Tabs defaultValue="pending" variant="pills" styles={{ tab: { padding: '12px 24px', fontWeight: 600, '&[data-active]': { background: PRIMARY_BROWN, color: 'white' } } }}>
-          <Tabs.List mb="xl">
-            <Tabs.Tab value="pending" leftSection={<IconClock size={20} />}>
-              Auto-Scheduled ({pendingAppointments.filter(a => a.status === 'auto-scheduled').length})
-            </Tabs.Tab>
-          </Tabs.List>
+            <Tabs.Panel value="pending">
+              {pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length > 0 ? (
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+                  {pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+                </SimpleGrid>
+              ) : (
+                <Center mih={300}><Text c={MUTED_OLIVE}>No auto-scheduled appointments</Text></Center>
+              )}
+            </Tabs.Panel>
 
-          <Tabs.Panel value="pending">
-            {pendingAppointments.filter(a => a.status === 'auto-scheduled').length > 0 ? (
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                {pendingAppointments.filter(a => a.status === 'auto-scheduled').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-              </SimpleGrid>
-            ) : (
-              <Center mih={300}><Text c={MUTED_OLIVE}>No auto-scheduled appointments</Text></Center>
-            )}
-          </Tabs.Panel>
+            <Tabs.Panel value="forInterview">
+              {pendingAppointments.filter(a => a.calendarRecorded).length > 0 ? (
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+                  {pendingAppointments.filter(a => a.calendarRecorded).map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+                </SimpleGrid>
+              ) : (
+                <Center mih={300}><Text c={MUTED_OLIVE}>No appointments ready for interview</Text></Center>
+              )}
+            </Tabs.Panel>
 
         </Tabs>
+        </Paper>
+        </Box>
 
         <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title="Edit Appointment" size="lg" styles={{ header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' }, body: { padding: '24px' } }}>
           {selectedAppointment && (
@@ -1206,36 +1507,6 @@ export default function StaffAppointmentManager() {
                         </Box>
                       )}
                     </Stack>
-
-                    {/* Transfer to Google Calendar Button */}
-                    <Button
-                      fullWidth
-                      mt="md"
-                      variant="outline"
-                      leftSection={<IconBrandGoogle size={18} />}
-                      onClick={() => {
-                        const googleCalendarUrl = generateGoogleCalendarUrl({
-                          title: item.clientName || item.title,
-                          appointmentDate: item.rawAppointedDate || item.eventDate,
-                          appointmentTime: item.appointmentTime || item.time,
-                          location: item.location,
-                          description: item.purpose || item.description,
-                          purpose: item.purpose
-                        });
-                        window.open(googleCalendarUrl, '_blank');
-                      }}
-                      styles={{
-                        root: {
-                          borderColor: '#4285F4',
-                          color: '#4285F4',
-                          '&:hover': {
-                            backgroundColor: '#4285F410',
-                          }
-                        }
-                      }}
-                    >
-                      Transfer to Google Calendar
-                    </Button>
                   </Paper>
                 ))}
               </Stack>
@@ -1507,24 +1778,29 @@ export default function StaffAppointmentManager() {
             <Box>
               {/* Header Section */}
               <Paper 
-                p="xl" 
+                p="lg" 
                 radius="0"
                 style={{ 
-                  background: PRIMARY_BROWN,
+                  background: `linear-gradient(135deg, ${PRIMARY_BROWN}, ${PRIMARY_BROWN}DD)`,
                   border: 'none',
                   borderTopLeftRadius: '12px',
                   borderTopRightRadius: '12px',
                 }}
               >
                 <Group justify="space-between" align="center">
-                  <Box>
-                    <Title order={2} c="white" mb={4}>
-                      Sebastinian Office of Legal Aid (SOLA)
-                    </Title>
-                    <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
-                      College of Law - San Sebastian College Recoletos, Manila
-                    </Text>
-                  </Box>
+                  <Group gap="sm">
+                    <Box style={{ width: 36, height: 36, borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <IconScale size={20} color="white" />
+                    </Box>
+                    <Box>
+                      <Text size="sm" c="white" fw={700}>
+                        SOLA - Client Information Sheet
+                      </Text>
+                      <Text size="xs" c="rgba(255, 255, 255, 0.7)">
+                        San Sebastian College Recoletos, Manila
+                      </Text>
+                    </Box>
+                  </Group>
                   {appointmentEditMode ? (
                     <Group gap="xs">
                       <Button

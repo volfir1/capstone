@@ -11,8 +11,17 @@ const userSchema = new mongoose.Schema({
     default: "user"},
   username: { type: String, required: true, unique: true },
   firebaseUid: {type: String, required: true, unique: true},
+  profileImage: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
+  // Google Calendar connection info (optional)
+  google: {
+    connected: { type: Boolean, default: false },
+    refreshToken: { type: String, default: '' },
+    accessToken: { type: String, default: '' },
+    tokenExpiry: { type: Date },
+    primaryCalendarId: { type: String, default: 'primary' },
+  },
 
 });
 

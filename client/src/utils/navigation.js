@@ -29,58 +29,60 @@ import {
 
 export const NAVIGATION_CONFIG = {
   secretary: [
-    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
-    { icon: IconUsers, label: "Users Management", path: 'users' },
-    // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
-    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
-    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
-    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
-    { icon: IconUserCircle, label: "Profile", path: 'profile' },
+    { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
+    { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
+    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
+    { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
   ],
   
   attorney: [
-    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
-    { icon: IconUsers, label: "Users Management", path: 'users' },
-    // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
-    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
-    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
-    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
-    { icon: IconUserCircle, label: "Profile", path: 'profile' },
+    { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
+    { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
+    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
+    { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
   ],
   
   intern: [
-    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
-    { icon: IconUsers, label: "Users Management", path: 'users' },
-    // { icon: IconFiles, label: "Recommendation for Action", path: 'recommendation' },
-    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
-    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
-    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
-    { icon: IconUserCircle, label: "Profile", path: 'profile' },
+    { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
+    { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
+    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
+    { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
   ],
   
   supervising_lawyer: [
-    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
-    { icon: IconUsers, label: "Users Management", path: 'users' },
-    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
-    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
-    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
-    { icon: IconUserCircle, label: "Profile", path: 'profile' },
+    { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
+    { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
+    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
+    { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
   ],
   
   director: [
-    { icon: IconDashboard, label: "Dashboard", path: '/admin' },
-    { icon: IconUsers, label: "Users Management", path: 'users' },
-    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized' },
-    { icon: IconChartDots, label: "Client Appointment Status", path: 'clientformstatus' },
-    { icon: IconChartBar, label: "Analytics", path: 'analytics' },
-    { icon: IconUserCircle, label: "Profile", path: 'profile' },
+    { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
+    { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
+    { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
+    { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
+    { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
   ],
   
   client: [
-    { icon: IconHome, label: "Home", path: "home" },
-    { icon: IconBriefcase2, label: "Schedule appointment", path: "appointment" },
-    { icon: IconLocationSearch, label: "Track Appointment", path: "track" },
-    { icon: IconUserCircle, label: "Profile", path: "profile" },
+    { icon: IconHome, label: "Home", path: "home", section: 'main' },
+    { icon: IconBriefcase2, label: "Schedule Appointment", path: "appointment", section: 'main' },
+    { icon: IconLocationSearch, label: "Track Appointment", path: "track", section: 'main' },
+    { icon: IconUserCircle, label: "Profile", path: "profile", section: 'account' },
   ],
 };
 
@@ -134,12 +136,14 @@ export const PAGE_TITLES = {
 };
 
 // Layout configuration for specific pages
+// NOTE: Chat routes disabled per project checklist. Keeping entries commented
+// so they can be re-enabled later if needed.
 export const LAYOUT_CONFIG = {
   // Pages with custom layout settings (no header/sidebar or custom)
-  '/user/chat': { showHeader: false, showNavbar: true },
-  '/admin/chat': { showHeader: false, showNavbar: true },
-  '/admin/chat/:caseId': { showHeader: false, showNavbar: false },
-  
+  // '/user/chat': { showHeader: false, showNavbar: true },
+  // '/admin/chat': { showHeader: false, showNavbar: true },
+  // '/admin/chat/:caseId': { showHeader: false, showNavbar: false },
+
   // Add more custom pages here as needed
   // Example: '/user/profile': { showHeader: true, showNavbar: false },
 };

@@ -23,6 +23,12 @@ const ClientsInfoSchema = new mongoose.Schema({
     index: true 
   },
 
+  // Calendar recording (system + Google template link)
+  calendarRecorded: { type: Boolean, default: false, index: true },
+  calendarEventId: { type: String },
+  calendarRecordedAt: { type: Date },
+  calendarRecordedBy: { type: String },
+
   // Personal Details fields
   name: { type: String },
   age: { type: Number },

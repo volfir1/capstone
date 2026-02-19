@@ -9,6 +9,7 @@ import {
   doSendEmailVerification,
   doSignOut,
 } from "@/firebase/auth";
+import { GoogleAuthProvider } from 'firebase/auth';
 import { registerUser } from "@features/auth/register";
 
 export const useSignup = () => {
@@ -99,6 +100,14 @@ const handleEmailSignup = async (data) => {
       
       try {
         const result = await doSignInWithGoogle();
+        // try to cache access token for later calendar operations
+        try {
+          const credential = GoogleAuthProvider.credentialFromResult(result);
+          const accessToken = credential?.accessToken;
+          if (accessToken) localStorage.setItem('googleAccessToken', accessToken);
+        } catch (credErr) {
+          console.warn('Failed to extract Google credential on signup', credErr);
+        }
         const user = result.user;
         const displayName = user.displayName || "";
         const nameParts = displayName.split(" ");

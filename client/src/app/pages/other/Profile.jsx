@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Center, Loader, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { THEMED_LIGHT_BG, MUTED_OLIVE } from '@utils/constants';
+import { BG, MUTED_OLIVE } from '@utils/constants';
 import { useAuth } from '@/context/authContext';
 import ClientProfile from './Profiles/UserProfile';
 import AttorneyProfile from './Profiles/AttorneyProfile';
@@ -40,7 +40,7 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <Box bg={BG} mih="100vh" py="xl">
         <Center py="xl">
           <Stack align="center" gap="md">
             <Loader size="lg" />
@@ -68,7 +68,7 @@ export default function Profile() {
     
     default:
       return (
-        <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+        <Box bg={BG} mih="100vh" py="xl">
           <Center py="xl">
             <Stack align="center" gap="md">
               <Text size="lg" fw={600}>

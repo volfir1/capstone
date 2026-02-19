@@ -15,6 +15,7 @@ import {
   Modal,
   Button,
   Tabs,
+  Pagination,
 } from "@mantine/core";
 import {
   IconDots,
@@ -24,6 +25,7 @@ import {
   IconLock,
   IconLockOpen,
   IconRefresh,
+  IconCircleFilled,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useUsers } from "@/hooks/admin/users";
@@ -35,7 +37,7 @@ import {
   PRIMARY_GOLD,
   PRIMARY_BROWN,
   MUTED_OLIVE,
-  THEMED_LIGHT_BG,
+  BG,
   CHARCOAL,
   ACCENT_TAN,
 } from "@/utils/constants";
@@ -51,6 +53,8 @@ export default function UserManagementTable() {
   const { searchQuery, setSearchQuery } = useSearch();
   const [actionLoading, setActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("user");
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState('10');
 
   const handleOpenRoleModal = (user) => {
     setSelectedUser(user);
@@ -156,6 +160,11 @@ export default function UserManagementTable() {
     return item.role === activeTab;
   });
 
+  // Pagination
+  const perPage = parseInt(rowsPerPage);
+  const totalPages = Math.ceil(filteredData.length / perPage);
+  const paginatedData = filteredData.slice((page - 1) * perPage, page * perPage);
+
   const handleDelete = (id) => {
     alert(`(Demo) Deleting user with ID: ${id}`);
   };
@@ -174,13 +183,14 @@ export default function UserManagementTable() {
     );
   }
 
-  const rows = filteredData.map((row) => (
+  const rows = paginatedData.map((row) => (
     <Table.Tr
       key={row.id}
+      className="user-row"
       style={{
-        backgroundColor: row.disabled ? "#FEE2E2" : "white",
-        borderBottom: "1px solid #F0F0F0",
-        opacity: row.disabled ? 0.6 : 1,
+        backgroundColor: row.disabled ? "#FEF2F2" : "white",
+        borderBottom: "1px solid #E5E7EB",
+        opacity: row.disabled ? 0.7 : 1,
       }}
     >
       <Table.Td
@@ -188,7 +198,7 @@ export default function UserManagementTable() {
         style={{
           color: CHARCOAL,
           fontSize: "14px",
-          padding: "16px 20px",
+          padding: "14px 20px",
         }}
       >
         {row.name}
@@ -197,60 +207,63 @@ export default function UserManagementTable() {
         style={{
           color: MUTED_OLIVE,
           fontSize: "14px",
-          padding: "16px 20px",
+          padding: "14px 20px",
         }}
       >
         {row.email}
       </Table.Td>
-      <Table.Td style={{ padding: "16px 20px" }}>
+      <Table.Td style={{ padding: "14px 20px" }}>
         <Badge
           size="sm"
           radius="sm"
+          variant="light"
           style={{
-            backgroundColor:
-              row.role === "secretary" ? PRIMARY_BROWN : MUTED_OLIVE,
-            color: "white",
+            backgroundColor: row.role === "secretary" ? `${PRIMARY_BROWN}15` : `${MUTED_OLIVE}15`,
+            color: row.role === "secretary" ? PRIMARY_BROWN : MUTED_OLIVE,
             fontWeight: 600,
             textTransform: "capitalize",
+            border: `1px solid ${row.role === "secretary" ? `${PRIMARY_BROWN}30` : `${MUTED_OLIVE}30`}`,
           }}
         >
-          {row.role}
+          {row.role === 'supervising_lawyer' ? 'Sup. Lawyer' : row.role}
         </Badge>
       </Table.Td>
-      <Table.Td style={{ padding: "16px 20px" }}>
-        <Badge
-          size="sm"
-          radius="sm"
-          style={{
-            backgroundColor:
-              row.status === "Active" ? PRIMARY_GOLD : ACCENT_TAN,
-            color: "white",
-            fontWeight: 600,
-          }}
-        >
-          {row.status}
-        </Badge>
+      <Table.Td style={{ padding: "14px 20px" }}>
+        <Group gap={6} wrap="nowrap">
+          <IconCircleFilled
+            size={8}
+            style={{ color: row.status === "Active" ? "#22C55E" : "#9CA3AF" }}
+          />
+          <Text
+            size="sm"
+            fw={500}
+            c={row.status === "Active" ? "#16A34A" : "#6B7280"}
+          >
+            {row.status}
+          </Text>
+        </Group>
       </Table.Td>
       <Table.Td
         style={{
           color: MUTED_OLIVE,
           fontSize: "14px",
-          padding: "16px 20px",
+          padding: "14px 20px",
         }}
       >
         {row.date}
       </Table.Td>
-      <Table.Td style={{ padding: "16px 20px" }}>
+      <Table.Td style={{ padding: "14px 20px" }}>
         <Group gap={8} justify="flex-end">
           <Menu shadow="md" width={220} position="bottom-end">
             <Menu.Target>
               <ActionIcon
-                variant="subtle"
-                size="lg"
+                variant="light"
+                size="md"
                 radius="md"
-                color={PRIMARY_BROWN}
+                color="gray"
+                style={{ border: '1px solid #E5E7EB' }}
               >
-                <IconDots size={18} stroke={1.5} />
+                <IconDots size={16} stroke={1.5} />
               </ActionIcon>
             </Menu.Target>
 
@@ -341,7 +354,7 @@ export default function UserManagementTable() {
         </Stack>
       </Modal>
 
-      <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
+      <Box bg={BG} mih="100vh" py="xl">
         <style>
           {`
           ::-webkit-scrollbar {
@@ -361,71 +374,57 @@ export default function UserManagementTable() {
             scrollbar-width: thin;
             scrollbar-color: ${MUTED_OLIVE} transparent;
           }
+          .user-row:hover {
+            background: #F9FAFB !important;
+          }
         `}
         </style>
         <Container size="xl">
-          {/* Header Section */}
-          <Paper
-            shadow="xs"
-            p="xl"
-            mb="xl"
-            radius="lg"
-            style={{
-              background: PRIMARY_BROWN,
-              border: "none",
-            }}
-          >
-            <Group gap="md" align="center">
-              <Box
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "12px",
-                  background: "white",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+          {/* Page Header */}
+          <Group justify="space-between" align="center" mb="lg">
+            <Box>
+              <Title order={3} c={CHARCOAL} lh={1.2}>
+                Users Management
+              </Title>
+              <Text size="sm" c={MUTED_OLIVE} mt={2}>
+                Manage and view all users in your system
+              </Text>
+            </Box>
+            <Tooltip label="Refresh users">
+              <ActionIcon
+                size="md"
+                variant="subtle"
+                color="gray"
+                onClick={() => refetch()}
+                loading={isLoading}
+                radius="md"
               >
-                <IconUsers size={24} color={PRIMARY_BROWN} stroke={2.5} />
-              </Box>
-              <Box>
-                <Title order={2} c="white" mb={4}>
-                  Users Management
-                </Title>
-                <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
-                  Manage and view all users in your system
-                </Text>
-              </Box>
-            </Group>
-          </Paper>
+                <IconRefresh size={18} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
 
           {/* Controls Section */}
-          <Paper shadow="xs" p="lg" mb="lg" radius="lg" bg="white">
+          <Paper shadow="xs" p="lg" mb="lg" radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
             <Stack gap="md">
-              <Group justify="space-between">
-                <Box style={{ maxWidth: "400px" }}>
-                  <UserSearchFilter
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </Box>
+              <Box style={{ maxWidth: "400px" }}>
+                <UserSearchFilter
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                />
+              </Box>
 
-                <Tooltip label="Refresh users">
-                  <ActionIcon
-                    size="lg"
-                    radius="md"
-                    variant="light"
-                    color={PRIMARY_BROWN}
-                    onClick={() => refetch()}
-                    loading={isLoading}
-                  >
-                    <IconRefresh size={18} stroke={1.5} />
-                  </ActionIcon>
-                </Tooltip>
-              </Group>
-
-              <Tabs value={activeTab} onChange={setActiveTab}>
+              <Tabs value={activeTab} onChange={(val) => { setActiveTab(val); setPage(1); }}
+                styles={{
+                  tab: {
+                    fontSize: '13px',
+                    padding: '10px 16px',
+                    '&[dataActive]': {
+                      borderColor: PRIMARY_BROWN,
+                    },
+                  },
+                }}
+              >
                 <Tabs.List>
                   <Tabs.Tab
                     value="user"
@@ -503,89 +502,89 @@ export default function UserManagementTable() {
             radius="lg"
             style={{
               backgroundColor: "white",
-              border: "1px solid #F0F0F0",
+              border: "1px solid #E5E7EB",
               overflow: "hidden",
             }}
           >
             <Box style={{ overflowX: "auto" }}>
               <Table>
                 <Table.Thead>
-                  <Table.Tr style={{ backgroundColor: THEMED_LIGHT_BG }}>
+                  <Table.Tr style={{ backgroundColor: "#F9FAFB" }}>
                     <Table.Th
                       style={{
-                        color: CHARCOAL,
+                        color: MUTED_OLIVE,
                         fontWeight: 600,
-                        fontSize: "12px",
+                        fontSize: "11px",
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
-                        padding: "16px 20px",
-                        borderBottom: "1px solid #F0F0F0",
+                        padding: "12px 20px",
+                        borderBottom: "1px solid #E5E7EB",
                       }}
                     >
                       Name
                     </Table.Th>
                     <Table.Th
                       style={{
-                        color: CHARCOAL,
+                        color: MUTED_OLIVE,
                         fontWeight: 600,
-                        fontSize: "12px",
+                        fontSize: "11px",
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
-                        padding: "16px 20px",
-                        borderBottom: "1px solid #F0F0F0",
+                        padding: "12px 20px",
+                        borderBottom: "1px solid #E5E7EB",
                       }}
                     >
                       Email
                     </Table.Th>
                     <Table.Th
                       style={{
-                        color: CHARCOAL,
+                        color: MUTED_OLIVE,
                         fontWeight: 600,
-                        fontSize: "12px",
+                        fontSize: "11px",
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
-                        padding: "16px 20px",
-                        borderBottom: "1px solid #F0F0F0",
+                        padding: "12px 20px",
+                        borderBottom: "1px solid #E5E7EB",
                       }}
                     >
                       Role
                     </Table.Th>
                     <Table.Th
                       style={{
-                        color: CHARCOAL,
+                        color: MUTED_OLIVE,
                         fontWeight: 600,
-                        fontSize: "12px",
+                        fontSize: "11px",
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
-                        padding: "16px 20px",
-                        borderBottom: "1px solid #F0F0F0",
+                        padding: "12px 20px",
+                        borderBottom: "1px solid #E5E7EB",
                       }}
                     >
                       Status
                     </Table.Th>
                     <Table.Th
                       style={{
-                        color: CHARCOAL,
+                        color: MUTED_OLIVE,
                         fontWeight: 600,
-                        fontSize: "12px",
+                        fontSize: "11px",
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
-                        padding: "16px 20px",
-                        borderBottom: "1px solid #F0F0F0",
+                        padding: "12px 20px",
+                        borderBottom: "1px solid #E5E7EB",
                       }}
                     >
                       Date Joined
                     </Table.Th>
                     <Table.Th
                       style={{
-                        color: CHARCOAL,
+                        color: MUTED_OLIVE,
                         fontWeight: 600,
-                        fontSize: "12px",
+                        fontSize: "11px",
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
-                        padding: "16px 20px",
+                        padding: "12px 20px",
                         textAlign: "right",
-                        borderBottom: "1px solid #F0F0F0",
+                        borderBottom: "1px solid #E5E7EB",
                       }}
                     >
                       Actions
@@ -610,15 +609,38 @@ export default function UserManagementTable() {
             )}
           </Paper>
 
-          {/* Footer Section */}
-          <Paper shadow="xs" p="md" mt="lg" radius="lg" bg="white">
-            <Group justify="space-between">
-              <Text size="sm" c={MUTED_OLIVE}>
-                Showing {filteredData.length} of {tableData.length} users
-              </Text>
-              <Text size="sm" c={MUTED_OLIVE}>
-                JustReach © 2024
-              </Text>
+          {/* Footer / Pagination Section */}
+          <Paper shadow="xs" p="sm" px="lg" mt="lg" radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
+            <Group justify="space-between" align="center">
+              <Group gap="sm" align="center">
+                <Text size="sm" c={MUTED_OLIVE}>
+                  Showing {Math.min((page - 1) * perPage + 1, filteredData.length)}–{Math.min(page * perPage, filteredData.length)} of {filteredData.length} users
+                </Text>
+                <Select
+                  size="xs"
+                  radius="md"
+                  value={rowsPerPage}
+                  onChange={(val) => { setRowsPerPage(val || '10'); setPage(1); }}
+                  data={[
+                    { value: '10', label: '10 / page' },
+                    { value: '25', label: '25 / page' },
+                    { value: '50', label: '50 / page' },
+                  ]}
+                  style={{ width: 110 }}
+                  styles={{ input: { border: '1px solid #E5E7EB', fontSize: '12px' } }}
+                  allowDeselect={false}
+                />
+              </Group>
+              {totalPages > 1 && (
+                <Pagination
+                  total={totalPages}
+                  value={page}
+                  onChange={setPage}
+                  size="sm"
+                  radius="md"
+                  color={PRIMARY_BROWN}
+                />
+              )}
             </Group>
           </Paper>
         </Container>

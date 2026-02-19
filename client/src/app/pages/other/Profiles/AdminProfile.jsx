@@ -1,109 +1,250 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Container,
   Paper,
-  Title,
   Text,
   Box,
   Group,
   Stack,
   Button,
   TextInput,
+  Textarea,
   Avatar,
   Divider,
   Grid,
   Badge,
-  ActionIcon,
-  Center
+  Progress,
+  MultiSelect,
+  Checkbox,
+  FileButton,
+  Loader,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { Loaders } from '@/components/ui/Loader';
 import {
   IconUser,
   IconMail,
-  IconPhone,
-  IconMapPin,
   IconEdit,
   IconCheck,
   IconX,
   IconShieldCheck,
   IconUserShield,
+  IconScale,
+  IconCertificate,
+  IconBriefcase,
+  IconCamera,
 } from '@tabler/icons-react';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@context/authContext';
+import { uploadToCloudinary } from '@utils/cloudinary';
+
+// ── Role display helpers ──
+const ROLE_LABELS = {
+  secretary: 'Secretary',
+  intern: 'Intern',
+  director: 'Director',
+  supervising_lawyer: 'Supervising Lawyer',
+  attorney: 'Attorney',
+  pao_lawyer: 'PAO Lawyer',
+  legal_volunteer: 'Legal Volunteer',
+};
+
+const ROLE_COLORS = {
+  secretary: 'orange',
+  intern: 'blue',
+  director: 'violet',
+  supervising_lawyer: 'teal',
+  attorney: 'teal',
+  pao_lawyer: 'cyan',
+  legal_volunteer: 'green',
+};
+
+const ATTORNEY_ROLES = ['attorney', 'pao_lawyer', 'legal_volunteer'];
+
+// ── Attorney-specific option arrays ──
+const SPECIALIZATIONS = [
+  { value: 'Criminal Law', label: 'Criminal Law' },
+  { value: 'Civil Law', label: 'Civil Law' },
+  { value: 'Family Law', label: 'Family Law' },
+  { value: 'Labor Law', label: 'Labor Law' },
+  { value: 'Commercial Law', label: 'Commercial Law' },
+  { value: 'Tax Law', label: 'Tax Law' },
+  { value: 'Immigration Law', label: 'Immigration Law' },
+  { value: 'Land and Property Law', label: 'Land and Property Law' },
+  { value: 'Human Rights', label: 'Human Rights' },
+  { value: 'Environmental Law', label: 'Environmental Law' },
+  { value: 'Agrarian Law', label: 'Agrarian Law' },
+  { value: 'Administrative Law', label: 'Administrative Law' },
+  { value: 'Corporate Law', label: 'Corporate Law' },
+  { value: 'Intellectual Property', label: 'Intellectual Property' },
+  { value: 'Other', label: 'Other' },
+];
+
+const LANGUAGES = [
+  { value: 'English', label: 'English' },
+  { value: 'Filipino/Tagalog', label: 'Filipino/Tagalog' },
+  { value: 'Cebuano', label: 'Cebuano' },
+  { value: 'Ilocano', label: 'Ilocano' },
+  { value: 'Hiligaynon', label: 'Hiligaynon' },
+  { value: 'Waray', label: 'Waray' },
+  { value: 'Kapampangan', label: 'Kapampangan' },
+  { value: 'Bikol', label: 'Bikol' },
+  { value: 'Pangasinan', label: 'Pangasinan' },
+  { value: 'Other', label: 'Other' },
+];
 
 export default function AdminProfile() {
-  const { userData: authUserData, loading: authLoading } = useAuth();
+  const { userData: authUserData, loading: authLoading, refreshUserData } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [profileImage, setProfileImage] = useState('');
+
+  const isAttorney = ATTORNEY_ROLES.includes(authUserData?.role);
+  const userRole = authUserData?.role || 'secretary';
+
+  // ── State for regular (User) accounts ──
   const [userData, setUserData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    username: '',
+    role: '',
+    verified: false,
+    memberSince: '',
+  });
+
+  // ── Extended state for attorney accounts ──
+  const [attorneyData, setAttorneyData] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
+    suffix: '',
     email: '',
-    phoneNumber: '',
-    address: {
-      street: '',
-      barangay: '',
-      city: '',
-      province: '',
-      region: '',
-      zipCode: '',
-    },
+    username: '',
+    role: '',
     verified: false,
     memberSince: '',
-    adminRole: '',
-    department: '',
+    prcLicenseNumber: '',
+    ibrNumber: '',
+    barAdmissionDate: '',
+    lawFirm: '',
+    isPAOLawyer: false,
+    paoOffice: '',
+    specializations: [],
+    languages: [],
+    consultationMode: [],
+    biography: '',
+    isAvailable: true,
+    accountStatus: '',
   });
 
-  const [editedData, setEditedData] = useState(userData);
+  const [editedData, setEditedData] = useState({});
 
   useEffect(() => {
-    if (authUserData) {
-      // Map authContext data to profile structure
-      const profileData = {
+    if (!authUserData) return;
+
+    // Fetch profileImage from API (authUserData may not have it)
+    apiClient.get('/users/profile').then((res) => {
+      if (res.data?.data?.profileImage) setProfileImage(res.data.data.profileImage);
+    }).catch(() => {});
+
+    if (isAttorney) {
+      const profile = {
         firstName: authUserData.firstName || '',
         middleName: authUserData.middleName || '',
         lastName: authUserData.lastName || '',
+        suffix: authUserData.suffix || '',
         email: authUserData.email || '',
-        phoneNumber: authUserData.phoneNumber || '',
-        address: authUserData.address || {
-          street: '',
-          barangay: '',
-          city: '',
-          province: '',
-          region: '',
-          zipCode: '',
-        },
+        username: authUserData.username || '',
+        role: authUserData.role || '',
         verified: authUserData.isVerified || false,
-        memberSince: authUserData.createdAt ? new Date(authUserData.createdAt).getFullYear().toString() : '',
-        adminRole: authUserData.adminRole || 'System Administrator',
-        department: authUserData.department || '',
+        memberSince: authUserData.createdAt
+          ? new Date(authUserData.createdAt).getFullYear().toString()
+          : '',
+        prcLicenseNumber: authUserData.prcLicenseNumber || '',
+        ibrNumber: authUserData.ibrNumber || '',
+        barAdmissionDate: authUserData.barAdmissionDate
+          ? new Date(authUserData.barAdmissionDate).toLocaleDateString()
+          : '',
+        lawFirm: authUserData.lawFirm || '',
+        isPAOLawyer: authUserData.isPAOLawyer || false,
+        paoOffice: authUserData.paoOffice || '',
+        specializations: authUserData.specializations || [],
+        languages: authUserData.languages || [],
+        consultationMode: authUserData.consultationMode || [],
+        biography: authUserData.biography || '',
+        isAvailable: authUserData.isAvailable ?? true,
+        accountStatus: authUserData.accountStatus || '',
       };
-      
-      setUserData(profileData);
-      setEditedData(profileData);
+      setAttorneyData(profile);
+      setEditedData(profile);
+    } else {
+      const profile = {
+        firstName: authUserData.firstName || '',
+        lastName: authUserData.lastName || '',
+        email: authUserData.email || '',
+        username: authUserData.username || '',
+        role: authUserData.role || '',
+        verified: authUserData.isVerified || false,
+        memberSince: authUserData.createdAt
+          ? new Date(authUserData.createdAt).getFullYear().toString()
+          : '',
+      };
+      setUserData(profile);
+      setEditedData(profile);
     }
-  }, [authUserData]);
+  }, [authUserData, isAttorney]);
+
+  // ── Completeness ──
+  const completeness = useMemo(() => {
+    if (isAttorney) {
+      const fields = [
+        attorneyData.firstName,
+        attorneyData.lastName,
+        attorneyData.email,
+        attorneyData.prcLicenseNumber,
+        attorneyData.ibrNumber,
+        attorneyData.barAdmissionDate,
+        attorneyData.lawFirm,
+        attorneyData.specializations?.length > 0 ? 'filled' : '',
+        attorneyData.languages?.length > 0 ? 'filled' : '',
+        attorneyData.biography,
+      ];
+      const filled = fields.filter((f) => f && (typeof f === 'string' ? f.trim() : true)).length;
+      return Math.round((filled / fields.length) * 100);
+    }
+    const fields = [userData.firstName, userData.lastName, userData.email];
+    const filled = fields.filter((f) => f && f.trim()).length;
+    return Math.round((filled / fields.length) * 100);
+  }, [isAttorney, userData, attorneyData]);
+
+  // ── Handlers ──
+  const profileData = isAttorney ? attorneyData : userData;
+  const displayData = isEditing ? editedData : profileData;
 
   const handleEdit = () => {
     setIsEditing(true);
-    setEditedData(userData);
+    setEditedData(profileData);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setEditedData(userData);
+    setEditedData(profileData);
   };
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      const response = await apiClient.put('/admin/profile', editedData);
+      const endpoint = isAttorney ? '/attorney/profile' : '/admin/profile';
+      const response = await apiClient.put(endpoint, editedData);
       if (response.data.success) {
-        setUserData(editedData);
+        if (isAttorney) {
+          setAttorneyData(editedData);
+        } else {
+          setUserData(editedData);
+        }
         setIsEditing(false);
         notifications.show({
           title: 'Profile Updated',
@@ -124,596 +265,562 @@ export default function AdminProfile() {
   };
 
   const handleInputChange = (field, value) => {
-    setEditedData(prev => ({
-      ...prev,
-      [field]: value,
-    }));
+    setEditedData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleAddressChange = (field, value) => {
-    setEditedData(prev => ({
-      ...prev,
-      address: {
-        ...prev.address,
-        [field]: value,
-      }
-    }));
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      return notifications.show({ title: 'Invalid File', message: 'Please upload a JPG, PNG, WebP, or GIF image.', color: 'red' });
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return notifications.show({ title: 'File Too Large', message: 'Image must be under 5 MB.', color: 'red' });
+    }
+    try {
+      setUploadingImage(true);
+      const imageUrl = await uploadToCloudinary(file);
+      await apiClient.put('/users/profile/image', { profileImage: imageUrl });
+      setProfileImage(imageUrl);
+      // Sync layout header/navbar avatar
+      refreshUserData().catch(() => {});
+      notifications.show({ title: 'Photo Updated', message: 'Profile photo uploaded successfully.', color: 'green' });
+    } catch (error) {
+      console.error('Image upload error:', error);
+      notifications.show({ title: 'Upload Failed', message: error.message || 'Failed to upload image.', color: 'red' });
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   if (authLoading) {
     return <Loaders height={window.innerHeight} />;
   }
 
-  const displayData = isEditing ? editedData : userData;
+  const inputStyles = {
+    input: { borderColor: '#E5E0D8', '&:focus': { borderColor: PRIMARY_GOLD } },
+  };
+
+  const roleLabel = ROLE_LABELS[userRole] || userRole;
+  const roleBadgeColor = ROLE_COLORS[userRole] || 'gray';
+  const avatarIcon = isAttorney
+    ? <IconScale size={70} color="white" />
+    : <IconUserShield size={70} color="white" />;
 
   return (
-    <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl">
-      <style>
-        {`
-          ::-webkit-scrollbar {
-            width: 8px;
-          }
-          ::-webkit-scrollbar-track {
-            background: transparent;
-          }
-          ::-webkit-scrollbar-thumb {
-            background: ${MUTED_OLIVE};
-            border-radius: 4px;
-          }
-          ::-webkit-scrollbar-thumb:hover {
-            background: ${PRIMARY_BROWN};
-          }
-          * {
-            scrollbar-width: thin;
-            scrollbar-color: ${MUTED_OLIVE} transparent;
-          }
-        `}
-      </style>
-
-      <Container size="md">
-        {/* Header */}
-        <Paper 
-          shadow="xs" 
-          p="xl" 
-          mb="xl" 
-          radius="lg"
-          style={{ 
-            background: PRIMARY_BROWN,
-            border: 'none',
-          }}
-        >
-          <Group justify="space-between" align="center">
-            <Box>
-              <Title order={2} c="white" mb={4}>
-                My Profile
-              </Title>
-              <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>
-                Manage your administrator information
-              </Text>
-            </Box>
-            {!isEditing && (
-              <ActionIcon
-                size="lg"
-                variant="white"
-                color={PRIMARY_BROWN}
-                onClick={handleEdit}
-                radius="md"
-              >
-                <IconEdit size={20} />
-              </ActionIcon>
-            )}
-          </Group>
-        </Paper>
-
-        {/* Profile Card */}
-        <Paper shadow="xs" p="xl" radius="lg" bg="white" mb="lg">
-          {/* Avatar Section */}
-          <Box mb="xl">
-            <Center>
+    <Box bg={BG} mih="100vh" py="xl">
+      <style>{`
+        .avatar-upload-overlay { opacity: 0; transition: opacity 0.2s; }
+        .avatar-upload-overlay:hover,
+        [style*="cursor: pointer"]:hover .avatar-upload-overlay { opacity: 1 !important; }
+      `}</style>
+      <Container size="lg">
+        <Grid gutter="xl">
+          {/* ── Sidebar ── */}
+          <Grid.Col span={{ base: 12, md: 4 }}>
+            <Paper shadow="xs" p="xl" radius="lg" bg="white">
               <Stack align="center" gap="md">
+                {/* Avatar */}
                 <Box style={{ position: 'relative' }}>
-                  <Avatar
-                    size={120}
-                    radius={60}
-                    style={{
-                      background: ACCENT_TAN,
-                      border: `4px solid ${PRIMARY_GOLD}`,
-                    }}
-                  >
-                    <IconUserShield size={60} color="white" />
-                  </Avatar>
-                  {userData.verified && (
+                  <FileButton onChange={handleImageUpload} accept="image/png,image/jpeg,image/webp,image/gif">
+                    {(props) => (
+                      <Box {...props} style={{ position: 'relative', cursor: 'pointer' }}>
+                        <Avatar
+                          size={140}
+                          radius={70}
+                          src={profileImage || null}
+                          style={{
+                            background: ACCENT_TAN,
+                            border: `4px solid ${PRIMARY_GOLD}`,
+                          }}
+                        >
+                          {avatarIcon}
+                        </Avatar>
+
+                        {/* Camera overlay */}
+                        <Box
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: '40%',
+                            borderBottomLeftRadius: 70,
+                            borderBottomRightRadius: 70,
+                            background: 'rgba(0,0,0,0.45)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          className="avatar-upload-overlay"
+                        >
+                          {uploadingImage ? (
+                            <Loader size={20} color="white" />
+                          ) : (
+                            <IconCamera size={22} color="white" />
+                          )}
+                        </Box>
+                      </Box>
+                    )}
+                  </FileButton>
+
+                  {displayData.verified && (
                     <Box
                       style={{
                         position: 'absolute',
-                        bottom: 0,
-                        right: 0,
-                        width: 36,
-                        height: 36,
+                        bottom: 4,
+                        right: 4,
+                        width: 34,
+                        height: 34,
                         borderRadius: '50%',
-                        background: 'white',
+                        background: PRIMARY_GOLD,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        border: `3px solid white`,
+                        border: '3px solid white',
                       }}
                     >
-                      <Box
-                        style={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: '50%',
-                          background: PRIMARY_GOLD,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <IconShieldCheck size={18} color="white" />
-                      </Box>
+                      <IconShieldCheck size={18} color="white" />
                     </Box>
                   )}
                 </Box>
+
+                {/* Name */}
                 <Box ta="center">
-                  <Text size="xl" fw={700} c={CHARCOAL} mb={4}>
-                    {displayData.firstName} {displayData.middleName} {displayData.lastName}
+                  <Text size="xl" fw={700} c={CHARCOAL} mb={2}>
+                    {displayData.firstName}{' '}
+                    {isAttorney && displayData.middleName ? `${displayData.middleName} ` : ''}
+                    {displayData.lastName}
+                    {isAttorney && displayData.suffix ? ` ${displayData.suffix}` : ''}
                   </Text>
-                  <Group justify="center" gap="xs" mb={4}>
-                    <Badge
-                      size="sm"
-                      variant="light"
-                      style={{
-                        background: '#FEF8F0',
-                        color: ACCENT_TAN,
-                      }}
-                    >
-                      Administrator
-                    </Badge>
-                    <Badge
-                      size="sm"
-                      variant="light"
-                      style={{
-                        background: '#FEF8F0',
-                        color: PRIMARY_BROWN,
-                      }}
-                    >
-                      Member since {userData.memberSince}
-                    </Badge>
-                  </Group>
+                  <Text size="sm" c={MUTED_OLIVE}>
+                    @{displayData.username}
+                  </Text>
                 </Box>
+
+                {/* Badges */}
+                <Group gap="xs" justify="center">
+                  <Badge size="sm" variant="light" color={roleBadgeColor} radius="sm">
+                    {roleLabel}
+                  </Badge>
+                  {isAttorney && displayData.isPAOLawyer && (
+                    <Badge size="sm" variant="light" color="cyan" radius="sm">
+                      PAO
+                    </Badge>
+                  )}
+                  {displayData.memberSince && (
+                    <Badge size="sm" variant="light" color="gray" radius="sm">
+                      Since {displayData.memberSince}
+                    </Badge>
+                  )}
+                </Group>
+
+                <Divider w="100%" color="#F0F0F0" />
+
+                {/* Profile Completeness */}
+                <Box w="100%">
+                  <Group justify="space-between" mb={6}>
+                    <Text size="xs" fw={500} c={MUTED_OLIVE}>
+                      Profile Completeness
+                    </Text>
+                    <Text size="xs" fw={600} c={CHARCOAL}>
+                      {completeness}%
+                    </Text>
+                  </Group>
+                  <Progress
+                    value={completeness}
+                    size="sm"
+                    radius="xl"
+                    color={completeness === 100 ? 'green' : PRIMARY_GOLD}
+                  />
+                </Box>
+
+                <Divider w="100%" color="#F0F0F0" />
+
+                {/* Actions */}
+                {!isEditing ? (
+                  <Button
+                    fullWidth
+                    variant="outline"
+                    leftSection={<IconEdit size={16} />}
+                    onClick={handleEdit}
+                    style={{ borderColor: PRIMARY_BROWN, color: PRIMARY_BROWN }}
+                  >
+                    Edit Profile
+                  </Button>
+                ) : (
+                  <Stack w="100%" gap="xs">
+                    <Button
+                      fullWidth
+                      leftSection={<IconCheck size={16} />}
+                      onClick={handleSave}
+                      loading={saving}
+                      style={{ background: PRIMARY_BROWN }}
+                    >
+                      Save Changes
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="outline"
+                      leftSection={<IconX size={16} />}
+                      onClick={handleCancel}
+                      disabled={saving}
+                      style={{ borderColor: MUTED_OLIVE, color: MUTED_OLIVE }}
+                    >
+                      Cancel
+                    </Button>
+                  </Stack>
+                )}
               </Stack>
-            </Center>
-          </Box>
+            </Paper>
+          </Grid.Col>
 
-          <Divider mb="xl" style={{ borderColor: '#F0F0F0' }} />
+          {/* ── Main Content ── */}
+          <Grid.Col span={{ base: 12, md: 8 }}>
+            <Stack gap="lg">
+              {/* Personal Information */}
+              <Paper shadow="xs" p="xl" radius="lg" bg="white">
+                <Group mb="lg" gap={8}>
+                  <IconUser size={18} color={ACCENT_TAN} stroke={2} />
+                  <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
+                    Personal Information
+                  </Text>
+                </Group>
 
-          {/* Personal Information Section */}
-          <Box mb="xl">
-            <Group mb="md" gap="xs">
-              <Box
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  background: PRIMARY_BROWN,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconUser size={18} color="white" stroke={2.5} />
-              </Box>
-              <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
-                Personal Information
-              </Text>
-            </Group>
-
-            <Stack gap="md">
-              <Grid gutter="md">
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
+                <Grid gutter="lg">
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
                       First Name
                     </Text>
                     {isEditing ? (
                       <TextInput
                         value={editedData.firstName}
                         onChange={(e) => handleInputChange('firstName', e.target.value)}
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
+                        styles={inputStyles}
                       />
                     ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.firstName}
+                      <Text fw={500} c={displayData.firstName ? CHARCOAL : '#bbb'}>
+                        {displayData.firstName || 'Not set'}
                       </Text>
                     )}
-                  </Box>
-                </Grid.Col>
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Middle Name
+                  </Grid.Col>
+
+                  {/* Middle Name — attorney only */}
+                  {isAttorney && (
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                        Middle Name
+                      </Text>
+                      {isEditing ? (
+                        <TextInput
+                          value={editedData.middleName}
+                          onChange={(e) => handleInputChange('middleName', e.target.value)}
+                          styles={inputStyles}
+                        />
+                      ) : (
+                        <Text fw={500} c={displayData.middleName ? CHARCOAL : '#bbb'}>
+                          {displayData.middleName || 'Not set'}
+                        </Text>
+                      )}
+                    </Grid.Col>
+                  )}
+
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                      Last Name
                     </Text>
                     {isEditing ? (
                       <TextInput
-                        value={editedData.middleName}
-                        onChange={(e) => handleInputChange('middleName', e.target.value)}
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
+                        value={editedData.lastName}
+                        onChange={(e) => handleInputChange('lastName', e.target.value)}
+                        styles={inputStyles}
                       />
                     ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.middleName || 'N/A'}
+                      <Text fw={500} c={displayData.lastName ? CHARCOAL : '#bbb'}>
+                        {displayData.lastName || 'Not set'}
                       </Text>
                     )}
-                  </Box>
-                </Grid.Col>
-              </Grid>
+                  </Grid.Col>
 
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                  Last Name
-                </Text>
-                {isEditing ? (
-                  <TextInput
-                    value={editedData.lastName}
-                    onChange={(e) => handleInputChange('lastName', e.target.value)}
-                    styles={{
-                      input: {
-                        borderColor: '#E5E0D8',
-                        '&:focus': { borderColor: PRIMARY_GOLD },
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text fw={500} c={CHARCOAL}>
-                    {displayData.lastName}
-                  </Text>
-                )}
-              </Box>
-            </Stack>
-          </Box>
+                  {/* Suffix — attorney only */}
+                  {isAttorney && (
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                        Suffix
+                      </Text>
+                      {isEditing ? (
+                        <TextInput
+                          value={editedData.suffix}
+                          onChange={(e) => handleInputChange('suffix', e.target.value)}
+                          placeholder="Jr., Sr., III, etc."
+                          styles={inputStyles}
+                        />
+                      ) : (
+                        <Text fw={500} c={displayData.suffix ? CHARCOAL : '#bbb'}>
+                          {displayData.suffix || 'Not set'}
+                        </Text>
+                      )}
+                    </Grid.Col>
+                  )}
+                </Grid>
+              </Paper>
 
-          <Divider mb="xl" style={{ borderColor: '#F0F0F0' }} />
-
-          {/* Contact Information Section */}
-          <Box mb="xl">
-            <Group mb="md" gap="xs">
-              <Box
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  background: PRIMARY_GOLD,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconMail size={18} color="white" stroke={2.5} />
-              </Box>
-              <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
-                Contact Information
-              </Text>
-            </Group>
-
-            <Stack gap="md">
-              <Box>
-                <Group gap="xs" mb={6}>
-                  <IconMail size={14} color={MUTED_OLIVE} />
-                  <Text size="xs" c={MUTED_OLIVE} fw={500}>
-                    Email Address
+              {/* Contact / Account Information */}
+              <Paper shadow="xs" p="xl" radius="lg" bg="white">
+                <Group mb="lg" gap={8}>
+                  <IconMail size={18} color={ACCENT_TAN} stroke={2} />
+                  <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
+                    Account Information
                   </Text>
                 </Group>
-                <Text fw={500} c={CHARCOAL}>
-                  {displayData.email}
-                </Text>
-              </Box>
 
-              <Box>
-                <Group gap="xs" mb={6}>
-                  <IconPhone size={14} color={MUTED_OLIVE} />
-                  <Text size="xs" c={MUTED_OLIVE} fw={500}>
-                    Phone Number
-                  </Text>
-                </Group>
-                {isEditing ? (
-                  <TextInput
-                    value={editedData.phoneNumber}
-                    onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                    placeholder="+639171234567"
-                    styles={{
-                      input: {
-                        borderColor: '#E5E0D8',
-                        '&:focus': { borderColor: PRIMARY_GOLD },
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text fw={500} c={CHARCOAL}>
-                    {displayData.phoneNumber || 'Not provided'}
-                  </Text>
-                )}
-              </Box>
-            </Stack>
-          </Box>
-
-          <Divider mb="xl" style={{ borderColor: '#F0F0F0' }} />
-
-          {/* Address Section
-          <Box mb="xl">
-            <Group mb="md" gap="xs">
-              <Box
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  background: MUTED_OLIVE,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconMapPin size={18} color="white" stroke={2.5} />
-              </Box>
-              <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
-                Address
-              </Text>
-            </Group>
-
-            <Stack gap="md">
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                  Street Address
-                </Text>
-                {isEditing ? (
-                  <TextInput
-                    value={editedData.address.street}
-                    onChange={(e) => handleAddressChange('street', e.target.value)}
-                    placeholder="Building name, street number"
-                    styles={{
-                      input: {
-                        borderColor: '#E5E0D8',
-                        '&:focus': { borderColor: PRIMARY_GOLD },
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text fw={500} c={CHARCOAL}>
-                    {displayData.address.street || 'Not provided'}
-                  </Text>
-                )}
-              </Box>
-
-              <Grid gutter="md">
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Barangay
+                <Grid gutter="lg">
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                      Email Address
                     </Text>
-                    {isEditing ? (
-                      <TextInput
-                        value={editedData.address.barangay}
-                        onChange={(e) => handleAddressChange('barangay', e.target.value)}
-                        placeholder="Barangay name"
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.address.barangay || 'Not provided'}
-                      </Text>
-                    )}
-                  </Box>
-                </Grid.Col>
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      City
+                    <Text fw={500} c={displayData.email ? CHARCOAL : '#bbb'}>
+                      {displayData.email || 'Not set'}
                     </Text>
-                    {isEditing ? (
-                      <TextInput
-                        value={editedData.address.city}
-                        onChange={(e) => handleAddressChange('city', e.target.value)}
-                        placeholder="City name"
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.address.city || 'Not provided'}
-                      </Text>
-                    )}
-                  </Box>
-                </Grid.Col>
-              </Grid>
+                  </Grid.Col>
 
-              <Grid gutter="md">
-                <Grid.Col span={12} md={8}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Province
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                      Username
                     </Text>
-                    {isEditing ? (
-                      <TextInput
-                        value={editedData.address.province}
-                        onChange={(e) => handleAddressChange('province', e.target.value)}
-                        placeholder="Province name"
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.address.province || 'Not provided'}
-                      </Text>
-                    )}
-                  </Box>
-                </Grid.Col>
-                <Grid.Col span={12} md={4}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Zip Code
+                    <Text fw={500} c={displayData.username ? CHARCOAL : '#bbb'}>
+                      {displayData.username || 'Not set'}
                     </Text>
-                    {isEditing ? (
-                      <TextInput
-                        value={editedData.address.zipCode}
-                        onChange={(e) => handleAddressChange('zipCode', e.target.value)}
-                        placeholder="1000"
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.address.zipCode || 'Not provided'}
-                      </Text>
-                    )}
-                  </Box>
-                </Grid.Col>
-              </Grid>
+                  </Grid.Col>
 
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                  Region
-                </Text>
-                {isEditing ? (
-                  <TextInput
-                    value={editedData.address.region}
-                    onChange={(e) => handleAddressChange('region', e.target.value)}
-                    placeholder="e.g., NCR, Region III"
-                    styles={{
-                      input: {
-                        borderColor: '#E5E0D8',
-                        '&:focus': { borderColor: PRIMARY_GOLD },
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text fw={500} c={CHARCOAL}>
-                    {displayData.address.region || 'Not provided'}
-                  </Text>
-                )}
-              </Box>
-            </Stack>
-          </Box> */}
-
-          <Divider mb="xl" style={{ borderColor: '#F0F0F0' }} />
-
-          {/* Administrative Information Section */}
-          <Box>
-            <Group mb="md" gap="xs">
-              <Box
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '8px',
-                  background: ACCENT_TAN,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <IconUserShield size={18} color="white" stroke={2.5} />
-              </Box>
-              <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
-                Administrative Information
-              </Text>
-            </Group>
-
-            <Stack gap="md">
-              <Grid gutter="md">
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Admin Role
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                      Role
                     </Text>
                     <Text fw={500} c={CHARCOAL}>
-                      {displayData.adminRole || 'System Administrator'}
+                      {roleLabel}
                     </Text>
-                  </Box>
-                </Grid.Col>
-                <Grid.Col span={12} md={6}>
-                  <Box>
-                    <Text size="xs" c={MUTED_OLIVE} mb={6} fw={500}>
-                      Department
-                    </Text>
-                    {isEditing ? (
-                      <TextInput
-                        value={editedData.department}
-                        onChange={(e) => handleInputChange('department', e.target.value)}
-                        placeholder="Department name"
-                        styles={{
-                          input: {
-                            borderColor: '#E5E0D8',
-                            '&:focus': { borderColor: PRIMARY_GOLD },
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Text fw={500} c={CHARCOAL}>
-                        {displayData.department || 'Not specified'}
-                      </Text>
-                    )}
-                  </Box>
-                </Grid.Col>
-              </Grid>
-            </Stack>
-          </Box>
+                  </Grid.Col>
 
-          {/* Edit Actions */}
-          {isEditing && (
-            <>
-              <Divider my="xl" style={{ borderColor: '#F0F0F0' }} />
-              <Group justify="flex-end" gap="md">
-                <Button
-                  variant="outline"
-                  leftIcon={<IconX size={16} />}
-                  onClick={handleCancel}
-                  disabled={saving}
-                  style={{
-                    borderColor: MUTED_OLIVE,
-                    color: MUTED_OLIVE,
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  leftIcon={<IconCheck size={16} />}
-                  onClick={handleSave}
-                  loading={saving}
-                  style={{
-                    background: PRIMARY_BROWN,
-                  }}
-                >
-                  Save Changes
-                </Button>
-              </Group>
-            </>
-          )}
-        </Paper>
+                  {isAttorney && (
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                        Account Status
+                      </Text>
+                      <Badge
+                        size="sm"
+                        variant="light"
+                        color={displayData.accountStatus === 'active' ? 'green' : 'yellow'}
+                        radius="sm"
+                      >
+                        {displayData.accountStatus
+                          ? displayData.accountStatus.charAt(0).toUpperCase() + displayData.accountStatus.slice(1)
+                          : 'Not set'}
+                      </Badge>
+                    </Grid.Col>
+                  )}
+                </Grid>
+              </Paper>
+
+              {/* ── Attorney-only sections below ── */}
+
+              {isAttorney && (
+                <>
+                  {/* Professional Credentials */}
+                  <Paper shadow="xs" p="xl" radius="lg" bg="white">
+                    <Group mb="lg" gap={8}>
+                      <IconCertificate size={18} color={ACCENT_TAN} stroke={2} />
+                      <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
+                        Professional Credentials
+                      </Text>
+                    </Group>
+
+                    <Grid gutter="lg">
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          PRC License Number
+                        </Text>
+                        <Text fw={500} c={displayData.prcLicenseNumber ? CHARCOAL : '#bbb'}>
+                          {displayData.prcLicenseNumber || 'Not set'}
+                        </Text>
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          IBR Number
+                        </Text>
+                        <Text fw={500} c={displayData.ibrNumber ? CHARCOAL : '#bbb'}>
+                          {displayData.ibrNumber || 'Not set'}
+                        </Text>
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Bar Admission Date
+                        </Text>
+                        <Text fw={500} c={displayData.barAdmissionDate ? CHARCOAL : '#bbb'}>
+                          {displayData.barAdmissionDate || 'Not set'}
+                        </Text>
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Law Firm / Organization
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.lawFirm}
+                            onChange={(e) => handleInputChange('lawFirm', e.target.value)}
+                            placeholder="Law firm name"
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.lawFirm ? CHARCOAL : '#bbb'}>
+                            {displayData.lawFirm || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+                    </Grid>
+                  </Paper>
+
+                  {/* Practice Information */}
+                  <Paper shadow="xs" p="xl" radius="lg" bg="white">
+                    <Group mb="lg" gap={8}>
+                      <IconBriefcase size={18} color={ACCENT_TAN} stroke={2} />
+                      <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">
+                        Practice Information
+                      </Text>
+                    </Group>
+
+                    <Stack gap="lg">
+                      {/* Specializations */}
+                      <Box>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Areas of Specialization
+                        </Text>
+                        {isEditing ? (
+                          <MultiSelect
+                            value={editedData.specializations}
+                            onChange={(value) => handleInputChange('specializations', value)}
+                            data={SPECIALIZATIONS}
+                            searchable
+                            styles={inputStyles}
+                          />
+                        ) : displayData.specializations?.length > 0 ? (
+                          <Group gap="xs">
+                            {displayData.specializations.map((spec) => (
+                              <Badge key={spec} size="sm" variant="light" color="blue" radius="sm">
+                                {spec}
+                              </Badge>
+                            ))}
+                          </Group>
+                        ) : (
+                          <Text fw={500} c="#bbb">Not set</Text>
+                        )}
+                      </Box>
+
+                      {/* Languages */}
+                      <Box>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Languages
+                        </Text>
+                        {isEditing ? (
+                          <MultiSelect
+                            value={editedData.languages}
+                            onChange={(value) => handleInputChange('languages', value)}
+                            data={LANGUAGES}
+                            searchable
+                            styles={inputStyles}
+                          />
+                        ) : displayData.languages?.length > 0 ? (
+                          <Group gap="xs">
+                            {displayData.languages.map((lang) => (
+                              <Badge key={lang} size="sm" variant="light" color="grape" radius="sm">
+                                {lang}
+                              </Badge>
+                            ))}
+                          </Group>
+                        ) : (
+                          <Text fw={500} c="#bbb">Not set</Text>
+                        )}
+                      </Box>
+
+                      {/* Consultation Methods */}
+                      <Box>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Consultation Methods
+                        </Text>
+                        {isEditing ? (
+                          <Stack gap="xs">
+                            <Checkbox
+                              label="Online Consultation (Video/Phone)"
+                              checked={editedData.consultationMode?.includes('online')}
+                              onChange={(e) => {
+                                const val = e.currentTarget.checked
+                                  ? [...(editedData.consultationMode || []), 'online']
+                                  : editedData.consultationMode?.filter((v) => v !== 'online');
+                                handleInputChange('consultationMode', val);
+                              }}
+                            />
+                            <Checkbox
+                              label="In-Person Meeting at Office"
+                              checked={editedData.consultationMode?.includes('in-person')}
+                              onChange={(e) => {
+                                const val = e.currentTarget.checked
+                                  ? [...(editedData.consultationMode || []), 'in-person']
+                                  : editedData.consultationMode?.filter((v) => v !== 'in-person');
+                                handleInputChange('consultationMode', val);
+                              }}
+                            />
+                          </Stack>
+                        ) : displayData.consultationMode?.length > 0 ? (
+                          <Group gap="xs">
+                            {displayData.consultationMode.includes('online') && (
+                              <Badge size="sm" variant="light" color="cyan" radius="sm">
+                                Online Consultation
+                              </Badge>
+                            )}
+                            {displayData.consultationMode.includes('in-person') && (
+                              <Badge size="sm" variant="light" color="orange" radius="sm">
+                                In-Person Meeting
+                              </Badge>
+                            )}
+                          </Group>
+                        ) : (
+                          <Text fw={500} c="#bbb">Not set</Text>
+                        )}
+                      </Box>
+
+                      {/* Biography */}
+                      <Box>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Professional Biography
+                        </Text>
+                        {isEditing ? (
+                          <Textarea
+                            value={editedData.biography}
+                            onChange={(e) => handleInputChange('biography', e.target.value)}
+                            placeholder="Share your legal background, experience, and expertise..."
+                            minRows={5}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text
+                            fw={500}
+                            c={displayData.biography ? CHARCOAL : '#bbb'}
+                            style={{ whiteSpace: 'pre-wrap' }}
+                          >
+                            {displayData.biography || 'Not set'}
+                          </Text>
+                        )}
+                      </Box>
+                    </Stack>
+                  </Paper>
+                </>
+              )}
+            </Stack>
+          </Grid.Col>
+        </Grid>
       </Container>
     </Box>
   );

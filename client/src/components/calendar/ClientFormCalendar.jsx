@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Paper, Box, Group, Text, Button, Badge, Stack, UnstyledButton, SimpleGrid, Title, Modal, TextInput, Textarea, Select } from '@mantine/core';
+import { Paper, Box, Group, Text, Button, Badge, Stack, UnstyledButton, SimpleGrid, Title, Modal, TextInput, Textarea, Select, Tooltip } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
-import { IconChevronLeft, IconChevronRight, IconCalendarEvent, IconClock, IconPlus, IconCheck, IconMapPin } from '@tabler/icons-react';
+import { IconChevronLeft, IconChevronRight, IconCalendarEvent, IconClock, IconPlus, IconCheck, IconMapPin, IconGavel, IconMessage2, IconAlertCircle, IconDots } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import apiClient from '@config/api/apiClient';
 
@@ -10,6 +10,20 @@ const PRIMARY_BROWN = '#6B4423';
 const MUTED_OLIVE = '#8B8B5C';
 const THEMED_LIGHT_BG = '#F5F3F0';
 const CHARCOAL = '#333333';
+
+// Color coding for different event types
+const EVENT_TYPE_COLORS = {
+  'Initial Interview': { bg: '#3B82F6', text: 'white', icon: '🔵' },
+  'appointment': { bg: '#3B82F6', text: 'white', icon: '🔵' },
+  'hearing': { bg: '#EF4444', text: 'white', icon: '🔴' },
+  'consultation': { bg: '#8B5CF6', text: 'white', icon: '🟣' },
+  'deadline': { bg: '#F59E0B', text: 'white', icon: '🟡' },
+  'legal-advice': { bg: '#10B981', text: 'white', icon: '🟢' },
+  'court-case': { bg: '#EF4444', text: 'white', icon: '🔴' },
+  'other': { bg: PRIMARY_BROWN, text: 'white', icon: '🟤' },
+};
+
+const getEventColor = (type) => EVENT_TYPE_COLORS[type] || EVENT_TYPE_COLORS['other'];
 
 export default function ClientFormStatusCalendar({ appointments = [], onEventCreated, onDateClick }) {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -159,13 +173,13 @@ export default function ClientFormStatusCalendar({ appointments = [], onEventCre
                   p="md"
                   radius="md"
                   style={{
-                    backgroundColor: THEMED_LIGHT_BG,
-                    border: `2px solid ${PRIMARY_GOLD}`,
+                    backgroundColor: `${getEventColor(apt.type).bg}10`,
+                    border: `2px solid ${getEventColor(apt.type).bg}`,
                   }}
                 >
                   <Group justify="space-between" mb="xs">
                     <Text fw={600} size="sm" c={CHARCOAL}>{apt.purpose || apt.clientName}</Text>
-                    <Badge size="sm" style={{ backgroundColor: PRIMARY_BROWN }}>
+                    <Badge size="sm" style={{ backgroundColor: getEventColor(apt.type).bg }}>
                       {apt.type}
                     </Badge>
                   </Group>
@@ -244,17 +258,21 @@ export default function ClientFormStatusCalendar({ appointments = [], onEventCre
                     >
                       {dayAppointments.length} apt{dayAppointments.length > 1 ? 's' : ''}
                     </Badge>
-                    {dayAppointments.slice(0, 2).map((apt, i) => (
-                      <Text
-                        key={i}
-                        size="xs"
+                    {dayAppointments.slice(0, 2).map((apt, i) => {
+                      const color = getEventColor(apt.type);
+                      return (
+                        <Tooltip key={i} label={apt.purpose || apt.clientName} withArrow position="top">
+                          <Text
+                            size="xs"
                         c={CHARCOAL}
                         truncate
-                        style={{ marginTop: '2px' }}
+                        style={{ marginTop: '2px', borderLeft: `3px solid ${color.bg}`, paddingLeft: '4px' }}
                       >
                         {apt.purpose || apt.clientName}
                       </Text>
-                    ))}
+                    </Tooltip>
+                      );
+                    })}
                   </Box>
                 )}
               </Stack>
@@ -302,12 +320,13 @@ export default function ClientFormStatusCalendar({ appointments = [], onEventCre
         <SimpleGrid cols={7} spacing="xs">
           {calendarDays.map((date, idx) => {
             if (!date) {
-              return <Box key={`empty-${idx}`} style={{ height: '80px' }} />;
+              return <Box key={`empty-${idx}`} style={{ height: '100px' }} />;
             }
 
             const dayAppointments = getAppointmentsForDate(date);
             const isTodayDate = isToday(date);
             const inCurrentMonth = isCurrentMonth(date);
+            const hasEvents = dayAppointments.length > 0;
 
             return (
               <UnstyledButton
@@ -316,56 +335,82 @@ export default function ClientFormStatusCalendar({ appointments = [], onEventCre
                 style={{ width: '100%' }}
               >
                 <Paper
-                  p="xs"
+                  p={6}
                   radius="md"
                   style={{
-                    backgroundColor: isTodayDate ? `${PRIMARY_GOLD}20` : 'white',
-                    border: isTodayDate ? `2px solid ${PRIMARY_GOLD}` : '1px solid #F0F0F0',
-                    height: '80px',
+                    backgroundColor: isTodayDate ? '#FFFAF5' : 'white',
+                    border: isTodayDate ? `2px solid ${PRIMARY_GOLD}` : '1px solid #EBEBEB',
+                    height: '100px',
                     opacity: inCurrentMonth ? 1 : 0.4,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
+                    position: 'relative',
+                    overflow: 'hidden',
                   }}
-                  sx={{
-                    '&:hover': {
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                    },
-                  }}
+                  className="calendar-day-cell"
                 >
-                <Stack gap={4} style={{ height: '100%' }}>
-                  <Text
-                    size="sm"
-                    fw={isTodayDate ? 700 : 500}
-                    c={isTodayDate ? PRIMARY_BROWN : CHARCOAL}
-                  >
-                    {date.getDate()}
-                  </Text>
-                  {dayAppointments.length > 0 && (
-                    <Box>
-                      {dayAppointments.slice(0, 2).map((apt, i) => (
-                        <Box
-                          key={i}
-                          style={{
-                            backgroundColor: PRIMARY_BROWN,
-                            borderRadius: '4px',
-                            padding: '2px 4px',
-                            marginBottom: '2px',
-                          }}
-                        >
-                          <Text size="xs" c="white" truncate>
-                            {apt.purpose || apt.clientName}
-                          </Text>
-                        </Box>
-                      ))}
+                <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  {/* Day number row */}
+                  <Group justify="space-between" align="center" mb={4}>
+                    {isTodayDate ? (
+                      <Box
+                        style={{
+                          backgroundColor: PRIMARY_BROWN,
+                          borderRadius: '50%',
+                          width: 24,
+                          height: 24,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text size="xs" fw={700} c="white" style={{ lineHeight: 1 }}>
+                          {date.getDate()}
+                        </Text>
+                      </Box>
+                    ) : (
+                      <Text size="sm" fw={500} c={CHARCOAL}>
+                        {date.getDate()}
+                      </Text>
+                    )}
+                    {!hasEvents && (
+                      <Text size="xs" c="#ccc" className="add-event-hint" style={{ opacity: 0, transition: 'opacity 0.2s' }}>
+                        +
+                      </Text>
+                    )}
+                  </Group>
+
+                  {/* Events */}
+                  {hasEvents && (
+                    <Box style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {dayAppointments.slice(0, 2).map((apt, i) => {
+                        const color = getEventColor(apt.type);
+                        return (
+                          <Tooltip key={i} label={apt.purpose || apt.clientName} withArrow position="top" multiline maw={250}>
+                            <Box
+                              style={{
+                                borderLeft: `3px solid ${color.bg}`,
+                                backgroundColor: `${color.bg}12`,
+                                borderRadius: '0 3px 3px 0',
+                                padding: '2px 5px',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              <Text size={10} c={CHARCOAL} truncate fw={500} style={{ lineHeight: 1.3 }}>
+                                {apt.purpose || apt.clientName}
+                              </Text>
+                            </Box>
+                          </Tooltip>
+                        );
+                      })}
                       {dayAppointments.length > 2 && (
-                        <Text size="xs" c={MUTED_OLIVE}>
+                        <Text size={10} c={PRIMARY_BROWN} fw={600} pl={4}>
                           +{dayAppointments.length - 2} more
                         </Text>
                       )}
                     </Box>
                   )}
-                </Stack>
+                </Box>
               </Paper>
               </UnstyledButton>
             );
@@ -426,9 +471,21 @@ export default function ClientFormStatusCalendar({ appointments = [], onEventCre
                     {getCalendarTitle()}
                   </Text>
                 </Group>
-                <Text size="xs" c={MUTED_OLIVE}>
-                  {appointments.length} total appointment{appointments.length !== 1 ? 's' : ''}
-                </Text>
+                <Group gap="xs">
+                  <Text size="xs" c={MUTED_OLIVE}>
+                    {appointments.length} total
+                  </Text>
+                  {(() => {
+                    const confirmed = appointments.filter(a => a.status === 'confirmed').length;
+                    const pending = appointments.filter(a => !a.status || a.status === 'auto-scheduled').length;
+                    return (
+                      <>
+                        {confirmed > 0 && <Badge size="xs" variant="light" color="green">{confirmed} confirmed</Badge>}
+                        {pending > 0 && <Badge size="xs" variant="light" color="orange">{pending} pending</Badge>}
+                      </>
+                    );
+                  })()}
+                </Group>
               </Box>
             </Group>
 
@@ -495,6 +552,22 @@ export default function ClientFormStatusCalendar({ appointments = [], onEventCre
             {viewMode === 'week' && renderWeekView()}
             {viewMode === 'month' && renderMonthView()}
           </Box>
+
+          {/* Event Type Legend */}
+          <Group gap="md" mt="md" justify="center">
+            {[
+              { type: 'appointment', label: 'Interview' },
+              { type: 'hearing', label: 'Hearing' },
+              { type: 'consultation', label: 'Consultation' },
+              { type: 'deadline', label: 'Deadline' },
+              { type: 'other', label: 'Other' },
+            ].map(({ type, label }) => (
+              <Group key={type} gap={4}>
+                <Box style={{ width: 10, height: 10, borderRadius: '2px', backgroundColor: getEventColor(type).bg }} />
+                <Text size="xs" c={MUTED_OLIVE}>{label}</Text>
+              </Group>
+            ))}
+          </Group>
         </Paper>
 
         {/* Add Event Modal */}

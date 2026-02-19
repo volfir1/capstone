@@ -3,9 +3,23 @@ import { auth } from '@/firebase/firebase';
 
 // 1. Create a "pre-configured" instance of Axios
 // Use proxy in development (/api) or full URL in production
-const baseURL = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL}/api` 
-  : '/api';
+let baseURL = '/api';
+if (import.meta.env.VITE_API_URL) {
+  // Normalize common malformed values (e.g.":5000") to a usable URL
+  let raw = import.meta.env.VITE_API_URL.trim();
+  // remove trailing slash
+  raw = raw.replace(/\/$/, '');
+
+  if (raw.startsWith(':')) {
+    // port-only like ":5000" -> assume local host
+    raw = `http://127.0.0.1${raw}`;
+  } else if (!/^https?:\/\//i.test(raw)) {
+    // hostname without protocol like "localhost:5000" -> add http://
+    raw = `http://${raw}`;
+  }
+
+  baseURL = `${raw}/api`;
+}
 
 console.log('API Client baseURL:', baseURL);
 

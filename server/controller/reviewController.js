@@ -1,4 +1,8 @@
 import Review from '../models/review.js'
+import User from '../models/user.js'
+import Attorney from '../models/attorney.js'
+import Case from '../models/case.js'
+import { createNotification } from './notificationController.js'
 
 export const createReview = async (req, res) => {
   try {
@@ -11,11 +15,57 @@ export const createReview = async (req, res) => {
     if (caseTitle) toCreate.caseTitle = caseTitle
     if (clientName) toCreate.clientName = clientName
 
+    // If the case already has an assignee, copy it into the review so reviewers see assignment
+    try {
+      if (!toCreate.assignedTo && toCreate.caseId) {
+        const c = await Case.findById(toCreate.caseId).select('assignedTo').lean();
+        if (c && c.assignedTo) toCreate.assignedTo = c.assignedTo;
+      }
+    } catch (err) {
+      console.warn('Could not copy case.assignedTo into review:', err.message);
+    }
+
     const review = await Review.create(toCreate)
-    res.status(201).json(review)
+    
+    // Return only essential fields to avoid serialization issues with large content
+    // ── Notify the next reviewers (supervising_lawyer / director) ──
+    if (review.reviewStage) {
+      const roleToNotify = review.reviewStage; // e.g. 'supervising_lawyer' or 'director'
+      // Find all users with that role in both collections
+      const users = await User.find({ role: roleToNotify }).select('firebaseUid').lean();
+      const attorneys = await Attorney.find({ role: roleToNotify }).select('firebaseUid').lean();
+      const allRecipients = [...users, ...attorneys];
+      for (const r of allRecipients) {
+        if (r.firebaseUid) {
+          createNotification({
+            recipientId: r.firebaseUid,
+            title: 'Review Pending',
+            message: `Case "${review.caseTitle || review.caseId}" requires your review.${review.clientName ? ` Client: ${review.clientName}` : ''}`,
+            type: 'review_pending',
+            referenceId: review.caseId,
+          });
+        }
+      }
+    }
+
+    const result = {
+      _id: review._id,
+      caseId: review.caseId,
+      caseTitle: review.caseTitle,
+      clientName: review.clientName,
+      reviewerId: review.reviewerId,
+      reviewerRole: review.reviewerRole,
+      step: review.step,
+      reviewStage: review.reviewStage,
+      createdAt: review.createdAt,
+      updatedAt: review.updatedAt,
+      success: true
+    }
+    res.status(201).json(result)
   } catch (err) {
-    console.error('createReview error', err)
-    res.status(500).json({ error: err.message })
+    console.error('createReview error:', err.name, err.message)
+    if (err.errors) console.error('Validation errors:', JSON.stringify(err.errors))
+    res.status(500).json({ error: err.message, name: err.name })
   }
 }
 

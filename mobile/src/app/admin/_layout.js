@@ -57,6 +57,15 @@ export default function AdminLayout() {
         }}
       />
       <Tabs.Screen
+        name="messenger"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="users"
         options={{
           title: 'Users',
@@ -77,21 +86,27 @@ export default function AdminLayout() {
       
       {/* Hidden screens */}
       <Tabs.Screen
+        name="analytics"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="manageAttorneys"
         options={{
-          href: null, // This hides it from the tab bar
+          href: null,
         }}
       />
       <Tabs.Screen
         name="assignCases"
         options={{
-          href: null, // This hides it from the tab bar
+          href: null,
         }}
       />
       <Tabs.Screen
         name="recommendation"
         options={{
-          href: null, // This hides it from the tab bar
+          href: null,
         }}
       />
     </Tabs>

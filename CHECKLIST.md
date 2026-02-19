@@ -1,113 +1,26 @@
-🧑‍💼 USER SIDE (Client)
+Thesis Update – Feb 10 | Suggestions, Feedback & Comments*
 
-🔹 Pages
+ ✅ Auto-refresh if there’s a new update or file upload from other roles/user accounts.
 
- *Login / Register
+- File name should remain the same every time it’s uploaded.
 
- *Dashboard
+- SOLA uses Google Drive for file storage and sharing — consider aligning with this.
 
- *Submit a Case
+✅ If there’s no intern available temporarily, the Secretary will take over the intern’s role.
 
- Case Tracking
+ ✅ Creating events with calendar should sync directly to Google Calendar without repetition.
 
- Chat / Appointment
+ ✅ Scheduling of clients needs approval from Admin side before being scheduled or posted in Google Calendar.
 
- Profile Page
+ ✅ Outside functionality is only for Clients. The whole system is internal for Lawyers and staff.
 
-🔹 Core Features
+ ✅ Remove chat feature between Client and Lawyer/Intern side.
 
- Submit a case with description + type + attachments
+- “Finalize Cases” does not mean closed — if new updates come in, case can continue.
+Dashboard shows: Active Cases | Terminated Cases = truly finished or won’t reopen.
 
- Ticket created and sent to admin
+- Pleadings should include deadlines for active cases.
 
- View case status (e.g., Pending, Assigned, Completed)
+- Everyone with Admin role can access Active Cases.
 
- Delivery-style case tracking progress
-
- Chat with assigned attorney
-
- Schedule appointment with attorney
-
- Receive notifications (case updates, appointment reminders)
-
- Edit personal profile
-
-⚖️ ATTORNEY SIDE
-
-🔹 Pages
-
- Login / Register
-
- Dashboard (overview of cases + appointments)
-
- Assigned Cases List
-
- Case Details / Chat Page
-
- Schedule / Appointment Page
-
- Profile Page
-
-🔹 Core Features
-
- View assigned cases from admin
-
- Open case details
-
- Chat with user/client
-
- Update case status (In Progress, Resolved)
-
- Manage appointment schedules
-
- Receive new assignment notifications
-
- Edit specialization or profile info
-
-🧩 ADMIN SIDE
-
-🔹 Pages
-
- Login
-
- Dashboard (overview metrics: new cases, active, completed)
-
- Case Management
-
- Attorney Management
-
- User Management
-
- Chat Monitoring (optional)
-
- Profile / Settings
-
-🔹 Core Features
-
- Receive and view all submitted cases/tickets
-
- Assign attorney based on specialization
-
- Update case status (Pending → Assigned → Completed)
-
- View and manage attorney accounts
-
- Manage user accounts
-
- Track active conversations or appointments
-
- Send notifications to both sides
-
- Generate reports (optional)
-
-🤖 COMMON FEATURES (All Roles)
-
- Chatbot for general inquiries or guidance
-
- Notification system (case, appointment, updates)
-
- Authentication & role-based access
-
- Responsive UI for mobile/web
-
- Profile management
+- Secretary can also assign Lawyers to each scheduled event or pleading.
