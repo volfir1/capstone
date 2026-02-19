@@ -36,7 +36,7 @@ import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, AC
 import { CASE_STATUS_STEPS } from '@utils/caseStatusSteps';
 import { getCaseTypeLabel } from '@utils/caseTypes';
 import apiClient from '@config/api/apiClient';
-import { useAuth } from '@context/authContext/authContext';
+import { useAuth } from '@context/authContext';
 import { CaseInformationSection } from '../other/CaseInformationSection';
 
 export default function TrackCasePage() {
