@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Tabs, Card, Text, Badge, Group, Button, SimpleGrid, Container, Title,
-  Paper, Box, Stack, Avatar, Menu, ActionIcon, Select, TextInput, Textarea, Modal, Loader, Center,
+  Paper, Box, Stack, Avatar, Menu, ActionIcon, Select, Autocomplete, TextInput, Textarea, Modal, Loader, Center,
   Grid, Divider, Radio,
 } from '@mantine/core';
 import ClientFormStatusCalendar from '@components/calendar/ClientFormCalendar';
@@ -352,21 +352,34 @@ export default function StaffAppointmentManager() {
       try {
         const eventsResp = await apiClient.get('/events');
         const eventsData = eventsResp?.data || [];
-        const mappedEvents = (Array.isArray(eventsData) ? eventsData : []).map((e, idx) => ({
-          id: e._id || idx,
-          clientName: e.clientName || 'Event',
-          type: e.eventType || 'other',
-          rawAppointedDate: e.eventDate,
-          scheduledDate: e.eventDate ? new Date(e.eventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD',
-          location: e.location || 'TBD',
-          priority: e.priority || 'Medium',
-          status: e.status || 'scheduled',
-          description: e.description || '',
-          assignedTo: e.assignedTo || '',
-          contactNumber: '',
-          email: '',
-          purpose: e.title || '',
-        }));
+        const mappedEvents = (Array.isArray(eventsData) ? eventsData : []).map((e, idx) => {
+          const evtDate = e.eventDate ? new Date(e.eventDate) : null;
+          // Extract time from eventDate (stored as full datetime when created via atomic endpoint)
+          let appointmentTime = '';
+          if (evtDate) {
+            const h = evtDate.getHours();
+            const m = evtDate.getMinutes();
+            if (h !== 0 || m !== 0) {
+              appointmentTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            }
+          }
+          return {
+            id: e._id || idx,
+            clientName: e.clientName || 'Event',
+            type: e.eventType || 'other',
+            rawAppointedDate: e.eventDate,
+            scheduledDate: evtDate ? evtDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD',
+            appointmentTime,
+            location: e.location || 'TBD',
+            priority: e.priority || 'Medium',
+            status: e.status || 'scheduled',
+            description: e.description || '',
+            assignedTo: e.assignedTo || '',
+            contactNumber: '',
+            email: '',
+            purpose: e.title || '',
+          };
+        });
         setEvents(mappedEvents);
       } catch (err) {
         console.error('Failed to load events:', err);
@@ -465,12 +478,28 @@ export default function StaffAppointmentManager() {
 
   const getAppointmentsForDate = (date) => {
     if (!date) return [];
-    const allItems = [...pendingAppointments, ...events];
-    return allItems.filter(item => {
-      if (!item.rawAppointedDate) return false;
-      const itemDate = new Date(item.rawAppointedDate);
-      return itemDate.toDateString() === date.toDateString();
+    const dateStr = date.toDateString();
+
+    // Get all events for this date
+    const eventsOnDate = events.filter(evt => {
+      if (!evt.rawAppointedDate) return false;
+      return new Date(evt.rawAppointedDate).toDateString() === dateStr;
     });
+
+    // Build a set of clientNames already covered by events (approved appointments)
+    const coveredClients = new Set(eventsOnDate.map(e => e.clientName?.trim()?.toLowerCase()));
+
+    // Include pending appointments only if they haven't been approved yet
+    // (no matching event exists for the same client on this date)
+    const pendingOnDate = pendingAppointments.filter(apt => {
+      if (!apt.rawAppointedDate) return false;
+      if (new Date(apt.rawAppointedDate).toDateString() !== dateStr) return false;
+      // Exclude if already covered by an event (calendarRecorded or matched by name)
+      if (apt.calendarRecorded) return false;
+      return !coveredClients.has(apt.clientName?.trim()?.toLowerCase());
+    });
+
+    return [...eventsOnDate, ...pendingOnDate];
   };
 
   const handleEditEvent = (event) => {
@@ -574,6 +603,8 @@ export default function StaffAppointmentManager() {
     }
     // Set existing appointment time if available
     setNewTime(appointment?.appointmentTime || '');
+    // Close date details modal so reschedule modal appears on top
+    setDateDetailsModal(false);
     setRescheduleModal(true);
   };
 
@@ -918,18 +949,7 @@ export default function StaffAppointmentManager() {
             {item.contactNumber}
           </Text>
         </Group>
-        <Group gap="xs">
-          <IconMail size={14} color={MUTED_OLIVE} />
-          <Text
-            size="xs"
-            c={CHARCOAL}
-            component="a"
-            href={`mailto:${item.email}`}
-            style={{ textDecoration: 'none', color: CHARCOAL, cursor: 'pointer' }}
-          >
-            {item.email}
-          </Text>
-        </Group>
+
       </Stack>
 
       <Box mb="sm">
@@ -963,6 +983,8 @@ export default function StaffAppointmentManager() {
       {/* Primary actions */}
       {item.status === 'auto-scheduled' ? (
         <Stack gap="xs">
+          {/* Only secretary and intern can conduct interviews */}
+          {(userData?.role === 'secretary' || userData?.role === 'intern') ? (
           <Group grow>
             {!item.calendarRecorded ? (
               <Button 
@@ -973,7 +995,7 @@ export default function StaffAppointmentManager() {
                 disabled={isUpdating}
                 style={{ backgroundColor: PRIMARY_BROWN }}
               >
-                Approve & Recommend
+                Approve
               </Button>
             ) : (
               <Button 
@@ -1016,6 +1038,7 @@ export default function StaffAppointmentManager() {
               Edit
             </Button>
           </Group>
+          ) : null}
           <Button
             fullWidth
             size="xs"
@@ -1222,18 +1245,8 @@ export default function StaffAppointmentManager() {
 
         {/* Appointment Calendar */}
         <ClientFormStatusCalendar 
-          appointments={[
-            ...pendingAppointments.map(apt => ({
-              id: apt.id,
-              clientName: apt.clientName,
-              type: apt.type,
-              rawAppointedDate: apt.rawAppointedDate,
-              scheduledDate: apt.scheduledDate,
-              location: apt.location,
-              purpose: apt.purpose,
-              date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
-            })),
-            ...events.map(evt => ({
+          appointments={(() => {
+            const eventsForCal = events.map(evt => ({
               id: evt.id,
               clientName: evt.clientName,
               type: evt.type,
@@ -1242,8 +1255,35 @@ export default function StaffAppointmentManager() {
               location: evt.location,
               purpose: evt.purpose,
               date: evt.rawAppointedDate ? new Date(evt.rawAppointedDate) : null,
-            }))
-          ].filter(apt => apt.date)}
+            })).filter(e => e.date);
+
+            // Build a dedup key set from events: clientName + dateString
+            const eventKeys = new Set(
+              eventsForCal.map(e => `${e.clientName}__${e.date.toDateString()}`)
+            );
+
+            // Only include pending appointments that:
+            // 1. Are not already calendar-recorded (calendarRecorded flag)
+            // 2. Don't already have a matching event by clientName + date
+            const pendingForCal = pendingAppointments
+              .filter(apt => !apt.calendarRecorded)
+              .map(apt => ({
+                id: apt.id,
+                clientName: apt.clientName,
+                type: apt.type,
+                rawAppointedDate: apt.rawAppointedDate,
+                scheduledDate: apt.scheduledDate,
+                location: apt.location,
+                purpose: apt.purpose,
+                date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
+              }))
+              .filter(apt => {
+                if (!apt.date) return false;
+                return !eventKeys.has(`${apt.clientName}__${apt.date.toDateString()}`);
+              });
+
+            return [...pendingForCal, ...eventsForCal];
+          })()}
           onEventCreated={loadAllData}
           onDateClick={handleDateClick}
         />
@@ -1289,7 +1329,7 @@ export default function StaffAppointmentManager() {
               </Tabs.Tab>
               <Tabs.Tab value="forInterview" onClick={() => setActiveTab('forInterview')} leftSection={<IconFileText size={16} />} rightSection={
                 <Badge size="sm" variant="light" color="green" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px', pointerEvents: 'none' }}>
-                  {pendingAppointments.filter(a => a.calendarRecorded).length}
+                  {pendingAppointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled').length}
                 </Badge>
               }>
                 For Interview
@@ -1307,9 +1347,9 @@ export default function StaffAppointmentManager() {
             </Tabs.Panel>
 
             <Tabs.Panel value="forInterview">
-              {pendingAppointments.filter(a => a.calendarRecorded).length > 0 ? (
+              {pendingAppointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled').length > 0 ? (
                 <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                  {pendingAppointments.filter(a => a.calendarRecorded).map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
+                  {pendingAppointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled').map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
                 </SimpleGrid>
               ) : (
                 <Center mih={300}><Text c={MUTED_OLIVE}>No appointments ready for interview</Text></Center>
@@ -2024,9 +2064,9 @@ export default function StaffAppointmentManager() {
                     <Box>
                       <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
                       {appointmentEditMode ? (
-                        <Select
+                        <Autocomplete
                           size="sm"
-                          placeholder="Select Civil Status"
+                          placeholder="Select or type Civil Status"
                           data={CIVIL_STATUS_OPTIONS}
                           value={appointmentForm.civilStatus}
                           onChange={(value) => {
@@ -2298,9 +2338,30 @@ export default function StaffAppointmentManager() {
                         <TextInput
                           placeholder="+63 912 345 6789"
                           size="sm"
+                          type="tel"
                           disabled={appointmentForm.throughRelator !== 'yes'}
-                          value={appointmentForm.relatorContactNumber}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, relatorContactNumber: e.target.value })}
+                          value={appointmentForm.relatorContactNumber || (appointmentForm.throughRelator === 'yes' ? '+63 ' : '')}
+                          onChange={(e) => {
+                            if (appointmentForm.throughRelator !== 'yes') return;
+                            const value = e.target.value;
+                            const cleaned = value.replace(/\D/g, '');
+                            const number = cleaned.startsWith('63') ? cleaned.substring(2) : cleaned;
+                            const limited = number.substring(0, 10);
+                            let formatted = '+63 ';
+                            if (limited.length <= 3) {
+                              formatted += limited;
+                            } else if (limited.length <= 6) {
+                              formatted += `${limited.slice(0, 3)} ${limited.slice(3)}`;
+                            } else {
+                              formatted += `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6)}`;
+                            }
+                            setAppointmentForm({ ...appointmentForm, relatorContactNumber: formatted });
+                          }}
+                          onFocus={(e) => {
+                            if (appointmentForm.throughRelator === 'yes' && (!e.target.value || e.target.value === '')) {
+                              setAppointmentForm({ ...appointmentForm, relatorContactNumber: '+63 ' });
+                            }
+                          }}
                           styles={{
                             input: {
                               backgroundColor: appointmentForm.throughRelator === 'yes' ? 'white' : '#F5F5F5',
@@ -2762,8 +2823,33 @@ export default function StaffAppointmentManager() {
                         <TextInput
                           size="sm"
                           placeholder="(02) 1111-2222"
-                          value={appointmentForm.courtPhoneNumber}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, courtPhoneNumber: e.target.value })}
+                          value={appointmentForm.courtPhoneNumber || ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            const digitsOnly = value.replace(/\D/g, '');
+                            if (digitsOnly.length === 0) {
+                              setAppointmentForm({ ...appointmentForm, courtPhoneNumber: '' });
+                              return;
+                            }
+                            const withLeadingZero = digitsOnly.startsWith('0') ? digitsOnly : `0${digitsOnly}`;
+                            const limited = withLeadingZero.slice(0, 10);
+                            let formatted = '';
+                            if (limited.length <= 2) {
+                              formatted = `(${limited}`;
+                            } else if (limited.length <= 4) {
+                              formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+                            } else if (limited.length <= 8) {
+                              formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6)}`;
+                            } else {
+                              formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6, 10)}`;
+                            }
+                            setAppointmentForm({ ...appointmentForm, courtPhoneNumber: formatted });
+                          }}
+                          onFocus={(e) => {
+                            if (!e.target.value || e.target.value === '') {
+                              setAppointmentForm({ ...appointmentForm, courtPhoneNumber: '(' });
+                            }
+                          }}
                         />
                       ) : (
                         <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtPhoneNumber || 'N/A'}</Text>
@@ -2864,8 +2950,33 @@ export default function StaffAppointmentManager() {
                           <TextInput
                             size="sm"
                             placeholder="(02) 3333-4444"
-                            value={appointmentForm.adversePartyCounselPhone}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, adversePartyCounselPhone: e.target.value })}
+                            value={appointmentForm.adversePartyCounselPhone || ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const digitsOnly = value.replace(/\D/g, '');
+                              if (digitsOnly.length === 0) {
+                                setAppointmentForm({ ...appointmentForm, adversePartyCounselPhone: '' });
+                                return;
+                              }
+                              const withLeadingZero = digitsOnly.startsWith('0') ? digitsOnly : `0${digitsOnly}`;
+                              const limited = withLeadingZero.slice(0, 10);
+                              let formatted = '';
+                              if (limited.length <= 2) {
+                                formatted = `(${limited}`;
+                              } else if (limited.length <= 4) {
+                                formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+                              } else if (limited.length <= 8) {
+                                formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6)}`;
+                              } else {
+                                formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6, 10)}`;
+                              }
+                              setAppointmentForm({ ...appointmentForm, adversePartyCounselPhone: formatted });
+                            }}
+                            onFocus={(e) => {
+                              if (!e.target.value || e.target.value === '') {
+                                setAppointmentForm({ ...appointmentForm, adversePartyCounselPhone: '(' });
+                              }
+                            }}
                             styles={{ input: { backgroundColor: 'white' } }}
                           />
                         ) : (

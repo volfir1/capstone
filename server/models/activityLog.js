@@ -39,6 +39,8 @@ const activityLogSchema = new mongoose.Schema(
 // Compound index for efficient querying
 activityLogSchema.index({ createdAt: -1 });
 activityLogSchema.index({ action: 1, createdAt: -1 });
+// Auto-delete logs older than 7 days
+activityLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 604800 });
 
 const ActivityLog = mongoose.model('ActivityLog', activityLogSchema);
 

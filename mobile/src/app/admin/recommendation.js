@@ -39,8 +39,8 @@ export default function RecommendationForAction() {
   const derivedCaseId = caseIdParam || passedReview?.caseId || 'new-case';
   const { userData } = useAuth();
   const normalizedRole = (userData?.role || '').toLowerCase().trim();
-  const isIntern = normalizedRole === 'intern';
-  const isAttorneyRole = ['attorney', 'secretary', 'pao_lawyer', 'legal_volunteer', 'admin', 'director', 'supervising_lawyer'].includes(normalizedRole);
+  const isIntern = normalizedRole === 'intern' || normalizedRole === 'secretary';
+  const isAttorneyRole = ['attorney', 'pao_lawyer', 'legal_volunteer', 'admin', 'director', 'supervising_lawyer'].includes(normalizedRole);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -132,12 +132,19 @@ export default function RecommendationForAction() {
     const today = new Date();
     const formattedDate = today.toISOString().split('T')[0];
     
-    if (normalizedRole === 'intern') {
-      // For interns: Set assignedTo and date if not already set
+    if (normalizedRole === 'intern' || normalizedRole === 'secretary') {
+      // For interns/secretary: Append name to assignedTo if not already present
       if (!actionInfo.assignedTo) {
         setActionInfo(prev => ({
           ...prev,
           assignedTo: currentUserName,
+          signatureDate: formattedDate
+        }));
+      } else if (!actionInfo.assignedTo.includes(currentUserName)) {
+        // Append name if different intern/secretary is editing
+        setActionInfo(prev => ({
+          ...prev,
+          assignedTo: prev.assignedTo + ', ' + currentUserName,
           signatureDate: formattedDate
         }));
       } else if (!actionInfo.signatureDate) {
@@ -259,13 +266,13 @@ export default function RecommendationForAction() {
       }
 
       if (isIntern) {
-        // Interns submit for review only; status marked confirmed and no finalization
+        // Interns/Secretary submit for review only; status marked confirmed and no finalization
         try {
           await apiClient.put(`/clientsinfo/${derivedCaseId}`, { status: 'confirmed' });
         } catch (statusErr) {
           console.error('Error updating status for intern submission:', statusErr);
         }
-        Alert.alert('Submitted', 'Review sent to the attorney for finalization.');
+        Alert.alert('Submitted', 'Review sent to the supervising lawyer for review.');
         router.back();
         return;
       }
@@ -390,10 +397,11 @@ export default function RecommendationForAction() {
             
             <Text style={styles.inputLabel}>Interviewing Intern/s Duty Day</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, styles.disabledInput]}
               value={interviewInfo.interviewingInterns}
-              onChangeText={(text) => setInterviewInfo({...interviewInfo, interviewingInterns: text})}
               placeholder="Intern Name/s and Duty Day"
+              editable={false}
+              selectTextOnFocus={false}
             />
 
             <View style={styles.divider} />

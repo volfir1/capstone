@@ -134,7 +134,7 @@ export const createEventAndRecord = async (req, res) => {
     const newEvent = new Event({
       title: meta?.title || event.summary || 'Appointment',
       description: meta?.description || event.description || '',
-      eventDate: meta?.eventDate || event.start?.dateTime || event.start?.date,
+      eventDate: event.start?.dateTime || event.start?.date || meta?.eventDate,
       eventType: meta?.eventType || 'appointment',
       location: meta?.location || event.location || '',
       clientName: meta?.clientName || '',

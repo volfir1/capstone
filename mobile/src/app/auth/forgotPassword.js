@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { doPasswordReset } from '../firebaseApp/auth';
+import { doPasswordReset } from '../../firebaseApp/auth';
 import { PRIMARY_BROWN, CHARCOAL, MUTED_OLIVE } from 'utils/constants';
 
 export default function ForgotPassword() {

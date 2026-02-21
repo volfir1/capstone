@@ -9,7 +9,7 @@ export const BG = "#F7F8FA";
 // Form Options
 export const GENDER_OPTIONS = ['Male', 'Female'];
 
-export const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated'];
+export const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Divorced'];
 
 export const PHILIPPINES_REGIONS = [
   'NCR - National Capital Region',

@@ -181,19 +181,92 @@ const MUTED_OLIVE = '#8A8A5C'; // Re-added for button styling
 
 
 // Helper component for Evidence Tables (Memoized)
-const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, readOnly = false }) => {
-    const updateRow = (index, field, newValue) => {
-        if (readOnly) return; // Prevent updates if read-only
-        const updated = [...value];
-        if (!updated[index]) {
-            updated[index] = { type: '', author: '', purpose: '', issues: '' };
+const EMPTY_EVIDENCE_ROW = { type: '', author: '', purpose: '', issues: '' };
+
+const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly }) => {
+    // Local state per-row so keystrokes never re-render siblings or the parent form
+    const [local, setLocal] = React.useState(() => ({ ...EMPTY_EVIDENCE_ROW, ...row }));
+
+    // Sync inbound prop changes (e.g. initial load) without clobbering active edits
+    const prevRowRef = React.useRef(row);
+    React.useEffect(() => {
+        const prev = prevRowRef.current;
+        const changed =
+            prev.type !== row.type || prev.author !== row.author ||
+            prev.purpose !== row.purpose || prev.issues !== row.issues;
+        if (changed) {
+            setLocal({ ...EMPTY_EVIDENCE_ROW, ...row });
         }
-        updated[index] = { ...updated[index], [field]: newValue };
-        onChange(updated);
+        prevRowRef.current = row;
+    }, [row]);
+
+    const handleChange = (field) => (e) => {
+        if (readOnly) return;
+        setLocal((prev) => ({ ...prev, [field]: e.target.value }));
     };
 
+    const handleBlur = (field) => (e) => {
+        if (readOnly) return;
+        const updated = { ...local, [field]: e.target.value };
+        setLocal(updated);
+        onBlurRow(index, updated);
+    };
+
+    const inputStyles = {
+        input: {
+            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
+            cursor: readOnly ? 'not-allowed' : 'text',
+        },
+    };
+
+    return (
+        <Table.Tr>
+            <Table.Td>
+                <TextInput placeholder="Type/Desc" size="xs" variant="unstyled"
+                    value={local.type}
+                    onChange={handleChange('type')}
+                    onBlur={handleBlur('type')}
+                    readOnly={readOnly} styles={inputStyles} />
+            </Table.Td>
+            <Table.Td>
+                <TextInput placeholder="Author/Custodian" size="xs" variant="unstyled"
+                    value={local.author}
+                    onChange={handleChange('author')}
+                    onBlur={handleBlur('author')}
+                    readOnly={readOnly} styles={inputStyles} />
+            </Table.Td>
+            <Table.Td>
+                <TextInput placeholder="Purpose" size="xs" variant="unstyled"
+                    value={local.purpose}
+                    onChange={handleChange('purpose')}
+                    onBlur={handleBlur('purpose')}
+                    readOnly={readOnly} styles={inputStyles} />
+            </Table.Td>
+            <Table.Td>
+                <TextInput placeholder="Issues" size="xs" variant="unstyled"
+                    value={local.issues}
+                    onChange={handleChange('issues')}
+                    onBlur={handleBlur('issues')}
+                    readOnly={readOnly} styles={inputStyles} />
+            </Table.Td>
+        </Table.Tr>
+    );
+});
+EvidenceRow.displayName = 'EvidenceRow';
+
+const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, readOnly = false }) => {
     // Ensure we have at least 3 rows
-    const rows = value.length >= 3 ? value : [...value, ...Array(3 - value.length).fill({ type: '', author: '', purpose: '', issues: '' })];
+    const rows = value.length >= 3 ? value : [...value, ...Array(3 - value.length).fill(EMPTY_EVIDENCE_ROW)];
+
+    const handleBlurRow = React.useCallback((index, updatedRowData) => {
+        const updated = [...rows];
+        updated[index] = updatedRowData;
+        onChange(updated);
+    }, [rows, onChange]);
+
+    const handleAddRow = React.useCallback(() => {
+        onChange([...rows, { ...EMPTY_EVIDENCE_ROW }]);
+    }, [rows, onChange]);
 
     return (
         <Stack gap="sm">
@@ -208,76 +281,27 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
                     </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                    {rows.slice(0, 3).map((row, index) => (
-                        <Table.Tr key={index}>
-                            <Table.Td>
-                                <TextInput 
-                                    placeholder="Type/Desc" 
-                                    size="xs" 
-                                    variant="unstyled"
-                                    value={row.type || ''}
-                                    onChange={(e) => updateRow(index, 'type', e.target.value)}
-                                    readOnly={readOnly}
-                                    styles={{
-                                        input: {
-                                            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
-                                            cursor: readOnly ? 'not-allowed' : 'text'
-                                        }
-                                    }}
-                                />
-                            </Table.Td>
-                            <Table.Td>
-                                <TextInput 
-                                    placeholder="Author/Custodian" 
-                                    size="xs" 
-                                    variant="unstyled"
-                                    value={row.author || ''}
-                                    onChange={(e) => updateRow(index, 'author', e.target.value)}
-                                    readOnly={readOnly}
-                                    styles={{
-                                        input: {
-                                            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
-                                            cursor: readOnly ? 'not-allowed' : 'text'
-                                        }
-                                    }}
-                                />
-                            </Table.Td>
-                            <Table.Td>
-                                <TextInput 
-                                    placeholder="Purpose" 
-                                    size="xs" 
-                                    variant="unstyled"
-                                    value={row.purpose || ''}
-                                    onChange={(e) => updateRow(index, 'purpose', e.target.value)}
-                                    readOnly={readOnly}
-                                    styles={{
-                                        input: {
-                                            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
-                                            cursor: readOnly ? 'not-allowed' : 'text'
-                                        }
-                                    }}
-                                />
-                            </Table.Td>
-                            <Table.Td>
-                                <TextInput 
-                                    placeholder="Issues" 
-                                    size="xs" 
-                                    variant="unstyled"
-                                    value={row.issues || ''}
-                                    onChange={(e) => updateRow(index, 'issues', e.target.value)}
-                                    readOnly={readOnly}
-                                    styles={{
-                                        input: {
-                                            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
-                                            cursor: readOnly ? 'not-allowed' : 'text'
-                                        }
-                                    }}
-                                />
-                            </Table.Td>
-                        </Table.Tr>
+                    {rows.map((row, index) => (
+                        <EvidenceRow
+                            key={index}
+                            row={row}
+                            index={index}
+                            onBlurRow={handleBlurRow}
+                            readOnly={readOnly}
+                        />
                     ))}
                 </Table.Tbody>
             </Table>
+            {!readOnly && (
+                <Button
+                    variant="subtle"
+                    size="xs"
+                    style={{ alignSelf: 'flex-start', color: PRIMARY_BROWN }}
+                    onClick={handleAddRow}
+                >
+                    + Add another row
+                </Button>
+            )}
         </Stack>
     );
 });
@@ -362,12 +386,13 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
     // 1. Position mismatch (different role created it) - BUT allow supervising lawyers and directors to edit during their review stages
     // 2. Review stage restrictions (intern can't edit when in review stages, EXCEPT when returned for revision)
     // Allow supervising lawyer to edit when at supervising_lawyer stage, director to edit at director stage
+    const isReturnedToIntern = currentReviewStage === 'returned_to_intern';
     const isSupervisingLawyerReviewing = userRole === 'supervising_lawyer' && currentReviewStage === 'supervising_lawyer';
     const isDirectorReviewing = userRole === 'director' && currentReviewStage === 'director';
     const isPositionMismatch = value.createdByRole && userRole && value.createdByRole !== userRole && 
-        currentReviewStage !== 'returned_to_intern' && !isSupervisingLawyerReviewing && !isDirectorReviewing;
+        !isReturnedToIntern && !isSupervisingLawyerReviewing && !isDirectorReviewing;
     // Interns can edit when: not submitted yet OR returned to them for revision
-    const isInternViewingSubmittedReview = userRole === 'intern' && 
+    const isInternViewingSubmittedReview = (userRole === 'intern' || userRole === 'secretary') && 
         (currentReviewStage === 'supervising_lawyer' || currentReviewStage === 'director' || currentReviewStage === 'completed');
     const isSupervisingLawyerViewingDirectorReview = userRole === 'supervising_lawyer' && (currentReviewStage === 'director' || currentReviewStage === 'completed');
     
@@ -399,31 +424,31 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
                 <TextInput label="Date of Interview" type="date" 
                     value={value.dateOfInterview || ''} onChange={(e) => onChange({ ...value, dateOfInterview: e.target.value })} 
-                    readOnly={isReadOnly}
+                    readOnly
                     styles={{
                         input: {
-                            backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
-                            cursor: isReadOnly ? 'not-allowed' : 'text'
+                            backgroundColor: '#F5F5F5',
+                            cursor: 'not-allowed'
                         }
                     }}
                 />
                 <TextInput label="Date Submitted" type="date"
                     value={value.dateSubmitted || ''} onChange={(e) => onChange({ ...value, dateSubmitted: e.target.value })} 
-                    readOnly={isReadOnly}
+                    readOnly
                     styles={{
                         input: {
-                            backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
-                            cursor: isReadOnly ? 'not-allowed' : 'text'
+                            backgroundColor: '#F5F5F5',
+                            cursor: 'not-allowed'
                         }
                     }}
                 />
                 <TextInput label="Client's Name" placeholder="Full Name"
                     value={value.clientName || ''} onChange={(e) => onChange({ ...value, clientName: e.target.value })} 
-                    readOnly={isReadOnly}
+                    readOnly
                     styles={{
                         input: {
-                            backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
-                            cursor: isReadOnly ? 'not-allowed' : 'text'
+                            backgroundColor: '#F5F5F5',
+                            cursor: 'not-allowed'
                         }
                     }}
                 />
@@ -498,9 +523,9 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 mt="md"
             >
                 <Stack gap="xs" mt="xs">
-                    <Radio value="legal-advice" label="For legal advice only" disabled={isReadOnly || (userRole !== 'intern' && isViewingExistingReview)} />
-                    <Radio value="legal-document" label="For drafting of legal document" disabled={isReadOnly || (userRole !== 'intern' && isViewingExistingReview)} />
-                    <Radio value="court-representation" label="For court representation" disabled={isReadOnly || (userRole !== 'intern' && isViewingExistingReview)} />
+                    <Radio value="legal-advice" label="For legal advice only" disabled={isReadOnly || isReturnedToIntern || (userRole !== 'intern' && userRole !== 'secretary' && isViewingExistingReview)} />
+                    <Radio value="legal-document" label="For drafting of legal document" disabled={isReadOnly || isReturnedToIntern || (userRole !== 'intern' && userRole !== 'secretary' && isViewingExistingReview)} />
+                    <Radio value="court-representation" label="For court representation" disabled={isReadOnly || isReturnedToIntern || (userRole !== 'intern' && userRole !== 'secretary' && isViewingExistingReview)} />
                 </Stack>
             </Radio.Group>
 
@@ -703,10 +728,13 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
         const today = new Date();
         const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         
-        if (userRole === 'intern' && userData) {
-            // For interns: Set assignedTo and date if not already set
+        if ((userRole === 'intern' || userRole === 'secretary') && userData) {
+            // For interns/secretary: Append name to assignedTo if not already present
             if (!value.assignedTo) {
                 onChange({ ...value, assignedTo: currentUserName, assignedToId: currentUserId, signatureDate: formattedDate });
+            } else if (!value.assignedTo.includes(currentUserName)) {
+                // Append name if different intern/secretary is editing
+                onChange({ ...value, assignedTo: value.assignedTo + ', ' + currentUserName, signatureDate: formattedDate });
             } else if (!value.signatureDate) {
                 onChange({ ...value, signatureDate: formattedDate });
             }
@@ -867,7 +895,7 @@ const totalSteps = 2;
 export default function CaseRecordFormsDisplay() {
     const { userData } = useAuth();
     const [active, setActive] = useState(0);
-    const isIntern = userData?.role === 'intern';
+    const isIntern = userData?.role === 'intern' || userData?.role === 'secretary';
     const [reviews, setReviews] = useState([])
     const [saving, setSaving] = useState(false)
     const [isFromDashboard, setIsFromDashboard] = useState(false)
@@ -1248,8 +1276,11 @@ export default function CaseRecordFormsDisplay() {
     
     
     // Handler for downloading document
-    const handleDownloadDocument = (file, documentData) => {
+    const handleDownloadDocument = async (file, documentData) => {
         const docData = documentData || interviewInfo.uploadedDocument;
+        
+        // Always use the original filename (never the server-mangled one with random numbers)
+        const fileName = file?.name || docData?.fileName || 'document';
         
         // Check if it's a server file first
         let url = null;
@@ -1263,8 +1294,6 @@ export default function CaseRecordFormsDisplay() {
             url = URL.createObjectURL(file);
         }
         
-        const fileName = file?.name || docData?.fileName || 'document';
-        
         // Normalize server-relative URLs to backend absolute URLs
         if (typeof url === 'string' && url.startsWith('/')) {
             url = getServerFileUrl(url);
@@ -1275,17 +1304,29 @@ export default function CaseRecordFormsDisplay() {
             return;
         }
         
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.target = '_blank'; // Open in new tab for server files
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up object URL only if it was created locally
-        if (file && !file.isServerFile && !docData?.fileData) {
-            URL.revokeObjectURL(url);
+        try {
+            // Fetch the file as a blob so the download attribute is always honoured
+            // and the saved filename is the original name regardless of what multer
+            // stored on disk (which includes random numbers).
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            console.error('Blob download failed, falling back to direct link:', err);
+            // Fallback: direct link without target=_blank so download attribute is used
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
     };
     
@@ -1385,6 +1426,12 @@ export default function CaseRecordFormsDisplay() {
     
     const handleSubmit = async () => {
         const caseId = getCaseId();
+        
+        // Flush any focused evidence row input before reading interviewInfo state
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+            await new Promise(r => setTimeout(r, 0));
+        }
         
         // Check if file is required but not uploaded
         if (interviewInfo.caseType === 'legal-document' && !uploadedFile) {
@@ -1547,7 +1594,7 @@ export default function CaseRecordFormsDisplay() {
             const isInternFinalize = window.__internFinalizeClicked;
             delete window.__internFinalizeClicked; // Clean up flag
             
-            if (userData?.role === 'intern' && active === totalSteps - 1) {
+            if ((userData?.role === 'intern' || userData?.role === 'secretary') && active === totalSteps - 1) {
                 if (isInternFinalize && interviewInfo.caseType === 'legal-advice') {
                     // Intern finalizing a legal advice case
                     const statusOk = await updateCaseStatus('legal-advice');
@@ -1576,8 +1623,8 @@ export default function CaseRecordFormsDisplay() {
                 }
             }
             
-            // If director/attorney/secretary finalizes record on last step, create a finalized record
-            if ((userData?.role === 'director' || userData?.role === 'attorney' || userData?.role === 'secretary' || userData?.role === 'pao_lawyer' || userData?.role === 'legal_volunteer' || userData?.role === 'supervising_lawyer') && active === totalSteps - 1) {
+            // If director/attorney finalizes record on last step, create a finalized record
+            if ((userData?.role === 'director' || userData?.role === 'attorney' || userData?.role === 'pao_lawyer' || userData?.role === 'legal_volunteer' || userData?.role === 'supervising_lawyer') && active === totalSteps - 1) {
                 // Determine final status based on caseType and decision
                 const finalDecision = actionInfo.decision || 'accepted'; // default to accepted when finalizing
                 let finalStatus = 'confirmed';
@@ -1675,6 +1722,12 @@ export default function CaseRecordFormsDisplay() {
         if (!reviewId) {
             noReviewIdNotif();
             return;
+        }
+
+        // Flush any focused evidence row input before reading interviewInfo state
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+            await new Promise(r => setTimeout(r, 0));
         }
 
         // Check if file is required but not uploaded (only if there was never a file)
@@ -2241,11 +2294,6 @@ export default function CaseRecordFormsDisplay() {
                                                         View only - Pending review by {currentReviewStage === 'supervising_lawyer' ? 'supervising lawyer' : 'director'}
                                                     </Text>
                                                 )
-                                            ) : userData?.role === 'secretary' ? (
-                                                // Secretary: View only, no edit buttons
-                                                <Text size="sm" c={MUTED_OLIVE} fs="italic">
-                                                    View only - Secretary cannot edit reviews
-                                                </Text>
                                             ) : userData?.role === 'supervising_lawyer' ? (
                                                 // Supervising Lawyer: Can only act on supervising_lawyer stage
                                                 currentReviewStage === 'supervising_lawyer' ? (
@@ -2281,6 +2329,11 @@ export default function CaseRecordFormsDisplay() {
                                                             {saving ? 'Returning...' : 'Return to Intern'}
                                                         </Button>
                                                     </Group>
+                                                ) : currentReviewStage === 'returned_to_intern' ? (
+                                                    // Supervising lawyer viewing returned case - view only (intern/secretary must act)
+                                                    <Text size="sm" c={MUTED_OLIVE} fs="italic">
+                                                        View only - Returned to intern for revision
+                                                    </Text>
                                                 ) : (
                                                     // Supervising lawyer viewing director stage - view only
                                                     <Text size="sm" c={MUTED_OLIVE} fs="italic">
@@ -2307,7 +2360,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="filled"
                                                             style={{ backgroundColor: PRIMARY_BROWN }}
-                                                            disabled={saving || !actionInfo.decision || actionInfo.decision === 'rejected'}
+                                                            disabled={saving || actionInfo.decision !== 'accepted'}
                                                         >
                                                             {saving ? 'Finalizing...' : 'Finalize Record'}
                                                         </Button>
@@ -2322,6 +2375,11 @@ export default function CaseRecordFormsDisplay() {
                                                             {saving ? 'Returning...' : 'Return to Supervising Lawyer'}
                                                         </Button>
                                                     </Group>
+                                                ) : currentReviewStage === 'returned_to_intern' ? (
+                                                    // Director viewing returned case - view only (intern/secretary must act)
+                                                    <Text size="sm" c={MUTED_OLIVE} fs="italic">
+                                                        View only - Returned to intern for revision
+                                                    </Text>
                                                 ) : (
                                                     // Director viewing supervising lawyer stage - view only
                                                     <Text size="sm" c={MUTED_OLIVE} fs="italic">
@@ -2369,7 +2427,7 @@ export default function CaseRecordFormsDisplay() {
                                                 {saving ? 'Saving...' : 'Submit for Review'}
                                             </Button>
                                         ) : (
-                                            // Attorney/Secretary creating new: Finalize Record button only
+                                            // Attorney creating new: Finalize Record button only
                                             <Button 
                                                 leftSection={<IconCircleCheck size={20} />}
                                                 onClick={handleSubmit}

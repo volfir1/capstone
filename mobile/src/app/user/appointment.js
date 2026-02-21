@@ -474,7 +474,7 @@ export default function AppointmentForm() {
               <Picker.Item label="Single" value="single" />
               <Picker.Item label="Married" value="married" />
               <Picker.Item label="Widowed" value="widowed" />
-              <Picker.Item label="Separated" value="separated" />
+              <Picker.Item label="Divorced" value="divorced" />
             </Picker>
           </View>
           {errors.civilStatus && <Text style={styles.errorText}>{errors.civilStatus}</Text>}

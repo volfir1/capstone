@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../../context/authContext';
 import apiClient from '../../api/apiClient';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -26,6 +27,9 @@ const THEMED_LIGHT_BG = '#FAF8F3';
 
 export default function ClientFormStatus() {
   const router = useRouter();
+  const { userData } = useAuth();
+  const userRole = (userData?.role || '').toLowerCase().trim();
+  const canInterview = userRole === 'secretary' || userRole === 'intern';
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -80,6 +84,7 @@ export default function ClientFormStatus() {
         rawAppointedDate: d.appointedDate || null,
         appointmentTime: d.appointmentTime || '',
         status: d.status || 'auto-scheduled',
+        calendarRecorded: Boolean(d.calendarRecorded),
         contactNumber: d.personal?.contactNumber || 'N/A',
         email: d.personal?.email || 'N/A',
         assignedTo: d.assignedTo || 'Staff',
@@ -253,7 +258,8 @@ export default function ClientFormStatus() {
     }
   };
 
-  const autoScheduledAppointments = appointments.filter(a => a.status === 'auto-scheduled' || !a.status);
+  const autoScheduledAppointments = appointments.filter(a => (a.status === 'auto-scheduled' || !a.status) && !a.calendarRecorded);
+  const forInterviewAppointments = appointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled');
   const confirmedAppointments = appointments.filter(a => a.status === 'confirmed');
   const legalAdviceAppointments = appointments.filter(a => a.status === 'legal-advice');
   const courtCaseAppointments = appointments.filter(a => a.status === 'court-case');
@@ -428,6 +434,10 @@ export default function ClientFormStatus() {
         data = autoScheduledAppointments;
         emptyMessage = 'No auto-scheduled appointments';
         break;
+      case 'forInterview':
+        data = forInterviewAppointments;
+        emptyMessage = 'No appointments for interview';
+        break;
       case 'confirmed':
         data = confirmedAppointments;
         emptyMessage = 'No confirmed appointments';
@@ -551,6 +561,15 @@ export default function ClientFormStatus() {
         </TouchableOpacity>
         
         <TouchableOpacity
+          style={[styles.tab, activeTab === 'forInterview' && styles.activeTab]}
+          onPress={() => setActiveTab('forInterview')}
+        >
+          <Text style={[styles.tabText, activeTab === 'forInterview' && styles.activeTabText]}>
+            For Interview ({forInterviewAppointments.length})
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
           style={[styles.tab, activeTab === 'confirmed' && styles.activeTab]}
           onPress={() => setActiveTab('confirmed')}
         >
@@ -622,9 +641,6 @@ export default function ClientFormStatus() {
                 <Text style={styles.modalLabel}>Contact</Text>
                 <Text style={styles.modalValue}>{selectedAppointment.contactNumber}</Text>
 
-                <Text style={styles.modalLabel}>Email</Text>
-                <Text style={styles.modalValue}>{selectedAppointment.email}</Text>
-
                 <Text style={styles.modalLabel}>Scheduled Date</Text>
                 <Text style={styles.modalValue}>
                   {selectedAppointment.scheduledDate}
@@ -641,6 +657,7 @@ export default function ClientFormStatus() {
                 <Text style={styles.modalValue}>{selectedAppointment.assignedTo}</Text>
 
                 {selectedAppointment.status === 'auto-scheduled' ? (
+                  canInterview ? (
                   <View style={styles.buttonGroup}>
                     <TouchableOpacity 
                       style={[styles.actionButton, styles.recommendButton]}
@@ -650,7 +667,7 @@ export default function ClientFormStatus() {
                       }}
                     >
                       <Ionicons name="document-text" size={20} color={PRIMARY_BROWN} />
-                      <Text style={styles.recommendButtonText}>Recommend</Text>
+                      <Text style={styles.recommendButtonText}>Approve</Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity 
@@ -661,6 +678,7 @@ export default function ClientFormStatus() {
                       <Text style={styles.editButtonText}>Edit</Text>
                     </TouchableOpacity>
                   </View>
+                  ) : null
                 ) : (
                   <TouchableOpacity 
                     style={styles.viewRecommendationButton}

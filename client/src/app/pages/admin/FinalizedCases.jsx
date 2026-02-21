@@ -1925,7 +1925,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {rows.slice(0, 3).map((row, idx) => (
+            {rows.map((row, idx) => (
               <Table.Tr key={idx}>
                 <Table.Td>
                   {state.editMode ? (
@@ -1983,6 +1983,27 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
             ))}
           </Table.Tbody>
         </Table>
+        {state.editMode && (
+          <Button
+            variant="subtle"
+            size="xs"
+            mt="xs"
+            style={{ color: PRIMARY_BROWN }}
+            onClick={() => {
+              const newData = JSON.parse(JSON.stringify(state.editedData));
+              if (!newData.content) newData.content = {};
+              if (!newData.content.interviewInfo) newData.content.interviewInfo = {};
+              if (!newData.content.interviewInfo[fieldName]) newData.content.interviewInfo[fieldName] = [];
+              newData.content.interviewInfo[fieldName] = [
+                ...newData.content.interviewInfo[fieldName],
+                { type: '', author: '', purpose: '', issues: '' }
+              ];
+              dispatch({ type: 'SET_EDITED_DATA', payload: newData });
+            }}
+          >
+            + Add another row
+          </Button>
+        )}
       </Box>
     );
   };
@@ -3193,30 +3214,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     />
                   ) : (
                     <Text size="sm">{state.editedData.content?.interviewInfo?.fastFacts || '-'}</Text>
-                  )}
-                </Box>
-                <Divider my="md" />
-                {renderEvidenceTable(
-                  "Evidence on Hand / Available for the Client(s)",
-                  state.editedData.content?.interviewInfo?.clientEvidence,
-                  'clientEvidence'
-                )}
-                {renderEvidenceTable(
-                  "Evidence on Hand / Available for the Adverse Party(ies)",
-                  state.editedData.content?.interviewInfo?.adversePartyEvidence,
-                  'adversePartyEvidence'
-                )}
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
-                  {state.editMode ? (
-                    <Textarea
-                      autosize
-                      minRows={3}
-                      value={state.editedData.content?.interviewInfo?.internAdvice || ''}
-                      onChange={(e) => updateEditedData('content.interviewInfo.internAdvice', e.target.value)}
-                    />
-                  ) : (
-                    <Text size="sm">{state.editedData.content?.interviewInfo?.internAdvice || '-'}</Text>
                   )}
                 </Box>
                 <Divider my="md" />

@@ -15,7 +15,7 @@ export const CIVIL_STATUS_OPTIONS = [
   'Single',
   'Married',
   'Widowed',
-  'Separated'
+  'Divorced'
 ];
 
 export const PHILIPPINES_REGIONS = [

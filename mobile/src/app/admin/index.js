@@ -22,7 +22,7 @@ const REVIEW_STAGES = [
 export default function AdminDashboard() {
   const router = useRouter();
   const { logout, userData } = useAuth();
-  const isIntern = userData?.role === 'intern';
+  const isIntern = userData?.role === 'intern' || userData?.role === 'secretary';
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,8 +121,8 @@ export default function AdminDashboard() {
 
   // Filter reviews by stage
   const filteredReviews = reviewStage === 'all' ? reviews :
-    reviewStage === 'returned' ? reviews.filter(r => r.status === 'returned') :
-    reviews.filter(r => r.currentStage === reviewStage || r.reviewerRole === reviewStage);
+    reviewStage === 'returned' ? reviews.filter(r => r.reviewStage === 'returned_to_intern' || r.status === 'returned') :
+    reviews.filter(r => r.reviewStage === reviewStage || r.currentStage === reviewStage || r.reviewerRole === reviewStage);
 
   const statCards = [
     { label: 'Total Cases', value: stats.totalCases, icon: 'documents-outline', color: '#8B6F47', bg: '#F5EFE7' },

@@ -67,7 +67,7 @@ const Layout = ({
   let displayRole = actualUserRole;
   if (currentPath.startsWith('/admin')) {
     // All admin roles use the same navigation
-    displayRole = actualUserRole === 'secretary' || actualUserRole === 'attorney' || actualUserRole === 'intern' || actualUserRole === 'pao_lawyer' || actualUserRole === 'legal_volunteer' ? actualUserRole : 'secretary';
+    displayRole = actualUserRole === 'secretary' || actualUserRole === 'attorney' || actualUserRole === 'intern' || actualUserRole === 'pao_lawyer' || actualUserRole === 'legal_volunteer' || actualUserRole === 'supervising_lawyer' || actualUserRole === 'director' ? actualUserRole : 'secretary';
   } else if (currentPath.startsWith('/user')) {
     displayRole = 'client';
   }

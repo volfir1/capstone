@@ -774,10 +774,10 @@ export default function AdminDashboard() {
             {loadingReviews ? (
               <Center py="xl"><Loader size="sm" color={PRIMARY_BROWN} /></Center>
             ) : (
-              <>
+              <Box style={{ display: 'flex', flexDirection: 'column' }}>
                 {/* Supervising Lawyer Section */}
                 {(reviewStageFilter === 'all' || reviewStageFilter === 'supervising_lawyer') && (
-                <>
+                <Box style={{ order: userData.role === 'director' ? 2 : 1 }}>
                 <Box px="lg" py={10} style={{ background: '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
                   <Group justify="space-between" align="center">
                     <Text size="sm" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={0.5}>Pending Supervising Lawyer Review</Text>
@@ -847,12 +847,12 @@ export default function AdminDashboard() {
                     {reviewSearch ? 'No matching reviews found' : (userData.role === 'intern' ? 'No submissions pending supervising lawyer review' : 'No reviews pending')}
                   </Text>
                 )}
-                </>
+                </Box>
                 )}
 
                 {/* Director Section */}
                 {(reviewStageFilter === 'all' || reviewStageFilter === 'director') && (
-                <>
+                <Box style={{ order: userData.role === 'director' ? 1 : 2 }}>
                 <Box px="lg" py={10} mt="sm" style={{ background: '#FAFAFA', borderTop: '1px solid #E8E8E8', borderBottom: '1px solid #F0F0F0' }}>
                   <Group justify="space-between" align="center">
                     <Text size="sm" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={0.5}>Pending Director Review</Text>
@@ -922,12 +922,12 @@ export default function AdminDashboard() {
                     {reviewSearch ? 'No matching reviews found' : (userData.role === 'intern' ? 'No submissions pending director review' : 'No reviews pending')}
                   </Text>
                 )}
-                </>
+                </Box>
                 )}
 
-                {/* Returned to Intern Section - Only visible to interns */}
-                {userData.role === 'intern' && (reviewStageFilter === 'all' || reviewStageFilter === 'returned_to_intern') && (
-                  <>
+                {/* Returned to Intern Section - Visible to interns, secretary, supervising lawyers, and directors */}
+                {(userData.role === 'intern' || userData.role === 'secretary' || userData.role === 'supervising_lawyer' || userData.role === 'director') && (reviewStageFilter === 'all' || reviewStageFilter === 'returned_to_intern') && (
+                  <Box style={{ order: (userData.role === 'intern' || userData.role === 'secretary') ? 0 : 3 }}>
                     <Box px="lg" py={10} mt="sm" style={{ background: '#FAFAFA', borderTop: '1px solid #E8E8E8', borderBottom: '1px solid #F0F0F0' }}>
                       <Group justify="space-between" align="center">
                         <Text size="sm" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={0.5}>Returned for Revision</Text>
@@ -992,9 +992,9 @@ export default function AdminDashboard() {
                     ) : (
                       <Text size="sm" c={MUTED_OLIVE} px="lg" py="sm">{reviewSearch ? 'No matching reviews found' : 'No cases returned for revision'}</Text>
                     )}
-                  </>
+                  </Box>
                 )}
-              </>
+              </Box>
             )}
           </Paper>
         )}
