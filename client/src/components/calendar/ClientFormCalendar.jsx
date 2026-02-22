@@ -2,142 +2,67 @@ import React, { useState } from 'react';
 import { 
   Paper, Box, Group, Text, Button, Badge, Stack, UnstyledButton, 
   SimpleGrid, Title, Modal, TextInput, Textarea, Select, Tooltip,
-  ActionIcon, Divider, ScrollArea
+  ActionIcon, Divider, ScrollArea, Center, HoverCard
 } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
 import { 
   IconChevronLeft, IconChevronRight, IconCalendarEvent, IconClock, 
   IconPlus, IconCheck, IconMapPin, IconGavel, IconMessage2, 
-  IconAlertCircle, IconDots, IconCalendar, IconArrowRight, IconUser
+  IconAlertCircle, IconDots, IconCalendar, IconArrowRight, IconUser,
+  IconFilter, IconInfoCircle
 } from '@tabler/icons-react';
 import { useMediaQuery } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import apiClient from '@config/api/apiClient';
+import { 
+  PRIMARY_GOLD, 
+  PRIMARY_BROWN, 
+  MUTED_OLIVE, 
+  CHARCOAL,
+  ACCENT_TAN
+} from '@utils/constants';
 
-const PRIMARY_GOLD = '#D4A574';
-const PRIMARY_BROWN = '#6B4423';
-const MUTED_OLIVE = '#8B8B5C';
-const THEMED_LIGHT_BG = '#F5F3F0';
-const CHARCOAL = '#333333';
-
-// Color coding for different event types
-const EVENT_TYPE_COLORS = {
-  'Initial Interview': { bg: '#3B82F6', text: 'white', icon: <IconUser size={10} /> },
-  'appointment': { bg: '#3B82F6', text: 'white', icon: <IconCalendarEvent size={10} /> },
-  'hearing': { bg: '#EF4444', text: 'white', icon: <IconGavel size={10} /> },
-  'consultation': { bg: '#8B5CF6', text: 'white', icon: <IconMessage2 size={10} /> },
-  'deadline': { bg: '#F59E0B', text: 'white', icon: <IconAlertCircle size={10} /> },
-  'legal-advice': { bg: '#10B981', text: 'white', icon: <IconCheck size={10} /> },
-  'court-case': { bg: '#EF4444', text: 'white', icon: <IconGavel size={10} /> },
-  'other': { bg: PRIMARY_BROWN, text: 'white', icon: <IconDots size={10} /> },
+const EVENT_TYPE_CONFIG = {
+  'Initial Interview': { color: '#3B82F6', icon: <IconUser size={12} /> },
+  'appointment': { color: '#3B82F6', icon: <IconCalendarEvent size={12} /> },
+  'hearing': { color: '#EF4444', icon: <IconGavel size={12} /> },
+  'consultation': { color: '#8B5CF6', icon: <IconMessage2 size={12} /> },
+  'deadline': { color: '#F59E0B', icon: <IconAlertCircle size={12} /> },
+  'other': { color: PRIMARY_BROWN, icon: <IconDots size={12} /> },
 };
 
-const getEventColor = (type) => EVENT_TYPE_COLORS[type] || EVENT_TYPE_COLORS['other'];
+const getEventConfig = (type) => EVENT_TYPE_CONFIG[type] || EVENT_TYPE_CONFIG['other'];
 
-export default function ClientFormStatusCalendar({ appointments = [], onEventCreated, onDateClick }) {
+export default function ClientFormStatusCalendar({ 
+  appointments = [], 
+  onEventCreated, 
+  onDateClick,
+  filterValue,
+  onFilterChange 
+}) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState('month');
-  const [addEventModal, setAddEventModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [eventForm, setEventForm] = useState({
-    title: '',
-    description: '',
-    eventDate: null,
-    eventType: 'appointment',
-    location: '',
-    clientName: '',
-    assignedTo: '',
-    priority: 'Medium',
-  });
-
-  // Handle event creation
-  const handleCreateEvent = async () => {
-    if (!eventForm.title || !eventForm.eventDate) {
-      notifications.show({
-        title: 'Error',
-        message: 'Title and date are required',
-        color: 'red',
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await apiClient.post('/events', eventForm);
-      notifications.show({
-        title: 'Success',
-        message: 'Event created successfully',
-        color: 'green',
-        icon: <IconCheck size={18} />,
-      });
-      setAddEventModal(false);
-      setEventForm({
-        title: '',
-        description: '',
-        eventDate: null,
-        eventType: 'appointment',
-        location: '',
-        clientName: '',
-        assignedTo: '',
-        priority: 'Medium',
-      });
-      if (onEventCreated) onEventCreated();
-    } catch (error) {
-      console.error('Error creating event:', error);
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to create event',
-        color: 'red',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
+  
   const getAppointmentsForDate = (date) => {
     if (!date) return [];
     return appointments.filter(apt => apt.date && apt.date.toDateString() === date.toDateString());
   };
 
   const goToPrevious = () => {
-    const newDate = new Date(currentDate);
-    if (viewMode === 'day') newDate.setDate(newDate.getDate() - 1);
-    else if (viewMode === 'week') newDate.setDate(newDate.getDate() - 7);
-    else newDate.setMonth(newDate.getMonth() - 1);
+    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
     setCurrentDate(newDate);
   };
 
   const goToNext = () => {
-    const newDate = new Date(currentDate);
-    if (viewMode === 'day') newDate.setDate(newDate.getDate() + 1);
-    else if (viewMode === 'week') newDate.setDate(newDate.getDate() + 7);
-    else newDate.setMonth(newDate.getMonth() + 1);
+    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
     setCurrentDate(newDate);
   };
 
-  const goToToday = () => setCurrentDate(new Date());
-
-  const getCalendarTitle = () => {
-    if (viewMode === 'day') return currentDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    if (viewMode === 'week') {
-      const start = getWeekStart(currentDate);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 6);
-      return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-    }
-    return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const goToToday = () => {
+    const today = new Date();
+    setCurrentDate(today);
+    if (onDateClick) onDateClick(today);
   };
-
-  const getWeekStart = (date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day;
-    return new Date(d.setDate(diff));
-  };
-
-  const isToday = (date) => date.toDateString() === new Date().toDateString();
-  const isCurrentMonth = (date) => date.getMonth() === currentDate.getMonth();
 
   const renderMonthView = () => {
     const year = currentDate.getFullYear();
@@ -154,95 +79,145 @@ export default function ClientFormStatusCalendar({ appointments = [], onEventCre
     const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     return (
-      <Box>
-        <SimpleGrid cols={7} spacing={isMobile ? 2 : 'xs'} mb="xs">
+      <Box style={{ border: '1px solid #E5E7EB', borderRadius: '16px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+        {/* Weekday Header */}
+        <SimpleGrid cols={7} spacing={0} style={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
           {weekdays.map((day) => (
-            <Box key={day} py={8} ta="center">
-              <Text size="xs" fw={700} c={MUTED_OLIVE} tt="uppercase" lts={1}>
+            <Box key={day} py={14} ta="center" style={{ borderRight: day !== 'Sat' ? '1px solid #E5E7EB' : 'none' }}>
+              <Text size="xs" fw={800} c={MUTED_OLIVE} tt="uppercase" lts={1.5}>
                 {isMobile ? day[0] : day}
               </Text>
             </Box>
           ))}
         </SimpleGrid>
 
-        <SimpleGrid cols={7} spacing={isMobile ? 2 : 'xs'}>
+        {/* Days Grid */}
+        <SimpleGrid cols={7} spacing={0}>
           {calendarDays.map((date, idx) => {
-            if (!date) return <Box key={`empty-${idx}`} style={{ height: isMobile ? 60 : 110 }} />;
+            const isLastInRow = (idx + 1) % 7 === 0;
+            if (!date) return (
+              <Box 
+                key={`empty-${idx}`} 
+                style={{ 
+                  height: isMobile ? 80 : 120, 
+                  backgroundColor: '#FDFDFD',
+                  borderRight: isLastInRow ? 'none' : '1px solid #F3F4F6',
+                  borderBottom: '1px solid #F3F4F6'
+                }} 
+              />
+            );
 
             const dayApts = getAppointmentsForDate(date);
-            const isTodayDate = isToday(date);
-            const inMonth = isCurrentMonth(date);
-            const hasEvents = dayApts.length > 0;
-
+            const isToday = date.toDateString() === new Date().toDateString();
+            
             return (
-              <UnstyledButton key={idx} onClick={() => onDateClick && onDateClick(date)}>
-                <Paper
-                  p={isMobile ? 4 : 8}
-                  radius="md"
-                  style={{
-                    backgroundColor: isTodayDate ? `${PRIMARY_GOLD}08` : 'white',
-                    border: `1px solid ${isTodayDate ? PRIMARY_GOLD : '#eee'}`,
-                    height: isMobile ? 70 : 120,
-                    opacity: inMonth ? 1 : 0.3,
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}
-                  className="calendar-cell"
-                >
-                  <Stack gap={2} h="100%">
-                    <Group justify="space-between" align="center">
+              <HoverCard width={260} shadow="xl" position="right-start" withArrow radius="lg" openDelay={100} key={idx}>
+                <HoverCard.Target>
+                  <UnstyledButton 
+                    onClick={() => onDateClick && onDateClick(date)}
+                    style={{
+                      height: isMobile ? 80 : 120,
+                      borderRight: isLastInRow ? 'none' : '1px solid #F3F4F6',
+                      borderBottom: '1px solid #F3F4F6',
+                      backgroundColor: isToday ? `${PRIMARY_GOLD}05` : 'white',
+                      transition: 'all 0.2s ease',
+                      position: 'relative',
+                      '&:hover': { backgroundColor: '#F9FAFB', zIndex: 1 }
+                    }}
+                  >
+                    <Stack gap={4} p={8} h="100%" align="stretch" justify="space-between">
                       <Box
                         style={{
-                          width: isTodayDate ? 24 : 'auto',
-                          height: isTodayDate ? 24 : 'auto',
-                          borderRadius: '50%',
-                          backgroundColor: isTodayDate ? PRIMARY_BROWN : 'transparent',
+                          alignSelf: 'flex-start',
+                          width: 28,
+                          height: 28,
+                          borderRadius: '10px',
+                          backgroundColor: isToday ? PRIMARY_BROWN : 'transparent',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          boxShadow: isToday ? '0 4px 10px rgba(107,68,35,0.2)' : 'none'
                         }}
                       >
-                        <Text size={isMobile ? "xs" : "sm"} fw={isTodayDate ? 700 : 500} c={isTodayDate ? 'white' : CHARCOAL}>
+                        <Text size="sm" fw={800} c={isToday ? 'white' : CHARCOAL}>
                           {date.getDate()}
                         </Text>
                       </Box>
-                      {hasEvents && isMobile && (
-                        <Box w={6} h={6} style={{ borderRadius: '50%', backgroundColor: PRIMARY_GOLD }} />
-                      )}
-                    </Group>
 
-                    {!isMobile && hasEvents && (
-                      <Stack gap={2} mt={2}>
-                        {dayApts.slice(0, 3).map((apt, i) => {
-                          const theme = getEventColor(apt.type);
-                          return (
-                            <Box
-                              key={i}
-                              p={2}
-                              px={6}
-                              style={{
-                                backgroundColor: `${theme.bg}15`,
-                                borderLeft: `3px solid ${theme.bg}`,
-                                borderRadius: '0 4px 4px 0',
-                              }}
-                            >
-                              <Text size={10} fw={600} truncate c={CHARCOAL}>
-                                {apt.purpose || apt.clientName}
-                              </Text>
-                            </Box>
-                          );
-                        })}
-                        {dayApts.length > 3 && (
-                          <Text size={10} c={MUTED_OLIVE} fw={700} pl={4}>
-                            + {dayApts.length - 3} more
-                          </Text>
+                      <Box>
+                        {dayApts.length > 0 && (
+                          <Group gap={4} wrap="wrap">
+                            {Array.from(new Set(dayApts.map(a => a.type || 'other'))).map(type => {
+                              const config = getEventConfig(type);
+                              const count = dayApts.filter(a => (a.type || 'other') === type).length;
+                              return (
+                                <Tooltip key={type} label={`${count} ${type}(s)`} position="top" withArrow>
+                                  <Box 
+                                    style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: 4, 
+                                      padding: '2px 6px',
+                                      borderRadius: '6px',
+                                      backgroundColor: `${config.color}15`,
+                                      border: `1px solid ${config.color}30`
+                                    }}
+                                  >
+                                    <Box c={config.color} style={{ display: 'flex' }}>{config.icon}</Box>
+                                    {!isMobile && count > 1 && (
+                                      <Text size={10} fw={800} c={config.color}>{count}</Text>
+                                    )}
+                                  </Box>
+                                </Tooltip>
+                              );
+                            })}
+                          </Group>
                         )}
-                      </Stack>
-                    )}
-                  </Stack>
-                </Paper>
-              </UnstyledButton>
+                      </Box>
+                    </Stack>
+                  </UnstyledButton>
+                </HoverCard.Target>
+                
+                {dayApts.length > 0 && (
+                  <HoverCard.Dropdown p="xs">
+                    <Stack gap="xs">
+                      <Group justify="space-between" wrap="nowrap" px={4} pb={4}>
+                        <Text fw={900} size="sm" c={CHARCOAL}>
+                          {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </Text>
+                        <Badge size="xs" color={PRIMARY_BROWN} variant="light" radius="sm">{dayApts.length} Items</Badge>
+                      </Group>
+                      <Divider />
+                      <ScrollArea.Autosize 
+                        mah={300}
+                        styles={{
+                          scrollbar: {
+                            '&[data-orientation="vertical"]': { width: 6 },
+                          },
+                          thumb: { backgroundColor: PRIMARY_BROWN },
+                        }}
+                      >
+                        <Stack gap={4} py={4}>
+                          {dayApts.map((apt, i) => {
+                            const config = getEventConfig(apt.type || 'other');
+                            return (
+                              <Paper key={i} p={6} py={4} radius="md" withBorder style={{ borderLeft: `4px solid ${config.color}` }}>
+                                <Group gap="xs" wrap="nowrap" justify="space-between">
+                                  <Group gap={6} wrap="nowrap" style={{ flex: 1, overflow: 'hidden' }}>
+                                    <Box c={config.color} style={{ display: 'flex' }}>{config.icon}</Box>
+                                    <Text size="xs" fw={800} truncate>{apt.clientName || apt.purpose}</Text>
+                                  </Group>
+                                  <Text size={10} c="dimmed" fw={700} style={{ flexShrink: 0 }}>{apt.appointmentTime || 'TBD'}</Text>
+                                </Group>
+                              </Paper>
+                            );
+                          })}
+                        </Stack>
+                      </ScrollArea.Autosize>
+                    </Stack>
+                  </HoverCard.Dropdown>
+                )}
+              </HoverCard>
             );
           })}
         </SimpleGrid>
@@ -251,164 +226,60 @@ export default function ClientFormStatusCalendar({ appointments = [], onEventCre
   };
 
   return (
-    <Box>
-      <Paper shadow="sm" p={isMobile ? 'md' : 'xl'} radius="lg" style={{ border: '1px solid #eee' }}>
-        <Stack gap="lg">
-          {/* Header */}
-          <Group justify="space-between" align="flex-start">
-            <Stack gap={2}>
-              <Title order={isMobile ? 4 : 3} c={CHARCOAL}>{getCalendarTitle()}</Title>
-              <Text size="xs" c={MUTED_OLIVE} fw={500}>
-                {appointments.length} Total Schedules
-              </Text>
-            </Stack>
-
-            <Group gap="xs">
-              {!isMobile && (
-                <Group gap={4} p={4} bg="#f5f5f5" style={{ borderRadius: 8 }}>
-                  {['day', 'week', 'month'].map(mode => (
-                    <Button
-                      key={mode}
-                      size="xs"
-                      variant={viewMode === mode ? 'filled' : 'subtle'}
-                      onClick={() => setViewMode(mode)}
-                      color={PRIMARY_BROWN}
-                      radius="md"
-                      tt="capitalize"
-                    >
-                      {mode}
-                    </Button>
-                  ))}
-                </Group>
-              )}
-              <Button
-                size="sm"
-                radius="md"
-                leftSection={<IconPlus size={16} />}
-                onClick={() => setAddEventModal(true)}
-                style={{ backgroundColor: PRIMARY_BROWN }}
-              >
-                {!isMobile && "Add Event"}
-              </Button>
-            </Group>
-          </Group>
-
-          <Divider color="#f1f1f1" />
-
-          {/* Navigation */}
-          <Group justify="space-between">
-            <Group gap="xs">
-              <ActionIcon variant="light" color="gray" size="lg" radius="md" onClick={goToPrevious}>
-                <IconChevronLeft size={20} />
-              </ActionIcon>
-              <Button variant="subtle" color="gray" size="sm" onClick={goToToday}>Today</Button>
-              <ActionIcon variant="light" color="gray" size="lg" radius="md" onClick={goToNext}>
-                <IconChevronRight size={20} />
-              </ActionIcon>
-            </Group>
-
-            {!isMobile && (
-              <Group gap="md">
-                {Object.entries(EVENT_TYPE_COLORS).slice(0, 5).map(([type, theme]) => (
-                  <Group key={type} gap={6}>
-                    <Box w={8} h={8} style={{ borderRadius: '50%', backgroundColor: theme.bg }} />
-                    <Text size="xs" c={MUTED_OLIVE} tt="capitalize">{type.replace('-', ' ')}</Text>
-                  </Group>
-                ))}
-              </Group>
-            )}
-          </Group>
-
-          {/* Body */}
-          <Box mih={300}>
-            {viewMode === 'month' && renderMonthView()}
-            {viewMode !== 'month' && (
-              <Center py={100}>
-                <Stack align="center" gap="xs">
-                  <IconCalendar size={48} color="#eee" />
-                  <Text c="dimmed" size="sm">{viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} view optimized for future updates.</Text>
-                  <Button variant="outline" size="xs" color={PRIMARY_BROWN} onClick={() => setViewMode('month')}>Return to Month</Button>
-                </Stack>
-              </Center>
-            )}
-          </Box>
+    <Stack gap="lg">
+      <Group justify="space-between" align="center">
+        <Stack gap={0}>
+          <Title order={3} fw={900} c={CHARCOAL} lts={-0.5}>
+            {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          </Title>
+          <Text size="xs" c={MUTED_OLIVE} fw={700}>System Management Calendar</Text>
         </Stack>
-      </Paper>
-
-      {/* Add Event Modal */}
-      <Modal
-        opened={addEventModal}
-        onClose={() => setAddEventModal(false)}
-        title={
-          <Group gap="xs">
-            <IconPlus size={20} color={PRIMARY_BROWN} />
-            <Text fw={700} size="lg">Schedule New Event</Text>
-          </Group>
-        }
-        size="lg"
-        radius="lg"
-        centered
-      >
-        <Stack gap="md">
-          <TextInput
-            label="Event Title"
-            placeholder="e.g. Case Hearing #123"
-            required
-            value={eventForm.title}
-            onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
-          />
+        <Group gap="sm">
+          {/* Calendar Type Filter Integrated Here */}
+          {!isMobile && (
+            <Select 
+              placeholder="Filter by type" 
+              leftSection={<IconFilter size={14} />} 
+              data={['All', 'Initial Interview', 'appointment', 'hearing', 'consultation']} 
+              value={filterValue} 
+              onChange={onFilterChange} 
+              size="xs" 
+              radius="md"
+              w={160}
+              styles={{ input: { borderColor: '#E5E7EB', '&:focus': { borderColor: PRIMARY_BROWN } } }}
+            />
+          )}
           
-          <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <DatePickerInput
-              label="Date"
-              placeholder="Select date"
-              required
-              value={eventForm.eventDate}
-              onChange={(date) => setEventForm({ ...eventForm, eventDate: date })}
-              leftSection={<IconCalendar size={16} />}
-            />
-            <Select
-              label="Type"
-              data={[
-                { value: 'appointment', label: 'Interview' },
-                { value: 'hearing', label: 'Court Hearing' },
-                { value: 'consultation', label: 'Consultation' },
-                { value: 'deadline', label: 'Deadline' },
-                { value: 'other', label: 'Other' },
-              ]}
-              value={eventForm.eventType}
-              onChange={(val) => setEventForm({ ...eventForm, eventType: val })}
-            />
-          </SimpleGrid>
-
-          <TextInput
-            label="Location"
-            placeholder="e.g. Court Room 5"
-            leftSection={<IconMapPin size={16} />}
-            value={eventForm.location}
-            onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
-          />
-
-          <Textarea
-            label="Notes"
-            placeholder="Additional details..."
-            minRows={3}
-            value={eventForm.description}
-            onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
-          />
-
-          <Button
-            fullWidth
-            size="md"
-            mt="md"
-            loading={isSubmitting}
-            onClick={handleCreateEvent}
-            style={{ backgroundColor: PRIMARY_BROWN }}
+          <Button 
+            variant="outline" 
+            color={PRIMARY_BROWN} 
+            size="xs" 
+            radius="md" 
+            fw={800} 
+            onClick={goToToday}
+            style={{ borderColor: `${PRIMARY_BROWN}40` }}
           >
-            Create Event
+            Today
           </Button>
-        </Stack>
-      </Modal>
-    </Box>
+          <Group gap={0} bg="#F3F4F6" p={4} style={{ borderRadius: '12px' }}>
+            <ActionIcon variant="subtle" color="gray" onClick={goToPrevious} radius="md" size="lg"><IconChevronLeft size={18} /></ActionIcon>
+            <ActionIcon variant="subtle" color="gray" onClick={goToNext} radius="md" size="lg"><IconChevronRight size={18} /></ActionIcon>
+          </Group>
+        </Group>
+      </Group>
+
+      {renderMonthView()}
+
+      <Group gap="xl" justify="center" mt="xs">
+        {Object.entries(EVENT_TYPE_CONFIG).slice(0, 4).map(([type, config]) => (
+          <Group key={type} gap={6}>
+            <Box style={{ backgroundColor: `${config.color}20`, padding: 4, borderRadius: 6, display: 'flex' }} c={config.color}>
+              {config.icon}
+            </Box>
+            <Text size="xs" fw={700} c={MUTED_OLIVE} tt="capitalize">{type.replace('-', ' ')}</Text>
+          </Group>
+        ))}
+      </Group>
+    </Stack>
   );
 }

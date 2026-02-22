@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Tabs, Card, Text, Badge, Group, Button, SimpleGrid, Container, Title,
   Paper, Box, Stack, Avatar, Menu, ActionIcon, Select, TextInput, Textarea, Modal, Loader, Center,
-  Grid, Divider, Radio,
+  Grid, Divider, ScrollArea, Tooltip, Pagination,
 } from '@mantine/core';
 import ClientFormStatusCalendar from '@components/calendar/ClientFormCalendar';
 import { DatePickerInput, DateInput } from '@mantine/dates';
@@ -13,34 +13,37 @@ import {
   IconCalendarEvent, IconMessage2, IconFileDescription, IconClock, IconCheck, 
   IconMapPin, IconScale, IconUser, IconCheckbox, IconPhone, IconMail, IconDots,
   IconEdit, IconX, IconSearch, IconFilter, IconGavel, IconFileText, IconEye, IconCalendar,
+  IconPlus, IconChevronRight, IconAddressBook, IconInfoCircle, IconCurrencyPeso, IconBriefcase,
+  IconHome, IconUsers, IconTrash, IconArrowRight, IconRotateClockwise
 } from '@tabler/icons-react';
-import { GENDER_OPTIONS, CIVIL_STATUS_OPTIONS, DEFAULT_CITIZENSHIP } from '@utils/constants';
+import { 
+  GENDER_OPTIONS, 
+  CIVIL_STATUS_OPTIONS, 
+  DEFAULT_CITIZENSHIP,
+  PRIMARY_GOLD,
+  PRIMARY_BROWN,
+  MUTED_OLIVE,
+  THEMED_LIGHT_BG,
+  CHARCOAL,
+  ACCENT_TAN,
+  BG
+} from '@utils/constants';
 import { generateGoogleCalendarUrl } from '@utils/googleCalendar';
-
-const PRIMARY_GOLD = '#D4A574';
-const PRIMARY_BROWN = '#6B4423';
-const MUTED_OLIVE = '#8B8B5C';
-const THEMED_LIGHT_BG = '#F5F3F0';
-const CHARCOAL = '#333333';
-const ACCENT_TAN = '#C9A876';
-const PAGE_BG = '#F7F8FA';
-const APPOINTMENT_STATUS_OPTIONS = [
-  { value: 'auto-scheduled', label: 'Auto-scheduled' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'legal-advice', label: 'Legal Advice' },
-  { value: 'court-case', label: 'Court Case' },
-];
 
 export default function StaffAppointmentManager() {
   const { userData, currentUser } = useAuth();
-  const [userRole] = useState('attorney');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [calendarFilter, setCalendarFilter] = useState('All');
+  const [selectedFilterDate, setSelectedFilterDate] = useState(null);
   const [rescheduleModal, setRescheduleModal] = useState(false);
-  const [dateDetailsModal, setDateDetailsModal] = useState(false);
   const [editEventModal, setEditEventModal] = useState(false);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
+  
+  // Pagination State
+  const [pendingPage, setPendingPage] = useState(1);
+  const [interviewPage, setInterviewPage] = useState(1);
+  const itemsPerPage = 10;
+
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventToDelete, setEventToDelete] = useState(null);
@@ -59,171 +62,12 @@ export default function StaffAppointmentManager() {
   const [newDate, setNewDate] = useState(null);
   const [newTime, setNewTime] = useState('');
   const [pendingAppointments, setPendingAppointments] = useState([]);
-  const [scheduledAppointments, setScheduledAppointments] = useState([]);
-  const [adviceRequests, setAdviceRequests] = useState([]);
-  const [documentRequests, setDocumentRequests] = useState([]);
-  const [caseRepresentation, setCaseRepresentation] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
   const navigate = useNavigate();
 
-  const handleRecordToCalendars = async (appointment) => {
-    if (!appointment?.id) return;
-    if (!appointment?.rawAppointedDate) {
-      notifications.show({
-        title: 'Missing date',
-        message: 'This appointment has no date yet. Please set a date/time first.',
-        color: 'orange',
-      });
-      return;
-    }
-
-    setIsUpdating(true);
-    let calendarTab = null;
-
-    try {
-      // Pre-open a tab to reduce popup-blocking risk.
-      calendarTab = window.open('about:blank', '_blank');
-
-      const { default: apiClient } = await import('@config/api/apiClient');
-
-      const title = appointment.clientName ? `${appointment.clientName} - Interview` : 'Client Interview';
-      const description = [
-        appointment.purpose ? `Purpose: ${appointment.purpose}` : '',
-        appointment.appointmentTime ? `Time: ${appointment.appointmentTime}` : '',
-        `Case ID: ${appointment.id}`,
-      ].filter(Boolean).join('\n');
-
-      // Atomic: create Google event, then create system event and mark appointment
-      try {
-        // Build Google Event resource
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-        const startDate = appointment.rawAppointedDate; // expect ISO date or date string
-        let startDateTime;
-        if (appointment.appointmentTime) {
-          const [hour, minute] = appointment.appointmentTime.split(':');
-          const d = new Date(startDate);
-          d.setHours(Number(hour), Number(minute || 0), 0, 0);
-          startDateTime = d.toISOString();
-        } else {
-          const d = new Date(startDate);
-          d.setHours(9, 0, 0, 0);
-          startDateTime = d.toISOString();
-        }
-        const end = new Date(startDateTime);
-        end.setHours(end.getHours() + 1);
-
-        const googleEvent = {
-          summary: title,
-          location: appointment.location || undefined,
-          description,
-          start: { dateTime: startDateTime, timeZone: timezone },
-          end: { dateTime: end.toISOString(), timeZone: timezone },
-        };
-
-        if (!currentUser?.uid) {
-          // fallback to opening prefilled Google Calendar
-          const googleCalendarUrl = generateGoogleCalendarUrl({ title, appointmentDate: appointment.rawAppointedDate, appointmentTime: appointment.appointmentTime, location: appointment.location, description });
-          if (calendarTab) calendarTab.location.href = googleCalendarUrl; else window.open(googleCalendarUrl, '_blank');
-          notifications.show({ title: 'Recorded', message: 'Saved to system calendar. Opened Google Calendar as fallback.', color: 'yellow' });
-        } else {
-          const payload = {
-            firebaseUid: currentUser.uid,
-            event: googleEvent,
-            meta: {
-              appointmentId: appointment.id,
-              title,
-              description,
-              eventDate: appointment.rawAppointedDate,
-              eventType: 'appointment',
-              location: appointment.location,
-              clientName: appointment.clientName,
-              assignedTo: appointment.assignedTo,
-              priority: appointment.priority || 'Medium',
-              status: 'scheduled',
-            }
-          };
-
-          await apiClient.post('/google/events/atomic', payload);
-
-          notifications.show({ title: 'Recorded', message: 'Saved to system calendar and synced to your Google Calendar.', color: 'green' });
-
-          if (calendarTab && !calendarTab.closed) try { calendarTab.close(); } catch(_){}
-        }
-      } catch (googleErr) {
-        console.error('Google sync failed, falling back to prefill URL:', googleErr);
-        try {
-          const respStatus = googleErr?.response?.status;
-          const respData = googleErr?.response?.data;
-          // If user hasn't connected via server-side OAuth (no refresh token)
-          if (respStatus === 400 && respData && typeof respData.error === 'string' && respData.error.toLowerCase().includes('has not connected')) {
-            try {
-              const connectResp = await apiClient.post('/google/connect', { firebaseUid: currentUser?.uid });
-              const { url } = connectResp?.data || {};
-              if (url) {
-                if (calendarTab) calendarTab.location.href = url; else window.open(url, '_blank');
-                notifications.show({ title: 'Connect Google', message: 'Please complete Google connection to enable calendar sync.', color: 'yellow' });
-                await loadAllData();
-                setIsUpdating(false);
-                return;
-              }
-            } catch (connectErr) {
-              console.error('Failed to get Google connect URL:', connectErr);
-            }
-          }
-
-          // If token was issued without calendar scopes or the Calendar API is not enabled
-          if (respStatus === 403 && respData && respData.error === 'insufficient_scopes') {
-            notifications.show({ title: 'Permission Needed', message: 'Google access token lacks Calendar scopes. Please sign out and sign in again granting Calendar permissions.', color: 'yellow' });
-            setIsUpdating(false);
-            return;
-          }
-
-          if (respStatus === 422 && respData && respData.error === 'api_not_enabled') {
-            // Ask the user to complete server-side connection so the server can use its own OAuth client (recommended)
-            try {
-              const connectResp = await apiClient.post('/google/connect', { firebaseUid: currentUser?.uid });
-              const { url } = connectResp?.data || {};
-              if (url) {
-                if (calendarTab) calendarTab.location.href = url; else window.open(url, '_blank');
-                notifications.show({ title: 'Connect Google', message: 'Google Calendar API appears disabled for the token project. Please complete the server connect flow.', color: 'yellow' });
-                await loadAllData();
-                setIsUpdating(false);
-                return;
-              }
-            } catch (connectErr) {
-              console.error('Failed to get Google connect URL for api_not_enabled:', connectErr);
-            }
-          }
-        } catch (e) {
-          console.error('Error while handling google error:', e);
-        }
-
-        const googleCalendarUrl = generateGoogleCalendarUrl({ title, appointmentDate: appointment.rawAppointedDate, appointmentTime: appointment.appointmentTime, location: appointment.location, description });
-        if (calendarTab) calendarTab.location.href = googleCalendarUrl; else window.open(googleCalendarUrl, '_blank');
-        notifications.show({ title: 'Recorded (partial)', message: 'Saved to system calendar. Google sync failed; opened Google Calendar so you can save manually.', color: 'orange' });
-      }
-
-      await loadAllData();
-    } catch (err) {
-      console.error('Failed to record to calendars:', err);
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to record to calendars.',
-        color: 'red',
-      });
-      try {
-        if (calendarTab && !calendarTab.closed) calendarTab.close();
-      } catch (_) {
-        // ignore
-      }
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-  
   // Appointment Details Modal states
   const [appointmentModalOpened, setAppointmentModalOpened] = useState(false);
   const [appointmentDetails, setAppointmentDetails] = useState(null);
@@ -279,419 +123,152 @@ export default function StaffAppointmentManager() {
     appointmentType: '',
   });
 
-  // Auto-calculate total combined monthly income
-  useEffect(() => {
-    const parseIncome = (value) => {
-      if (value === undefined || value === null || value === '') return 0;
-      const cleaned = value.toString().replace(/,/g, '');
-      const parsed = parseFloat(cleaned);
-      return Number.isFinite(parsed) ? parsed : 0;
-    };
+  // Filtered lists logic
+  const filteredPending = useMemo(() => {
+    return pendingAppointments
+      .filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded)
+      .filter(a => !selectedFilterDate || (a.rawAppointedDate && new Date(a.rawAppointedDate).toDateString() === selectedFilterDate.toDateString()))
+      .filter(a => !searchQuery || a.clientName.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [pendingAppointments, selectedFilterDate, searchQuery]);
 
-    const monthly = parseIncome(appointmentForm.monthlyIncome);
-    const spouseMonthly = parseIncome(appointmentForm.spouseMonthlyIncome);
-    const total = monthly + spouseMonthly;
-    const currentTotal = parseIncome(appointmentForm.totalCombinedIncome);
+  const filteredInterview = useMemo(() => {
+    return pendingAppointments
+      .filter(a => a.calendarRecorded)
+      .filter(a => !selectedFilterDate || (a.rawAppointedDate && new Date(a.rawAppointedDate).toDateString() === selectedFilterDate.toDateString()))
+      .filter(a => !searchQuery || a.clientName.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [pendingAppointments, selectedFilterDate, searchQuery]);
 
-    if (Number.isFinite(total) && total !== currentTotal) {
-      setAppointmentForm(prev => ({
-        ...prev,
-        totalCombinedIncome: total ? total.toString() : ''
-      }));
-    }
-  }, [appointmentForm.monthlyIncome, appointmentForm.spouseMonthlyIncome]);
+  const allAppointmentsForCalendar = useMemo(() => {
+    const list = [
+      ...pendingAppointments.map(apt => ({
+        ...apt,
+        uniqueId: `apt-${apt.id}`,
+        date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
+        isEvent: false
+      })),
+      ...events.map(evt => ({
+        ...evt,
+        uniqueId: `evt-${evt.id}`,
+        date: evt.rawAppointedDate ? new Date(evt.rawAppointedDate) : null,
+        isEvent: true
+      }))
+    ];
+    
+    if (calendarFilter === 'All') return list;
+    return list.filter(item => item.type === calendarFilter);
+  }, [pendingAppointments, events, calendarFilter]);
 
-  // Fetch all data function
   const loadAllData = async (opts = {}) => {
     const silent = opts.silent === true;
     if (!silent) setLoading(true);
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
       
-      // Fetch reviews to filter out appointments with existing reviews
-      let appointmentsWithReviews = new Set();
-      try {
-        const reviewsResp = await apiClient.get('/reviews');
-        const reviewsData = reviewsResp?.data?.data ?? reviewsResp?.data ?? [];
-        const reviewsArray = Array.isArray(reviewsData) ? reviewsData : [];
-        // Create a set of caseIds that have reviews
-        appointmentsWithReviews = new Set(reviewsArray.map(r => r.caseId).filter(Boolean));
-      } catch (err) {
-        console.error('Failed to load reviews for filtering:', err);
-      }
-      
-      // Fetch pending appointments (auto-scheduled)
-      try {
-        const pendingResp = await apiClient.get('/clientsinfo');
-        const docs = pendingResp?.data || [];
-        const mapped = (Array.isArray(docs) ? docs : [])
-          .map((d, idx) => ({
-            id: d._id || idx,
-            clientName: d.fullName || d.personal?.fullName || `${d.personal?.firstName || ''} ${d.personal?.lastName || ''}`.trim() || '',
-            type: 'Initial Interview',
-            submittedDate: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
-            scheduledDate: d.appointedDate ? new Date(d.appointedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD',
-            rawAppointedDate: d.appointedDate || null,
-            appointmentTime: d.appointmentTime || '',
-            status: d.status || 'auto-scheduled',
-            calendarRecorded: Boolean(d.calendarRecorded),
-            calendarEventId: d.calendarEventId || null,
-            contactNumber: d.personal?.contactNumber || '+63 000 000 0000',
-            email: d.personal?.email || 'email@sola.com',
-            assignedTo: d.assignedTo || 'Atty. Maria Cruz',
-            location: d.caseDetails?.location || 'SOLA Office',
-            purpose: d.caseDetails?.purpose || `Client information gathering for ${d.fullName}`,
-            priority: d.priority || 'High',
-          }));
-        setPendingAppointments(mapped);
-      } catch (err) {
-        console.error('Failed to load pending appointments:', err);
-      }
+      const pendingResp = await apiClient.get('/clientsinfo');
+      const docs = pendingResp?.data || [];
+      const mapped = (Array.isArray(docs) ? docs : [])
+        .map((d, idx) => ({
+          id: d._id || idx,
+          clientName: d.fullName || d.personal?.fullName || `${d.personal?.firstName || ''} ${d.personal?.lastName || ''}`.trim() || '',
+          type: 'Initial Interview',
+          submittedDate: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+          scheduledDate: d.appointedDate ? new Date(d.appointedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD',
+          rawAppointedDate: d.appointedDate || null,
+          appointmentTime: d.appointmentTime ? (() => {
+            const [hours, minutes] = d.appointmentTime.split(':');
+            const h = parseInt(hours);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const displayH = h % 12 || 12;
+            return `${displayH}:${minutes} ${ampm}`;
+          })() : '',
+          status: d.status || 'auto-scheduled',
+          calendarRecorded: Boolean(d.calendarRecorded),
+          contactNumber: d.personal?.contactNumber || d.contactNumber || '',
+          email: d.personal?.email || d.email || '',
+          assignedTo: d.assignedTo || '',
+          location: d.caseDetails?.location || d.location || 'SOLA Office',
+          purpose: d.caseDetails?.purpose || d.caseDescription || `Client interview`,
+          priority: d.priority || 'Medium',
+          fullData: d
+        }))
+        .sort((a, b) => {
+          if (!a.rawAppointedDate) return 1;
+          if (!b.rawAppointedDate) return -1;
+          return new Date(a.rawAppointedDate) - new Date(b.rawAppointedDate);
+        });
+      setPendingAppointments(mapped);
 
-      // Fetch events
-      try {
-        const eventsResp = await apiClient.get('/events');
-        const eventsData = eventsResp?.data || [];
-        const mappedEvents = (Array.isArray(eventsData) ? eventsData : []).map((e, idx) => ({
-          id: e._id || idx,
-          clientName: e.clientName || 'Event',
-          type: e.eventType || 'other',
-          rawAppointedDate: e.eventDate,
-          scheduledDate: e.eventDate ? new Date(e.eventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'TBD',
-          location: e.location || 'TBD',
-          priority: e.priority || 'Medium',
-          status: e.status || 'scheduled',
-          description: e.description || '',
-          assignedTo: e.assignedTo || '',
-          contactNumber: '',
-          email: '',
-          purpose: e.title || '',
-        }));
-        setEvents(mappedEvents);
-      } catch (err) {
-        console.error('Failed to load events:', err);
-      }
-
-      // NOTE: These endpoints are not yet implemented on the backend
-      // Uncomment when the backend routes are ready
-      
-      // Fetch scheduled appointments
-      // try {
-      //   const scheduledResp = await apiClient.get('/appointments/scheduled');
-      //   const scheduled = scheduledResp?.data || [];
-      //   setScheduledAppointments(Array.isArray(scheduled) ? scheduled : []);
-      // } catch (err) {
-      //   console.error('Failed to load scheduled appointments:', err);
-      //   setScheduledAppointments([]);
-      // }
-
-      // Fetch advice requests
-      // try {
-      //   const adviceResp = await apiClient.get('/advice-requests');
-      //   const advice = adviceResp?.data || [];
-      //   setAdviceRequests(Array.isArray(advice) ? advice : []);
-      // } catch (err) {
-      //   console.error('Failed to load advice requests:', err);
-      //   setAdviceRequests([]);
-      // }
-
-      // Fetch document requests
-      // try {
-      //   const docsResp = await apiClient.get('/document-requests');
-      //   const docs = docsResp?.data || [];
-      //   setDocumentRequests(Array.isArray(docs) ? docs : []);
-      // } catch (err) {
-      //   console.error('Failed to load document requests:', err);
-      //   setDocumentRequests([]);
-      // }
-
-      // Fetch case representation
-      // try {
-      //   const caseResp = await apiClient.get('/case-representation');
-      //   const cases = caseResp?.data || [];
-      //   setCaseRepresentation(Array.isArray(cases) ? cases : []);
-      // } catch (err) {
-      //   console.error('Failed to load case representation:', err);
-      //   setCaseRepresentation([]);
-      // }
-      } catch (err) {
-        console.error('Failed to initialize apiClient:', err);
-        if (!silent) {
-          notifications.show({
-            title: 'Error',
-            message: 'Failed to load data from server.',
-            color: 'red',
-          });
-        }
-      } finally {
-        if (!silent) setLoading(false);
-      }
+      const eventsResp = await apiClient.get('/events');
+      const eventsData = eventsResp?.data || [];
+      const mappedEvents = (Array.isArray(eventsData) ? eventsData : []).map((e, idx) => ({
+        id: e._id || idx,
+        clientName: e.clientName || 'Event',
+        type: e.eventType || 'other',
+        rawAppointedDate: e.eventDate,
+        scheduledDate: e.eventDate ? new Date(e.eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD',
+        location: e.location || 'TBD',
+        priority: e.priority || 'Medium',
+        status: e.status || 'scheduled',
+        description: e.description || '',
+        assignedTo: e.assignedTo || '',
+        purpose: e.title || '',
+      }));
+      setEvents(mappedEvents);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   };
 
-  // Fetch all data on mount and poll periodically (silent) so new appointments appear without a full page refresh
   useEffect(() => {
-    let mounted = true;
-    // initial (visible) load
     loadAllData();
-
-    // poll for updates every 10 seconds (silent)
-    const interval = setInterval(() => {
-      if (mounted) loadAllData({ silent: true });
-    }, 10000);
-
-    // listen for storage events from other tabs when an appointment is submitted
-    const onStorage = (e) => {
-      if (e.key === 'appointments_needs_refresh') loadAllData({ silent: true });
-    };
-
-    // custom event for same-tab triggers
-    const onCustom = () => loadAllData({ silent: true });
-
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('appointments_needs_refresh', onCustom);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('appointments_needs_refresh', onCustom);
-    };
+    const interval = setInterval(() => loadAllData({ silent: true }), 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleDateClick = (date) => {
-    setSelectedDate(date);
-    setDateDetailsModal(true);
+    setSelectedFilterDate(date);
+    setPendingPage(1);
+    setInterviewPage(1);
   };
 
-  const getAppointmentsForDate = (date) => {
-    if (!date) return [];
-    const allItems = [...pendingAppointments, ...events];
-    return allItems.filter(item => {
-      if (!item.rawAppointedDate) return false;
-      const itemDate = new Date(item.rawAppointedDate);
-      return itemDate.toDateString() === date.toDateString();
-    });
+  const handleResetDateFilter = () => {
+    setSelectedFilterDate(null);
+    setPendingPage(1);
+    setInterviewPage(1);
   };
 
-  const handleEditEvent = (event) => {
-    // Find the full event data from events array
-    const fullEvent = events.find(e => e.id === event.id);
-    if (!fullEvent) return;
-
-    setSelectedEvent(fullEvent);
-    setEventEditForm({
-      title: fullEvent.purpose || '',
-      description: fullEvent.description || '',
-      eventDate: fullEvent.rawAppointedDate ? new Date(fullEvent.rawAppointedDate) : null,
-      eventType: fullEvent.type || 'appointment',
-      location: fullEvent.location || '',
-      clientName: fullEvent.clientName || '',
-      assignedTo: fullEvent.assignedTo || '',
-      priority: fullEvent.priority || 'Medium',
-    });
-    setEditEventModal(true);
-    setDateDetailsModal(false);
-  };
-
-  const handleUpdateEvent = async () => {
-    if (!eventEditForm.title || !eventEditForm.eventDate || !selectedEvent) {
-      notifications.show({
-        title: 'Error',
-        message: 'Title and date are required',
-        color: 'red',
-      });
-      return;
-    }
-
-    setIsUpdatingEvent(true);
-    try {
-      const { default: apiClient } = await import('@config/api/apiClient');
-      await apiClient.put(`/events/${selectedEvent.id}`, eventEditForm);
-      
-      notifications.show({
-        title: 'Success',
-        message: 'Event updated successfully',
-        color: 'green',
-        icon: <IconCheck size={18} />,
-      });
-      
-      setEditEventModal(false);
-      setSelectedEvent(null);
-      await loadAllData();
-    } catch (error) {
-      console.error('Error updating event:', error);
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to update event',
-        color: 'red',
-      });
-    } finally {
-      setIsUpdatingEvent(false);
-    }
-  };
-
-  const handleDeleteEvent = async () => {
-    if (!eventToDelete) return;
-
-    setIsDeletingEvent(true);
-    try {
-      const { default: apiClient } = await import('@config/api/apiClient');
-      await apiClient.delete(`/events/${eventToDelete.id}`);
-      
-      notifications.show({
-        title: 'Success',
-        message: 'Event deleted successfully',
-        color: 'green',
-        icon: <IconCheck size={18} />,
-      });
-      
-      setDeleteConfirmModal(false);
-      setDateDetailsModal(false);
-      setEventToDelete(null);
-      await loadAllData();
-    } catch (error) {
-      console.error('Error deleting event:', error);
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to delete event',
-        color: 'red',
-      });
-    } finally {
-      setIsDeletingEvent(false);
-    }
-  };
-
-  const handleOpenEditAppointment = (appointment) => {
-    setSelectedAppointment(appointment);
-    if (appointment?.rawAppointedDate) {
-      try {
-        setNewDate(new Date(appointment.rawAppointedDate));
-      } catch (e) {
-        setNewDate(null);
-      }
-    } else {
-      setNewDate(null);
-    }
-    // Set existing appointment time if available
-    setNewTime(appointment?.appointmentTime || '');
-    setRescheduleModal(true);
-  };
-
-  const handleUpdateAppointment = async () => {
-    if (!newDate || !selectedAppointment?.id) {
-      notifications.show({
-        title: 'Error',
-        message: 'Please select a valid date and time.',
-        color: 'red',
-      });
-      return;
-    }
-
-    setIsUpdating(true);
+  const openAppointmentModal = async (appointmentId) => {
+    setAppointmentModalOpened(true);
+    setLoadingAppointment(true);
+    setAppointmentEditMode(false);
+    setAppointmentSaving(false);
     
-    // Ensure newDate is a valid Date object
-    let dateObj = newDate;
-    if (!(newDate instanceof Date)) {
-      try {
-        dateObj = new Date(newDate);
-      } catch (e) {
-        notifications.show({
-          title: 'Error',
-          message: 'Invalid date format.',
-          color: 'red',
-        });
-        setIsUpdating(false);
-        return;
-      }
-    }
-    
-    const iso = dateObj.toISOString();
-    const payload = { 
-      appointedDate: iso,
-      appointmentTime: newTime || ''
-    };
-    console.log('Updating appointment:', selectedAppointment.id, 'with payload:', payload);
-
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
-      
-      // Try the primary endpoint
-      const response = await apiClient.put(`/clientsinfo/${selectedAppointment.id}`, payload);
-      console.log('Update response:', response);
-      
-      if (response && (response.status >= 200 && response.status < 300)) {
-        setIsUpdating(false);
-        updateLocalAppointment(iso);
-        return;
-      }
+      const response = await apiClient.get(`/clientsinfo/${appointmentId}`);
+      setAppointmentDetails(response.data);
+      setAppointmentForm(syncAppointmentFormFromDetails(response.data));
     } catch (error) {
-      console.error('Error with /clientsinfo endpoint:', error);
-      
-      try {
-        const { default: apiClient } = await import('@config/api/apiClient');
-        const response = await apiClient.put(`/api/clientsinfo/${selectedAppointment.id}`, payload);
-        console.log('Update response:', response);
-        
-        if (response && (response.status >= 200 && response.status < 300)) {
-          setIsUpdating(false);
-          updateLocalAppointment(iso);
-          return;
-        }
-      } catch (error2) {
-        console.error('Error with /api/clientsinfo endpoint:', error2);
-      }
+      console.error('Error fetching appointment details:', error);
+    } finally {
+      setLoadingAppointment(false);
     }
-
-    setIsUpdating(false);
-    notifications.show({
-      title: 'Error',
-      message: 'Failed to update appointment. Please check your server connection.',
-      color: 'red',
-      autoClose: 6000,
-    });
-  };
-
-  const updateLocalAppointment = (iso) => {
-    const formattedDate = new Date(iso).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-
-    setPendingAppointments((prev) =>
-      prev.map((apt) =>
-        apt.id === selectedAppointment.id
-          ? { ...apt, scheduledDate: formattedDate, rawAppointedDate: iso, appointmentTime: newTime }
-          : apt
-      )
-    );
-
-    setRescheduleModal(false);
-    setNewDate(null);
-    setNewTime('');
-    setSelectedAppointment(null);
-
-    notifications.show({
-      title: 'Success',
-      message: `Appointment updated to ${formattedDate}`,
-      color: 'green',
-      icon: <IconCheck size={18} />,
-      autoClose: 5000,
-    });
-  };
-
-  const toInputDate = (value) => {
-    if (!value) return '';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '';
-    const year = parsed.getFullYear();
-    const month = String(parsed.getMonth() + 1).padStart(2, '0');
-    const day = String(parsed.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
   };
 
   const syncAppointmentFormFromDetails = (details) => {
     const hasRelatorData = details?.relatorName || details?.relationshipToClient;
+    const toInputDate = (value) => {
+      if (!value) return '';
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return '';
+      const year = parsed.getFullYear();
+      const month = String(parsed.getMonth() + 1).padStart(2, '0');
+      const day = String(parsed.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     return {
       status: details?.status || '',
       appointedDate: toInputDate(details?.appointedDate),
@@ -742,101 +319,142 @@ export default function StaffAppointmentManager() {
     };
   };
 
-  // Function to fetch and display appointment details
-  const openAppointmentModal = async (appointmentId) => {
-    setAppointmentModalOpened(true);
-    setLoadingAppointment(true);
-    setAppointmentEditMode(false);
-    setAppointmentSaving(false);
-    
+  const handleOpenEditAppointment = (appointment) => {
+    setSelectedAppointment(appointment);
+    if (appointment?.rawAppointedDate) {
+      try {
+        setNewDate(new Date(appointment.rawAppointedDate));
+      } catch (e) {
+        setNewDate(null);
+      }
+    } else {
+      setNewDate(null);
+    }
+    setNewTime(appointment?.appointmentTime || '');
+    setRescheduleModal(true);
+  };
+
+  const handleUpdateAppointment = async () => {
+    if (!newDate || !selectedAppointment?.id) {
+      notifications.show({ title: 'Error', message: 'Please select a valid date and time.', color: 'red' });
+      return;
+    }
+    setIsUpdating(true);
+    const iso = newDate.toISOString();
+    const payload = { appointedDate: iso, appointmentTime: newTime || '' };
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
-      const response = await apiClient.get(`/clientsinfo/${appointmentId}`);
-      console.log('Appointment details:', response.data);
-      setAppointmentDetails(response.data);
-      setAppointmentForm(syncAppointmentFormFromDetails(response.data));
+      await apiClient.put(`/clientsinfo/${selectedAppointment.id}`, payload);
+      notifications.show({ title: 'Success', message: `Appointment updated successfully`, color: 'green', icon: <IconCheck size={18} /> });
+      setRescheduleModal(false);
+      await loadAllData();
     } catch (error) {
-      console.error('Error fetching appointment details:', error);
+      notifications.show({ title: 'Error', message: 'Failed to update appointment.', color: 'red' });
     } finally {
-      setLoadingAppointment(false);
+      setIsUpdating(false);
     }
   };
 
-  const handleEnterAppointmentEdit = () => {
-    if (!appointmentDetails) return;
-    setAppointmentForm(syncAppointmentFormFromDetails(appointmentDetails));
-    setAppointmentEditMode(true);
+  const handleRecordToCalendars = async (appointment) => {
+    if (!appointment?.id) return;
+    setIsUpdating(true);
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      const title = appointment.clientName ? `${appointment.clientName} - Interview` : 'Client Interview';
+      const description = appointment.purpose || `Case ID: ${appointment.id}`;
+      
+      const googleEvent = {
+        summary: title,
+        description,
+        start: { dateTime: appointment.rawAppointedDate, timeZone: 'UTC' },
+        end: { dateTime: new Date(new Date(appointment.rawAppointedDate).getTime() + 3600000).toISOString(), timeZone: 'UTC' },
+      };
+
+      await apiClient.post('/google/events/atomic', {
+        firebaseUid: currentUser.uid,
+        event: googleEvent,
+        meta: {
+          appointmentId: appointment.id,
+          title,
+          description,
+          eventDate: appointment.rawAppointedDate,
+          eventType: 'appointment',
+          location: appointment.location,
+          clientName: appointment.clientName,
+          status: 'scheduled',
+        }
+      });
+
+      notifications.show({ title: 'Success', message: 'Synced to calendar successfully.', color: 'green' });
+      await loadAllData();
+    } catch (err) {
+      notifications.show({ title: 'Error', message: 'Failed to sync to calendar.', color: 'red' });
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const handleCancelAppointmentEdit = () => {
-    setAppointmentEditMode(false);
-    setAppointmentForm(syncAppointmentFormFromDetails(appointmentDetails));
+  const handleUpdateEvent = async () => {
+    if (!eventEditForm.title || !eventEditForm.eventDate || !selectedEvent) {
+      notifications.show({ title: 'Error', message: 'Title and date are required', color: 'red' });
+      return;
+    }
+    setIsUpdatingEvent(true);
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      await apiClient.put(`/events/${selectedEvent.id}`, eventEditForm);
+      notifications.show({ title: 'Success', message: 'Event updated successfully', color: 'green', icon: <IconCheck size={18} /> });
+      setEditEventModal(false);
+      await loadAllData();
+    } catch (error) {
+      notifications.show({ title: 'Error', message: 'Failed to update event', color: 'red' });
+    } finally {
+      setIsUpdatingEvent(false);
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!eventToDelete) return;
+    setIsDeletingEvent(true);
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      await apiClient.delete(`/events/${eventToDelete.id}`);
+      notifications.show({ title: 'Success', message: 'Event deleted successfully', color: 'green', icon: <IconCheck size={18} /> });
+      setDeleteConfirmModal(false);
+      await loadAllData();
+    } catch (error) {
+      notifications.show({ title: 'Error', message: 'Failed to delete event', color: 'red' });
+    } finally {
+      setIsDeletingEvent(false);
+    }
   };
 
   const handleSaveAppointmentDetails = async () => {
     if (!appointmentDetails?._id && !appointmentDetails?.id) return;
-
     const payload = {
       status: appointmentForm.status || undefined,
       appointedDate: appointmentForm.appointedDate || undefined,
       appointmentTime: appointmentForm.appointmentTime || '',
       fullName: appointmentForm.fullName || undefined,
-      name: appointmentForm.fullName || undefined,
       age: appointmentForm.age ? Number(appointmentForm.age) : undefined,
       birthday: appointmentForm.birthday || undefined,
       sex: appointmentForm.sex || undefined,
       civilStatus: appointmentForm.civilStatus || undefined,
       contactNumber: appointmentForm.contactNumber || undefined,
-      cellphoneNumber: appointmentForm.cellphoneNumber || undefined,
-      telephoneNumber: appointmentForm.telephoneNumber || undefined,
       email: appointmentForm.email || undefined,
       presentAddress: appointmentForm.presentAddress || undefined,
       permanentAddress: appointmentForm.permanentAddress || undefined,
       citizenship: appointmentForm.citizenship || undefined,
-      spouseName: appointmentForm.spouseName || undefined,
-      throughRelator: appointmentForm.throughRelator || 'no',
-      relatorName: appointmentForm.throughRelator === 'yes' ? (appointmentForm.relatorName || undefined) : undefined,
-      relationshipToClient: appointmentForm.throughRelator === 'yes' ? (appointmentForm.relationshipToClient || undefined) : undefined,
-      relatorContactNumber: appointmentForm.relatorContactNumber || undefined,
-      currentSourceOfIncome: appointmentForm.currentSourceOfIncome || undefined,
-      monthlyIncome: appointmentForm.monthlyIncome ? Number(appointmentForm.monthlyIncome) : undefined,
-      natureOfWork: appointmentForm.natureOfWork || undefined,
-      employerName: appointmentForm.employerName || undefined,
-      employerAddress: appointmentForm.employerAddress || undefined,
-      employerTelephone: appointmentForm.employerTelephone || undefined,
-      spouseSourceOfIncome: appointmentForm.spouseSourceOfIncome || undefined,
-      spouseMonthlyIncome: appointmentForm.spouseMonthlyIncome ? Number(appointmentForm.spouseMonthlyIncome) : undefined,
-      spouseEmployerAddress: appointmentForm.spouseEmployerAddress || undefined,
-      totalCombinedIncome: appointmentForm.totalCombinedIncome ? Number(appointmentForm.totalCombinedIncome) : undefined,
-      partyRepresented: appointmentForm.partyRepresented || undefined,
-      venue: appointmentForm.venue || undefined,
       caseNumber: appointmentForm.caseNumber || undefined,
-      presentStage: appointmentForm.presentStage || undefined,
-      courtDivision: appointmentForm.courtDivision || undefined,
-      courtAddress: appointmentForm.courtAddress || undefined,
-      courtPhoneNumber: appointmentForm.courtPhoneNumber || undefined,
-      presidingOfficer: appointmentForm.presidingOfficer || undefined,
-      adverseParty: appointmentForm.adverseParty || undefined,
-      adversePartyAddress: appointmentForm.adversePartyAddress || undefined,
-      adversePartyCounsel: appointmentForm.adversePartyCounsel || undefined,
-      adversePartyCounselAddress: appointmentForm.adversePartyCounselAddress || undefined,
-      adversePartyCounselPhone: appointmentForm.adversePartyCounselPhone || undefined,
       caseDescription: appointmentForm.caseDescription || undefined,
       caseNature: appointmentForm.caseNature || undefined,
-      natureOfCase: appointmentForm.caseNature || undefined,
-      appointmentType: appointmentForm.appointmentType || undefined,
     };
-
     setAppointmentSaving(true);
-
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
-      const resp = await apiClient.put(`/clientsinfo/${appointmentDetails._id || appointmentDetails.id}`, payload);
-      const updated = resp?.data || { ...appointmentDetails, ...payload };
-      setAppointmentDetails(updated);
-      setAppointmentForm(syncAppointmentFormFromDetails(updated));
-      setAppointmentEditMode(false);
+      await apiClient.put(`/clientsinfo/${appointmentDetails._id || appointmentDetails.id}`, payload);
       notifications.show({ title: 'Updated', message: 'Appointment details saved.', color: 'green' });
+      setAppointmentEditMode(false);
       await loadAllData();
     } catch (err) {
       console.error('Error updating appointment details:', err);
@@ -846,2045 +464,275 @@ export default function StaffAppointmentManager() {
     }
   };
 
-  const PendingAppointmentCard = ({ item }) => (
-    <Card shadow="xs" padding="lg" radius="lg" style={{ border: `2px solid ${PRIMARY_GOLD}` }}>
-      <Group justify="space-between" mb="md">
-        <Group gap="sm">
-          <Avatar size={48} radius="md" color={PRIMARY_BROWN}><IconUser size={24} /></Avatar>
-          <Box>
-            <Text fw={700} size="md" c={CHARCOAL}>{item.clientName}</Text>
-            <Text size="xs" c={MUTED_OLIVE}>{item.type}</Text>
-          </Box>
+  const SideAppointmentCard = ({ item }) => (
+    <Card shadow="xs" padding="md" radius="lg" withBorder style={{ borderLeft: `5px solid ${item.calendarRecorded ? 'green' : PRIMARY_GOLD}`, transition: 'all 0.2s ease', '&:hover': { transform: 'translateX(4px)', backgroundColor: '#F9FAFB' } }}>
+      <Stack gap="xs">
+        <Group justify="space-between" align="flex-start" wrap="nowrap">
+          <Group gap="xs">
+            <Avatar size={32} radius="md" color={PRIMARY_BROWN} variant="light">
+              {item.clientName[0]}
+            </Avatar>
+            <Box style={{ maxWidth: 120 }}>
+              <Text fw={800} size="sm" c={CHARCOAL} truncate>{item.clientName}</Text>
+              <Text size="xs" c={MUTED_OLIVE} fw={600}>{item.type}</Text>
+            </Box>
+          </Group>
+          <Menu shadow="md" position="bottom-end" radius="md">
+            <Menu.Target>
+              <ActionIcon variant="subtle" color="gray" size="sm"><IconDots size={16} /></ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => handleOpenEditAppointment(item)}>Edit Schedule</Menu.Item>
+              <Menu.Item leftSection={<IconEye size={14} />} onClick={() => openAppointmentModal(item.id)}>View Details</Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
-        <Menu shadow="md" width={200}>
-          <Menu.Target><ActionIcon variant="subtle" color="gray"><IconDots size={18} /></ActionIcon></Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => handleOpenEditAppointment(item)}>Edit Appointment</Menu.Item>
-            <Menu.Item leftSection={<IconPhone size={16} />}>Call Client</Menu.Item>
-            <Menu.Item leftSection={<IconMail size={16} />}>Send Email</Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
-      </Group>
 
-      <Paper p="md" radius="md" mb="md" style={{ backgroundColor: `${PRIMARY_GOLD}08`, border: `1px solid ${PRIMARY_GOLD}40` }}>
-        <Stack gap="xs">
-          <Group gap="xs">
-            <IconCalendarEvent size={14} color={PRIMARY_BROWN} />
-            <Text size="sm" fw={600} c={CHARCOAL}>
-              {item.scheduledDate}
-              {item.appointmentTime && ` at ${
-                (() => {
-                  const [hours, minutes] = item.appointmentTime.split(':');
-                  const hour = parseInt(hours);
-                  const ampm = hour >= 12 ? 'PM' : 'AM';
-                  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-                  return `${displayHour}:${minutes} ${ampm}`;
-                })()
-              }`}
-              {item.appointmentTime && (
-                <Text span size="xs" c={MUTED_OLIVE} ml={4}>
-                  {(() => {
-                    const [hours, minutes] = item.appointmentTime.split(':');
-                    const endHour = parseInt(hours) + 1;
-                    const ampm = endHour >= 12 ? 'PM' : 'AM';
-                    const displayHour = endHour === 0 ? 12 : endHour > 12 ? endHour - 12 : endHour;
-                    return `- ${displayHour}:${minutes} ${ampm} (1 hr)`;
-                  })()}
-                </Text>
-              )}
-            </Text>
+        <Group gap="md">
+          <Group gap={4}>
+            <IconClock size={14} color={PRIMARY_BROWN} />
+            <Text size="xs" fw={700} c={CHARCOAL}>{item.appointmentTime || 'TBD'}</Text>
           </Group>
-          <Group gap="xs">
-            <IconMapPin size={14} color={ACCENT_TAN} />
-            <Text size="sm" c={CHARCOAL}>{item.location}</Text>
+          <Group gap={4}>
+            <IconCalendarEvent size={14} color={MUTED_OLIVE} />
+            <Text size="xs" fw={700} c={MUTED_OLIVE}>{item.scheduledDate}</Text>
           </Group>
-          <Group gap="xs">
-            <IconUser size={14} color={PRIMARY_GOLD} />
-            <Text size="sm" c={CHARCOAL}>{item.assignedTo}</Text>
-          </Group>
-        </Stack>
-      </Paper>
-
-      <Stack gap="xs" mb="sm">
-        <Group gap="xs">
-          <IconPhone size={14} color={MUTED_OLIVE} />
-          <Text
-            size="xs"
-            c={CHARCOAL}
-            component="a"
-            href={`tel:${item.contactNumber}`}
-            style={{ textDecoration: 'none', color: CHARCOAL, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-          >
-            {item.contactNumber}
-          </Text>
         </Group>
-        <Group gap="xs">
-          <IconMail size={14} color={MUTED_OLIVE} />
-          <Text
-            size="xs"
-            c={CHARCOAL}
-            component="a"
-            href={`mailto:${item.email}`}
-            style={{ textDecoration: 'none', color: CHARCOAL, cursor: 'pointer' }}
-          >
-            {item.email}
-          </Text>
+
+        <Group grow gap="xs" mt={4}>
+          {!item.calendarRecorded ? (
+            <Button size="compact-xs" radius="md" style={{ backgroundColor: PRIMARY_BROWN }} onClick={() => handleRecordToCalendars(item)} loading={isUpdating}>Approve</Button>
+          ) : (
+            <Button size="compact-xs" variant="outline" radius="md" style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }} onClick={() => navigate(`/admin/recommendation/${item.id}`)}>Interview</Button>
+          )}
+          <Button size="compact-xs" variant="light" radius="md" color="gray" onClick={() => openAppointmentModal(item.id)}>Details</Button>
         </Group>
       </Stack>
-
-      <Box mb="sm">
-        <Text size="xs" c={MUTED_OLIVE} fw={600} mb={2}>Purpose</Text>
-        <Text size="sm" c={CHARCOAL}>{item.purpose}</Text>
-      </Box>
-
-      <Group gap="xs" mb="md">
-        {item.priority === 'High' && (
-          <Badge size="sm" color="red" variant="light">
-            High Priority
-          </Badge>
-        )}
-        {item.priority === 'Medium' && (
-          <Badge size="sm" color="yellow" variant="light">
-            Medium
-          </Badge>
-        )}
-        <Badge size="sm" variant="light" color={
-          item.status === 'confirmed' ? 'green' : 
-          item.status === 'auto-scheduled' ? 'blue' : 
-          item.status === 'legal-advice' ? 'violet' : 
-          item.status === 'court-case' ? 'red' : 'gray'
-        }>
-          {item.status === 'auto-scheduled' ? 'Pending' : 
-           item.status === 'confirmed' ? 'Confirmed' : 
-           item.status?.replace('-', ' ')?.replace(/\b\w/g, l => l.toUpperCase()) || 'Pending'}
-        </Badge>
-      </Group>
-
-      {/* Primary actions */}
-      {item.status === 'auto-scheduled' ? (
-        <Stack gap="xs">
-          <Group grow>
-            {!item.calendarRecorded ? (
-              <Button 
-                size="sm" 
-                variant="filled" 
-                leftSection={<IconCheck size={16} />} 
-                onClick={() => handleRecordToCalendars(item)}
-                disabled={isUpdating}
-                style={{ backgroundColor: PRIMARY_BROWN }}
-              >
-                Approve & Recommend
-              </Button>
-            ) : (
-              <Button 
-                size="sm" 
-                variant="filled" 
-                leftSection={<IconFileText size={16} />} 
-                onClick={() => {
-                  const today = new Date();
-                  const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                  const internName = userData?.firstName && userData?.lastName 
-                    ? `${userData.firstName} ${userData.lastName}` 
-                    : userData?.username || userData?.displayName || '';
-                  const internId = userData?._id || userData?.id || null;
-                  navigate(`/admin/recommendation/${item.id}`, { 
-                    state: { 
-                      caseId: item.id,
-                      clientInfo: {
-                        clientName: item.clientName,
-                        dateOfInterview: formattedDate,
-                        dateSubmitted: formattedDate,
-                        interviewingInterns: internName,
-                        interviewingInternsId: internId
-                      }
-                    } 
-                  });
-                }}
-                disabled={isUpdating}
-                style={{ backgroundColor: PRIMARY_BROWN }}
-              >
-                Interview
-              </Button>
-            )}
-            <Button 
-              size="sm" 
-              variant="light" 
-              leftSection={<IconEdit size={16} />} 
-              onClick={() => handleOpenEditAppointment(item)} 
-              style={{ backgroundColor: THEMED_LIGHT_BG, color: PRIMARY_BROWN }}
-            >
-              Edit
-            </Button>
-          </Group>
-          <Button
-            fullWidth
-            size="xs"
-            variant="subtle"
-            leftSection={<IconEye size={14} />}
-            onClick={() => openAppointmentModal(item.id)}
-            c={MUTED_OLIVE}
-          >
-            View Full Details
-          </Button>
-        </Stack>
-      ) : (
-        <Stack gap="xs">
-          <Button 
-            fullWidth 
-            size="sm" 
-            variant="outline" 
-            leftSection={<IconFileText size={16} />}
-            onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } })}
-            style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-          >
-            View Recommendation
-          </Button>
-          <Button
-            fullWidth
-            size="xs"
-            variant="subtle"
-            leftSection={<IconEye size={14} />}
-            onClick={() => openAppointmentModal(item.id)}
-            c={MUTED_OLIVE}
-          >
-            View Full Details
-          </Button>
-        </Stack>
-      )}
     </Card>
   );
 
-  const ScheduledAppointmentCard = ({ item }) => (
-    <Card shadow="xs" padding="lg" radius="lg" style={{ border: `2px solid ${PRIMARY_GOLD}` }}>
-      <Group justify="space-between" mb="md">
-        <Group gap="sm">
-          <Avatar size={48} radius="md" color={PRIMARY_BROWN}><IconUser size={24} /></Avatar>
-          <Box>
-            <Text fw={700} size="md" c={CHARCOAL}>{item.clientName}</Text>
-            <Text size="xs" c={MUTED_OLIVE}>{item.type || 'Appointment'}</Text>
-          </Box>
-        </Group>
-      </Group>
-      <Paper p="lg" radius="md" mb="md" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
-        <Stack gap="sm">
-          <Group gap="xs">
-            <IconCalendarEvent size={14} color={PRIMARY_BROWN} />
-            <Text size="sm" fw={600} c={CHARCOAL}>{item.scheduledDate}</Text>
-          </Group>
-          <Group gap="xs">
-            <IconMapPin size={14} color={ACCENT_TAN} />
-            <Text size="sm" c={CHARCOAL}>{item.location}</Text>
-          </Group>
-        </Stack>
-      </Paper>
-      <Button fullWidth size="md" variant="light" style={{ backgroundColor: THEMED_LIGHT_BG, color: PRIMARY_BROWN }}>View Details</Button>
-    </Card>
-  );
-
-  const AdviceRequestCard = ({ item }) => (
-    <Card shadow="xs" padding="lg" radius="lg" style={{ border: '1px solid #F0F0F0' }}>
-      <Group justify="space-between" mb="md">
-        <Group gap="sm">
-          <Avatar size={48} radius="md" color={MUTED_OLIVE}><IconMessage2 size={24} /></Avatar>
-          <Box>
-            <Text fw={700} size="md" c={CHARCOAL}>{item.clientName}</Text>
-            <Text size="xs" c={MUTED_OLIVE}>{item.topic}</Text>
-          </Box>
-        </Group>
-        <Badge size="lg" color={item.status === 'Draft Ready' ? PRIMARY_BROWN : 'gray'}>{item.status}</Badge>
-      </Group>
-      <Paper p="md" radius="md" mb="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
-        <Text size="xs" c={MUTED_OLIVE} mb={4}>Description</Text>
-        <Text size="sm" c={CHARCOAL}>{item.description}</Text>
-      </Paper>
-      <Button fullWidth size="md" style={{ backgroundColor: PRIMARY_BROWN }}>Review</Button>
-    </Card>
-  );
-
-  const DocumentRequestCard = ({ item }) => (
-    <Card shadow="xs" padding="lg" radius="lg" style={{ border: '1px solid #F0F0F0' }}>
-      <Group justify="space-between" mb="md">
-        <Group gap="sm">
-          <Avatar size={48} radius="md" color={PRIMARY_GOLD}><IconFileDescription size={24} /></Avatar>
-          <Box>
-            <Text fw={700} size="md" c={CHARCOAL}>{item.clientName}</Text>
-            <Text size="xs" c={MUTED_OLIVE}>{item.docType}</Text>
-          </Box>
-        </Group>
-        <Badge size="lg" color={item.status === 'Ready for Pickup' ? 'green' : 'yellow'}>{item.status}</Badge>
-      </Group>
-      <Stack gap="xs" mb="md">
-        <Group gap="xs">
-          <IconCalendarEvent size={14} color={MUTED_OLIVE} />
-          <Text size="xs" c={MUTED_OLIVE}>Requested: {item.dateRequested}</Text>
-        </Group>
-      </Stack>
-      <Button fullWidth size="md" style={{ backgroundColor: item.status === 'Ready for Pickup' ? MUTED_OLIVE : PRIMARY_BROWN }}>
-        {item.status === 'Ready for Pickup' ? 'Mark as Collected' : 'Update Status'}
-      </Button>
-    </Card>
-  );
-
-  const CaseRepresentationCard = ({ item }) => (
-    <Card shadow="xs" padding="lg" radius="lg" style={{ border: `2px solid ${PRIMARY_BROWN}` }}>
-      <Group justify="space-between" mb="md">
-        <Group gap="sm">
-          <Avatar size={48} radius="md" color={PRIMARY_BROWN}><IconGavel size={24} /></Avatar>
-          <Box>
-            <Text fw={700} size="md" c={CHARCOAL}>{item.clientName}</Text>
-            <Text size="xs" c={MUTED_OLIVE}>{item.type || item.caseType || 'Court Case'}</Text>
-          </Box>
-        </Group>
-      </Group>
-      <Paper p="md" radius="md" mb="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
-        <Text size="xs" c={MUTED_OLIVE} mb={4}>Case Information</Text>
-        <Text size="sm" fw={600} c={CHARCOAL}>{item.purpose || item.caseTitle || 'Case Details'}</Text>
-        {item.caseNumber && (
-          <Badge size="sm" variant="light" color={PRIMARY_BROWN} style={{ fontFamily: 'monospace', marginTop: '8px' }}>
-            {item.caseNumber}
-          </Badge>
-        )}
-      </Paper>
-      <Stack gap="sm" mb="md">
-        {item.scheduledDate && (
-          <Group gap="xs">
-            <IconCalendarEvent size={14} color={CHARCOAL} />
-            <Text size="sm" c={CHARCOAL}>{item.scheduledDate}</Text>
-          </Group>
-        )}
-        <Group gap="xs">
-          <IconMapPin size={14} color={CHARCOAL} />
-          <Text size="sm" c={CHARCOAL}>{item.location}</Text>
-        </Group>
-      </Stack>
-      <Button 
-        fullWidth 
-        size="md" 
-        variant="outline"
-        leftSection={<IconFileText size={18} />}
-        onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { caseId: item.id } })}
-        style={{ borderColor: PRIMARY_BROWN, color: PRIMARY_BROWN }}
-      >
-        View Case Details
-      </Button>
-    </Card>
-  );
-
-  const appointmentStatusLabel = appointmentEditMode
-    ? (appointmentForm.status || appointmentDetails?.status || 'For Appointment')
-    : (appointmentDetails?.status || 'For Appointment');
-
-  if (loading) {
-    return (
-      <Box bg={PAGE_BG} mih="100vh" py="xl">
-        <Center mih="100vh">
-          <Loader />
-        </Center>
-      </Box>
-    );
-  }
+  if (loading) return <Center mih="100vh"><Loader color={PRIMARY_BROWN} size="xl" type="bars" /></Center>;
 
   return (
-    <Box bg={PAGE_BG} mih="100vh" py="xl">
-      <Container size="xl">
-        {/* Compact Page Header */}
-        <Group justify="space-between" align="center" mb="lg" px="xs">
-          <Group gap="sm" align="center">
-            <Box style={{ width: 36, height: 36, borderRadius: '10px', background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <IconScale size={20} color="white" stroke={2.5} />
-            </Box>
-            <Box>
-              <Title order={3} c={CHARCOAL}>Appointments</Title>
-              <Text size="xs" c={MUTED_OLIVE}>Manage client appointments and requests</Text>
-            </Box>
+    <Box bg={BG} mih="100vh">
+      <Container size="xl" py="xl">
+        {/* Modern Header - Integrated Custom Event Button */}
+        <Group justify="space-between" mb="xl" px="xs" align="center">
+          <Group gap="xl" align="center">
+            <Group gap="md">
+              <Box style={{ width: 44, height: 44, borderRadius: '12px', background: `linear-gradient(45deg, ${PRIMARY_BROWN}, ${PRIMARY_GOLD})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(107,68,35,0.15)' }}>
+                <IconScale size={24} color="white" stroke={2.5} />
+              </Box>
+              <Stack gap={0}>
+                <Title order={2} fw={800} c={CHARCOAL}>Staff Appointment Manager</Title>
+                <Text size="xs" c={MUTED_OLIVE} fw={600}>San Sebastian College - Recoletos Manila Legal Aid</Text>
+              </Stack>
+            </Group>
+
+            {/* Custom Event Button moved to Header */}
+            <Button 
+              variant="light" 
+              size="md" 
+              radius="md" 
+              color={PRIMARY_BROWN} 
+              leftSection={<IconPlus size={18} />} 
+              onClick={() => { 
+                setEventEditForm({ title: '', description: '', eventDate: new Date(), eventType: 'appointment', location: '', clientName: '', assignedTo: '', priority: 'Medium' }); 
+                setEditEventModal(true); 
+              }}
+            >
+              Add Custom Event
+            </Button>
           </Group>
+
           <Group gap="xs">
-            {/* Quick Stats */}
-            <Badge size="lg" variant="light" color="blue" style={{ fontWeight: 600 }}>
-              {pendingAppointments.length + events.length} Total
-            </Badge>
-            <Badge size="lg" variant="light" color="green" style={{ fontWeight: 600 }}>
-              {pendingAppointments.filter(a => a.status === 'confirmed').length} Confirmed
-            </Badge>
-            <Badge size="lg" variant="light" color="orange" style={{ fontWeight: 600 }}>
-              {pendingAppointments.filter(a => a.status === 'auto-scheduled').length} Pending
-            </Badge>
+            <Paper shadow="xs" p="xs" radius="lg" withBorder bg="white">
+              <Group gap="xl" px="sm">
+                <Stack gap={0} ta="center">
+                  <Text size="xs" c={MUTED_OLIVE} fw={700}>PENDING</Text>
+                  <Text fw={800} size="lg" c="orange">{pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length}</Text>
+                </Stack>
+                <Divider orientation="vertical" />
+                <Stack gap={0} ta="center">
+                  <Text size="xs" c={MUTED_OLIVE} fw={700}>FOR INTERVIEW</Text>
+                  <Text fw={800} size="lg" c="green">{pendingAppointments.filter(a => a.calendarRecorded).length}</Text>
+                </Stack>
+              </Group>
+            </Paper>
           </Group>
         </Group>
 
-        {/* Search & Filter Bar - above calendar */}
-        <Paper shadow="xs" p="sm" mb="md" radius="lg" bg="white">
-          <Group>
-            <TextInput placeholder="Search clients..." leftSection={<IconSearch size={16} />} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ flex: 1 }} size="sm" />
-            <Select placeholder="Filter by status" leftSection={<IconFilter size={16} />} data={['All', 'Pending', 'Scheduled', 'Completed']} value={filterStatus} onChange={setFilterStatus} w={180} size="sm" />
-          </Group>
-        </Paper>
+        {/* Main Content: Calendar & Appointment Records Side Panel */}
+        <Grid gutter="xl" align="stretch">
+          <Grid.Col span={{ base: 12, lg: 8 }}>
+            <Paper shadow="xl" p="lg" radius="xl" withBorder style={{ border: '2px solid #E5E7EB', backgroundColor: 'white', height: '100%' }}>
+              <ClientFormStatusCalendar 
+                appointments={allAppointmentsForCalendar}
+                onEventCreated={loadAllData}
+                onDateClick={handleDateClick}
+                filterValue={calendarFilter}
+                onFilterChange={setCalendarFilter}
+              />
+            </Paper>
+          </Grid.Col>
 
-        {/* Appointment Calendar */}
-        <ClientFormStatusCalendar 
-          appointments={[
-            ...pendingAppointments.map(apt => ({
-              id: apt.id,
-              clientName: apt.clientName,
-              type: apt.type,
-              rawAppointedDate: apt.rawAppointedDate,
-              scheduledDate: apt.scheduledDate,
-              location: apt.location,
-              purpose: apt.purpose,
-              date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
-            })),
-            ...events.map(evt => ({
-              id: evt.id,
-              clientName: evt.clientName,
-              type: evt.type,
-              rawAppointedDate: evt.rawAppointedDate,
-              scheduledDate: evt.scheduledDate,
-              location: evt.location,
-              purpose: evt.purpose,
-              date: evt.rawAppointedDate ? new Date(evt.rawAppointedDate) : null,
-            }))
-          ].filter(apt => apt.date)}
-          onEventCreated={loadAllData}
-          onDateClick={handleDateClick}
-        />
-
-        {/* Appointment Tabs */}
-        <Box mt={32}>
-        <Paper shadow="xs" p="lg" radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
-          <Group justify="space-between" align="center" mb="md">
-            <Title order={4} c={CHARCOAL}>Client Appointments</Title>
-            <Text size="xs" c={MUTED_OLIVE}>{pendingAppointments.length} total records</Text>
-          </Group>
-          <Divider mb="md" color="#F0F0F0" />
-        <Tabs value={activeTab} onTabChange={setActiveTab} variant="outline" radius="md" styles={{
-          tab: {
-            padding: '10px 18px',
-            fontWeight: 600,
-            fontSize: '13px',
-            color: MUTED_OLIVE,
-            borderColor: '#E8E8E8',
-            background: 'transparent',
-            transition: 'all 150ms ease',
-            '&[data-active]': {
-              color: 'white',
-              background: PRIMARY_BROWN,
-              borderColor: PRIMARY_BROWN,
-              boxShadow: '0 4px 12px rgba(107,68,35,0.12)',
-              transform: 'translateY(-2px)',
-            },
-            '&:hover': {
-              background: `${PRIMARY_GOLD}10`,
-              borderColor: '#ddd',
-            },
-          },
-          tabLabel: { gap: '6px', fontWeight: 700 },
-        }}>
-          <Tabs.List mb="lg">
-              <Tabs.Tab value="pending" onClick={() => setActiveTab('pending')} leftSection={<IconClock size={16} />} rightSection={
-                <Badge size="sm" variant="filled" color="orange" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px', pointerEvents: 'none' }}>
-                  {pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length}
-                </Badge>
-              }>
-                Auto-Scheduled
-              </Tabs.Tab>
-              <Tabs.Tab value="forInterview" onClick={() => setActiveTab('forInterview')} leftSection={<IconFileText size={16} />} rightSection={
-                <Badge size="sm" variant="light" color="green" radius="xl" style={{ minWidth: 22, height: 22, padding: '0 6px', pointerEvents: 'none' }}>
-                  {pendingAppointments.filter(a => a.calendarRecorded).length}
-                </Badge>
-              }>
-                For Interview
-              </Tabs.Tab>
-            </Tabs.List>
-
-            <Tabs.Panel value="pending">
-              {pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length > 0 ? (
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                  {pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-                </SimpleGrid>
-              ) : (
-                <Center mih={300}><Text c={MUTED_OLIVE}>No auto-scheduled appointments</Text></Center>
-              )}
-            </Tabs.Panel>
-
-            <Tabs.Panel value="forInterview">
-              {pendingAppointments.filter(a => a.calendarRecorded).length > 0 ? (
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-                  {pendingAppointments.filter(a => a.calendarRecorded).map((item) => (<PendingAppointmentCard key={item.id} item={item} />))}
-                </SimpleGrid>
-              ) : (
-                <Center mih={300}><Text c={MUTED_OLIVE}>No appointments ready for interview</Text></Center>
-              )}
-            </Tabs.Panel>
-
-        </Tabs>
-        </Paper>
-        </Box>
-
-        <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title="Edit Appointment" size="lg" styles={{ header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' }, body: { padding: '24px' } }}>
-          {selectedAppointment && (
-            <Stack gap="lg">
-              <Paper p="md" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #F0F0F0' }}>
-                <Group gap="sm">
-                  <Avatar size={40} radius="md" color={PRIMARY_BROWN}><IconUser size={20} /></Avatar>
-                  <Box>
-                    <Text fw={600} c={CHARCOAL}>{selectedAppointment.clientName}</Text>
-                    <Text size="xs" c={MUTED_OLIVE}>{selectedAppointment.type}</Text>
-                  </Box>
+          <Grid.Col span={{ base: 12, lg: 4 }}>
+            <Paper shadow="xl" p="xl" radius="xl" withBorder h="100%" bg="white" style={{ display: 'flex', flexDirection: 'column' }}>
+              <Stack gap="md" style={{ flex: 1 }}>
+                <Group justify="space-between" align="center" mb="xs">
+                  <Group gap="sm">
+                    <Box style={{ width: 32, height: 32, borderRadius: '8px', background: `${PRIMARY_BROWN}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <IconAddressBook size={18} color={PRIMARY_BROWN} />
+                    </Box>
+                    <Title order={4} c={CHARCOAL} fw={800}>Appointment Records</Title>
+                  </Group>
+                  {selectedFilterDate && (
+                    <Tooltip label="Reset date filter">
+                      <ActionIcon variant="light" color="red" radius="md" onClick={handleResetDateFilter}>
+                        <IconRotateClockwise size={18} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
                 </Group>
-              </Paper>
 
-              <Box>
-                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={8}>Current Schedule</Text>
-                <Paper p="md" radius="md" style={{ backgroundColor: `${ACCENT_TAN}10`, border: `1px solid ${ACCENT_TAN}` }}>
-                  <Stack gap="xs">
-                    <Group gap="xs">
-                      <IconCalendarEvent size={16} color={ACCENT_TAN} />
-                      <Text size="sm" fw={600} c={CHARCOAL}>{selectedAppointment.scheduledDate}</Text>
-                    </Group>
-                    {selectedAppointment.appointmentTime && (
-                      <Group gap="xs">
-                        <IconClock size={16} color={ACCENT_TAN} />
-                        <Text size="sm" fw={600} c={CHARCOAL}>
-                          {(() => {
-                            const [hours, minutes] = selectedAppointment.appointmentTime.split(':');
-                            const hour = parseInt(hours);
-                            const ampm = hour >= 12 ? 'PM' : 'AM';
-                            const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-                            return `${displayHour}:${minutes} ${ampm}`;
-                          })()}
-                        </Text>
-                      </Group>
-                    )}
-                  </Stack>
-                </Paper>
-              </Box>
-
-              <SimpleGrid cols={2} spacing="md">
-                <Box>
-                  <Group gap={8} mb={8}>
-                    <Text size="sm" fw={600} c={CHARCOAL}>New Date</Text>
-                    <Text size="sm" c="red">*</Text>
-                  </Group>
-                  <DatePickerInput 
-                    placeholder="Select new date" 
-                    value={newDate} 
-                    onChange={setNewDate} 
-                    size="md" 
-                    minDate={new Date()} 
-                    leftSection={<IconCalendarEvent size={18} color={PRIMARY_BROWN} />}
-                    styles={{ input: { borderColor: '#E0E0E0', '&:focus': { borderColor: PRIMARY_BROWN } } }} 
-                  />
-                </Box>
-
-                <Box>
-                  <Group gap={8} mb={8}>
-                    <Text size="sm" fw={600} c={CHARCOAL}>New Time</Text>
-                    <Text size="sm" c="red">*</Text>
-                  </Group>
-                  <Select
-                    placeholder="Select time"
-                    value={newTime}
-                    onChange={setNewTime}
-                    size="md"
-                    leftSection={<IconClock size={18} color={PRIMARY_BROWN} />}
-                    data={[
-                      { value: '09:00', label: '9:00 AM' },
-                      { value: '09:30', label: '9:30 AM' },
-                      { value: '10:00', label: '10:00 AM' },
-                      { value: '10:30', label: '10:30 AM' },
-                      { value: '11:00', label: '11:00 AM' },
-                      { value: '11:30', label: '11:30 AM' },
-                      { value: '13:00', label: '1:00 PM' },
-                      { value: '13:30', label: '1:30 PM' },
-                      { value: '14:00', label: '2:00 PM' },
-                      { value: '14:30', label: '2:30 PM' },
-                      { value: '15:00', label: '3:00 PM' },
-                      { value: '15:30', label: '3:30 PM' },
-                      { value: '16:00', label: '4:00 PM' },
-                      { value: '16:30', label: '4:30 PM' },
-                      { value: '17:00', label: '5:00 PM' },
-                    ]}
-                    styles={{ input: { borderColor: '#E0E0E0', '&:focus': { borderColor: PRIMARY_BROWN } } }}
-                  />
-                </Box>
-              </SimpleGrid>
-
-              <Text size="xs" c={MUTED_OLIVE}>Select a new date and time for the appointment</Text>
-
-              <Group justify="flex-end" gap="md" mt="md">
-                <Button variant="outline" size="md" onClick={() => setRescheduleModal(false)} styles={{ root: { borderColor: '#E0E0E0', color: MUTED_OLIVE } }}>Cancel</Button>
-                <Button size="md" onClick={handleUpdateAppointment} disabled={!newDate || !newTime || isUpdating} loading={isUpdating} leftSection={<IconCheck size={18} />} style={{ backgroundColor: PRIMARY_BROWN }}>
-                  {isUpdating ? 'Saving...' : 'Save'}
-                </Button>
-              </Group>
-            </Stack>
-          )}
-        </Modal>
-
-        {/* Date Details Modal */}
-        <Modal 
-          opened={dateDetailsModal} 
-          onClose={() => setDateDetailsModal(false)} 
-          title={selectedDate ? `Appointments for ${selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}` : 'Appointments'}
-          size="lg"
-          styles={{
-            header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' },
-            body: { padding: '24px' },
-          }}
-        >
-          {selectedDate && (() => {
-            const dateAppointments = getAppointmentsForDate(selectedDate);
-            return dateAppointments.length > 0 ? (
-              <Stack gap="md">
-                {dateAppointments.map((item, idx) => (
-                  <Paper 
-                    key={idx} 
-                    p="lg" 
+                <Stack gap={8} mb="md">
+                  <TextInput 
+                    placeholder="Search by client name..." 
+                    leftSection={<IconSearch size={16} />} 
+                    value={searchQuery} 
+                    onChange={(e) => setSearchQuery(e.target.value)} 
+                    size="sm" 
                     radius="md" 
-                    style={{ 
-                      backgroundColor: THEMED_LIGHT_BG, 
-                      border: `1px solid ${PRIMARY_GOLD}` 
-                    }}
-                  >
-                    <Group justify="space-between" mb="md">
-                      <Box>
-                        <Text fw={600} size="lg" c={CHARCOAL} mb={4}>
-                          {item.clientName || item.title}
-                        </Text>
-                        <Badge size="sm" style={{ backgroundColor: PRIMARY_BROWN }}>
-                          {item.type || 'Event'}
-                        </Badge>
-                      </Box>
-                      {item.type !== 'event' && (
-                        <Group gap="xs">
-                          <ActionIcon
-                            size="lg"
-                            variant="light"
-                            color={PRIMARY_BROWN}
-                            onClick={() => handleOpenEditAppointment(item)}
-                          >
-                            <IconEdit size={18} />
-                          </ActionIcon>
-                          <ActionIcon
-                            size="lg"
-                            variant="light"
-                            color="red"
-                            onClick={() => {
-                              setEventToDelete(item);
-                              setDeleteConfirmModal(true);
-                            }}
-                          >
-                            <IconX size={18} />
-                          </ActionIcon>
-                        </Group>
-                      )}
-                    </Group>
-
-                    <Stack gap="sm">
-                      {item.location && (
-                        <Group gap="xs">
-                          <IconMapPin size={16} color={MUTED_OLIVE} />
-                          <Text size="sm" c={CHARCOAL}>
-                            {item.location}
-                          </Text>
-                        </Group>
-                      )}
-                      <Group gap="xs">
-                        <IconCalendarEvent size={16} color={PRIMARY_BROWN} />
-                        <Text size="sm" fw={600} c={CHARCOAL}>
-                          {item.scheduledDate}
-                          {item.appointmentTime && ` at ${item.appointmentTime}`}
-                        </Text>
-                      </Group>
-                      {item.purpose && (
-                        <Box mt="xs">
-                          <Text size="xs" c={MUTED_OLIVE} mb={4}>
-                            Purpose
-                          </Text>
-                          <Text size="sm" c={CHARCOAL}>
-                            {item.purpose}
-                          </Text>
-                        </Box>
-                      )}
-                    </Stack>
-                  </Paper>
-                ))}
-              </Stack>
-            ) : (
-              <Center py="xl">
-                <Stack align="center" gap="md">
-                  <IconCalendarEvent size={48} color={MUTED_OLIVE} />
-                  <Text c={MUTED_OLIVE} size="sm">
-                    No appointments or events scheduled for this date
-                  </Text>
+                    styles={{ input: { borderColor: '#E5E7EB', '&:focus': { borderColor: PRIMARY_BROWN } } }} 
+                  />
+                  {selectedFilterDate && (
+                    <Badge variant="light" color={PRIMARY_BROWN} radius="md" size="sm" fullWidth>
+                      Date: {selectedFilterDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </Badge>
+                  )}
                 </Stack>
-              </Center>
-            );
-          })()}
-        </Modal>
 
-        {/* Edit Event Modal */}
-        <Modal
-          opened={editEventModal}
-          onClose={() => setEditEventModal(false)}
-          title="Edit Event"
-          size="lg"
-          styles={{
-            header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' },
-            body: { padding: '24px' },
-          }}
-        >
-          <Stack gap="md">
-            <TextInput
-              label="Event Title"
-              placeholder="Enter event title"
-              required
-              value={eventEditForm.title}
-              onChange={(e) => setEventEditForm({ ...eventEditForm, title: e.target.value })}
-              styles={{
-                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
-              }}
-            />
+                <Tabs value={activeTab} onChange={(val) => { setActiveTab(val); setPendingPage(1); setInterviewPage(1); }} variant="pills" radius="md" styles={{ tab: { fontWeight: 700, fontSize: '11px', padding: '6px 12px', '&[data-active]': { background: PRIMARY_BROWN } } }}>
+                  <Tabs.List mb="md" grow>
+                    <Tabs.Tab value="pending" leftSection={<IconClock size={14} />}>Pending</Tabs.Tab>
+                    <Tabs.Tab value="forInterview" leftSection={<IconFileText size={14} />}>Interview</Tabs.Tab>
+                  </Tabs.List>
 
-            <TextInput
-              label="Description"
-              placeholder="Enter event description"
-              value={eventEditForm.description}
-              onChange={(e) => setEventEditForm({ ...eventEditForm, description: e.target.value })}
-              styles={{
-                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
-              }}
-            />
+                  <Tabs.Panel value="pending">
+                    <Stack gap="md">
+                      <ScrollArea style={{ height: 450 }} offsetScrollbars scrollbarSize={6} styles={{ thumb: { backgroundColor: PRIMARY_BROWN } }}>
+                        <Stack gap="sm" pr="sm">
+                          {filteredPending
+                            .slice((pendingPage - 1) * itemsPerPage, pendingPage * itemsPerPage)
+                            .map((item) => (
+                              <SideAppointmentCard key={item.id} item={item} />
+                            ))}
+                          {filteredPending.length === 0 && (
+                            <Center h={200}>
+                              <Stack align="center" gap="xs">
+                                <IconInfoCircle size={32} color="#D1D5DB" />
+                                <Text c="dimmed" size="xs" fw={600}>No matches found.</Text>
+                              </Stack>
+                            </Center>
+                          )}
+                        </Stack>
+                      </ScrollArea>
+                      
+                      <Center>
+                        <Pagination total={Math.ceil(filteredPending.length / itemsPerPage) || 1} value={pendingPage} onChange={setPendingPage} color={PRIMARY_BROWN} size="xs" radius="md" withEdges />
+                      </Center>
+                    </Stack>
+                  </Tabs.Panel>
+                  
+                  <Tabs.Panel value="forInterview">
+                    <Stack gap="md">
+                      <ScrollArea style={{ height: 450 }} offsetScrollbars scrollbarSize={6} styles={{ thumb: { backgroundColor: PRIMARY_BROWN } }}>
+                        <Stack gap="sm" pr="sm">
+                          {filteredInterview
+                            .slice((interviewPage - 1) * itemsPerPage, interviewPage * itemsPerPage)
+                            .map((item) => (
+                              <SideAppointmentCard key={item.id} item={item} />
+                            ))}
+                          {filteredInterview.length === 0 && (
+                            <Center h={200}>
+                              <Stack align="center" gap="xs">
+                                <IconInfoCircle size={32} color="#D1D5DB" />
+                                <Text c="dimmed" size="xs" fw={600}>No matches found.</Text>
+                              </Stack>
+                            </Center>
+                          )}
+                        </Stack>
+                      </ScrollArea>
+                      
+                      <Center>
+                        <Pagination total={Math.ceil(filteredInterview.length / itemsPerPage) || 1} value={interviewPage} onChange={setInterviewPage} color={PRIMARY_BROWN} size="xs" radius="md" withEdges />
+                      </Center>
+                    </Stack>
+                  </Tabs.Panel>
+                </Tabs>
+              </Stack>
+            </Paper>
+          </Grid.Col>
+        </Grid>
+      </Container>
 
-            <DatePickerInput
-              label="Event Date"
-              placeholder="Select event date"
-              required
-              value={eventEditForm.eventDate}
-              onChange={(date) => setEventEditForm({ ...eventEditForm, eventDate: date })}
-              minDate={new Date()}
-              styles={{
-                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
-              }}
-            />
-
-            <Select
-              label="Event Type"
-              placeholder="Select event type"
-              data={[
-                { value: 'appointment', label: 'Appointment' },
-                { value: 'hearing', label: 'Court Hearing' },
-                { value: 'consultation', label: 'Consultation' },
-                { value: 'deadline', label: 'Deadline' },
-                { value: 'other', label: 'Other' },
-              ]}
-              value={eventEditForm.eventType}
-              onChange={(value) => setEventEditForm({ ...eventEditForm, eventType: value })}
-              styles={{
-                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
-              }}
-            />
-
-            <TextInput
-              label="Location"
-              placeholder="Enter location"
-              leftSection={<IconMapPin size={16} />}
-              value={eventEditForm.location}
-              onChange={(e) => setEventEditForm({ ...eventEditForm, location: e.target.value })}
-              styles={{
-                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
-              }}
-            />
-
-            <TextInput
-              label="Client Name"
-              placeholder="Enter client name (optional)"
-              value={eventEditForm.clientName}
-              onChange={(e) => setEventEditForm({ ...eventEditForm, clientName: e.target.value })}
-              styles={{
-                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
-              }}
-            />
-
-            <TextInput
-              label="Assigned To"
-              placeholder="Enter assigned attorney"
-              value={eventEditForm.assignedTo}
-              onChange={(e) => setEventEditForm({ ...eventEditForm, assignedTo: e.target.value })}
-              styles={{
-                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
-              }}
-            />
-
-            <Select
-              label="Priority"
-              placeholder="Select priority"
-              data={[
-                { value: 'Low', label: 'Low' },
-                { value: 'Medium', label: 'Medium' },
-                { value: 'High', label: 'High' },
-              ]}
-              value={eventEditForm.priority}
-              onChange={(value) => setEventEditForm({ ...eventEditForm, priority: value })}
-              styles={{
-                label: { color: CHARCOAL, fontWeight: 600, marginBottom: '8px' },
-              }}
-            />
-
-            <Group justify="flex-end" gap="md" mt="md">
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => setEditEventModal(false)}
-                styles={{
-                  root: { borderColor: '#E0E0E0', color: MUTED_OLIVE },
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="md"
-                onClick={handleUpdateEvent}
-                disabled={!eventEditForm.title || !eventEditForm.eventDate || isUpdatingEvent}
-                loading={isUpdatingEvent}
-                leftSection={<IconCheck size={18} />}
-                style={{ backgroundColor: PRIMARY_BROWN }}
-              >
-                {isUpdatingEvent ? 'Updating...' : 'Update Event'}
-              </Button>
-            </Group>
-          </Stack>
-        </Modal>
-
-        {/* Delete Confirmation Modal */}
-        <Modal
-          opened={deleteConfirmModal}
-          onClose={() => {
-            setDeleteConfirmModal(false);
-            setEventToDelete(null);
-          }}
-          title="Delete Event"
-          size="md"
-          styles={{
-            header: { borderBottom: '1px solid #F0F0F0', paddingBottom: '16px' },
-            body: { padding: '24px' },
-          }}
-        >
-          <Stack gap="lg">
-            <Paper
-              p="lg"
-              radius="md"
-              style={{
-                backgroundColor: '#FFF5F5',
-                border: '2px solid #FF6B6B',
-              }}
-            >
-              <Group gap="md" align="flex-start">
-                <Box
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '50%',
-                    backgroundColor: '#FFE0E0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <IconX size={24} color="#FF6B6B" />
-                </Box>
-                <Box style={{ flex: 1 }}>
-                  <Text fw={700} size="lg" c="#C92A2A" mb={8}>
-                    Are you sure?
-                  </Text>
-                  <Text size="sm" c={CHARCOAL}>
-                    This action cannot be undone. The event will be permanently deleted from the calendar.
-                  </Text>
-                </Box>
+      {/* Modals */}
+      <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title={<Text fw={800} size="lg">Reschedule Appointment</Text>} size="md" radius="xl">
+        <Stack gap="md">
+          {selectedAppointment && (
+            <Paper p="md" radius="lg" withBorder bg={THEMED_LIGHT_BG + '30'}>
+              <Group gap="sm">
+                <Avatar size={40} color={PRIMARY_BROWN}>{selectedAppointment.clientName[0]}</Avatar>
+                <Box><Text fw={700} size="sm">{selectedAppointment.clientName}</Text><Text size="xs" c="dimmed">Current: {selectedAppointment.scheduledDate}</Text></Box>
               </Group>
             </Paper>
-
-            {eventToDelete && (
-              <Paper
-                p="md"
-                radius="md"
-                style={{
-                  backgroundColor: THEMED_LIGHT_BG,
-                  border: '1px solid #E0E0E0',
-                }}
-              >
-                <Text size="xs" c={MUTED_OLIVE} mb={4}>
-                  Event to be deleted:
-                </Text>
-                <Text fw={600} size="md" c={CHARCOAL} mb={4}>
-                  {eventToDelete.purpose || eventToDelete.clientName}
-                </Text>
-                <Text size="sm" c={MUTED_OLIVE}>
-                  {eventToDelete.scheduledDate} • {eventToDelete.location}
-                </Text>
-              </Paper>
-            )}
-
-            <Group justify="flex-end" gap="md">
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => {
-                  setDeleteConfirmModal(false);
-                  setEventToDelete(null);
-                }}
-                disabled={isDeletingEvent}
-                styles={{
-                  root: { borderColor: '#E0E0E0', color: MUTED_OLIVE },
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="md"
-                onClick={handleDeleteEvent}
-                disabled={isDeletingEvent}
-                loading={isDeletingEvent}
-                style={{ backgroundColor: '#C92A2A' }}
-                leftSection={<IconX size={18} />}
-              >
-                {isDeletingEvent ? 'Deleting...' : 'Delete Event'}
-              </Button>
-            </Group>
-          </Stack>
-        </Modal>
-
-        {/* Appointment Details Modal */}
-        <Modal
-          opened={appointmentModalOpened}
-          onClose={() => {
-            setAppointmentModalOpened(false);
-            setAppointmentEditMode(false);
-          }}
-          title={null}
-          size="lg"
-          radius="lg"
-          styles={{
-            header: { display: 'none' },
-            body: { padding: 0 },
-          }}
-        >
-          {loadingAppointment ? (
-            <Center py="xl">
-              <Loader size="lg" color={PRIMARY_BROWN} />
-            </Center>
-          ) : appointmentDetails ? (
-            <Box>
-              {/* Header Section */}
-              <Paper 
-                p="lg" 
-                radius="0"
-                style={{ 
-                  background: `linear-gradient(135deg, ${PRIMARY_BROWN}, ${PRIMARY_BROWN}DD)`,
-                  border: 'none',
-                  borderTopLeftRadius: '12px',
-                  borderTopRightRadius: '12px',
-                }}
-              >
-                <Group justify="space-between" align="center">
-                  <Group gap="sm">
-                    <Box style={{ width: 36, height: 36, borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <IconScale size={20} color="white" />
-                    </Box>
-                    <Box>
-                      <Text size="sm" c="white" fw={700}>
-                        SOLA - Client Information Sheet
-                      </Text>
-                      <Text size="xs" c="rgba(255, 255, 255, 0.7)">
-                        San Sebastian College Recoletos, Manila
-                      </Text>
-                    </Box>
-                  </Group>
-                  {appointmentEditMode ? (
-                    <Group gap="xs">
-                      <Button
-                        variant="light"
-                        color="red"
-                        size="sm"
-                        onClick={handleCancelAppointmentEdit}
-                        disabled={appointmentSaving}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        style={{ backgroundColor: 'white', color: PRIMARY_BROWN }}
-                        onClick={handleSaveAppointmentDetails}
-                        loading={appointmentSaving}
-                      >
-                        Save Changes
-                      </Button>
-                    </Group>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="light"
-                      color="white"
-                      onClick={handleEnterAppointmentEdit}
-                      disabled={loadingAppointment || !appointmentDetails}
-                    >
-                      Edit Information
-                    </Button>
-                  )}
-                </Group>
-              </Paper>
-
-              <Stack gap="lg" p="xl">
-                {/* Form Title Badge */}
-                <Box style={{ textAlign: 'center' }}>
-                  <Paper 
-                    p="sm" 
-                    radius="md"
-                    style={{ 
-                      display: 'inline-block',
-                      backgroundColor: `${PRIMARY_GOLD}15`,
-                      border: `1px solid ${PRIMARY_GOLD}`,
-                    }}
-                  >
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN}>
-                      CLIENT'S INFORMATION SHEET
-                    </Text>
-                  </Paper>
-                </Box>
-
-              {/* Personal Details */}
-              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-                <Title order={4} mb="md" c={CHARCOAL}>Personal Details</Title>
-                <Divider mb="md" color="#F0F0F0" />
-                <Grid gutter="md">
-                  {/* Name */}
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Juan Dela Cruz"
-                          value={appointmentForm.fullName}
-                          onChange={(e) => {
-                            const capitalized = e.target.value
-                              .split(' ')
-                              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                              .join(' ');
-                            setAppointmentForm({ ...appointmentForm, fullName: capitalized });
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.fullName || appointmentDetails.name || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  {/* Birthday and Age */}
-                  {/* Birthday and Age */}
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
-                      {appointmentEditMode ? (
-                        <DateInput
-                          size="sm"
-                          placeholder="Pick birthday"
-                          valueFormat="MMMM DD, YYYY"
-                          leftSection={<IconCalendar size={16} color={MUTED_OLIVE} />}
-                          maxDate={new Date()}
-                          value={appointmentForm.birthday ? new Date(appointmentForm.birthday) : null}
-                          onChange={(date) => {
-                            if (!date) {
-                              setAppointmentForm({ ...appointmentForm, birthday: '', age: '' });
-                              return;
-                            }
-                            // Ensure date is a Date object
-                            const dateObj = date instanceof Date ? date : new Date(date);
-                            const formatted = dateObj.toISOString().split('T')[0];
-                            // Auto-calculate age
-                            const today = new Date();
-                            let age = today.getFullYear() - dateObj.getFullYear();
-                            const monthDiff = today.getMonth() - dateObj.getMonth();
-                            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateObj.getDate())) {
-                              age--;
-                            }
-                            const calculatedAge = String(age >= 0 ? age : '');
-                            // Update both birthday and age in one state update
-                            setAppointmentForm({ ...appointmentForm, birthday: formatted, age: calculatedAge });
-                          }}
-                          clearable
-                          styles={{
-                            input: {
-                              borderColor: '#E0E0E0',
-                              '&:focus': { borderColor: PRIMARY_BROWN },
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>
-                          {appointmentDetails.birthday ? new Date(appointmentDetails.birthday).toLocaleDateString('en-US', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          }) : 'N/A'}
-                        </Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Auto-calculated"
-                          value={appointmentForm.age}
-                          readOnly
-                          styles={{
-                            input: {
-                              backgroundColor: '#F5F5F5',
-                              borderColor: '#E0E0E0',
-                              cursor: 'not-allowed',
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.age || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  {/* Contact Number */}
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          type="tel"
-                          placeholder="+63 912 345 6789"
-                          value={appointmentForm.contactNumber || '+63 '}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            const cleaned = value.replace(/\D/g, '');
-                            const number = cleaned.startsWith('63') ? cleaned.substring(2) : cleaned;
-                            const limited = number.substring(0, 10);
-                            let formatted = '+63 ';
-                            if (limited.length <= 3) {
-                              formatted += limited;
-                            } else if (limited.length <= 6) {
-                              formatted += `${limited.slice(0, 3)} ${limited.slice(3)}`;
-                            } else {
-                              formatted += `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6)}`;
-                            }
-                            setAppointmentForm({ ...appointmentForm, contactNumber: formatted });
-                          }}
-                          onFocus={(e) => {
-                            if (!e.target.value || e.target.value === '') {
-                              setAppointmentForm({ ...appointmentForm, contactNumber: '+63 ' });
-                            }
-                          }}
-                          styles={{
-                            input: {
-                              borderColor: '#E0E0E0',
-                              '&:focus': { borderColor: PRIMARY_BROWN },
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.contactNumber || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  {/* Sex and Civil Status */}
-                  {/* Sex and Civil Status */}
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
-                      {appointmentEditMode ? (
-                        <Select
-                          size="sm"
-                          placeholder="Select Sex"
-                          data={GENDER_OPTIONS}
-                          value={appointmentForm.sex}
-                          onChange={(value) => setAppointmentForm({ ...appointmentForm, sex: value })}
-                          searchable
-                          styles={{
-                            input: {
-                              borderColor: '#E0E0E0',
-                              '&:focus': { borderColor: PRIMARY_BROWN },
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.sex || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
-                      {appointmentEditMode ? (
-                        <Select
-                          size="sm"
-                          placeholder="Select Civil Status"
-                          data={CIVIL_STATUS_OPTIONS}
-                          value={appointmentForm.civilStatus}
-                          onChange={(value) => {
-                            setAppointmentForm({ 
-                              ...appointmentForm, 
-                              civilStatus: value,
-                              // Clear spouse name if not married/widowed
-                              spouseName: (value === 'Married' || value === 'Widowed') ? appointmentForm.spouseName : ''
-                            });
-                          }}
-                          styles={{
-                            input: {
-                              borderColor: '#E0E0E0',
-                              '&:focus': { borderColor: PRIMARY_BROWN },
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.civilStatus || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  {/* Citizenship */}
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Citizenship</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="e.g., Filipino"
-                          value={appointmentForm.citizenship || ''}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, citizenship: e.target.value })}
-                          rightSection={appointmentForm.citizenship === DEFAULT_CITIZENSHIP ? <IconCheck size={16} color={PRIMARY_BROWN} /> : null}
-                          styles={{
-                            input: {
-                              borderColor: '#E0E0E0',
-                              '&:focus': { borderColor: PRIMARY_BROWN },
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.citizenship || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  {/* Spouse Name - Conditional */}
-                  {(appointmentForm.civilStatus === 'Married' || appointmentForm.civilStatus === 'Widowed' || 
-                    (!appointmentEditMode && (appointmentDetails.civilStatus === 'Married' || appointmentDetails.civilStatus === 'Widowed'))) && (
-                    <Grid.Col span={12}>
-                      <Box>
-                        <Group gap={4} mb={4}>
-                          <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>Spouse Name</Text>
-                          {appointmentEditMode && appointmentForm.civilStatus === 'Married' && <Text size="xs" c="red">*</Text>}
-                        </Group>
-                        {appointmentEditMode ? (
-                          <TextInput
-                            size="sm"
-                            placeholder="Enter spouse name"
-                            value={appointmentForm.spouseName}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, spouseName: e.target.value })}
-                          />
-                        ) : (
-                          <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.spouseName || 'N/A'}</Text>
-                        )}
-                      </Box>
-                    </Grid.Col>
-                  )}
-                  {/* Cellphone Number */}
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Cellphone Number</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          type="tel"
-                          placeholder="+63 912 345 6789"
-                          value={appointmentForm.cellphoneNumber || '+63 '}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            const cleaned = value.replace(/\D/g, '');
-                            const number = cleaned.startsWith('63') ? cleaned.substring(2) : cleaned;
-                            const limited = number.substring(0, 10);
-                            let formatted = '+63 ';
-                            if (limited.length <= 3) {
-                              formatted += limited;
-                            } else if (limited.length <= 6) {
-                              formatted += `${limited.slice(0, 3)} ${limited.slice(3)}`;
-                            } else {
-                              formatted += `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6)}`;
-                            }
-                            setAppointmentForm({ ...appointmentForm, cellphoneNumber: formatted });
-                          }}
-                          onFocus={(e) => {
-                            if (!e.target.value || e.target.value === '') {
-                              setAppointmentForm({ ...appointmentForm, cellphoneNumber: '+63 ' });
-                            }
-                          }}
-                          description="Optional alternate contact number"
-                          styles={{
-                            input: {
-                              borderColor: '#E0E0E0',
-                              '&:focus': { borderColor: PRIMARY_BROWN },
-                            },
-                            description: {
-                              color: MUTED_OLIVE,
-                              fontSize: '11px',
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.cellphoneNumber || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  {/* Present Address */}
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="123 Street, Barangay, City"
-                          value={appointmentForm.presentAddress}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, presentAddress: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presentAddress || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  {/* Telephone Number */}
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Telephone Number</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="(02) 1234-5678"
-                          value={appointmentForm.telephoneNumber || ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            const digitsOnly = value.replace(/\D/g, '');
-                            if (digitsOnly.length === 0) {
-                              setAppointmentForm({ ...appointmentForm, telephoneNumber: '' });
-                              return;
-                            }
-                            const withLeadingZero = digitsOnly.startsWith('0') ? digitsOnly : `0${digitsOnly}`;
-                            const limited = withLeadingZero.slice(0, 10);
-                            let formatted = '';
-                            if (limited.length <= 2) {
-                              formatted = `(${limited}`;
-                            } else if (limited.length <= 4) {
-                              formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
-                            } else if (limited.length <= 8) {
-                              formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6)}`;
-                            } else {
-                              formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6, 10)}`;
-                            }
-                            setAppointmentForm({ ...appointmentForm, telephoneNumber: formatted });
-                          }}
-                          onFocus={(e) => {
-                            if (!e.target.value || e.target.value === '') {
-                              setAppointmentForm({ ...appointmentForm, telephoneNumber: '(' });
-                            }
-                          }}
-                          styles={{
-                            input: {
-                              borderColor: '#E0E0E0',
-                              '&:focus': { borderColor: PRIMARY_BROWN },
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.telephoneNumber || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  {/* Permanent Address */}
-                  {/* Permanent Address */}
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="123 Street, Barangay, City"
-                          value={appointmentForm.permanentAddress}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, permanentAddress: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.permanentAddress || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                </Grid>
-              </Paper>
-
-              {/* Relator/Representative Section */}
-              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
-                <Title order={4} mb="md" c={CHARCOAL}>
-                  Relator/Representative Information
-                </Title>
-                <Stack gap="md">
-                  {appointmentEditMode ? (
-                    <>
-                      <Box>
-                        <Text size="sm" fw={600} c={CHARCOAL} mb={6}>If through a Relator / Representative</Text>
-                        <Radio.Group
-                          value={appointmentForm.throughRelator}
-                          onChange={(value) => {
-                            setAppointmentForm({ 
-                              ...appointmentForm, 
-                              throughRelator: value,
-                              // Clear relator fields if selecting 'no'
-                              relatorName: value === 'no' ? '' : appointmentForm.relatorName,
-                              relationshipToClient: value === 'no' ? '' : appointmentForm.relationshipToClient,
-                            });
-                          }}
-                        >
-                          <Group gap="lg">
-                            <Radio value="yes" label="Yes" color={PRIMARY_BROWN} />
-                            <Radio value="no" label="No" color={PRIMARY_BROWN} />
-                          </Group>
-                        </Radio.Group>
-                      </Box>
-
-                      <Box>
-                        <Group gap={4} mb={4}>
-                          <Text size="sm" fw={600} c={CHARCOAL}>Name of Relator/Representative</Text>
-                          {appointmentForm.throughRelator === 'yes' && <Text size="xs" c="red">*</Text>}
-                        </Group>
-                        <TextInput
-                          placeholder="Maria Santos"
-                          size="sm"
-                          disabled={appointmentForm.throughRelator !== 'yes'}
-                          value={appointmentForm.relatorName}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, relatorName: e.target.value })}
-                          styles={{
-                            input: {
-                              backgroundColor: appointmentForm.throughRelator === 'yes' ? 'white' : '#F5F5F5',
-                              cursor: appointmentForm.throughRelator === 'yes' ? 'text' : 'not-allowed',
-                            },
-                          }}
-                        />
-                      </Box>
-
-                      <Box>
-                        <Group gap={4} mb={4}>
-                          <Text size="sm" fw={600} c={CHARCOAL}>Relationship to the Client</Text>
-                          {appointmentForm.throughRelator === 'yes' && <Text size="xs" c="red">*</Text>}
-                        </Group>
-                        <TextInput
-                          placeholder="Sister, Brother, Parent, Attorney, etc."
-                          size="sm"
-                          disabled={appointmentForm.throughRelator !== 'yes'}
-                          value={appointmentForm.relationshipToClient}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, relationshipToClient: e.target.value })}
-                          styles={{
-                            input: {
-                              backgroundColor: appointmentForm.throughRelator === 'yes' ? 'white' : '#F5F5F5',
-                              cursor: appointmentForm.throughRelator === 'yes' ? 'text' : 'not-allowed',
-                            },
-                          }}
-                        />
-                      </Box>
-
-                      <Box>
-                        <Text size="sm" fw={600} c={CHARCOAL} mb={4}>Relator Contact Number</Text>
-                        <TextInput
-                          placeholder="+63 912 345 6789"
-                          size="sm"
-                          disabled={appointmentForm.throughRelator !== 'yes'}
-                          value={appointmentForm.relatorContactNumber}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, relatorContactNumber: e.target.value })}
-                          styles={{
-                            input: {
-                              backgroundColor: appointmentForm.throughRelator === 'yes' ? 'white' : '#F5F5F5',
-                              cursor: appointmentForm.throughRelator === 'yes' ? 'text' : 'not-allowed',
-                            },
-                          }}
-                        />
-                      </Box>
-                    </>
-                  ) : (
-                    <Grid gutter="md">
-                      <Grid.Col span={6}>
-                        <Box>
-                          <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Through Relator</Text>
-                          <Badge 
-                            size="md" 
-                            variant="light" 
-                            color={appointmentDetails.throughRelator === 'yes' ? 'green' : 'gray'}
-                          >
-                            {appointmentDetails.throughRelator === 'yes' ? 'Yes' : 'No'}
-                          </Badge>
-                        </Box>
-                      </Grid.Col>
-                      {(appointmentDetails.throughRelator === 'yes' || appointmentDetails.relatorName) && (
-                        <>
-                          <Grid.Col span={6}>
-                            <Box>
-                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relator Name</Text>
-                              <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.relatorName || 'N/A'}</Text>
-                            </Box>
-                          </Grid.Col>
-                          <Grid.Col span={6}>
-                            <Box>
-                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relationship to Client</Text>
-                              <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.relationshipToClient || 'N/A'}</Text>
-                            </Box>
-                          </Grid.Col>
-                          <Grid.Col span={6}>
-                            <Box>
-                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relator Contact Number</Text>
-                              <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.relatorContactNumber || 'N/A'}</Text>
-                            </Box>
-                          </Grid.Col>
-                        </>
-                      )}
-                    </Grid>
-                  )}
-                </Stack>
-              </Paper>
-
-              {/* Schedule Details */}
-              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-                <Title order={4} mb="md" c={CHARCOAL}>Schedule Details</Title>
-                <Divider mb="md" color="#F0F0F0" />
-                <Grid gutter="md">
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
-                      {appointmentEditMode ? (
-                        <DateInput
-                          size="sm"
-                          placeholder="Select appointment date"
-                          valueFormat="MMMM DD, YYYY"
-                          leftSection={<IconCalendar size={16} color={MUTED_OLIVE} />}
-                          minDate={new Date()}
-                          value={appointmentForm.appointedDate ? new Date(appointmentForm.appointedDate) : null}
-                          onChange={(date) => {
-                            if (!date) {
-                              setAppointmentForm({ ...appointmentForm, appointedDate: '' });
-                              return;
-                            }
-                            // Ensure date is a Date object
-                            const dateObj = date instanceof Date ? date : new Date(date);
-                            const formatted = dateObj.toISOString().split('T')[0];
-                            setAppointmentForm({ ...appointmentForm, appointedDate: formatted });
-                          }}
-                          clearable
-                          styles={{
-                            input: {
-                              borderColor: '#E0E0E0',
-                              '&:focus': { borderColor: PRIMARY_BROWN },
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>
-                          {appointmentDetails.appointedDate ? new Date(appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          }) : 'N/A'}
-                        </Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Time</Text>
-                      {appointmentEditMode ? (
-                        <Select
-                          size="sm"
-                          placeholder="Select a time"
-                          leftSection={<IconClock size={16} color={MUTED_OLIVE} />}
-                          value={appointmentForm.appointmentTime}
-                          onChange={(value) => setAppointmentForm({ ...appointmentForm, appointmentTime: value })}
-                          data={[
-                            { value: '09:00', label: '9:00 AM' },
-                            { value: '09:30', label: '9:30 AM' },
-                            { value: '10:00', label: '10:00 AM' },
-                            { value: '10:30', label: '10:30 AM' },
-                            { value: '11:00', label: '11:00 AM' },
-                            { value: '11:30', label: '11:30 AM' },
-                            { value: '13:00', label: '1:00 PM' },
-                            { value: '13:30', label: '1:30 PM' },
-                            { value: '14:00', label: '2:00 PM' },
-                            { value: '14:30', label: '2:30 PM' },
-                            { value: '15:00', label: '3:00 PM' },
-                            { value: '15:30', label: '3:30 PM' },
-                            { value: '16:00', label: '4:00 PM' },
-                            { value: '16:30', label: '4:30 PM' },
-                            { value: '17:00', label: '5:00 PM' },
-                          ]}
-                          clearable
-                          styles={{
-                            input: {
-                              borderColor: '#E0E0E0',
-                              '&:focus': { borderColor: PRIMARY_BROWN },
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.appointmentTime || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                </Grid>
-              </Paper>
-
-              {/* Financial Details */}
-              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-                <Title order={4} mb="md" c={CHARCOAL}>Financial Details</Title>
-                <Divider mb="md" color="#F0F0F0" />
-                <Grid gutter="md">
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Current Source of Income</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Employment, Business, etc."
-                          value={appointmentForm.currentSourceOfIncome}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, currentSourceOfIncome: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income / Month</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          type="number"
-                          placeholder="15000"
-                          value={appointmentForm.monthlyIncome}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, monthlyIncome: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>
-                          {appointmentDetails.monthlyIncome ? `₱${Number(appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
-                        </Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work / Business</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Sales, IT, Retail, etc."
-                          value={appointmentForm.natureOfWork}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, natureOfWork: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.natureOfWork || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer / Business Owner's Name</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="ABC Corporation"
-                          value={appointmentForm.employerName}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, employerName: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.employerName || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer / Business Address</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="456 Business St, City"
-                          value={appointmentForm.employerAddress}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, employerAddress: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.employerAddress || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Telephone</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="(02) 8765-4321"
-                          value={appointmentForm.employerTelephone || ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            const digitsOnly = value.replace(/\D/g, '');
-                            const withLeadingZero = digitsOnly.startsWith('0') ? digitsOnly : `0${digitsOnly}`;
-                            const limited = withLeadingZero.slice(0, 10);
-                            let formatted = '';
-                            if (limited.length === 0) {
-                              formatted = '';
-                            } else if (limited.length <= 2) {
-                              formatted = `(${limited}`;
-                            } else if (limited.length <= 4) {
-                              formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
-                            } else if (limited.length <= 8) {
-                              formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6)}`;
-                            } else {
-                              formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6, 10)}`;
-                            }
-                            setAppointmentForm({ ...appointmentForm, employerTelephone: formatted });
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.employerTelephone || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                </Grid>
-                
-                {/* Spouse's Information Section */}
-                <Paper p="md" mt="lg" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
-                  <Title order={5} mb="md" c={CHARCOAL}>
-                    Spouse's Information (If applicable)
-                  </Title>
-                  <Grid gutter="md">
-                    <Grid.Col span={12}>
-                      <Box>
-                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse's Source of Income</Text>
-                        {appointmentEditMode ? (
-                          <TextInput
-                            size="sm"
-                            placeholder="Employment, Business, etc."
-                            value={appointmentForm.spouseSourceOfIncome}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, spouseSourceOfIncome: e.target.value })}
-                            styles={{ input: { backgroundColor: 'white' } }}
-                          />
-                        ) : (
-                          <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.spouseSourceOfIncome || 'N/A'}</Text>
-                        )}
-                      </Box>
-                    </Grid.Col>
-                    <Grid.Col span={6}>
-                      <Box>
-                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse's Income / Month</Text>
-                        {appointmentEditMode ? (
-                          <TextInput
-                            size="sm"
-                            type="number"
-                            placeholder="15000"
-                            value={appointmentForm.spouseMonthlyIncome}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, spouseMonthlyIncome: e.target.value })}
-                            styles={{ input: { backgroundColor: 'white' } }}
-                          />
-                        ) : (
-                          <Text size="sm" c={CHARCOAL} fw={500}>
-                            {appointmentDetails.spouseMonthlyIncome ? `₱${Number(appointmentDetails.spouseMonthlyIncome).toLocaleString()}` : 'N/A'}
-                          </Text>
-                        )}
-                      </Box>
-                    </Grid.Col>
-                    <Grid.Col span={6}>
-                      <Box>
-                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse's Employer / Business Address</Text>
-                        {appointmentEditMode ? (
-                          <TextInput
-                            size="sm"
-                            placeholder="789 Work Ave, City"
-                            value={appointmentForm.spouseEmployerAddress}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, spouseEmployerAddress: e.target.value })}
-                            styles={{ input: { backgroundColor: 'white' } }}
-                          />
-                        ) : (
-                          <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.spouseEmployerAddress || 'N/A'}</Text>
-                        )}
-                      </Box>
-                    </Grid.Col>
-                  </Grid>
-                </Paper>
-
-                {/* Total Combined Monthly Income */}
-                <Box mt="lg">
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Total Combined Monthly Income</Text>
-                  {appointmentEditMode ? (
-                    <TextInput
-                      size="sm"
-                      placeholder="Auto-calculated"
-                      value={appointmentForm.totalCombinedIncome ? `₱${Number(appointmentForm.totalCombinedIncome).toLocaleString()}` : ''}
-                      readOnly
-                      styles={{
-                        input: {
-                          backgroundColor: '#F5F5F5',
-                          borderColor: '#E0E0E0',
-                          cursor: 'not-allowed',
-                          fontWeight: 500,
-                        },
-                      }}
-                    />
-                  ) : (
-                    <Text size="sm" c={CHARCOAL} fw={500}>
-                      {appointmentDetails.totalCombinedIncome ? `₱${Number(appointmentDetails.totalCombinedIncome).toLocaleString()}` : 'N/A'}
-                    </Text>
-                  )}
-                </Box>
-              </Paper>
-
-              {/* Case Details */}
-              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-                <Title order={4} mb="md" c={CHARCOAL}>Case Details</Title>
-                <Divider mb="md" color="#F0F0F0" />
-                <Grid gutter="md">
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Plaintiff/Defendant"
-                          value={appointmentForm.partyRepresented}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, partyRepresented: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.partyRepresented || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue / City</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Manila"
-                          value={appointmentForm.venue}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, venue: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.venue || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case / Docket Number</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Case No. 2024-123"
-                          value={appointmentForm.caseNumber}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, caseNumber: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.caseNumber || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage of the Case</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Pre-trial, Trial, etc."
-                          value={appointmentForm.presentStage}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, presentStage: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presentStage || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Case</Text>
-                      {appointmentEditMode ? (
-                        <Textarea
-                          size="sm"
-                          placeholder="Describe the nature of the case..."
-                          minRows={3}
-                          value={appointmentForm.caseNature}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, caseNature: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.caseNature || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court / Agency / Tribunal Division</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="RTC Branch 1"
-                          value={appointmentForm.courtDivision}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, courtDivision: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtDivision || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court / Agency / Tribunal Address</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Justice Hall, City"
-                          value={appointmentForm.courtAddress}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, courtAddress: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtAddress || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Phone Number</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="(02) 1111-2222"
-                          value={appointmentForm.courtPhoneNumber}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, courtPhoneNumber: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtPhoneNumber || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Box>
-                      <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
-                      {appointmentEditMode ? (
-                        <TextInput
-                          size="sm"
-                          placeholder="Hon. Judge Name"
-                          value={appointmentForm.presidingOfficer || ''}
-                          onChange={(e) => setAppointmentForm({ ...appointmentForm, presidingOfficer: e.target.value })}
-                        />
-                      ) : (
-                        <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presidingOfficer || 'N/A'}</Text>
-                      )}
-                    </Box>
-                  </Grid.Col>
-                </Grid>
-
-                {/* Adverse Party Information Section */}
-                <Paper p="md" mt="lg" style={{ backgroundColor: `${PRIMARY_GOLD}10`, border: `1px solid ${PRIMARY_GOLD}` }}>
-                  <Title order={5} mb="md" c={CHARCOAL}>
-                    Adverse Party Information
-                  </Title>
-                  <Grid gutter="md">
-                    <Grid.Col span={12}>
-                      <Box>
-                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party(ies)</Text>
-                        {appointmentEditMode ? (
-                          <TextInput
-                            size="sm"
-                            placeholder="Name of opposing party"
-                            value={appointmentForm.adverseParty}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, adverseParty: e.target.value })}
-                            styles={{ input: { backgroundColor: 'white' } }}
-                          />
-                        ) : (
-                          <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adverseParty || 'N/A'}</Text>
-                        )}
-                      </Box>
-                    </Grid.Col>
-                    <Grid.Col span={12}>
-                      <Box>
-                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party(ies) Address</Text>
-                        {appointmentEditMode ? (
-                          <TextInput
-                            size="sm"
-                            placeholder="Address of opposing party"
-                            value={appointmentForm.adversePartyAddress}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, adversePartyAddress: e.target.value })}
-                            styles={{ input: { backgroundColor: 'white' } }}
-                          />
-                        ) : (
-                          <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adversePartyAddress || 'N/A'}</Text>
-                        )}
-                      </Box>
-                    </Grid.Col>
-                    <Grid.Col span={12}>
-                      <Box>
-                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party(ies) Counsel</Text>
-                        {appointmentEditMode ? (
-                          <TextInput
-                            size="sm"
-                            placeholder="Atty. Name"
-                            value={appointmentForm.adversePartyCounsel}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, adversePartyCounsel: e.target.value })}
-                            styles={{ input: { backgroundColor: 'white' } }}
-                          />
-                        ) : (
-                          <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adversePartyCounsel || 'N/A'}</Text>
-                        )}
-                      </Box>
-                    </Grid.Col>
-                    <Grid.Col span={12}>
-                      <Box>
-                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party(ies) Counsel Address</Text>
-                        {appointmentEditMode ? (
-                          <TextInput
-                            size="sm"
-                            placeholder="Law Office Address"
-                            value={appointmentForm.adversePartyCounselAddress}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, adversePartyCounselAddress: e.target.value })}
-                            styles={{ input: { backgroundColor: 'white' } }}
-                          />
-                        ) : (
-                          <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adversePartyCounselAddress || 'N/A'}</Text>
-                        )}
-                      </Box>
-                    </Grid.Col>
-                    <Grid.Col span={12}>
-                      <Box>
-                        <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party(ies) Counsel Phone Number</Text>
-                        {appointmentEditMode ? (
-                          <TextInput
-                            size="sm"
-                            placeholder="(02) 3333-4444"
-                            value={appointmentForm.adversePartyCounselPhone}
-                            onChange={(e) => setAppointmentForm({ ...appointmentForm, adversePartyCounselPhone: e.target.value })}
-                            styles={{ input: { backgroundColor: 'white' } }}
-                          />
-                        ) : (
-                          <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adversePartyCounselPhone || 'N/A'}</Text>
-                        )}
-                      </Box>
-                    </Grid.Col>
-                  </Grid>
-                </Paper>
-              </Paper>
-            </Stack>
-          </Box>
-          ) : (
-            <Text c="dimmed" ta="center" py="xl">
-              No appointment details available
-            </Text>
           )}
-        </Modal>
-      </Container>
+          <DatePickerInput label="New Date" placeholder="Select date" value={newDate} onChange={setNewDate} radius="md" size="md" />
+          <Select label="New Time" placeholder="Select time" data={['09:00 AM', '10:00 AM', '11:00 AM', '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM']} value={newTime} onChange={setNewTime} radius="md" size="md" />
+          <Group justify="flex-end" mt="md"><Button variant="subtle" color="gray" onClick={() => setRescheduleModal(false)}>Cancel</Button><Button color={PRIMARY_BROWN} radius="md" onClick={handleUpdateAppointment} loading={isUpdating}>Save Schedule</Button></Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={editEventModal} onClose={() => setEditEventModal(false)} title={<Text fw={800} size="lg">{selectedEvent ? 'Edit Event' : 'Add New Event'}</Text>} size="lg" radius="xl">
+        <Stack gap="md">
+          <TextInput label="Title" placeholder="Event title" value={eventEditForm.title} onChange={(e) => setEditEventModal({ ...eventEditForm, title: e.target.value })} radius="md" />
+          <Textarea label="Description" placeholder="Notes..." value={eventEditForm.description} onChange={(e) => setEditEventModal({ ...eventEditForm, description: e.target.value })} radius="md" />
+          <Grid><Grid.Col span={6}><DatePickerInput label="Date" placeholder="Select date" value={eventEditForm.eventDate} onChange={(d) => setEditEventModal({ ...eventEditForm, eventDate: d })} radius="md" /></Grid.Col><Grid.Col span={6}><Select label="Type" data={['appointment', 'hearing', 'consultation', 'deadline', 'other']} value={eventEditForm.eventType} onChange={(v) => setEditEventModal({ ...eventEditForm, eventType: v })} radius="md" /></Grid.Col></Grid>
+          <TextInput label="Location" leftSection={<IconMapPin size={16} />} value={eventEditForm.location} onChange={(e) => setEditEventModal({ ...eventEditForm, location: e.target.value })} radius="md" />
+          <Group justify="flex-end" mt="lg"><Button variant="subtle" color="gray" onClick={() => setEditEventModal(false)}>Cancel</Button><Button color={PRIMARY_BROWN} radius="md" onClick={handleUpdateEvent} loading={isUpdatingEvent}>{selectedEvent ? 'Update Event' : 'Create Event'}</Button></Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={deleteConfirmModal} onClose={() => setDeleteConfirmModal(false)} title="Confirm Delete" centered radius="xl">
+        <Stack gap="md" align="center" ta="center">
+          <Box p="lg" bg="red.0" style={{ borderRadius: '50%' }}><IconTrash size={40} color="red" /></Box>
+          <Box><Text fw={800} size="lg">Are you absolutely sure?</Text><Text size="sm" c="dimmed">This will permanently delete this event from the calendar.</Text></Box>
+          <Group grow w="100%"><Button variant="outline" color="gray" radius="md" onClick={() => setDeleteConfirmModal(false)}>Cancel</Button><Button color="red" radius="md" onClick={handleDeleteEvent} loading={isDeletingEvent}>Delete Forever</Button></Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={appointmentModalOpened} onClose={() => { setAppointmentModalOpened(false); setAppointmentEditMode(false); }} size="70%" radius="xl" padding={0} withCloseButton={false}>
+        {loadingAppointment ? (
+          <Center h={400}><Loader color={PRIMARY_BROWN} /></Center>
+        ) : appointmentDetails ? (
+          <Box>
+            <Paper p="xl" bg={PRIMARY_BROWN} radius="0" style={{ borderTopLeftRadius: '28px', borderTopRightRadius: '28px' }}>
+              <Group justify="space-between" align="center">
+                <Group gap="md"><ActionIcon size="lg" radius="md" color="white" variant="light" onClick={() => setAppointmentModalOpened(false)}><IconX size={20} /></ActionIcon><Box><Text c="white" fw={800} size="xl">Client Profile</Text><Text c="white" size="xs" style={{ opacity: 0.8 }}>ID: {appointmentDetails._id}</Text></Box></Group>
+                <Group>{!appointmentEditMode ? ( <Button variant="white" color={PRIMARY_BROWN} radius="md" leftSection={<IconEdit size={16} />} onClick={() => setAppointmentEditMode(true)}>Edit Profile</Button> ) : ( <Group gap="xs"><Button variant="subtle" color="white" onClick={() => setAppointmentEditMode(false)}>Cancel</Button><Button color="white" style={{ color: PRIMARY_BROWN }} radius="md" onClick={handleSaveAppointmentDetails} loading={appointmentSaving}>Save</Button></Group> )}</Group>
+              </Group>
+            </Paper>
+            <ScrollArea h="75vh" p="xl" bg="#F9FAFB">
+              <Stack gap="xl">
+                <Paper p="xl" radius="xl" withBorder shadow="sm"><Group gap="md" mb="xl"><IconUser size={24} color={PRIMARY_BROWN} /><Title order={4} fw={800}>Personal Details</Title><Divider style={{ flex: 1 }} /></Group><Grid gutter="xl"><Grid.Col span={8}><TextInput label="Full Name" value={appointmentForm.fullName} readOnly={!appointmentEditMode} onChange={(e) => setAppointmentForm({...appointmentForm, fullName: e.target.value})} radius="md" /></Grid.Col><Grid.Col span={4}><TextInput label="Age" value={appointmentForm.age} readOnly={!appointmentEditMode} onChange={(e) => setAppointmentForm({...appointmentForm, age: e.target.value})} radius="md" /></Grid.Col><Grid.Col span={4}><DateInput label="Birthday" value={appointmentForm.birthday ? new Date(appointmentForm.birthday) : null} readOnly={!appointmentEditMode} radius="md" /></Grid.Col><Grid.Col span={4}><Select label="Sex" data={GENDER_OPTIONS} value={appointmentForm.sex} disabled={!appointmentEditMode} radius="md" /></Grid.Col><Grid.Col span={4}><Select label="Civil Status" data={CIVIL_STATUS_OPTIONS} value={appointmentForm.civilStatus} disabled={!appointmentEditMode} radius="md" /></Grid.Col></Grid></Paper>
+                <Paper p="xl" radius="xl" withBorder shadow="sm"><Group gap="md" mb="xl"><IconPhone size={24} color={PRIMARY_BROWN} /><Title order={4} fw={800}>Contact & Residence</Title><Divider style={{ flex: 1 }} /></Group><Grid gutter="xl"><Grid.Col span={6}><TextInput label="Email" value={appointmentForm.email} readOnly={!appointmentEditMode} radius="md" leftSection={<IconMail size={16} />} /></Grid.Col><Grid.Col span={6}><TextInput label="Contact" value={appointmentForm.contactNumber} readOnly={!appointmentEditMode} radius="md" leftSection={<IconPhone size={16} />} /></Grid.Col><Grid.Col span={12}><TextInput label="Address" value={appointmentForm.presentAddress} readOnly={!appointmentEditMode} radius="md" leftSection={<IconHome size={16} />} /></Grid.Col></Grid></Paper>
+                <Paper p="xl" radius="xl" withBorder shadow="sm"><Group gap="md" mb="xl"><IconGavel size={24} color={PRIMARY_BROWN} /><Title order={4} fw={800}>Case Info</Title><Divider style={{ flex: 1 }} /></Group><Stack gap="lg"><TextInput label="Nature" value={appointmentForm.caseNature} readOnly={!appointmentEditMode} radius="md" /><Textarea label="Description" value={appointmentForm.caseDescription} readOnly={!appointmentEditMode} minRows={4} radius="md" /></Stack></Paper>
+              </Stack>
+            </ScrollArea>
+            <Paper p="lg" bg="white" radius="0" style={{ borderBottomLeftRadius: '28px', borderBottomRightRadius: '28px', borderTop: '1px solid #E5E7EB' }}><Group justify="flex-end"><Button variant="light" color="gray" radius="md" onClick={() => setAppointmentModalOpened(false)}>Close</Button><Button color={PRIMARY_BROWN} radius="md" rightSection={<IconArrowRight size={16} />} onClick={() => navigate(`/admin/recommendation/${appointmentDetails._id}`)}>Recommendation</Button></Group></Paper>
+          </Box>
+        ) : null}
+      </Modal>
     </Box>
   );
 }

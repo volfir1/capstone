@@ -30,11 +30,9 @@ const auth = new GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/cloud-platform'],
 });
 
-// Initialize GoogleGenAI with the auth client
+// Initialize GoogleGenAI with API key
 const ai = new GoogleGenAI({
-  project: process.env.FIREBASE_PROJECT_ID,
-  location: 'us-central1',
-  googleAuth: auth,
+  apiKey: process.env.GEMINI_API_KEY,
 });
 
 // System prompt - defines chatbot behavior
