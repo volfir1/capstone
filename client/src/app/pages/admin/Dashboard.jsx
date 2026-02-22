@@ -88,8 +88,11 @@ export default function AdminDashboard() {
   const [dirPage, setDirPage] = useState(1);
   const [retPage, setRetPage] = useState(1);
   const [finPage, setFinPage] = useState(1);
+  const [assignedPendingPage, setAssignedPendingPage] = useState(1);
+  const [assignedFinishedPage, setAssignedFinishedPage] = useState(1);
+  const [assignPage, setAssignPage] = useState(1);
   const [finalizedTab, setFinalizedTab] = useState('all');
-  const ITEMS_PER_PAGE = 5;
+  const ITEMS_PER_PAGE = 10;
   const { userData, loading: authLoading } = useAuth();
   const location = useLocation();
 
@@ -592,38 +595,53 @@ export default function AdminDashboard() {
                     const items = tabKey === 'pending'
                       ? list.filter(a => !a.assignedCompleted)
                       : list.filter(a => a.assignedCompleted);
+                    const currentPage = tabKey === 'pending' ? assignedPendingPage : assignedFinishedPage;
+                    const setPage = tabKey === 'pending' ? setAssignedPendingPage : setAssignedFinishedPage;
 
                     return (
                       <Tabs.Panel key={tabKey} value={tabKey} pt="sm">
                         {items.length ? (
-                          items.slice(0, 5).map((f) => {
-                            const finalizeId = f._id || f.id;
-                            const caseDoc = f._case || null;
-                            const clientName = caseDoc?.userId?.firstName ? `${caseDoc.userId.firstName} ${caseDoc.userId.lastName || ''}`.trim() : (f.clientName || f.content?.interviewInfo?.clientName || '');
-                            const caseTitle = caseDoc?.caseTitle || f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || '';
-                            const displayTitle = caseTitle && caseTitle !== clientName ? caseTitle : (clientName || 'Untitled Case');
-                            const assignedBy = f.assignedBy || f.assignedFrom || f.content?.assignedBy;
-                            const assignerName = assignedBy && typeof assignedBy === 'object' ? (assignedBy.name || assignedBy.fullName || assignedBy.displayName || assignedBy.email) : assignedBy;
-                            const assignerRole = assignedBy && typeof assignedBy === 'object' ? (assignedBy.role || assignedBy.userRole || '') : '';
-                            const linkedCaseId = caseDoc?._id || f.linkedCaseId || null;
-                            const loadingKey = markLoadingId === (finalizeId || linkedCaseId);
+                          <>
+                            {items.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((f) => {
+                              const finalizeId = f._id || f.id;
+                              const caseDoc = f._case || null;
+                              const clientName = caseDoc?.userId?.firstName ? `${caseDoc.userId.firstName} ${caseDoc.userId.lastName || ''}`.trim() : (f.clientName || f.content?.interviewInfo?.clientName || '');
+                              const caseTitle = caseDoc?.caseTitle || f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || '';
+                              const displayTitle = caseTitle && caseTitle !== clientName ? caseTitle : (clientName || 'Untitled Case');
+                              const assignedBy = f.assignedBy || f.assignedFrom || f.content?.assignedBy;
+                              const assignerName = assignedBy && typeof assignedBy === 'object' ? (assignedBy.name || assignedBy.fullName || assignedBy.displayName || assignedBy.email) : assignedBy;
+                              const assignerRole = assignedBy && typeof assignedBy === 'object' ? (assignedBy.role || assignedBy.userRole || '') : '';
+                              const linkedCaseId = caseDoc?._id || f.linkedCaseId || null;
+                              const loadingKey = markLoadingId === (finalizeId || linkedCaseId);
 
-                            return (
-                              <div key={finalizeId}>
-                                <Group align="center" position="apart" px={4} py={8} style={{ gap: 12 }}>
-                                  <Box style={{ flex: 1, minWidth: 0 }}>
-                                    <Text size="sm" fw={600} c={CHARCOAL} truncate>{displayTitle}</Text>
-                                    <Text size="xs" c="dimmed">Assigned by: {assignerName || 'Unknown'}{assignerRole ? ` (${assignerRole.replace(/_/g, ' ')})` : ''}</Text>
-                                    {caseDoc && (
-                                      <Text size="xs" c="dimmed">Assigned to case: {caseDoc.caseTitle || (caseDoc._id || '').toString()}</Text>
-                                    )}
-                                  </Box>
-                                  <Button size="xs" color="green" loading={loadingKey} onClick={() => handleMarkDone(linkedCaseId, finalizeId)} disabled={tabKey === 'finished'}>Mark as Done</Button>
-                                </Group>
-                                <Divider color="#EDEDED" />
-                              </div>
-                            );
-                          })
+                              return (
+                                <div key={finalizeId}>
+                                  <Group align="center" position="apart" px={4} py={8} style={{ gap: 12 }}>
+                                    <Box style={{ flex: 1, minWidth: 0 }}>
+                                      <Text size="sm" fw={600} c={CHARCOAL} truncate>{displayTitle}</Text>
+                                      <Text size="xs" c="dimmed">Assigned by: {assignerName || 'Unknown'}{assignerRole ? ` (${assignerRole.replace(/_/g, ' ')})` : ''}</Text>
+                                      {caseDoc && (
+                                        <Text size="xs" c="dimmed">Assigned to case: {caseDoc.caseTitle || (caseDoc._id || '').toString()}</Text>
+                                      )}
+                                    </Box>
+                                    <Button size="xs" color="green" loading={loadingKey} onClick={() => handleMarkDone(linkedCaseId, finalizeId)} disabled={tabKey === 'finished'}>Mark as Done</Button>
+                                  </Group>
+                                  <Divider color="#EDEDED" />
+                                </div>
+                              );
+                            })}
+                            {items.length > 0 && (
+                              <Group justify="center" py="xs">
+                                <Pagination
+                                  size="sm"
+                                  total={Math.ceil(items.length / ITEMS_PER_PAGE)}
+                                  value={currentPage}
+                                  onChange={setPage}
+                                  color={PRIMARY_BROWN}
+                                />
+                              </Group>
+                            )}
+                          </>
                         ) : (
                           <Text size="sm" c="dimmed">No cases here.</Text>
                         )}
@@ -774,10 +792,10 @@ export default function AdminDashboard() {
             {loadingReviews ? (
               <Center py="xl"><Loader size="sm" color={PRIMARY_BROWN} /></Center>
             ) : (
-              <Box style={{ display: 'flex', flexDirection: 'column' }}>
+              <>
                 {/* Supervising Lawyer Section */}
                 {(reviewStageFilter === 'all' || reviewStageFilter === 'supervising_lawyer') && (
-                <Box style={{ order: userData.role === 'director' ? 2 : 1 }}>
+                <>
                 <Box px="lg" py={10} style={{ background: '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
                   <Group justify="space-between" align="center">
                     <Text size="sm" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={0.5}>Pending Supervising Lawyer Review</Text>
@@ -830,7 +848,7 @@ export default function AdminDashboard() {
                         </Box>
                       );
                     })}
-                    {supervisingLawyerReviews.length > ITEMS_PER_PAGE && (
+                    {supervisingLawyerReviews.length > 0 && (
                       <Group justify="center" py="xs">
                         <Pagination
                           size="sm"
@@ -847,12 +865,12 @@ export default function AdminDashboard() {
                     {reviewSearch ? 'No matching reviews found' : (userData.role === 'intern' ? 'No submissions pending supervising lawyer review' : 'No reviews pending')}
                   </Text>
                 )}
-                </Box>
+                </>
                 )}
 
                 {/* Director Section */}
                 {(reviewStageFilter === 'all' || reviewStageFilter === 'director') && (
-                <Box style={{ order: userData.role === 'director' ? 1 : 2 }}>
+                <>
                 <Box px="lg" py={10} mt="sm" style={{ background: '#FAFAFA', borderTop: '1px solid #E8E8E8', borderBottom: '1px solid #F0F0F0' }}>
                   <Group justify="space-between" align="center">
                     <Text size="sm" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={0.5}>Pending Director Review</Text>
@@ -905,7 +923,7 @@ export default function AdminDashboard() {
                         </Box>
                       );
                     })}
-                    {directorReviews.length > ITEMS_PER_PAGE && (
+                    {directorReviews.length > 0 && (
                       <Group justify="center" py="xs">
                         <Pagination
                           size="sm"
@@ -922,12 +940,12 @@ export default function AdminDashboard() {
                     {reviewSearch ? 'No matching reviews found' : (userData.role === 'intern' ? 'No submissions pending director review' : 'No reviews pending')}
                   </Text>
                 )}
-                </Box>
+                </>
                 )}
 
-                {/* Returned to Intern Section - Visible to interns, secretary, supervising lawyers, and directors */}
-                {(userData.role === 'intern' || userData.role === 'secretary' || userData.role === 'supervising_lawyer' || userData.role === 'director') && (reviewStageFilter === 'all' || reviewStageFilter === 'returned_to_intern') && (
-                  <Box style={{ order: (userData.role === 'intern' || userData.role === 'secretary') ? 0 : 3 }}>
+                {/* Returned to Intern Section - Only visible to interns */}
+                {userData.role === 'intern' && (reviewStageFilter === 'all' || reviewStageFilter === 'returned_to_intern') && (
+                  <>
                     <Box px="lg" py={10} mt="sm" style={{ background: '#FAFAFA', borderTop: '1px solid #E8E8E8', borderBottom: '1px solid #F0F0F0' }}>
                       <Group justify="space-between" align="center">
                         <Text size="sm" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={0.5}>Returned for Revision</Text>
@@ -977,7 +995,7 @@ export default function AdminDashboard() {
                             </Box>
                           );
                         })}
-                        {returnedToInternReviews.length > ITEMS_PER_PAGE && (
+                        {returnedToInternReviews.length > 0 && (
                           <Group justify="center" py="xs">
                             <Pagination
                               size="sm"
@@ -992,9 +1010,9 @@ export default function AdminDashboard() {
                     ) : (
                       <Text size="sm" c={MUTED_OLIVE} px="lg" py="sm">{reviewSearch ? 'No matching reviews found' : 'No cases returned for revision'}</Text>
                     )}
-                  </Box>
+                  </>
                 )}
-              </Box>
+              </>
             )}
           </Paper>
         )}
@@ -1155,6 +1173,7 @@ export default function AdminDashboard() {
                             setAssignMessage('');
                             setAssignModalSearch('');
                             setAssignModalRoleTab('intern');
+                            setAssignPage(1);
                             setAssignModalOpen(true);
                           }}
                         >
@@ -1166,7 +1185,7 @@ export default function AdminDashboard() {
                     </Box>
                   );
                 })}
-                {displayedFinalized.length > ITEMS_PER_PAGE && (
+                {displayedFinalized.length > 0 && (
                   <Group justify="center" py="xs">
                     <Pagination
                       size="sm"
@@ -1198,7 +1217,7 @@ export default function AdminDashboard() {
             size="sm"
             radius="md"
             value={assignModalSearch}
-            onChange={(e) => setAssignModalSearch(e.currentTarget.value)}
+            onChange={(e) => { setAssignModalSearch(e.currentTarget.value); setAssignPage(1); }}
             mb="sm"
             leftSection={<IconSearch size={14} />}
           />
@@ -1206,7 +1225,7 @@ export default function AdminDashboard() {
           {assigneeLoading ? (
             <Center py="lg"><Loader size="sm" color={PRIMARY_BROWN} /></Center>
           ) : (
-            <Tabs defaultValue={assignModalRoleTab} onTabChange={(v) => setAssignModalRoleTab(v)} keepMounted={false}>
+            <Tabs defaultValue={assignModalRoleTab} onTabChange={(v) => { setAssignModalRoleTab(v); setAssignPage(1); }} keepMounted={false}>
               <Tabs.List>
                 <Tabs.Tab value="intern">Intern</Tabs.Tab>
                 <Tabs.Tab value="supervising_lawyer">Supervising</Tabs.Tab>
@@ -1214,61 +1233,69 @@ export default function AdminDashboard() {
                 <Tabs.Tab value="secretary">Secretary</Tabs.Tab>
               </Tabs.List>
 
-              {['intern', 'supervising_lawyer', 'director', 'secretary'].map((roleKey) => (
-                <Tabs.Panel key={roleKey} value={roleKey} pt="sm">
-                  <div style={{ maxHeight: 220, overflowY: 'auto', marginBottom: 12 }}>
-                    {assignees.filter(u => {
-                      const r = (u.role || '').toLowerCase();
-                      const q = assignModalSearch.toLowerCase().trim();
-                      const name = (u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.displayName || u.name || u.username || '').toLowerCase();
-                      const email = (u.email || u.userEmail || u.gmail || '').toLowerCase();
-                      // role matching
-                      if (roleKey === 'intern' && !r.includes('intern')) return false;
-                      if (roleKey === 'supervising_lawyer' && !(r.includes('supervising') || r.includes('supervising_lawyer'))) return false;
-                      if (roleKey === 'director' && !r.includes('director')) return false;
-                      if (roleKey === 'secretary' && !r.includes('secretary')) return false;
-                      if (q && !name.includes(q) && !email.includes(q)) return false;
-                      return true;
-                    }).length ? assignees.filter(u => {
-                      const r = (u.role || '').toLowerCase();
-                      const q = assignModalSearch.toLowerCase().trim();
-                      const name = (u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.displayName || u.name || u.username || '').toLowerCase();
-                      const email = (u.email || u.userEmail || u.gmail || '').toLowerCase();
-                      if (roleKey === 'intern' && !r.includes('intern')) return false;
-                      if (roleKey === 'supervising_lawyer' && !(r.includes('supervising') || r.includes('supervising_lawyer'))) return false;
-                      if (roleKey === 'director' && !r.includes('director')) return false;
-                      if (roleKey === 'secretary' && !r.includes('secretary')) return false;
-                      if (q && !name.includes(q) && !email.includes(q)) return false;
-                      return true;
-                    }).map((u) => {
-                      const id = u._id || u.id;
-                      const name = u.fullName || ((u.firstName || u.lastName) ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : (u.displayName || u.name || u.username || u.email || 'Staff'));
-                      const email = u.email || u.userEmail || u.gmail || '';
-                      const role = (u.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                      return (
-                        <Paper
-                          key={id}
-                          withBorder
-                          p="xs"
-                          radius="md"
-                          onClick={() => setAssignSelected(id)}
-                          style={{ cursor: 'pointer', marginBottom: 8, background: assignSelected === id ? '#F1F8FF' : 'white' }}
-                        >
-                          <Group position="apart">
-                            <div>
-                              <Text fw={600}>{name}</Text>
-                              {email && <Text size="xs" c="dimmed">{email}</Text>}
-                            </div>
-                            <Text size="xs" c="dimmed">{role}</Text>
-                          </Group>
-                        </Paper>
-                      );
-                    }) : (
-                      <Text size="sm" c="dimmed">No eligible assignees found.</Text>
-                    )}
-                  </div>
-                </Tabs.Panel>
-              ))}
+              {['intern', 'supervising_lawyer', 'director', 'secretary'].map((roleKey) => {
+                const filteredAssignees = assignees.filter(u => {
+                  const r = (u.role || '').toLowerCase();
+                  const q = assignModalSearch.toLowerCase().trim();
+                  const name = (u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.displayName || u.name || u.username || '').toLowerCase();
+                  const email = (u.email || u.userEmail || u.gmail || '').toLowerCase();
+                  // role matching
+                  if (roleKey === 'intern' && !r.includes('intern')) return false;
+                  if (roleKey === 'supervising_lawyer' && !(r.includes('supervising') || r.includes('supervising_lawyer'))) return false;
+                  if (roleKey === 'director' && !r.includes('director')) return false;
+                  if (roleKey === 'secretary' && !r.includes('secretary')) return false;
+                  if (q && !name.includes(q) && !email.includes(q)) return false;
+                  return true;
+                });
+
+                return (
+                  <Tabs.Panel key={roleKey} value={roleKey} pt="sm">
+                    <div style={{ maxHeight: filteredAssignees.length > ITEMS_PER_PAGE ? 400 : 250, overflowY: 'auto', marginBottom: 12 }}>
+                      {filteredAssignees.length ? (
+                        <>
+                          {filteredAssignees.slice((assignPage - 1) * ITEMS_PER_PAGE, assignPage * ITEMS_PER_PAGE).map((u) => {
+                            const id = u._id || u.id;
+                            const name = u.fullName || ((u.firstName || u.lastName) ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : (u.displayName || u.name || u.username || u.email || 'Staff'));
+                            const email = u.email || u.userEmail || u.gmail || '';
+                            const role = (u.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                            return (
+                              <Paper
+                                key={id}
+                                withBorder
+                                p="xs"
+                                radius="md"
+                                onClick={() => setAssignSelected(id)}
+                                style={{ cursor: 'pointer', marginBottom: 8, background: assignSelected === id ? '#F1F8FF' : 'white' }}
+                              >
+                                <Group position="apart">
+                                  <div>
+                                    <Text fw={600}>{name}</Text>
+                                    {email && <Text size="xs" c="dimmed">{email}</Text>}
+                                  </div>
+                                  <Text size="xs" c="dimmed">{role}</Text>
+                                </Group>
+                              </Paper>
+                            );
+                          })}
+                          {filteredAssignees.length > ITEMS_PER_PAGE && (
+                            <Group justify="center" py="xs">
+                              <Pagination
+                                size="sm"
+                                total={Math.ceil(filteredAssignees.length / ITEMS_PER_PAGE)}
+                                value={assignPage}
+                                onChange={setAssignPage}
+                                color="blue"
+                              />
+                            </Group>
+                          )}
+                        </>
+                      ) : (
+                        <Text size="sm" c="dimmed">No eligible assignees found.</Text>
+                      )}
+                    </div>
+                  </Tabs.Panel>
+                );
+              })}
             </Tabs>
           )}
 
@@ -1443,7 +1470,7 @@ export default function AdminDashboard() {
                 );
               })}
 
-              {logTotal > LOG_ITEMS && (
+              {logTotal > 0 && (
                 <Group justify="center" py="xs" style={{ borderTop: '1px solid #F0F0F0' }}>
                   <Pagination
                     size="sm"

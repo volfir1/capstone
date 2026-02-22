@@ -180,6 +180,12 @@ const initialState = {
     email: '',
   },
   creatingAccount: false,
+
+  // Pagination
+  currentPageAccepted: 1,
+  currentPageWithoutRecord: 1,
+  currentPageLegalAdvice: 1,
+  currentPageDocumentDrafting: 1,
 };
 
 // Reducer function
@@ -196,9 +202,23 @@ function stateReducer(state, action) {
     case 'SET_ACTIVE_TAB':
       return { ...state, activeTab: action.payload };
     case 'SET_SEARCH_TERM':
-      return { ...state, searchTerm: action.payload };
+      return { 
+        ...state, 
+        searchTerm: action.payload,
+        currentPageAccepted: 1,
+        currentPageWithoutRecord: 1,
+        currentPageLegalAdvice: 1,
+        currentPageDocumentDrafting: 1,
+      };
     case 'SET_CATEGORY_FILTER':
-      return { ...state, categoryFilter: action.payload };
+      return { 
+        ...state, 
+        categoryFilter: action.payload,
+        currentPageAccepted: 1,
+        currentPageWithoutRecord: 1,
+        currentPageLegalAdvice: 1,
+        currentPageDocumentDrafting: 1,
+      };
     
     // Review Modal actions
     case 'OPEN_REVIEW_MODAL':
@@ -331,6 +351,9 @@ function stateReducer(state, action) {
       return { ...state, caseRecordEditMode: action.payload };
     case 'SET_CASE_RECORD_DATA':
       return { ...state, caseRecordData: action.payload };
+    
+    case 'SET_CURRENT_PAGE':
+      return { ...state, [action.payload.tab]: action.payload.page };
     
     default:
       return state;
@@ -1376,6 +1399,24 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   // Split court representation cases by whether they have case records
   const acceptedWithRecord = courtRepresentationCases.filter(f => state.caseRecordsMap[f._id || f.id]);
   const acceptedWithoutRecord = courtRepresentationCases.filter(f => !state.caseRecordsMap[f._id || f.id]);
+
+  // Pagination Logic
+  const ITEMS_PER_PAGE = 10;
+  
+  const paginate = (items, page) => {
+    const start = (page - 1) * ITEMS_PER_PAGE;
+    return items.slice(start, start + ITEMS_PER_PAGE);
+  };
+
+  const paginatedAcceptedWithRecord = paginate(acceptedWithRecord, state.currentPageAccepted);
+  const paginatedAcceptedWithoutRecord = paginate(acceptedWithoutRecord, state.currentPageWithoutRecord);
+  const paginatedLegalAdvice = paginate(legalAdviceCases, state.currentPageLegalAdvice);
+  const paginatedDocumentDrafting = paginate(documentDraftingCases, state.currentPageDocumentDrafting);
+
+  const totalPagesAccepted = Math.ceil(acceptedWithRecord.length / ITEMS_PER_PAGE);
+  const totalPagesWithoutRecord = Math.ceil(acceptedWithoutRecord.length / ITEMS_PER_PAGE);
+  const totalPagesLegalAdvice = Math.ceil(legalAdviceCases.length / ITEMS_PER_PAGE);
+  const totalPagesDocumentDrafting = Math.ceil(documentDraftingCases.length / ITEMS_PER_PAGE);
 
   const fetchFinalized = async () => {
     try {
@@ -3691,11 +3732,20 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 {state.loadingFinalized ? (
                   <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
                 ) : (
-                  acceptedWithRecord.length ? acceptedWithRecord.map(renderCaseCard) : (
+                  paginatedAcceptedWithRecord.length ? paginatedAcceptedWithRecord.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases with case records found</Text>
                   )
                 )}
               </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesAccepted)} 
+                  value={state.currentPageAccepted} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageAccepted', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
             </Tabs.Panel>
 
             <Tabs.Panel value="without-record" pb="md">
@@ -3703,11 +3753,20 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 {state.loadingFinalized ? (
                   <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
                 ) : (
-                  acceptedWithoutRecord.length ? acceptedWithoutRecord.map(renderCaseCard) : (
+                  paginatedAcceptedWithoutRecord.length ? paginatedAcceptedWithoutRecord.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases without case records found</Text>
                   )
                 )}
               </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesWithoutRecord)} 
+                  value={state.currentPageWithoutRecord} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageWithoutRecord', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
             </Tabs.Panel>
 
             <Tabs.Panel value="legal-advice" pb="md">
@@ -3715,11 +3774,20 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 {state.loadingFinalized ? (
                   <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
                 ) : (
-                  legalAdviceCases.length ? legalAdviceCases.map(renderCaseCard) : (
+                  paginatedLegalAdvice.length ? paginatedLegalAdvice.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No legal advice cases found</Text>
                   )
                 )}
               </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesLegalAdvice)} 
+                  value={state.currentPageLegalAdvice} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageLegalAdvice', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
             </Tabs.Panel>
 
             <Tabs.Panel value="document-drafting" pb="md">
@@ -3727,11 +3795,20 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 {state.loadingFinalized ? (
                   <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
                 ) : (
-                  documentDraftingCases.length ? documentDraftingCases.map(renderCaseCard) : (
+                  paginatedDocumentDrafting.length ? paginatedDocumentDrafting.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No document drafting cases found</Text>
                   )
                 )}
               </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesDocumentDrafting)} 
+                  value={state.currentPageDocumentDrafting} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageDocumentDrafting', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
             </Tabs.Panel>
           </Tabs>
         </Paper>

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useMediaQuery } from "@mantine/hooks";
 import {
   Box,
   Grid,
@@ -97,24 +98,26 @@ export default function Appointment() {
       .finally(() => setSubmitting(false));
   };
 
+  const isMobile = useMediaQuery("(max-width: 768px)");
+
   return (
-    <Box h="100vh" style={{ overflow: "hidden", backgroundColor: "#f8f6f3" }}>
-      <Grid h="100%" gutter={0}>
-        <SignupHero />
+    <Box style={{ minHeight: "100vh", overflow: "hidden", backgroundColor: "#f8f6f3" }}>
+      <Grid style={{ minHeight: '100%' }} gutter={0}>
+        {!isMobile && <SignupHero />}
 
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Paper
-            h="100vh"
             withBorder={false}
             style={{
+              minHeight: isMobile ? 'auto' : '100vh',
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: "white",
-              padding: "3rem",
+              padding: isMobile ? "1.5rem 1rem" : "3rem",
             }}
           >
-            <Stack w="100%" maw={480} spacing="xl">
+            <Stack w="100%" style={{ maxWidth: isMobile ? '100%' : 480 }} spacing="xl">
               <Stack gap={4} align="flex-start">
                 <Text size="sm" fw={600} c={PRIMARY_GOLD} tt="uppercase" lts={1.5}>
                   Book an Appointment
@@ -172,18 +175,20 @@ export default function Appointment() {
                     {...form.getInputProps("appointmentTime")}
                   />
 
-                  <Group justify="space-between" mt="md">
-                    <Text size="xs" c={MUTED_OLIVE}>
+                  <Group justify="space-between" mt="md" align="center">
+                    <Text size="xs" c={MUTED_OLIVE} style={{ flex: isMobile ? '1 1 auto' : 'unset' }}>
                       We typically confirm within 24 hours.
                     </Text>
                     <Button
                       type="submit"
-                      size="md"
+                      size={isMobile ? 'lg' : 'md'}
                       radius="md"
                       color={PRIMARY_BROWN}
                       rightSection={<IconArrowRight size={16} />}
                       loading={submitting}
                       disabled={submitting}
+                      fullWidth={isMobile}
+                      style={isMobile ? { marginLeft: 12 } : {}}
                     >
                       Request Appointment
                     </Button>

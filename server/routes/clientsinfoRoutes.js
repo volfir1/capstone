@@ -9,6 +9,13 @@ router.post('/', createClientsInfo)
 // Public: POST /api/clientsinfo/public-appointment
 router.post('/public-appointment', createPublicAppointment)
 
+// Public: GET /api/clientsinfo/public-schedules
+router.get('/public-schedules', (req, res, next) => {
+  // Add a small cache-control header for efficiency
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  import('../controller/clientsinfoController.js').then(m => m.listPublicSchedules(req, res, next));
+});
+
 // GET /api/clientsinfo (list all or filtered)
 router.get('/', listClientsInfo)
 

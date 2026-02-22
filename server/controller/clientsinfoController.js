@@ -174,6 +174,27 @@ export const createPublicAppointment = async (req, res) => {
   }
 };
 
+// Returns only basic schedule info for public calendar visibility
+export const listPublicSchedules = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const docs = await ClientsInfo.find({
+      appointedDate: { $gte: today },
+      status: { $nin: ['rejected'] }
+    })
+    .select('appointedDate appointmentTime status')
+    .sort({ appointedDate: 1, appointmentTime: 1 })
+    .lean();
+
+    return res.json(docs);
+  } catch (err) {
+    console.error('listPublicSchedules error', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 export const listClientsInfo = async (req, res) => {
   try {
     // Get authenticated user info

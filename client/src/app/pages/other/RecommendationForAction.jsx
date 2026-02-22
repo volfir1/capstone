@@ -30,15 +30,17 @@ import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
-// Import the worker as a URL so Vite can serve it as an asset
-import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.js?url';
 
-// Configure PDF.js worker to the imported asset URL
-try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
-} catch (err) {
-    console.warn('Could not set pdfjs workerSrc', err);
-}
+// Configure PDF.js worker in a way compatible with Vite. Avoid `?url` imports
+// which can fail in some environments — build a file URL pointing to
+// the `pdf.worker.min.js` inside the local `node_modules` so Vite treats
+// it as an asset to copy.
+// try {
+//     const pdfWorkerUrl = new URL('../../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js', import.meta.url).href;
+//     pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+// } catch (err) {
+//     console.warn('Could not set pdfjs workerSrc via node_modules URL, falling back to CDN or default:', err);
+// }
 
 // Normalize server file URLs so client always requests the backend, not the dev server origin
 const getServerFileUrl = (pathOrUrl) => {
