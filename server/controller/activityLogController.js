@@ -26,8 +26,9 @@ export const createActivityLog = async (req, res) => {
 
     const { action, userEmail, userName, userRole } = req.body;
 
-    if (!action || !['login', 'logout'].includes(action)) {
-      return res.status(400).json({ success: false, message: 'Invalid action. Must be "login" or "logout".' });
+    const VALID_ACTIONS = ['login', 'logout', 'case_created', 'case_updated', 'case_assigned', 'review_submitted', 'finalize_decision'];
+    if (!action || !VALID_ACTIONS.includes(action)) {
+      return res.status(400).json({ success: false, message: `Invalid action. Must be one of: ${VALID_ACTIONS.join(', ')}` });
     }
 
     const log = await ActivityLog.create({
@@ -92,7 +93,8 @@ export const getActivityLogs = async (req, res) => {
 
     // Build filter
     const filter = {};
-    if (action && ['login', 'logout'].includes(action)) {
+    const VALID_ACTIONS = ['login', 'logout', 'case_created', 'case_updated', 'case_assigned', 'review_submitted', 'finalize_decision'];
+    if (action && VALID_ACTIONS.includes(action)) {
       filter.action = action;
     }
 

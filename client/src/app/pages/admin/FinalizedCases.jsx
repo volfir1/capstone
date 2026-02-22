@@ -37,6 +37,7 @@ import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, BG, CHARCOAL, ACCENT_TAN, NATURE_OF_CASE_OPTIONS, CATEGORY_COLORS } from '@utils/constants';
+import FinalizedCasesSkeleton from '@/components/skeleton/FinalizedCasesSkeleton';
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { CaseInformationSection } from '../other/CaseInformationSection';
@@ -3730,7 +3731,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
             <Tabs.Panel value="accepted" pb="md">
               <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
+                  <FinalizedCasesSkeleton />
                 ) : (
                   paginatedAcceptedWithRecord.length ? paginatedAcceptedWithRecord.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases with case records found</Text>
@@ -3751,7 +3752,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
             <Tabs.Panel value="without-record" pb="md">
               <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
+                  <FinalizedCasesSkeleton />
                 ) : (
                   paginatedAcceptedWithoutRecord.length ? paginatedAcceptedWithoutRecord.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases without case records found</Text>
@@ -3772,7 +3773,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
             <Tabs.Panel value="legal-advice" pb="md">
               <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
+                  <FinalizedCasesSkeleton />
                 ) : (
                   paginatedLegalAdvice.length ? paginatedLegalAdvice.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No legal advice cases found</Text>
@@ -3793,7 +3794,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
             <Tabs.Panel value="document-drafting" pb="md">
               <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
+                  <FinalizedCasesSkeleton />
                 ) : (
                   paginatedDocumentDrafting.length ? paginatedDocumentDrafting.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No document drafting cases found</Text>

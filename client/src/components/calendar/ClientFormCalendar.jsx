@@ -38,7 +38,8 @@ export default function ClientFormStatusCalendar({
   onEventCreated, 
   onDateClick,
   filterValue,
-  onFilterChange 
+  onFilterChange,
+  onAddEvent
 }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -84,7 +85,7 @@ export default function ClientFormStatusCalendar({
         <SimpleGrid cols={7} spacing={0} style={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
           {weekdays.map((day) => (
             <Box key={day} py={14} ta="center" style={{ borderRight: day !== 'Sat' ? '1px solid #E5E7EB' : 'none' }}>
-              <Text size="xs" fw={800} c={MUTED_OLIVE} tt="uppercase" lts={1.5}>
+              <Text size="xs" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={1.5}>
                 {isMobile ? day[0] : day}
               </Text>
             </Box>
@@ -99,7 +100,7 @@ export default function ClientFormStatusCalendar({
               <Box 
                 key={`empty-${idx}`} 
                 style={{ 
-                  height: isMobile ? 80 : 120, 
+                  height: isMobile ? 70 : 100, 
                   backgroundColor: '#FDFDFD',
                   borderRight: isLastInRow ? 'none' : '1px solid #F3F4F6',
                   borderBottom: '1px solid #F3F4F6'
@@ -116,7 +117,7 @@ export default function ClientFormStatusCalendar({
                   <UnstyledButton 
                     onClick={() => onDateClick && onDateClick(date)}
                     style={{
-                      height: isMobile ? 80 : 120,
+                      height: isMobile ? 70 : 100,
                       borderRight: isLastInRow ? 'none' : '1px solid #F3F4F6',
                       borderBottom: '1px solid #F3F4F6',
                       backgroundColor: isToday ? `${PRIMARY_GOLD}05` : 'white',
@@ -139,7 +140,7 @@ export default function ClientFormStatusCalendar({
                           boxShadow: isToday ? '0 4px 10px rgba(107,68,35,0.2)' : 'none'
                         }}
                       >
-                        <Text size="sm" fw={800} c={isToday ? 'white' : CHARCOAL}>
+                        <Text size="sm" fw={600} c={isToday ? 'white' : CHARCOAL}>
                           {date.getDate()}
                         </Text>
                       </Box>
@@ -165,7 +166,7 @@ export default function ClientFormStatusCalendar({
                                   >
                                     <Box c={config.color} style={{ display: 'flex' }}>{config.icon}</Box>
                                     {!isMobile && count > 1 && (
-                                      <Text size={10} fw={800} c={config.color}>{count}</Text>
+                                      <Text size={10} fw={600} c={config.color}>{count}</Text>
                                     )}
                                   </Box>
                                 </Tooltip>
@@ -182,7 +183,7 @@ export default function ClientFormStatusCalendar({
                   <HoverCard.Dropdown p="xs">
                     <Stack gap="xs">
                       <Group justify="space-between" wrap="nowrap" px={4} pb={4}>
-                        <Text fw={900} size="sm" c={CHARCOAL}>
+                        <Text fw={700} size="sm" c={CHARCOAL}>
                           {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </Text>
                         <Badge size="xs" color={PRIMARY_BROWN} variant="light" radius="sm">{dayApts.length} Items</Badge>
@@ -197,17 +198,17 @@ export default function ClientFormStatusCalendar({
                           thumb: { backgroundColor: PRIMARY_BROWN },
                         }}
                       >
-                        <Stack gap={4} py={4}>
+                        <Stack gap={2} py={2}>
                           {dayApts.map((apt, i) => {
                             const config = getEventConfig(apt.type || 'other');
                             return (
-                              <Paper key={i} p={6} py={4} radius="md" withBorder style={{ borderLeft: `4px solid ${config.color}` }}>
+                              <Paper key={i} p={4} py={3} radius="sm" withBorder style={{ borderLeft: `3px solid ${config.color}` }}>
                                 <Group gap="xs" wrap="nowrap" justify="space-between">
                                   <Group gap={6} wrap="nowrap" style={{ flex: 1, overflow: 'hidden' }}>
-                                    <Box c={config.color} style={{ display: 'flex' }}>{config.icon}</Box>
-                                    <Text size="xs" fw={800} truncate>{apt.clientName || apt.purpose}</Text>
+                                    <Box c={config.color} style={{ display: 'flex', opacity: 0.8 }}>{config.icon}</Box>
+                                    <Text size="xs" fw={500} truncate style={{ fontSize: '11px' }}>{apt.clientName || apt.purpose}</Text>
                                   </Group>
-                                  <Text size={10} c="dimmed" fw={700} style={{ flexShrink: 0 }}>{apt.appointmentTime || 'TBD'}</Text>
+                                  <Text size={9} c="dimmed" fw={500} style={{ flexShrink: 0 }}>{apt.appointmentTime || 'TBD'}</Text>
                                 </Group>
                               </Paper>
                             );
@@ -229,25 +230,38 @@ export default function ClientFormStatusCalendar({
     <Stack gap="lg">
       <Group justify="space-between" align="center">
         <Stack gap={0}>
-          <Title order={3} fw={900} c={CHARCOAL} lts={-0.5}>
+          <Title order={3} fw={700} c={CHARCOAL} lts={-0.5}>
             {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </Title>
-          <Text size="xs" c={MUTED_OLIVE} fw={700}>System Management Calendar</Text>
+          <Text size="xs" c={MUTED_OLIVE} fw={500}>System Management Calendar</Text>
         </Stack>
         <Group gap="sm">
           {/* Calendar Type Filter Integrated Here */}
           {!isMobile && (
-            <Select 
-              placeholder="Filter by type" 
-              leftSection={<IconFilter size={14} />} 
-              data={['All', 'Initial Interview', 'appointment', 'hearing', 'consultation']} 
-              value={filterValue} 
-              onChange={onFilterChange} 
-              size="xs" 
-              radius="md"
-              w={160}
-              styles={{ input: { borderColor: '#E5E7EB', '&:focus': { borderColor: PRIMARY_BROWN } } }}
-            />
+            <Group gap="xs">
+              <Select 
+                placeholder="Filter by type" 
+                leftSection={<IconFilter size={14} />} 
+                data={['All', 'Initial Interview', 'appointment', 'hearing', 'consultation']} 
+                value={filterValue} 
+                onChange={onFilterChange} 
+                size="xs" 
+                radius="md"
+                w={160}
+                styles={{ input: { borderColor: '#E5E7EB', '&:focus': { borderColor: PRIMARY_BROWN } } }}
+              />
+              <Button 
+                variant="light" 
+                size="xs" 
+                radius="md" 
+                color={PRIMARY_BROWN} 
+                fw={600}
+                leftSection={<IconPlus size={14} />} 
+                onClick={onAddEvent}
+              >
+                Add Event
+              </Button>
+            </Group>
           )}
           
           <Button 
@@ -255,7 +269,7 @@ export default function ClientFormStatusCalendar({
             color={PRIMARY_BROWN} 
             size="xs" 
             radius="md" 
-            fw={800} 
+            fw={600} 
             onClick={goToToday}
             style={{ borderColor: `${PRIMARY_BROWN}40` }}
           >
@@ -276,7 +290,7 @@ export default function ClientFormStatusCalendar({
             <Box style={{ backgroundColor: `${config.color}20`, padding: 4, borderRadius: 6, display: 'flex' }} c={config.color}>
               {config.icon}
             </Box>
-            <Text size="xs" fw={700} c={MUTED_OLIVE} tt="capitalize">{type.replace('-', ' ')}</Text>
+            <Text size="xs" fw={500} c={MUTED_OLIVE} tt="capitalize">{type.replace('-', ' ')}</Text>
           </Group>
         ))}
       </Group>

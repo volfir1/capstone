@@ -9,7 +9,7 @@ const activityLogSchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: ['login', 'logout'],
+      enum: ['login', 'logout', 'case_created', 'case_updated', 'case_assigned', 'review_submitted', 'finalize_decision'],
       required: true,
     },
     userEmail: {

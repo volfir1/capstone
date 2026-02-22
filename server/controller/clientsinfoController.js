@@ -415,3 +415,67 @@ export const updateClientsInfo = async (req, res) => {
     return res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
+
+export const getAnalytics = async (req, res) => {
+  const result = {
+    totalClients: 0,
+    statusDistribution: [],
+    genderDistribution: [],
+    civilStatusDistribution: [],
+    natureDistribution: [],
+    errors: {}
+  };
+
+  try {
+    try {
+      result.totalClients = await ClientsInfo.countDocuments();
+    } catch (e) {
+      console.error('Error counting clients:', e);
+      result.errors.totalClients = e.message;
+    }
+
+    try {
+      result.statusDistribution = await ClientsInfo.aggregate([
+        { $group: { _id: "$status", count: { $sum: 1 } } }
+      ]);
+    } catch (e) {
+      console.error('Error aggregating status:', e);
+      result.errors.statusDistribution = e.message;
+    }
+
+    try {
+      result.genderDistribution = await ClientsInfo.aggregate([
+        { $group: { _id: "$sex", count: { $sum: 1 } } }
+      ]);
+    } catch (e) {
+      console.error('Error aggregating sex:', e);
+      result.errors.genderDistribution = e.message;
+    }
+
+    try {
+      result.civilStatusDistribution = await ClientsInfo.aggregate([
+        { $group: { _id: "$civilStatus", count: { $sum: 1 } } }
+      ]);
+    } catch (e) {
+      console.error('Error aggregating civilStatus:', e);
+      result.errors.civilStatusDistribution = e.message;
+    }
+
+    try {
+      result.natureDistribution = await ClientsInfo.aggregate([
+        { $match: { natureOfCase: { $exists: true, $ne: null } } },
+        { $group: { _id: "$natureOfCase", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 }
+      ]);
+    } catch (e) {
+      console.error('Error aggregating nature:', e);
+      result.errors.natureDistribution = e.message;
+    }
+
+    return res.json(result);
+  } catch (err) {
+    console.error('getAnalytics critical error:', err);
+    return res.status(500).json({ message: 'Critical Server Error', error: err.message });
+  }
+};

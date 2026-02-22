@@ -1,5 +1,5 @@
 import express from 'express'
-import { createClientsInfo, listClientsInfo, getClientsInfoById, updateClientsInfo, createPublicAppointment } from '../controller/clientsinfoController.js'
+import { createClientsInfo, listClientsInfo, getClientsInfoById, updateClientsInfo, createPublicAppointment, getAnalytics } from '../controller/clientsinfoController.js'
 
 const router = express.Router()
 
@@ -15,6 +15,9 @@ router.get('/public-schedules', (req, res, next) => {
   res.setHeader('Cache-Control', 'public, max-age=60');
   import('../controller/clientsinfoController.js').then(m => m.listPublicSchedules(req, res, next));
 });
+
+// GET /api/clientsinfo/analytics
+router.get('/analytics', getAnalytics)
 
 // GET /api/clientsinfo (list all or filtered)
 router.get('/', listClientsInfo)
