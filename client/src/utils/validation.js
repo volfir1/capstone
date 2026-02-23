@@ -252,6 +252,20 @@ export const validationRules = {
       message: "Please enter a valid phone number" 
     }
   },
+
+  presentAddressTelephone: {
+    pattern: { 
+      value: /^[\d\s\-+()]+$/, 
+      message: "Please enter a valid phone number" 
+    }
+  },
+
+  permanentAddressTelephone: {
+    pattern: { 
+      value: /^[\d\s\-+()]+$/, 
+      message: "Please enter a valid phone number" 
+    }
+  },
   
   permanentAddress: {
     required: "Permanent address is required",

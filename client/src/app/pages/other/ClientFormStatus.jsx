@@ -5,23 +5,20 @@ import {
   Grid, Divider, ScrollArea, Tooltip, Pagination,
 } from '@mantine/core';
 import ClientFormStatusCalendar from '@components/calendar/ClientFormCalendar';
-import { DatePickerInput, DateInput } from '@mantine/dates';
+import { DatePickerInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
 import ClientFormStatusSkeleton from '@/components/skeleton/ClientFormStatusSkeleton';
 import { useAuth } from '@/context/authContext';
 import {
-  IconCalendarEvent, IconMessage2, IconFileDescription, IconClock, IconCheck,
-  IconMapPin, IconScale, IconUser, IconCheckbox, IconPhone, IconMail, IconDots,
-  IconEdit, IconX, IconSearch, IconFilter, IconGavel, IconFileText, IconEye, IconCalendar,
-  IconPlus, IconChevronRight, IconAddressBook, IconInfoCircle, IconCurrencyPeso, IconBriefcase,
-  IconHome, IconUsers, IconTrash, IconArrowRight, IconRotateClockwise
+  IconCalendarEvent, IconClock, IconCheck,
+  IconMapPin, IconDots, IconScale,
+  IconEdit, IconX, IconSearch, IconEye, IconCalendar,
+  IconPlus, IconChevronRight, IconAddressBook, IconInfoCircle, IconFileText,
+  IconTrash, IconArrowRight, IconRotateClockwise
 } from '@tabler/icons-react';
 import { IconRefresh } from '@tabler/icons-react';
 import {
-  GENDER_OPTIONS,
-  CIVIL_STATUS_OPTIONS,
-  DEFAULT_CITIZENSHIP,
   PRIMARY_GOLD,
   PRIMARY_BROWN,
   MUTED_OLIVE,
@@ -70,61 +67,6 @@ export default function StaffAppointmentManager() {
   const [activeTab, setActiveTab] = useState('pending');
   const navigate = useNavigate();
 
-  // Appointment Details Modal states
-  const [appointmentModalOpened, setAppointmentModalOpened] = useState(false);
-  const [appointmentDetails, setAppointmentDetails] = useState(null);
-  const [loadingAppointment, setLoadingAppointment] = useState(false);
-  const [appointmentEditMode, setAppointmentEditMode] = useState(false);
-  const [appointmentSaving, setAppointmentSaving] = useState(false);
-  const [appointmentForm, setAppointmentForm] = useState({
-    status: '',
-    appointedDate: '',
-    appointmentTime: '',
-    fullName: '',
-    age: '',
-    birthday: '',
-    sex: '',
-    civilStatus: '',
-    citizenship: '',
-    contactNumber: '',
-    cellphoneNumber: '',
-    telephoneNumber: '',
-    email: '',
-    presentAddress: '',
-    permanentAddress: '',
-    spouseName: '',
-    throughRelator: 'no',
-    relatorName: '',
-    relationshipToClient: '',
-    relatorContactNumber: '',
-    currentSourceOfIncome: '',
-    monthlyIncome: '',
-    natureOfWork: '',
-    employerName: '',
-    employerAddress: '',
-    employerTelephone: '',
-    spouseSourceOfIncome: '',
-    spouseMonthlyIncome: '',
-    spouseEmployerAddress: '',
-    totalCombinedIncome: '',
-    partyRepresented: '',
-    venue: '',
-    caseNumber: '',
-    presentStage: '',
-    caseNature: '',
-    courtDivision: '',
-    courtAddress: '',
-    courtPhoneNumber: '',
-    presidingOfficer: '',
-    adverseParty: '',
-    adversePartyAddress: '',
-    adversePartyCounsel: '',
-    adversePartyCounselAddress: '',
-    adversePartyCounselPhone: '',
-    caseDescription: '',
-    appointmentType: '',
-  });
-
   // Filtered lists logic
   const filteredPending = useMemo(() => {
     return pendingAppointments
@@ -135,7 +77,7 @@ export default function StaffAppointmentManager() {
 
   const filteredInterview = useMemo(() => {
     return pendingAppointments
-      .filter(a => a.calendarRecorded)
+      .filter(a => a.calendarRecorded && a.status === 'auto-scheduled')
       .filter(a => !selectedFilterDate || (a.rawAppointedDate && new Date(a.rawAppointedDate).toDateString() === selectedFilterDate.toDateString()))
       .filter(a => !searchQuery || a.clientName.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [pendingAppointments, selectedFilterDate, searchQuery]);
@@ -241,84 +183,8 @@ export default function StaffAppointmentManager() {
     setInterviewPage(1);
   };
 
-  const openAppointmentModal = async (appointmentId) => {
-    setAppointmentModalOpened(true);
-    setLoadingAppointment(true);
-    setAppointmentEditMode(false);
-    setAppointmentSaving(false);
-
-    try {
-      const { default: apiClient } = await import('@config/api/apiClient');
-      const response = await apiClient.get(`/clientsinfo/${appointmentId}`);
-      setAppointmentDetails(response.data);
-      setAppointmentForm(syncAppointmentFormFromDetails(response.data));
-    } catch (error) {
-      console.error('Error fetching appointment details:', error);
-    } finally {
-      setLoadingAppointment(false);
-    }
-  };
-
-  const syncAppointmentFormFromDetails = (details) => {
-    const hasRelatorData = details?.relatorName || details?.relationshipToClient;
-    const toInputDate = (value) => {
-      if (!value) return '';
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) return '';
-      const year = parsed.getFullYear();
-      const month = String(parsed.getMonth() + 1).padStart(2, '0');
-      const day = String(parsed.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    return {
-      status: details?.status || '',
-      appointedDate: toInputDate(details?.appointedDate),
-      appointmentTime: details?.appointmentTime || '',
-      fullName: details?.fullName || details?.name || '',
-      age: details?.age !== undefined && details?.age !== null ? String(details.age) : '',
-      birthday: toInputDate(details?.birthday),
-      sex: details?.sex || '',
-      civilStatus: details?.civilStatus || '',
-      citizenship: details?.citizenship || '',
-      contactNumber: details?.contactNumber || '',
-      cellphoneNumber: details?.cellphoneNumber || '',
-      telephoneNumber: details?.telephoneNumber || '',
-      email: details?.email || '',
-      presentAddress: details?.presentAddress || '',
-      permanentAddress: details?.permanentAddress || '',
-      spouseName: details?.spouseName || '',
-      throughRelator: details?.throughRelator || (hasRelatorData ? 'yes' : 'no'),
-      relatorName: details?.relatorName || '',
-      relationshipToClient: details?.relationshipToClient || '',
-      relatorContactNumber: details?.relatorContactNumber || '',
-      currentSourceOfIncome: details?.currentSourceOfIncome || '',
-      monthlyIncome: details?.monthlyIncome !== undefined && details?.monthlyIncome !== null ? String(details.monthlyIncome) : '',
-      natureOfWork: details?.natureOfWork || '',
-      employerName: details?.employerName || '',
-      employerAddress: details?.employerAddress || '',
-      partyRepresented: details?.partyRepresented || '',
-      venue: details?.venue || '',
-      presentStage: details?.presentStage || '',
-      courtDivision: details?.courtDivision || '',
-      courtAddress: details?.courtAddress || '',
-      courtPhoneNumber: details?.courtPhoneNumber || '',
-      presidingOfficer: details?.presidingOfficer || '',
-      adverseParty: details?.adverseParty || '',
-      adversePartyAddress: details?.adversePartyAddress || '',
-      adversePartyCounsel: details?.adversePartyCounsel || '',
-      adversePartyCounselAddress: details?.adversePartyCounselAddress || '',
-      adversePartyCounselPhone: details?.adversePartyCounselPhone || '',
-      employerTelephone: details?.employerTelephone || '',
-      spouseSourceOfIncome: details?.spouseSourceOfIncome || '',
-      spouseMonthlyIncome: details?.spouseMonthlyIncome !== undefined && details?.spouseMonthlyIncome !== null ? String(details.spouseMonthlyIncome) : '',
-      spouseEmployerAddress: details?.spouseEmployerAddress || '',
-      totalCombinedIncome: details?.totalCombinedIncome !== undefined && details?.totalCombinedIncome !== null ? String(details.totalCombinedIncome) : '',
-      caseNumber: details?.caseNumber || '',
-      caseDescription: details?.caseDescription || '',
-      caseNature: details?.caseNature || details?.natureOfCase || '',
-      appointmentType: details?.caseDetails?.appointmentType || details?.appointmentType || details?.personal?.legalMatter || '',
-    };
+  const openAppointmentModal = (appointmentId) => {
+    navigate(`/admin/clientinfo/${appointmentId}`);
   };
 
   const handleOpenEditAppointment = (appointment) => {
@@ -431,41 +297,6 @@ export default function StaffAppointmentManager() {
     }
   };
 
-  const handleSaveAppointmentDetails = async () => {
-    if (!appointmentDetails?._id && !appointmentDetails?.id) return;
-    const payload = {
-      status: appointmentForm.status || undefined,
-      appointedDate: appointmentForm.appointedDate || undefined,
-      appointmentTime: appointmentForm.appointmentTime || '',
-      fullName: appointmentForm.fullName || undefined,
-      age: appointmentForm.age ? Number(appointmentForm.age) : undefined,
-      birthday: appointmentForm.birthday || undefined,
-      sex: appointmentForm.sex || undefined,
-      civilStatus: appointmentForm.civilStatus || undefined,
-      contactNumber: appointmentForm.contactNumber || undefined,
-      email: appointmentForm.email || undefined,
-      presentAddress: appointmentForm.presentAddress || undefined,
-      permanentAddress: appointmentForm.permanentAddress || undefined,
-      citizenship: appointmentForm.citizenship || undefined,
-      caseNumber: appointmentForm.caseNumber || undefined,
-      caseDescription: appointmentForm.caseDescription || undefined,
-      caseNature: appointmentForm.caseNature || undefined,
-    };
-    setAppointmentSaving(true);
-    try {
-      const { default: apiClient } = await import('@config/api/apiClient');
-      await apiClient.put(`/clientsinfo/${appointmentDetails._id || appointmentDetails.id}`, payload);
-      notifications.show({ title: 'Updated', message: 'Appointment details saved.', color: 'green' });
-      setAppointmentEditMode(false);
-      await loadAllData();
-    } catch (err) {
-      console.error('Error updating appointment details:', err);
-      notifications.show({ title: 'Error', message: 'Failed to save appointment details.', color: 'red' });
-    } finally {
-      setAppointmentSaving(false);
-    }
-  };
-
   const SideAppointmentCard = ({ item }) => (
     <Card shadow="xs" padding="md" radius="lg" withBorder style={{ borderLeft: `5px solid ${item.calendarRecorded ? 'green' : PRIMARY_GOLD}`, transition: 'all 0.2s ease', '&:hover': { transform: 'translateX(4px)', backgroundColor: '#F9FAFB' } }}>
       <Stack gap="xs">
@@ -502,7 +333,9 @@ export default function StaffAppointmentManager() {
           {!item.calendarRecorded ? (
             <Button size="compact-xs" radius="md" fw={600} style={{ backgroundColor: PRIMARY_BROWN }} onClick={() => handleRecordToCalendars(item)} loading={isUpdating}>Approve</Button>
           ) : (
-            <Button size="compact-xs" variant="outline" radius="md" fw={600} style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }} onClick={() => navigate(`/admin/recommendation/${item.id}`)}>Interview</Button>
+            !['director', 'supervising_lawyer'].includes(userData?.role) && (
+              <Button size="compact-xs" variant="outline" radius="md" fw={600} style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }} onClick={() => navigate(`/admin/recommendation/${item.id}`)}>Interview</Button>
+            )
           )}
           <Button size="compact-xs" variant="light" radius="md" fw={600} color="gray" onClick={() => openAppointmentModal(item.id)}>Details</Button>
         </Group>
@@ -538,7 +371,7 @@ export default function StaffAppointmentManager() {
                 <Divider orientation="vertical" />
                 <Stack gap={0} ta="center">
                   <Text size="xs" c={MUTED_OLIVE} fw={600}>FOR INTERVIEW</Text>
-                  <Text fw={700} size="lg" c="green">{pendingAppointments.filter(a => a.calendarRecorded).length}</Text>
+                  <Text fw={700} size="lg" c="green">{pendingAppointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled').length}</Text>
                 </Stack>
               </Group>
             </Paper>
@@ -699,29 +532,6 @@ export default function StaffAppointmentManager() {
           <Box><Text fw={700} size="lg">Are you absolutely sure?</Text><Text size="sm" c="dimmed">This will permanently delete this event from the calendar.</Text></Box>
           <Group grow w="100%"><Button variant="outline" color="gray" radius="md" fw={600} onClick={() => setDeleteConfirmModal(false)}>Cancel</Button><Button color="red" radius="md" fw={600} onClick={handleDeleteEvent} loading={isDeletingEvent}>Delete Forever</Button></Group>
         </Stack>
-      </Modal>
-
-      <Modal opened={appointmentModalOpened} onClose={() => { setAppointmentModalOpened(false); setAppointmentEditMode(false); }} size="70%" radius="xl" padding={0} withCloseButton={false}>
-        {loadingAppointment ? (
-          <Center h={400}><Loader color={PRIMARY_BROWN} /></Center>
-        ) : appointmentDetails ? (
-          <Box>
-            <Paper p="xl" bg={PRIMARY_BROWN} radius="0" style={{ borderTopLeftRadius: '28px', borderTopRightRadius: '28px' }}>
-              <Group justify="space-between" align="center">
-                <Group gap="md"><ActionIcon size="lg" radius="md" color="white" variant="light" onClick={() => setAppointmentModalOpened(false)}><IconX size={20} /></ActionIcon><Box><Text c="white" fw={700} size="xl">Client Profile</Text><Text c="white" size="xs" style={{ opacity: 0.8 }}>ID: {appointmentDetails._id}</Text></Box></Group>
-                <Group>{!appointmentEditMode ? (<Button variant="white" color={PRIMARY_BROWN} radius="md" fw={600} leftSection={<IconEdit size={16} />} onClick={() => setAppointmentEditMode(true)}>Edit Profile</Button>) : (<Group gap="xs"><Button variant="subtle" color="white" fw={600} onClick={() => setAppointmentEditMode(false)}>Cancel</Button><Button color="white" style={{ color: PRIMARY_BROWN }} radius="md" fw={600} onClick={handleSaveAppointmentDetails} loading={appointmentSaving}>Save</Button></Group>)}</Group>
-              </Group>
-            </Paper>
-            <ScrollArea h="75vh" p="xl" bg="#F9FAFB">
-              <Stack gap="xl">
-                <Paper p="xl" radius="xl" withBorder shadow="sm"><Group gap="md" mb="xl"><IconUser size={24} color={PRIMARY_BROWN} /><Title order={4} fw={700}>Personal Details</Title><Divider style={{ flex: 1 }} /></Group><Grid gutter="xl"><Grid.Col span={8}><TextInput label="Full Name" value={appointmentForm.fullName} readOnly={!appointmentEditMode} onChange={(e) => setAppointmentForm({ ...appointmentForm, fullName: e.target.value })} radius="md" /></Grid.Col><Grid.Col span={4}><TextInput label="Age" value={appointmentForm.age} readOnly={!appointmentEditMode} onChange={(e) => setAppointmentForm({ ...appointmentForm, age: e.target.value })} radius="md" /></Grid.Col><Grid.Col span={4}><DateInput label="Birthday" value={appointmentForm.birthday ? new Date(appointmentForm.birthday) : null} readOnly={!appointmentEditMode} radius="md" /></Grid.Col><Grid.Col span={4}><Select label="Sex" data={GENDER_OPTIONS} value={appointmentForm.sex} disabled={!appointmentEditMode} radius="md" /></Grid.Col><Grid.Col span={4}><Select label="Civil Status" data={CIVIL_STATUS_OPTIONS} value={appointmentForm.civilStatus} disabled={!appointmentEditMode} radius="md" /></Grid.Col></Grid></Paper>
-                <Paper p="xl" radius="xl" withBorder shadow="sm"><Group gap="md" mb="xl"><IconPhone size={24} color={PRIMARY_BROWN} /><Title order={4} fw={700}>Contact & Residence</Title><Divider style={{ flex: 1 }} /></Group><Grid gutter="xl"><Grid.Col span={6}><TextInput label="Email" value={appointmentForm.email} readOnly={!appointmentEditMode} radius="md" leftSection={<IconMail size={16} />} /></Grid.Col><Grid.Col span={6}><TextInput label="Contact" value={appointmentForm.contactNumber} readOnly={!appointmentEditMode} radius="md" leftSection={<IconPhone size={16} />} /></Grid.Col><Grid.Col span={12}><TextInput label="Address" value={appointmentForm.presentAddress} readOnly={!appointmentEditMode} radius="md" leftSection={<IconHome size={16} />} /></Grid.Col></Grid></Paper>
-                <Paper p="xl" radius="xl" withBorder shadow="sm"><Group gap="md" mb="xl"><IconGavel size={24} color={PRIMARY_BROWN} /><Title order={4} fw={700}>Case Info</Title><Divider style={{ flex: 1 }} /></Group><Stack gap="lg"><TextInput label="Nature" value={appointmentForm.caseNature} readOnly={!appointmentEditMode} radius="md" /><Textarea label="Description" value={appointmentForm.caseDescription} readOnly={!appointmentEditMode} minRows={4} radius="md" /></Stack></Paper>
-              </Stack>
-            </ScrollArea>
-            <Paper p="lg" bg="white" radius="0" style={{ borderBottomLeftRadius: '28px', borderBottomRightRadius: '28px', borderTop: '1px solid #E5E7EB' }}><Group justify="flex-end"><Button variant="light" color="gray" radius="md" fw={600} onClick={() => setAppointmentModalOpened(false)}>Close</Button><Button color={PRIMARY_BROWN} radius="md" fw={600} rightSection={<IconArrowRight size={16} />} onClick={() => navigate(`/admin/recommendation/${appointmentDetails._id}`)}>Recommendation</Button></Group></Paper>
-          </Box>
-        ) : null}
       </Modal>
     </Box>
   );

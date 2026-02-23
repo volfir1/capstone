@@ -44,6 +44,7 @@ const UserManagement = lazy(() => import('./pages/admin/userManagement'))
 const RecommendationForAction = lazy(() => import('./pages/other/RecommendationForAction'))
 const FinalizedCases = lazy(() => import('./pages/admin/FinalizedCases'))
 const ReturnedCases = lazy(() => import('./pages/other/Returned_Cases'))
+const ClientInfoView = lazy(() => import('./pages/other/ClientInfoView'))
 const Analytics = lazy(() => import('./pages/admin/Analytics'))
 
 // Intern
@@ -164,6 +165,7 @@ function AppRoutes() {
           <Route path="returned" element={<ReturnedCases />} />
           <Route path="finalized" element={<FinalizedCases />} />
           <Route path="clientformstatus" element={<ClientApplicationStatus />} />
+          <Route path="clientinfo/:id" element={<ClientInfoView />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="profile" element={<AdminProfile />} />
         </Route>

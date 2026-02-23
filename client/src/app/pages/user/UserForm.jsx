@@ -16,6 +16,7 @@ const PROFILE_STORAGE_KEY = 'justreach_user_profile';
 // Fields that should persist across submissions (personal & financial info)
 const PERSISTENT_FIELDS = [
   'name', 'age', 'birthday', 'contactNumber', 'cellphoneNumber', 'telephoneNumber',
+  'presentAddressTelephone', 'permanentAddressTelephone',
   'sex', 'civilStatus', 'citizenship',
   'presentAddress', 'permanentAddress', 'throughRelator', 'relatorName', 'relationshipToClient',
   'currentSourceOfIncome', 'monthlyIncome', 'natureOfWork',

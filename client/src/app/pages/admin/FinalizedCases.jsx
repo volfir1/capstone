@@ -32,7 +32,7 @@ import {
   PasswordInput,
   Progress,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconUserPlus, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconUserPlus, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash } from '@tabler/icons-react';
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
@@ -631,61 +631,8 @@ export default function FinalizedCases() {
       return;
     }
 
-    const summaryRows = [
-      { label: 'Case Title', value: formatText(state.caseRecordData.title) },
-      { label: 'Case ID', value: formatText(state.caseRecordData.caseId) },
-      { label: 'Nature of Case', value: formatText(state.caseRecordData.nature) },
-      { label: 'Tribunal', value: formatText(state.caseRecordData.tribunal) },
-      { label: 'Branch', value: formatText(state.caseRecordData.branch) },
-      { label: 'Presiding Judge', value: formatText(state.caseRecordData.presidingJudge) },
-      { label: 'Contact Details', value: formatText(state.caseRecordData.contactDetails || state.caseRecordData.telEmail) },
-      { label: 'Created By', value: formatText(state.caseRecordData.createdBy) },
-      { label: 'Last Modified By', value: formatText(state.caseRecordData.lastModifiedBy) },
-    ];
-
-    const partiesRows = [
-      { label: 'Parties', value: formatText(state.caseRecordData.parties) },
-      { label: 'Opposing Counsel', value: formatText(state.caseRecordData.opposingCounsel) },
-      { label: 'Public Prosecutor', value: formatText(state.caseRecordData.publicProsecutor) },
-      { label: 'Counsels', value: formatText(state.caseRecordData.counsels) },
-    ];
-
-    const addressesRows = [
-      { label: 'Client Address', value: formatText(state.caseRecordData.clientAddress) },
-      { label: 'Other Notes', value: formatText(state.caseRecordData.others) },
-    ];
-
-    const historyRows = [
-      { label: 'Case History', value: formatText(state.caseRecordData.caseHistory) },
-      { label: 'Remarks', value: formatText(state.caseRecordData.remarks) },
-    ];
-
-    // Build the same Case Record PDF as before, but add a final landscape page
-    // that matches the printed form layout (CASE HISTORY / REMARKS).
-    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    let y = 20;
-    doc.setFont('times', 'normal');
-    doc.setFontSize(18);
-    doc.setTextColor(74, 53, 31);
-    doc.text('Case Record', 14, y);
-    y += 10;
-
-    const sections = [
-      { heading: 'Case Record Summary', rows: summaryRows },
-      { heading: 'Parties & Representation', rows: partiesRows },
-      { heading: 'Addresses & Contact', rows: addressesRows },
-      { heading: 'Case History & Remarks', rows: historyRows },
-    ];
-
-    sections.forEach(({ heading, rows }) => {
-      if (rows) {
-        y = renderSectionRows(doc, y, heading, rows);
-      }
-      y += 2;
-    });
-
-    // Landscape form page (matches your photo)
-    doc.addPage('a4', 'landscape');
+    // Only landscape form page layout
+    const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
     drawCaseRecordHistoryRemarksPage(doc, {
       title: formatText(state.caseRecordData.title),
       caseId: formatText(state.caseRecordData.caseId),
@@ -741,7 +688,7 @@ export default function FinalizedCases() {
       const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
 
       // Page 1
-      drawRecommendationForActionTemplate(doc, {
+      const endY = drawRecommendationForActionTemplate(doc, {
         dateOfInterview: formatDate(interview.dateOfInterview || interview.dateInterview || d.dateOfInterview),
         clientName: formatText(d.clientName || interview.clientName),
         dateSubmitted: formatDate(action.signatureDate || d.updatedAt || d.createdAt),
@@ -757,8 +704,7 @@ export default function FinalizedCases() {
         forLegalAdvice: interview.forLegalAdvice === true || interview.forLegalAdvice === 'true' || interview.forLegalAdvice === 1 || interview.forLegalAdvice === '1',
       });
 
-      // Page 2
-      doc.addPage();
+      // Supervising Lawyer's Comment + Director's Action (continue on same page if space)
       drawRecommendationForActionDirectorPage(doc, {
         supervisingComment: formatText(action.supervisingComment),
         decision: formatText(action.decision || d.decision),
@@ -767,45 +713,48 @@ export default function FinalizedCases() {
         supervisingLawyer: formatText(action.supervisingLawyer),
         directorSignature: formatText(action.directorSignature),
         signatureDate: formatDate(action.signatureDate),
-      });
+      }, endY);
 
-      // Page 3 (landscape Case Record form layout)
-      let caseRecord = state.caseRecordData;
-      const hasCaseRecordLoaded = caseRecord && Object.keys(caseRecord).length > 0;
-      const isSameFinalizeId = state.selectedCaseId && finalizeId && state.selectedCaseId === finalizeId;
+      // Page 3 (landscape Case Record form layout) - only for court representation cases
+      const caseType = d.content?.interviewInfo?.caseType;
+      const isCaseWithRecord = caseType !== 'legal-advice' && caseType !== 'legal-document';
 
-      if (!hasCaseRecordLoaded || !isSameFinalizeId) {
-        // Attempt to fetch the case record for this finalized record.
-        try {
-          if (finalizeId) {
-            const resp = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
-            caseRecord = resp?.data || resp?.data?.data || caseRecord;
+      if (isCaseWithRecord) {
+        let caseRecord = state.caseRecordData;
+        const hasCaseRecordLoaded = caseRecord && Object.keys(caseRecord).length > 0;
+        const isSameFinalizeId = state.selectedCaseId && finalizeId && state.selectedCaseId === finalizeId;
+
+        if (!hasCaseRecordLoaded || !isSameFinalizeId) {
+          try {
+            if (finalizeId) {
+              const resp = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
+              caseRecord = resp?.data || resp?.data?.data || caseRecord;
+            }
+          } catch (err) {
+            console.warn('No case record found for third page:', err);
           }
-        } catch (err) {
-          // If no case record exists, we'll still add the page (blank-ish) rather than failing export.
-          console.warn('No case record found for third page:', err);
         }
-      }
 
-      doc.addPage('a4', 'landscape');
-      drawCaseRecordHistoryRemarksPage(doc, {
-        title: formatText(caseRecord?.title || d.content?.caseInfo?.title || d.title),
-        caseId: formatText(caseRecord?.caseId || d.caseId),
-        nature: formatText(caseRecord?.nature || d.content?.caseInfo?.nature || d.category),
-        tribunal: formatText(caseRecord?.tribunal),
-        branch: formatText(caseRecord?.branch),
-        presidingJudge: formatText(caseRecord?.presidingJudge),
-        telEmail: formatText(caseRecord?.contactDetails || caseRecord?.telEmail || d.content?.interviewInfo?.contactNumber || d.content?.interviewInfo?.email),
-        parties: formatText(caseRecord?.parties),
-        contactDetails: formatText(caseRecord?.contactDetails || caseRecord?.telEmail),
-        counsels: formatText(caseRecord?.counsels),
-        publicProsecutor: formatText(caseRecord?.publicProsecutor),
-        opposingCounsel: formatText(caseRecord?.opposingCounsel),
-        clientAddress: formatText(caseRecord?.clientAddress || d.content?.interviewInfo?.presentAddress || d.content?.interviewInfo?.permanentAddress),
-        others: formatText(caseRecord?.others),
-        caseHistory: formatText(caseRecord?.caseHistory),
-        remarks: formatText(caseRecord?.remarks),
-      });
+        doc.addPage('a4', 'landscape');
+        drawCaseRecordHistoryRemarksPage(doc, {
+          title: formatText(caseRecord?.title || d.content?.caseInfo?.title || d.title),
+          caseId: formatText(caseRecord?.caseId || d.caseId),
+          nature: formatText(caseRecord?.nature || d.content?.caseInfo?.nature || d.category),
+          tribunal: formatText(caseRecord?.tribunal),
+          branch: formatText(caseRecord?.branch),
+          presidingJudge: formatText(caseRecord?.presidingJudge),
+          telEmail: formatText(caseRecord?.contactDetails || caseRecord?.telEmail || d.content?.interviewInfo?.contactNumber || d.content?.interviewInfo?.email),
+          parties: formatText(caseRecord?.parties),
+          contactDetails: formatText(caseRecord?.contactDetails || caseRecord?.telEmail),
+          counsels: formatText(caseRecord?.counsels),
+          publicProsecutor: formatText(caseRecord?.publicProsecutor),
+          opposingCounsel: formatText(caseRecord?.opposingCounsel),
+          clientAddress: formatText(caseRecord?.clientAddress || d.content?.interviewInfo?.presentAddress || d.content?.interviewInfo?.permanentAddress),
+          others: formatText(caseRecord?.others),
+          caseHistory: formatText(caseRecord?.caseHistory),
+          remarks: formatText(caseRecord?.remarks),
+        });
+      }
 
       addDateTimeHeaderToAllPages(doc);
       doc.save('Recommendation_For_Action.pdf');
@@ -833,10 +782,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   const GAP_SM = 4;
   const GAP_MD = 6;
 
-  const FAST_FACTS_H = 34;
-  const CLIENT_EVIDENCE_H = 50;
-  const ADVERSE_EVIDENCE_H = 36;
-  const ADVICE_H = 18;
+  const ROW_H_BASE = 14; // height per evidence row in mm
+  const TABLE_HEADER_H = 8; // header height for evidence tables
+  const MIN_BOX_H = 18; // minimum box height for text sections
 
   const setFont = (size, style = "normal") => {
     doc.setFont("times", style);
@@ -847,6 +795,17 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
 
   const safeText = (v) => (v == null ? "" : String(v));
+
+  // Measure the height needed for text in a box
+  const measureTextHeight = (text, w, fontSize = 9, minH = MIN_BOX_H) => {
+    setFont(fontSize, "normal");
+    const padding = 2;
+    const maxW = Math.max(1, w - padding * 2);
+    const lh = lineHeightMm(fontSize);
+    const lines = doc.splitTextToSize(safeText(text), maxW);
+    const textH = lines.length * lh + padding * 2 + 2;
+    return Math.max(minH, textH);
+  };
 
   const drawMultilineInRect = (text, x, y, w, h, fontSize = 9) => {
     setFont(fontSize, "normal");
@@ -868,7 +827,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       ...(r || {}),
     }));
     while (filled.length < minRows) filled.push({ ...shape });
-    return filled.slice(0, minRows);
+    return filled;
   };
 
   const drawTable = (x, y, w, h, headers, colRatios, rowData = [], bodyRows = 3) => {
@@ -990,6 +949,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   doc.text("Fast Facts", margin, y);
   y += GAP_XS;
 
+  const FAST_FACTS_H = measureTextHeight(data.fastFacts, pageW - margin * 2, 9, 20);
   doc.rect(margin, y, pageW - margin * 2, FAST_FACTS_H);
   drawMultilineInRect(data.fastFacts, margin, y, pageW - margin * 2, FAST_FACTS_H, 9);
   y += FAST_FACTS_H + GAP_MD;
@@ -1001,6 +961,8 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
 
   const clientRows = normalizeEvidence(data.clientEvidence, 3, { type: "", author: "", purpose: "", issues: "" });
   const clientRowData = clientRows.map((r) => [r.type, r.author, r.purpose, r.issues]);
+  const clientBodyRows = clientRowData.length;
+  const CLIENT_EVIDENCE_H = TABLE_HEADER_H + clientBodyRows * ROW_H_BASE;
 
   drawTable(
     margin,
@@ -1010,17 +972,25 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     ["Type / Description", "Author / Custodian", "Purpose", "Admissibility Issues"],
     [0.28, 0.22, 0.20, 0.30],
     clientRowData,
-    3
+    clientBodyRows
   );
   y += CLIENT_EVIDENCE_H + GAP_MD;
 
   // Evidence (Adverse)
+  const adverseRows = normalizeEvidence(data.adversePartyEvidence, 3, { type: "", author: "", issues: "" });
+  const adverseRowData = adverseRows.map((r) => [r.type, r.author, r.issues]);
+  const adverseBodyRows = adverseRowData.length;
+  const ADVERSE_EVIDENCE_H = TABLE_HEADER_H + adverseBodyRows * ROW_H_BASE;
+
+  // Check if adverse evidence table fits on current page
+  if (y + 5 + ADVERSE_EVIDENCE_H > pageH - margin) {
+    doc.addPage();
+    y = margin;
+  }
+
   setFont(10, "bold");
   doc.text("Evidence on Hand / Available for the Adverse Party(ies)", margin, y);
   y += GAP_XS;
-
-  const adverseRows = normalizeEvidence(data.adversePartyEvidence, 2, { type: "", author: "", issues: "" });
-  const adverseRowData = adverseRows.map((r) => [r.type, r.author, r.issues]);
 
   drawTable(
     margin,
@@ -1030,9 +1000,18 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     ["Type / Description", "Author / Custodian", "Admissibility Issues"],
     [0.35, 0.30, 0.35],
     adverseRowData,
-    2
+    adverseBodyRows
   );
   y += ADVERSE_EVIDENCE_H + (GAP_MD + 2);
+
+  // Pre-compute advice and opinion heights for page break check
+  const adviceH = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
+  const opinionH = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
+  const remainingNeeded = GAP_XS + adviceH + (GAP_MD + 2) + 4 + opinionH + margin + 10;
+  if (y + remainingNeeded > pageH) {
+    doc.addPage();
+    y = margin;
+  }
 
   // Advice + checkbox
   setFont(10, "bold");
@@ -1054,6 +1033,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
 
   y += GAP_XS;
 
+  const ADVICE_H = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
   doc.rect(margin, y, pageW - margin * 2, ADVICE_H);
   drawMultilineInRect(data.internAdvice, margin, y, pageW - margin * 2, ADVICE_H, 9);
   y += ADVICE_H + (GAP_MD + 2);
@@ -1063,16 +1043,26 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   doc.text("Legal Opinion", margin, y);
   y += 4;
 
-  const opinionH = Math.max(20, pageH - y - margin);
-  doc.rect(margin, y, pageW - margin * 2, opinionH);
-  drawMultilineInRect(data.legalOpinion, margin, y, pageW - margin * 2, opinionH, 9);
+  const OPINION_H = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
+  // Check if opinion fits; add page if needed
+  if (y + OPINION_H > pageH - margin) {
+    doc.addPage();
+    y = margin;
+    setFont(10, "bold");
+    doc.text("Legal Opinion", margin, y);
+    y += 4;
+  }
+  doc.rect(margin, y, pageW - margin * 2, OPINION_H);
+  drawMultilineInRect(data.legalOpinion, margin, y, pageW - margin * 2, OPINION_H, 9);
+  y += OPINION_H + GAP_MD;
+  return y;
 };
 
   /**
    * Draws the continuation page (Supervising Lawyer's Comment + Director's Action + Assigned To)
    * based on the provided page photo.
    */
-  const drawRecommendationForActionDirectorPage = (doc, data = {}) => {
+  const drawRecommendationForActionDirectorPage = (doc, data = {}, startY = null) => {
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 14;
@@ -1087,11 +1077,16 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     const mmPerPt = 0.3528;
     const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
 
-    const drawRuledBox = (x, y, w, h, gap = 6) => {
-      doc.rect(x, y, w, h);
-      for (let yy = y + gap; yy < y + h; yy += gap) {
-        doc.line(x, yy, x + w, yy);
-      }
+    const MIN_BOX_H = 20;
+
+    const measureTextHeight = (text, w, fontSize = 10, minH = MIN_BOX_H) => {
+      setFont(fontSize, 'normal');
+      const padding = 2;
+      const maxW = Math.max(1, w - padding * 2);
+      const lh = lineHeightMm(fontSize);
+      const lines = doc.splitTextToSize(safeText(text), maxW);
+      const textH = lines.length * lh + padding * 2 + 2;
+      return Math.max(minH, textH);
     };
 
     const drawMultilineInRect = (text, x, y, w, h, fontSize = 10) => {
@@ -1133,15 +1128,32 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     };
 
     const fullW = pageW - margin * 2;
-    let y = margin;
+
+    // Estimate total height needed for the director section
+    const commentH = measureTextHeight(data.supervisingComment, fullW, 10, 30);
+    const actionH = measureTextHeight(data.decisionNote, fullW, 10, 30);
+    const totalNeeded = 6 + commentH + 10 + 6 + 5 + 5 + actionH + 12 + 10 + 36; // approx
+
+    // Determine starting y: continue on current page if there's enough space, otherwise new page
+    let y;
+    if (startY != null && startY + totalNeeded <= pageH - margin) {
+      y = startY;
+    } else {
+      if (startY != null) {
+        // Not enough space on current page, add new page
+        doc.addPage();
+      } else {
+        doc.addPage();
+      }
+      y = margin;
+    }
 
     // Supervising Lawyer's Comment
     setFont(11, 'bold');
     doc.text("Supervising Lawyer's Comment", margin, y);
     y += 6;
 
-    const commentH = 55;
-    drawRuledBox(margin, y, fullW, commentH, 6);
+    doc.rect(margin, y, fullW, commentH);
     drawMultilineInRect(data.supervisingComment, margin, y, fullW, commentH, 10);
     y += commentH + 10;
 
@@ -1168,10 +1180,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     doc.text('If accepted/pending, instruction(s); if rejected, reason(s):', margin, y);
     y += 5;
 
-    const actionH = 60;
-    drawRuledBox(margin, y, fullW, actionH, 6);
-    drawMultilineInRect(data.decisionNote, margin, y, fullW, actionH, 10);
-    y += actionH + 12;
+    const actionBoxH = measureTextHeight(data.decisionNote, fullW, 10, 30);
+    doc.rect(margin, y, fullW, actionBoxH);
+    drawMultilineInRect(data.decisionNote, margin, y, fullW, actionBoxH, 10);
+    y += actionBoxH + 12;
 
     // Assigned to (two columns)
     setFont(11, 'bold');
@@ -1273,7 +1285,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     setFont(9, 'normal');
     const leftFields = [
       { label: 'Title of the Case:', value: data.title },
-      { label: 'Case ID:', value: data.caseId },
       { label: 'Nature of the Case:', value: data.nature },
       { label: 'Tribunal:', value: data.tribunal },
       { label: 'Branch:', value: data.branch },
@@ -1339,9 +1350,24 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     doc.text('(deadlines/material dates, etc.)', rightSectionX + rightSectionW / 2, sectionY + 12, { align: 'center' });
 
     const boxY = sectionY + 14;
-    const boxH = sectionH - 14;
-    drawRuledRect(leftSectionX, boxY, leftSectionW, boxH, 6);
-    drawRuledRect(rightSectionX, boxY, rightSectionW, boxH, 6);
+    const availableH = sectionH - 14;
+
+    // Measure text to make dynamic boxes (use at least half remaining space, up to full)
+    const measureBoxText = (text, boxW, fontSize = 9) => {
+      setFont(fontSize, 'normal');
+      const padding = 2;
+      const maxW = Math.max(1, boxW - padding * 2);
+      const lh = lineHeightMm(fontSize);
+      const lines = doc.splitTextToSize(safeText(text), maxW);
+      return lines.length * lh + padding * 2 + 4;
+    };
+
+    const historyTextH = measureBoxText(data.caseHistory, leftSectionW);
+    const remarksTextH = measureBoxText(data.remarks, rightSectionW);
+    const boxH = Math.max(Math.max(historyTextH, remarksTextH), Math.min(availableH, 40));
+
+    doc.rect(leftSectionX, boxY, leftSectionW, boxH);
+    doc.rect(rightSectionX, boxY, rightSectionW, boxH);
 
     drawMultilineInRect(data.caseHistory, leftSectionX, boxY, leftSectionW, boxH, 9);
     drawMultilineInRect(data.remarks, rightSectionX, boxY, rightSectionW, boxH, 9);
@@ -1631,6 +1657,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                      docToView.fileName?.endsWith('.docx') || 
                      docToView.fileName?.endsWith('.doc');
     
+    // If it's a PDF, the iframe will handle it
+    // No extra processing needed for PDF
+    
     if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
       dispatch({ type: 'SET_WORD_DOC_LOADING', payload: true });
       try {
@@ -1654,6 +1683,94 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       } finally {
         dispatch({ type: 'SET_WORD_DOC_LOADING', payload: false });
       }
+    }
+  };
+
+  // Function to handle downloading documents programmatically (works cross-origin)
+  const handleDownloadDocument = async (documentData) => {
+    if (!documentData) return;
+    try {
+      const url = documentData.fileUrl
+        ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
+        : documentData.fileData;
+      if (!url) {
+        notifications.show({ title: 'Error', message: 'No file URL available', color: 'red' });
+        return;
+      }
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch file');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = documentData.fileName || 'document';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download failed:', err);
+      // Fallback: open in new tab
+      const url = documentData.fileUrl
+        ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
+        : documentData.fileData;
+      if (url) window.open(url, '_blank');
+      else notifications.show({ title: 'Error', message: 'Download failed', color: 'red' });
+    }
+  };
+
+  // Function to handle deleting a version from version history
+  const handleDeleteVersion = async (versionIndex) => {
+    if (!state.selectedCaseForVersions) return;
+    const caseData = state.selectedCaseForVersions;
+    const finalizeId = caseData._id || caseData.id;
+    const versions = [...(caseData.content?.interviewInfo?.documentVersions || [])];
+    const versionToDelete = versions[versionIndex];
+    if (!versionToDelete) return;
+
+    try {
+      // Delete the file from server if it has a fileUrl
+      if (versionToDelete.fileUrl) {
+        const filename = versionToDelete.fileUrl.split('/').pop();
+        if (filename) {
+          try {
+            await apiClient.delete(`/upload/document/${encodeURIComponent(filename)}`);
+          } catch (fileErr) {
+            console.warn('Could not delete file from server:', fileErr);
+          }
+        }
+      }
+
+      // Remove version from array
+      versions.splice(versionIndex, 1);
+
+      // Update the finalize record
+      const updatedContent = JSON.parse(JSON.stringify(caseData.content || {}));
+      if (!updatedContent.interviewInfo) updatedContent.interviewInfo = {};
+      updatedContent.interviewInfo.documentVersions = versions;
+
+      await apiClient.put(`/finalize/${finalizeId}`, { content: updatedContent });
+
+      // Update local state
+      const updatedCase = {
+        ...caseData,
+        content: updatedContent,
+      };
+      dispatch({
+        type: 'OPEN_VERSION_HISTORY_MODAL',
+        payload: { case: updatedCase, versions },
+      });
+
+      // Refresh finalized list
+      const resp = await apiClient.get('/finalize');
+      const data = resp.data?.data ?? resp.data ?? [];
+      const finalizedData = Array.isArray(data) ? data : [];
+      dispatch({ type: 'SET_FINALIZED', payload: finalizedData });
+
+      notifications.show({ title: 'Deleted', message: 'Version deleted successfully.', color: 'green' });
+    } catch (err) {
+      console.error('Error deleting version:', err);
+      notifications.show({ title: 'Error', message: 'Failed to delete version.', color: 'red' });
     }
   };
 
@@ -2165,7 +2282,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     Full Receipt
                   </Menu.Item>
                 )}
-                {f.decision === 'accepted' && !isLegalAdvice(f) && (
+                {f.decision === 'accepted' && !isLegalAdvice(f) && !isDocumentDrafting(f) && (
                   <Menu.Item leftSection={<IconFileText size={16} />}
                     onClick={() => openCaseRecordModal(f)}
                   >
@@ -2373,7 +2490,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                           </Text>
                         )}
                         <Group gap="xs" mt="sm">
-                          {state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl && (
+                          {(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl || state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileData) && (
                             <>
                               <Button
                                 size="xs"
@@ -2389,9 +2506,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                                 variant="light"
                                 color="green"
                                 leftSection={<IconDownload size={14} />}
-                                component="a"
-                                href={getServerFileUrl(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl)}
-                                download={state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileName}
+                                onClick={() => handleDownloadDocument(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument)}
                               >
                                 Download
                               </Button>
@@ -2432,7 +2547,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                           {new Date(version.uploadedAt).toLocaleString()}
                         </Text>
                         <Group gap="xs">
-                          {version.fileUrl ? (
+                          {(version.fileUrl || version.fileData) ? (
                             <>
                               <Button
                                 size="xs"
@@ -2445,33 +2560,20 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                               <Button
                                 size="xs"
                                 variant="subtle"
+                                color="green"
                                 leftSection={<IconDownload size={14} />}
-                                component="a"
-                                href={getServerFileUrl(version.fileUrl)}
-                                download={version.fileName}
+                                onClick={() => handleDownloadDocument(version)}
                               >
                                 Download
-                              </Button>
-                            </>
-                          ) : version.fileData ? (
-                            <>
-                              <Button
-                                size="xs"
-                                variant="subtle"
-                                leftSection={<IconEye size={14} />}
-                                onClick={() => handleViewDocument(version)}
-                              >
-                                View
                               </Button>
                               <Button
                                 size="xs"
                                 variant="subtle"
-                                leftSection={<IconDownload size={14} />}
-                                component="a"
-                                href={version.fileData}
-                                download={version.fileName}
+                                color="red"
+                                leftSection={<IconTrash size={14} />}
+                                onClick={() => handleDeleteVersion(index)}
                               >
-                                Download
+                                Delete
                               </Button>
                             </>
                           ) : (
@@ -2526,9 +2628,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Button
                     size="sm"
                     leftSection={<IconDownload size={16} />}
-                    component="a"
-                    href={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
-                    download={state.currentViewingDoc.fileName}
+                    onClick={() => handleDownloadDocument(state.currentViewingDoc)}
                     style={{ backgroundColor: PRIMARY_BROWN }}
                   >
                     Download
@@ -2583,9 +2683,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                           <Button
                             size="lg"
                             leftSection={<IconDownload size={20} />}
-                            component="a"
-                            href={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
-                            download={state.currentViewingDoc.fileName}
+                            onClick={() => handleDownloadDocument(state.currentViewingDoc)}
                             style={{ backgroundColor: PRIMARY_BROWN }}
                           >
                             Download to View/Edit
@@ -2607,9 +2705,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     <Button
                       size="lg"
                       leftSection={<IconDownload size={20} />}
-                      component="a"
-                      href={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
-                      download={state.currentViewingDoc.fileName}
+                      onClick={() => handleDownloadDocument(state.currentViewingDoc)}
                       style={{ backgroundColor: PRIMARY_BROWN }}
                     >
                       Download File
@@ -2785,18 +2881,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                       />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.contactNumber || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Email</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.email}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, email: e.target.value } })}
-                      />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.email || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
@@ -3127,6 +3211,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               <Title order={3} c={PRIMARY_BROWN}>Recommendation for Action</Title>
               <Group gap="sm">
                 {!state.editMode ? (
+                  ['director', 'supervising_lawyer', 'secretary'].includes(userData?.role) && (
                   <Button
                     size="xs"
                     variant="outline"
@@ -3135,6 +3220,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   >
                     Edit
                   </Button>
+                  )
                 ) : (
                   <>
                     <Button
@@ -3199,49 +3285,19 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <SimpleGrid cols={2} spacing="sm" mb="md">
                   <Box>
                     <Text size="xs" c="dimmed">Date of Interview</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        type="date"
-                        value={state.editedData.content?.interviewInfo?.dateOfInterview || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.dateOfInterview', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Date Submitted</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        type="date"
-                        value={state.editedData.content?.interviewInfo?.dateSubmitted || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.dateSubmitted', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Client's Name</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        value={state.editedData.content?.interviewInfo?.clientName || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.clientName', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.clientName || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.clientName || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        value={state.editedData.content?.interviewInfo?.interviewingInterns || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.interviewingInterns', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
                   </Box>
                 </SimpleGrid>
                 <Divider my="md" />
@@ -3319,78 +3375,16 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <Divider my="md" />
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
-                  {state.editMode ? (
-                    <Radio.Group
-                      value={state.editedData.decision || ''}
-                      onChange={(val) => {
-                        const updated = { ...state.editedData, decision: val };
-                        // Also update the nested path for consistency
-                        if (!updated.content) updated.content = {};
-                        if (!updated.content.actionInfo) updated.content.actionInfo = {};
-                        updated.content.actionInfo.decision = val;
-                        dispatch({ type: 'SET_EDITED_DATA', payload: updated });
-                      }}
-                    >
-                      <Group>
-                        <Radio value="accepted" label="Accepted" />
-                        <Radio value="rejected" label="Rejected" />
-                        <Radio value="pending" label="Pending" />
-                      </Group>
-                    </Radio.Group>
-                  ) : (
-                    <Badge 
-                      size="lg" 
-                      color={
-                        state.editedData.decision === 'accepted' ? 'green' : 
-                        state.editedData.decision === 'rejected' ? 'red' : 
-                        'yellow'
-                      }
-                    >
-                      {(state.editedData.decision || 'pending').toUpperCase()}
-                    </Badge>
-                  )}
-                </Box>
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Case Category</Text>
-                  {state.editMode ? (
-                    <Select
-                      placeholder="Select a category"
-                      value={state.editedData.content?.caseInfo?.nature || state.editedData.category || 'Other'}
-                      onChange={(val) => updateEditedData('content.caseInfo.nature', val)}
-                      data={[
-                        { value: 'Civil Case', label: 'Civil Case' },
-                        { value: 'Criminal Case', label: 'Criminal Case' },
-                        { value: 'Family Law', label: 'Family Law' },
-                        { value: 'Labor and Employment', label: 'Labor and Employment' },
-                        { value: 'Land and Property Disputes', label: 'Land and Property Disputes' },
-                        { value: 'Contract Disputes', label: 'Contract Disputes' },
-                        { value: 'Personal Injury', label: 'Personal Injury' },
-                        { value: 'Debt Collection', label: 'Debt Collection' },
-                        { value: 'Inheritance and Estate', label: 'Inheritance and Estate' },
-                        { value: 'Business and Commercial Law', label: 'Business and Commercial Law' },
-                        { value: 'Consumer Protection', label: 'Consumer Protection' },
-                        { value: 'Tax Law', label: 'Tax Law' },
-                        { value: 'Immigration', label: 'Immigration' },
-                        { value: 'Intellectual Property', label: 'Intellectual Property' },
-                        { value: 'Environmental Law', label: 'Environmental Law' },
-                        { value: 'Administrative Law', label: 'Administrative Law' },
-                        { value: 'Human Rights Violation', label: 'Human Rights Violation' },
-                        { value: 'Cybercrime', label: 'Cybercrime' },
-                        { value: 'Election Law', label: 'Election Law' },
-                        { value: 'Other', label: 'Other' },
-                      ]}
-                      clearable={false}
-                      searchable
-                    />
-                  ) : (
-                    <Badge 
-                      size="lg" 
-                      variant="light"
-                      color={CATEGORY_COLORS[state.editedData.content?.caseInfo?.nature || state.editedData.category] || 'gray'}
-                    >
-                      {state.editedData.content?.caseInfo?.nature || state.editedData.category || 'Other'}
-                    </Badge>
-                  )}
+                  <Badge 
+                    size="lg" 
+                    color={
+                      state.editedData.decision === 'accepted' ? 'green' : 
+                      state.editedData.decision === 'rejected' ? 'red' : 
+                      'yellow'
+                    }
+                  >
+                    {(state.editedData.decision || 'pending').toUpperCase()}
+                  </Badge>
                 </Box>
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
@@ -3409,50 +3403,19 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <SimpleGrid cols={2} spacing="sm">
                   <Box>
                     <Text size="xs" c="dimmed">Assigned To</Text>
-                    {state.editMode ? (
-                      <Textarea
-                        autosize
-                        minRows={2}
-                        value={state.editedData.content?.actionInfo?.assignedTo || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.assignedTo', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Supervising Lawyer</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        value={state.editedData.content?.actionInfo?.supervisingLawyer || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.supervisingLawyer', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Director's Signature</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        value={state.editedData.content?.actionInfo?.directorSignature || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.directorSignature', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Signature Date</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        type="date"
-                        value={state.editedData.content?.actionInfo?.signatureDate || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.signatureDate', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.signatureDate || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.signatureDate || '-'}</Text>
                   </Box>
                 </SimpleGrid>
               </Paper>
@@ -3853,7 +3816,9 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const spouseName = txt(a.spouseName);
   const contactNumber = txt(a.contactNumber);
   const presentAddress = txt(a.presentAddress);
+  const presentAddressTelephone = txt(a.presentAddressTelephone);
   const permanentAddress = txt(a.permanentAddress);
+  const permanentAddressTelephone = txt(a.permanentAddressTelephone);
 
   const relatorName = txt(a.relatorName);
   const relationshipToClient = txt(a.relationshipToClient);
@@ -3902,6 +3867,8 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const line = (x1, y, x2) => doc.line(x1, y, x2, y);
 
   // Draw "Label: ____" with value printed just above the line.
+  // Returns the vertical height consumed (supports multi-line wrapping).
+  // When text wraps, each continuation line also gets an underline.
   const field = ({ labelText, value, x, y, labelW, lineW, lineToX }) => {
     label(labelText, x, y);
     const lx = x + labelW;
@@ -3910,10 +3877,51 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
     line(lx, ly, x2);
     if (value) {
       setFont(10, "normal");
-      // place value slightly above the underline
-      const maxW = Math.max(0, (x2 - lx) - 2);
-      doc.text(value, lx + 1, y - 0.6, { maxWidth: maxW });
+      const maxW = Math.max(1, (x2 - lx) - 2);
+      const lines = doc.splitTextToSize(String(value), maxW);
+      const lh = 10 * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
+      // First line sits above the underline
+      doc.text(lines[0], lx + 1, y - 0.6);
+      // Continuation lines: draw text + underline for each
+      for (let i = 1; i < lines.length; i++) {
+        const contY = y + (i * lh);
+        doc.text(lines[i], lx + 1, contY - 0.6);
+        line(lx, contY + 0.6, x2);
+      }
+      return Math.max(7, lines.length * lh + 3);
     }
+    return 7;
+  };
+
+  // Like field(), but draws the value BELOW the underline (for long names that wrap).
+  // Returns the total height consumed including any wrapped lines below.
+  const fieldBelow = ({ labelText, value, x, y, labelW, lineW, lineToX }) => {
+    label(labelText, x, y);
+    const lx = x + labelW;
+    const ly = y + 0.6;
+    const x2 = typeof lineToX === 'number' ? lineToX : lx + lineW;
+    line(lx, ly, x2);
+    if (value) {
+      setFont(10, "normal");
+      const maxW = Math.max(1, (x2 - lx) - 2);
+      const lines = doc.splitTextToSize(String(value), maxW);
+      const lh = 10 * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
+      // First line sits on the underline (above it), remaining lines go below
+      if (lines.length <= 1) {
+        doc.text(lines, lx + 1, y - 0.6);
+        return 7;
+      }
+      doc.text(lines[0], lx + 1, y - 0.6);
+      // Draw continuation lines below the underline
+      for (let i = 1; i < lines.length; i++) {
+        const contY = y + 2 + (i * lh);
+        doc.text(lines[i], lx + 1, contY);
+        // Draw underline for each continuation line
+        line(lx, contY + 1.2, x2);
+      }
+      return 7 + ((lines.length - 1) * lh) + 2;
+    }
+    return 7;
   };
 
   // Section title (PERSONAL DETAILS, etc.)
@@ -3957,193 +3965,152 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   y = orgBoxY + orgBoxH + 10;
 
   // --- Layout columns ---
-  const gap = 8;
+  const gap = 6;
   const leftX = margin;
-  const leftW = (pageW - margin * 2 - gap) * 0.62;
+  const leftW = (pageW - margin * 2 - gap) * 0.46;
   const rightX = leftX + leftW + gap;
   const rightW = pageW - margin - rightX;
+  const fullW = pageW - margin * 2;
 
-  // --- PERSONAL DETAILS ---
+  // --- PERSONAL DETAILS (left) & RELATOR / REPRESENTATIVE (right) ---
+  // These two columns are laid out independently so wrapping in one
+  // column does not shift the other.
   sectionTitle("PERSONAL DETAILS", leftX, y);
   y += 6;
 
-  // Row spacing
   const rowH = 7;
+  let leftY = y;
+  let rightY = y;
 
-  field({ labelText: "Name:", value: fullName, x: leftX, y, labelW: 14, lineW: leftW - 16 });
-  field({ labelText: "If through a Relator / Representative:", value: "", x: rightX, y, labelW: 54, lineW: rightW - 56 });
-  y += rowH;
+  // ---- Left column – Personal Details ----
+  leftY += field({ labelText: "Name:", value: fullName, x: leftX, y: leftY, labelW: 14, lineW: leftW - 16 });
 
-  field({ labelText: "Age:", value: age, x: leftX, y, labelW: 10, lineW: 18 });
-  field({ labelText: "Birthday:", value: birthday, x: leftX + 34, y, labelW: 16, lineW: leftW - 34 - 18 });
-  field({ labelText: "Name of Relator / Representative:", value: relatorName, x: rightX, y, labelW: 50, lineW: rightW - 52 });
-  y += rowH;
+  const ageH = field({ labelText: "Age:", value: age, x: leftX, y: leftY, labelW: 10, lineW: 18 });
+  const bdayH = field({ labelText: "Birthday:", value: birthday, x: leftX + 34, y: leftY, labelW: 16, lineW: leftW - 34 - 18 });
+  leftY += Math.max(ageH, bdayH);
 
-  field({ labelText: "Contact Number/s:", value: contactNumber, x: leftX, y, labelW: 32, lineW: leftW - 34 });
-  field({ labelText: "Relationship to the Client:", value: relationshipToClient, x: rightX, y, labelW: 40, lineW: rightW - 42 });
-  y += rowH;
+  leftY += field({ labelText: "Contact Number/s:", value: contactNumber, x: leftX, y: leftY, labelW: 32, lineW: leftW - 34 });
 
-  field({ labelText: "Sex:", value: sex, x: leftX, y, labelW: 10, lineW: 26 });
-  field({ labelText: "Civil Status:", value: civilStatus, x: leftX + 40, y, labelW: 22, lineW: leftW - 40 - 24 });
-  field({ labelText: "Telephone Number:", value: relatorContactNumber, x: rightX, y, labelW: 32, lineW: rightW - 34 });
-  y += rowH;
+  const sexH = field({ labelText: "Sex:", value: sex, x: leftX, y: leftY, labelW: 10, lineW: 16 });
+  const csH = field({ labelText: "Civil Status:", value: civilStatus, x: leftX + 30, y: leftY, labelW: 22, lineW: leftW - 30 - 24 });
+  leftY += Math.max(sexH, csH);
 
-  field({ labelText: "Citizenship:", value: citizenship, x: leftX, y, labelW: 22, lineW: leftW - 24 });
-  y += rowH;
+  leftY += field({ labelText: "Citizenship:", value: citizenship, x: leftX, y: leftY, labelW: 22, lineW: leftW - 24 });
+  leftY += field({ labelText: "Spouse:", value: spouseName, x: leftX, y: leftY, labelW: 16, lineW: leftW - 18 });
+  leftY += field({ labelText: "Cellphone Number/s:", value: contactNumber, x: leftX, y: leftY, labelW: 36, lineW: leftW - 38 });
+  leftY += field({ labelText: "Present Address:", value: presentAddress, x: leftX, y: leftY, labelW: 30, lineToX: pageW - margin });
+  leftY += field({ labelText: "Telephone Number:", value: presentAddressTelephone, x: leftX, y: leftY, labelW: 32, lineToX: pageW - margin });
+  leftY += field({ labelText: "Permanent Address:", value: permanentAddress, x: leftX, y: leftY, labelW: 34, lineToX: pageW - margin });
+  leftY += field({ labelText: "Telephone Number:", value: permanentAddressTelephone, x: leftX, y: leftY, labelW: 32, lineToX: pageW - margin });
 
-  field({ labelText: "Spouse:", value: spouseName, x: leftX, y, labelW: 16, lineW: leftW - 18 });
-  y += rowH;
+  // ---- Right column – Relator / Representative (independent layout) ----
+  label("If through a Relator / Representative:", rightX, rightY);
+  rightY += rowH;
 
-  field({ labelText: "Cellphone Number/s:", value: contactNumber, x: leftX, y, labelW: 36, lineW: leftW - 38 });
-  y += rowH;
+  rightY += fieldBelow({ labelText: "Name of Relator / Representative:", value: relatorName, x: rightX, y: rightY, labelW: 50, lineW: rightW - 52 });
+  rightY += field({ labelText: "Relationship to the Client:", value: relationshipToClient, x: rightX, y: rightY, labelW: 40, lineW: rightW - 42 });
+  rightY += field({ labelText: "Telephone Number:", value: relatorContactNumber, x: rightX, y: rightY, labelW: 32, lineW: rightW - 34 });
 
-  field({ labelText: "Present Address:", value: presentAddress, x: leftX, y, labelW: 30, lineW: leftW - 32 });
-  y += rowH;
-
-  field({ labelText: "Permanent Address:", value: permanentAddress, x: leftX, y, labelW: 34, lineW: leftW - 36 });
-  y += rowH;
-
-  field({ labelText: "Telephone Number:", value: "", x: leftX, y, labelW: 32, lineW: leftW - 34 });
-  y += 8;
+  y = Math.max(leftY, rightY) + 8;
 
   // --- FINANCIAL DETAILS ---
   sectionTitle("FINANCIAL DETAILS", leftX, y);
   y += 6;
 
-  // Financial rows have two fields on one line inside the LEFT column.
-  // Use explicit boundaries to prevent underline/value overlap.
-  const leftColEndX = leftX + leftW;
-  const finRightFieldX = leftX + 64; // start of the right-side field label within left column
+  // Financial fields use the full page width to match the printed form.
+  const finFullEndX = pageW - margin;
+  const finSplitX = leftX + (fullW * 0.58); // split point for two-field rows
 
-  field({
-    labelText: "Current Source of Income:",
-    value: currentSourceOfIncome,
-    x: leftX,
-    y,
-    labelW: 40,
-    lineToX: finRightFieldX - 2,
-  });
-  field({
-    labelText: "Income / Month:",
-    value: monthlyIncome,
-    x: finRightFieldX,
-    y,
-    labelW: 24,
-    lineToX: leftColEndX,
-  });
-  y += rowH;
+  { const h1 = field({ labelText: "Current Source of Income:", value: currentSourceOfIncome, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
+    const h2 = field({ labelText: "Income / Month:", value: monthlyIncome, x: finSplitX, y, labelW: 24, lineToX: finFullEndX });
+    y += Math.max(h1, h2); }
 
-  field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 48, lineW: leftW - 50 });
-  y += rowH;
+  y += field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 48, lineToX: finFullEndX });
 
-  field({ labelText: "Employer / Business Owner's Name:", value: employerName, x: leftX, y, labelW: 60, lineW: leftW - 62 });
-  y += rowH;
+  y += field({ labelText: "Employer / Business Owner's Name:", value: employerName, x: leftX, y, labelW: 60, lineToX: finFullEndX });
 
-  field({ labelText: "Employer / Business Address:", value: employerAddress, x: leftX, y, labelW: 52, lineW: leftW - 54 });
-  y += rowH;
+  y += field({ labelText: "Employer / Business Address:", value: employerAddress, x: leftX, y, labelW: 52, lineToX: finFullEndX });
 
-  // Telephone shares a row in the printed layout; avoid overlap.
-  const finTelFieldX = leftX + 72;
-  field({
-    labelText: "Nature of Work / Business:",
-    value: natureOfWork,
-    x: leftX,
-    y,
-    labelW: 40,
-    lineToX: finTelFieldX - 2,
-  });
-  field({
-    labelText: "Telephone:",
-    value: employerTelephone,
-    x: finTelFieldX,
-    y,
-    labelW: 18,
-    lineToX: leftColEndX,
-  });
-  y += rowH;
+  { const h1 = field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
+    const h2 = field({ labelText: "Telephone:", value: employerTelephone, x: finSplitX, y, labelW: 18, lineToX: finFullEndX });
+    y += Math.max(h1, h2); }
 
-  field({
-    labelText: "Spouse's Source of Income:",
-    value: spouseSourceOfIncome,
-    x: leftX,
-    y,
-    labelW: 44,
-    lineToX: finRightFieldX - 2,
-  });
-  field({
-    labelText: "Income / Month:",
-    value: spouseMonthlyIncome,
-    x: finRightFieldX,
-    y,
-    labelW: 24,
-    lineToX: leftColEndX,
-  });
-  y += rowH;
+  { const h1 = field({ labelText: "Spouse's Source of Income:", value: spouseSourceOfIncome, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
+    const h2 = field({ labelText: "Income / Month:", value: spouseMonthlyIncome, x: finSplitX, y, labelW: 24, lineToX: finFullEndX });
+    y += Math.max(h1, h2); }
 
-  field({ labelText: "Spouse's Employer / Business Address:", value: spouseEmployerAddress, x: leftX, y, labelW: 66, lineW: leftW - 68 });
-  y += rowH;
+  y += field({ labelText: "Spouse's Employer / Business Address:", value: spouseEmployerAddress, x: leftX, y, labelW: 60, lineToX: finFullEndX });
 
-  field({ labelText: "Total Combined Monthly Income:", value: totalCombinedIncome, x: leftX, y, labelW: 56, lineW: leftW - 58 });
-  y += 8;
+  y += field({ labelText: "Total Combined Monthly Income:", value: totalCombinedIncome, x: leftX, y, labelW: 56, lineToX: finFullEndX });
+  y += 1;
 
   // --- CASE DETAILS ---
+  // Pre-compute footer height so we can check for page overflow
+  const privacyText = "DATA PRIVACY: Sebastinian Office of Legal Aid (SOLA) College of Law is committed to upholding the Philippine Data Privacy Act which implements the Constitutional right to informational privacy of data subjects. This form is operated and maintained by the SOLA. Your personal information is collected and processed in order for us to verify your identity, assess your application, and contact you about your case. Rest assured the information provided herein will be treated with utmost confidentiality.";
+  setFont(7, "normal");
+  const privacyMaxW = pageW - margin * 2 - 4;
+  const privacyLines = doc.splitTextToSize(privacyText, privacyMaxW);
+  const privacyLh = 7 * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
+  const footerH = privacyLines.length * privacyLh + 6;
+  const footerReserved = footerH + margin + 4; // space reserved at bottom for footer + padding
+
+  // Helper: if y would go past the footer area, add a new page
+  const checkPageBreak = (extraH = 10) => {
+    if (y + extraH > pageH - footerReserved) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  checkPageBreak(14);
   sectionTitle("CASE DETAILS", leftX, y);
   y += 6;
 
-  // Case section was looking too tall; use a tighter row height here.
-  const caseRowH = 5.5;
+  checkPageBreak();
+  { const h1 = field({ labelText: "Party Represented:", value: partyRepresented, x: leftX, y, labelW: 34, lineW: leftW - 36 - 10 });
+    const h2 = field({ labelText: "Venue / City:", value: venue, x: rightX, y, labelW: 26, lineW: rightW - 28 });
+    y += Math.max(h1, h2); }
 
-  field({ labelText: "Party Represented:", value: partyRepresented, x: leftX, y, labelW: 34, lineW: leftW - 36 - 10 });
-  field({ labelText: "Venue / City:", value: venue, x: rightX, y, labelW: 26, lineW: rightW - 28 });
-  y += caseRowH;
+  checkPageBreak();
+  { const h1 = field({ labelText: "Present Stage of the Case:", value: presentStage, x: leftX, y, labelW: 50, lineW: leftW - 52 });
+    const h2 = field({ labelText: "Case / Docket Number:", value: caseNumber, x: rightX, y, labelW: 40, lineW: rightW - 42 });
+    y += Math.max(h1, h2); }
 
-  field({ labelText: "Present Stage of the Case:", value: presentStage, x: leftX, y, labelW: 50, lineW: leftW - 52 });
-  field({ labelText: "Case / Docket Number:", value: caseNumber, x: rightX, y, labelW: 40, lineW: rightW - 42 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Nature:", value: caseNature, x: leftX, y, labelW: 14, lineW: pageW - margin * 2 - 16 });
 
-  field({ labelText: "Nature:", value: caseNature, x: leftX, y, labelW: 14, lineW: pageW - margin * 2 - 16 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Court / Agency / Tribunal Division:", value: courtDivision, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
 
-  field({ labelText: "Court / Agency / Tribunal Division:", value: courtDivision, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Court / Agency / Tribunal Address:", value: courtAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
 
-  field({ labelText: "Court / Agency / Tribunal Address:", value: courtAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
-  y += caseRowH;
+  checkPageBreak();
+  { const h1 = field({ labelText: "Presiding Officer:", value: presidingOfficer, x: leftX, y, labelW: 34, lineToX: rightX - 2 });
+    const h2 = field({ labelText: "Phone Number:", value: presidingOfficerPhone, x: rightX + 6, y, labelW: 28, lineW: rightW - 34 });
+    y += Math.max(h1, h2); }
 
-  // Prevent the Presiding Officer underline from running into the Phone Number field.
-  field({ labelText: "Presiding Officer:", value: presidingOfficer, x: leftX, y, labelW: 34, lineToX: rightX - 2 });
-  field({ labelText: "Phone Number:", value: presidingOfficerPhone, x: rightX + 6, y, labelW: 28, lineW: rightW - 34 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies):", value: adverseParties, x: leftX, y, labelW: 36, lineW: pageW - margin * 2 - 38 });
 
-  field({ labelText: "Adverse Party(ies):", value: adverseParties, x: leftX, y, labelW: 36, lineW: pageW - margin * 2 - 38 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies) Address:", value: adversePartiesAddress, x: leftX, y, labelW: 52, lineW: pageW - margin * 2 - 54 });
 
-  field({ labelText: "Adverse Party(ies) Address:", value: adversePartiesAddress, x: leftX, y, labelW: 52, lineW: pageW - margin * 2 - 54 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies) Counsel:", value: adversePartiesCounsel, x: leftX, y, labelW: 50, lineW: pageW - margin * 2 - 52 });
 
-  field({ labelText: "Adverse Party(ies) Counsel:", value: adversePartiesCounsel, x: leftX, y, labelW: 50, lineW: pageW - margin * 2 - 52 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies) Counsel Address:", value: adversePartiesCounselAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
 
-  field({ labelText: "Adverse Party(ies) Counsel Address:", value: adversePartiesCounselAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
-  y += caseRowH;
-
-  field({ labelText: "Adverse Party(ies) Counsel Phone Number:", value: adversePartiesCounselPhone, x: leftX, y, labelW: 76, lineW: pageW - margin * 2 - 78 });
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies) Counsel Phone Number:", value: adversePartiesCounselPhone, x: leftX, y, labelW: 76, lineW: pageW - margin * 2 - 78 });
   y += 10;
 
-  // --- Data privacy footer box ---
-  const footerH = 18;
+  // --- Data privacy footer box (always at bottom of last page) ---
   const footerY = pageH - margin - footerH;
   doc.rect(margin, footerY, pageW - margin * 2, footerH);
   setFont(7, "normal");
-  doc.text(
-    "\n"+
-    "DATA PRIVACY: Sebastinian Office of Legal Aid (SOLA) College of Law is committed to upholding the Philippine Data Privacy Act which implements the\n" +
-      "Constitutional right to informational privacy of data subjects. This form is operated and maintained by the SOLA. Your personal information is collected and\n" +
-      "processed in order for us to verify your identity, assess your application, and contact you about your case. Rest assured the information provided herein will\n" +
-      "be treated with utmost confidentiality.",
-    margin + 2,
-    footerY + 6
-  );
+  doc.text(privacyLines, margin + 2, footerY + 3 + privacyLh);
 };
 // Robust fetch helper: tries absolute/relative and retries with 127.0.0.1 if localhost fails,
 // and avoids returning HTML pages (dev server 404) which break binary parsers like mammoth.

@@ -340,24 +340,6 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
             </Grid.Col>
           </Grid>
 
-          <Box>
-            <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Telephone Number</Text>
-            <TextInput
-              placeholder="(02) 1234-5678"
-              size="sm"
-              {...register('telephoneNumber', validationRules.telephoneNumber)}
-              error={errors.telephoneNumber?.message}
-              value={watch('telephoneNumber') || ''}
-              onChange={(e) => {
-                const formatted = formatTelephoneNumber(e.target.value);
-                setValue('telephoneNumber', formatted);
-              }}
-              onFocus={(e) => {
-                if (!e.target.value || e.target.value === '') setValue('telephoneNumber', '(');
-              }}
-              styles={{ input: { borderColor: errors.telephoneNumber ? '#E74C3C' : '#E0E0E0' } }}
-            />
-          </Box>
         </Stack>
       </Paper>
 
@@ -382,6 +364,25 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
               {...register('presentAddress', validationRules.presentAddress)}
               error={errors.presentAddress?.message}
               styles={{ input: { borderColor: errors.presentAddress ? '#E74C3C' : '#E0E0E0' } }}
+            />
+          </Box>
+
+          <Box>
+            <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Present Address Telephone Number</Text>
+            <TextInput
+              placeholder="(02) 1234-5678"
+              size="sm"
+              {...register('presentAddressTelephone', validationRules.presentAddressTelephone)}
+              error={errors.presentAddressTelephone?.message}
+              value={watch('presentAddressTelephone') || ''}
+              onChange={(e) => {
+                const formatted = formatTelephoneNumber(e.target.value);
+                setValue('presentAddressTelephone', formatted);
+              }}
+              onFocus={(e) => {
+                if (!e.target.value || e.target.value === '') setValue('presentAddressTelephone', '(');
+              }}
+              styles={{ input: { borderColor: errors.presentAddressTelephone ? '#E74C3C' : '#E0E0E0' } }}
             />
           </Box>
 
@@ -412,6 +413,25 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
                   cursor: sameAsPresent ? 'not-allowed' : 'text',
                 },
               }}
+            />
+          </Box>
+
+          <Box>
+            <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Permanent Address Telephone Number</Text>
+            <TextInput
+              placeholder="(02) 1234-5678"
+              size="sm"
+              {...register('permanentAddressTelephone', validationRules.permanentAddressTelephone)}
+              error={errors.permanentAddressTelephone?.message}
+              value={watch('permanentAddressTelephone') || ''}
+              onChange={(e) => {
+                const formatted = formatTelephoneNumber(e.target.value);
+                setValue('permanentAddressTelephone', formatted);
+              }}
+              onFocus={(e) => {
+                if (!e.target.value || e.target.value === '') setValue('permanentAddressTelephone', '(');
+              }}
+              styles={{ input: { borderColor: errors.permanentAddressTelephone ? '#E74C3C' : '#E0E0E0' } }}
             />
           </Box>
         </Stack>

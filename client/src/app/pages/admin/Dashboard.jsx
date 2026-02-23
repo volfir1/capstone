@@ -55,6 +55,7 @@ import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { useLocation } from 'react-router-dom';
 import DashboardSkeleton from '@/components/skeleton/DashboardSkeleton';
+import { getSocket } from '@/config/socket';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -191,6 +192,17 @@ export default function AdminDashboard() {
       fetchFinalized();
     }
   }, [userData, location]);
+
+  // Real-time: refresh review list when a new review is pushed via Socket.IO
+  useEffect(() => {
+    const socket = getSocket();
+    const handleNewReview = () => {
+      fetchReviews();
+      fetchStats();
+    };
+    socket.on('new-review', handleNewReview);
+    return () => { socket.off('new-review', handleNewReview); };
+  }, []);
 
   const searchFilteredReviews = useMemo(() => {
     return reviews.filter(r => {

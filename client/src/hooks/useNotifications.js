@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import apiClient from '@config/api/apiClient';
 import notificationSound from '@assets/audio/notification.mp3';
+import { getSocket } from '@/config/socket';
 
 const POLL_INTERVAL = 10000; // 10 seconds
 
@@ -91,14 +92,23 @@ export function useNotifications() {
     }
   }, []);
 
-  // Initial fetch + polling (always fetches full list)
+  // Initial fetch + polling + real-time socket listener
   useEffect(() => {
     mountedRef.current = true;
     fetchNotifications();
     intervalRef.current = setInterval(() => fetchNotifications(), POLL_INTERVAL);
+
+    // Listen for real-time notification pushes via Socket.IO
+    const socket = getSocket();
+    const handleNewNotification = () => {
+      if (mountedRef.current) fetchNotifications();
+    };
+    socket.on('new-notification', handleNewNotification);
+
     return () => {
       mountedRef.current = false;
       clearInterval(intervalRef.current);
+      socket.off('new-notification', handleNewNotification);
     };
   }, [fetchNotifications]);
 
