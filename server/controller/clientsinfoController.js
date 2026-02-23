@@ -290,6 +290,8 @@ export const updateClientsInfo = async (req, res) => {
     setField('contactNumber')
     setField('cellphoneNumber')
     setField('telephoneNumber')
+    setField('presentAddressTelephone')
+    setField('permanentAddressTelephone')
     setField('email')
     setField('presentAddress')
     setField('permanentAddress')

@@ -1,6 +1,8 @@
 import './config/env.js'; // MUST BE VERY FIRST - loads environment variables
 
 import express from "express"
+import http from 'http'
+import { Server as SocketIOServer } from 'socket.io'
 import mongoose from 'mongoose'
 import userRoutes from './routes/userRoutes.js'
 import authRoutes from './routes/authRoutes.js'
@@ -26,6 +28,7 @@ import upload from './config/multerConfig.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
+import { setIO } from './socket.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +43,30 @@ admin.initializeApp({
 });
 
 const app = express()
+
+// ── HTTP server + Socket.IO ──
+const httpServer = http.createServer(app);
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true,
+  },
+});
+setIO(io);
+
+// Track connected users by their Firebase UID for targeted events
+io.on('connection', (socket) => {
+  // Client sends its firebaseUid after connecting
+  socket.on('register', (firebaseUid) => {
+    if (firebaseUid) {
+      socket.join(firebaseUid); // join a room named after the uid
+      console.log(`[Socket] User ${firebaseUid} registered (socket ${socket.id})`);
+    }
+  });
+  socket.on('disconnect', () => {
+    // rooms are auto-cleaned up by socket.io
+  });
+});
 
 // Security Headers
 app.use(helmet({
@@ -609,7 +636,7 @@ process.on('SIGINT', async () => {
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST // This is just for display, not required
 
-app.listen(PORT, '0.0.0.0', () => { // 0.0.0.0 means accept from any IP
+httpServer.listen(PORT, '0.0.0.0', () => { // 0.0.0.0 means accept from any IP
     console.log(`Server running at port ${PORT}`)
     console.log(`Local: http://localhost:${PORT}`)
     console.log(`Network: Access from your current WiFi IP`)

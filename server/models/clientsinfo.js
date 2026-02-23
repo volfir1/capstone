@@ -39,6 +39,8 @@ const ClientsInfoSchema = new mongoose.Schema({
   contactNumber: { type: String },
   cellphoneNumber: { type: String },
   telephoneNumber: { type: String },
+  presentAddressTelephone: { type: String },
+  permanentAddressTelephone: { type: String },
   email: { type: String },
   presentAddress: { type: String },
   permanentAddress: { type: String },

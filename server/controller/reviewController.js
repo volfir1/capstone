@@ -3,6 +3,7 @@ import User from '../models/user.js'
 import Attorney from '../models/attorney.js'
 import Case from '../models/case.js'
 import { createNotification } from './notificationController.js'
+import { getIO } from '../socket.js'
 
 export const createReview = async (req, res) => {
   try {
@@ -35,8 +36,10 @@ export const createReview = async (req, res) => {
       const users = await User.find({ role: roleToNotify }).select('firebaseUid').lean();
       const attorneys = await Attorney.find({ role: roleToNotify }).select('firebaseUid').lean();
       const allRecipients = [...users, ...attorneys];
+      const io = getIO();
       for (const r of allRecipients) {
         if (r.firebaseUid) {
+          // Persistent notification
           createNotification({
             recipientId: r.firebaseUid,
             title: 'Review Pending',
@@ -44,6 +47,21 @@ export const createReview = async (req, res) => {
             type: 'review_pending',
             referenceId: review.caseId,
           });
+          // Real-time push via Socket.IO
+          if (io) {
+            // Push new-review event so dashboard updates without refresh
+            io.to(r.firebaseUid).emit('new-review', {
+              _id: review._id,
+              caseId: review.caseId,
+              caseTitle: review.caseTitle,
+              clientName: review.clientName,
+              reviewStage: review.reviewStage,
+              step: review.step,
+              createdAt: review.createdAt,
+            });
+            // Push notification event so bell updates instantly
+            io.to(r.firebaseUid).emit('new-notification');
+          }
         }
       }
     }
