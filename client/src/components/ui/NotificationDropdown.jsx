@@ -35,6 +35,8 @@ const TYPE_CONFIG = {
   case_accepted:       { icon: IconGavel,         color: '#10B981' },
   case_rejected:       { icon: IconAlertCircle,   color: '#EF4444' },
   review_pending:      { icon: IconCheckbox,      color: '#F97316' },
+  review_returned:     { icon: IconAlertCircle,   color: '#EF4444' },
+  review_resubmitted:  { icon: IconCheckbox,      color: '#3B82F6' },
   account_verified:    { icon: IconChecks,        color: '#10B981' },
   general:             { icon: IconBell,          color: ACCENT_TAN },
 };

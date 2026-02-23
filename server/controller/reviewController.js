@@ -146,10 +146,126 @@ export const updateReview = async (req, res) => {
     if (caseTitle) toUpdate.caseTitle = caseTitle
     if (clientName) toUpdate.clientName = clientName
 
+    // Fetch the old review to detect stage transitions
+    const oldReview = await Review.findById(id).lean()
+    const oldStage = oldReview?.reviewStage
+
     const updated = await Review.findByIdAndUpdate(id, toUpdate, { new: true })
     if (!updated) {
       return res.status(404).json({ error: 'Review not found' })
     }
+
+    // ── Send notifications on reviewStage transitions ──
+    const newStage = updated.reviewStage
+    if (newStage && newStage !== oldStage) {
+      const reviewClientName = updated.clientName || clientName || ''
+      const io = getIO()
+
+      const notifyUsers = async (roles, title, message, type) => {
+        const users = await User.find({ role: { $in: roles } }).select('firebaseUid').lean()
+        const attorneys = await Attorney.find({ role: { $in: roles } }).select('firebaseUid').lean()
+        const recipients = [...users, ...attorneys]
+        for (const r of recipients) {
+          if (!r.firebaseUid) continue
+          createNotification({
+            recipientId: r.firebaseUid,
+            title,
+            message,
+            type,
+            referenceId: updated.caseId,
+          })
+          if (io) {
+            io.to(r.firebaseUid).emit('new-review', {
+              _id: updated._id,
+              caseId: updated.caseId,
+              caseTitle: updated.caseTitle,
+              clientName: updated.clientName,
+              reviewStage: updated.reviewStage,
+              step: updated.step,
+              updatedAt: updated.updatedAt,
+            })
+            io.to(r.firebaseUid).emit('new-notification', {
+              title,
+              message,
+              type,
+              referenceId: updated.caseId,
+            })
+          }
+        }
+      }
+
+      const notifyById = async (recipientId, title, message, type) => {
+        if (!recipientId) return
+        // Try both User and Attorney to find the firebaseUid
+        let recipient = await User.findById(recipientId).select('firebaseUid').lean()
+        if (!recipient) recipient = await Attorney.findById(recipientId).select('firebaseUid').lean()
+        // Also try matching by firebaseUid directly
+        if (!recipient) recipient = await User.findOne({ firebaseUid: recipientId }).select('firebaseUid').lean()
+        if (!recipient) recipient = await Attorney.findOne({ firebaseUid: recipientId }).select('firebaseUid').lean()
+        if (!recipient?.firebaseUid) return
+        createNotification({
+          recipientId: recipient.firebaseUid,
+          title,
+          message,
+          type,
+          referenceId: updated.caseId,
+        })
+        if (io) {
+          io.to(recipient.firebaseUid).emit('new-review', {
+            _id: updated._id,
+            caseId: updated.caseId,
+            caseTitle: updated.caseTitle,
+            clientName: updated.clientName,
+            reviewStage: updated.reviewStage,
+            step: updated.step,
+            updatedAt: updated.updatedAt,
+          })
+          io.to(recipient.firebaseUid).emit('new-notification', {
+            title,
+            message,
+            type,
+            referenceId: updated.caseId,
+          })
+        }
+      }
+
+      try {
+        if (newStage === 'returned_to_intern') {
+          // Supervising lawyer or director returned to intern — notify the original creator
+          const msg = reviewClientName
+            ? `A case has been returned for revision. Client: ${reviewClientName}`
+            : 'A case has been returned for revision.'
+          // Notify the original reviewer (intern/secretary) by their stored reviewerId
+          if (updated.reviewerId) {
+            await notifyById(updated.reviewerId, 'Case Returned for Revision', msg, 'review_returned')
+          }
+          // Also notify all interns and secretaries so no one misses it
+          await notifyUsers(['intern', 'secretary'], 'Case Returned for Revision', msg, 'review_returned')
+        } else if (newStage === 'supervising_lawyer' && oldStage === 'returned_to_intern') {
+          // Intern resubmitted after revision — notify supervising lawyers
+          const msg = reviewClientName
+            ? `A revised case has been resubmitted for review. Client: ${reviewClientName}`
+            : 'A revised case has been resubmitted for review.'
+          await notifyUsers(['supervising_lawyer'], 'Revised Case Resubmitted', msg, 'review_resubmitted')
+        } else if (newStage === 'supervising_lawyer' && oldStage === 'director') {
+          // Director returned to supervising lawyer — notify supervising lawyers
+          const msg = reviewClientName
+            ? `A case has been returned by the Director for further review. Client: ${reviewClientName}`
+            : 'A case has been returned by the Director for further review.'
+          await notifyUsers(['supervising_lawyer'], 'Case Returned by Director', msg, 'review_returned')
+        } else if (newStage === 'director' && oldStage === 'supervising_lawyer') {
+          // Supervising lawyer approved to director — notify directors
+          const msg = reviewClientName
+            ? `A case has been forwarded for your approval. Client: ${reviewClientName}`
+            : 'A case has been forwarded for your approval.'
+          await notifyUsers(['director'], 'Case Ready for Approval', msg, 'review_pending')
+        }
+      } catch (notifErr) {
+        // Never let notification failures break the main update flow
+        console.error('Error sending review stage notification:', notifErr)
+      }
+    }
+
     res.json(updated)
   } catch (err) {
     console.error('updateReview error', err)
