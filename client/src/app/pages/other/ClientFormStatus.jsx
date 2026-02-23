@@ -334,7 +334,7 @@ export default function StaffAppointmentManager() {
             <Button size="compact-xs" radius="md" fw={600} style={{ backgroundColor: PRIMARY_BROWN }} onClick={() => handleRecordToCalendars(item)} loading={isUpdating}>Approve</Button>
           ) : (
             !['director', 'supervising_lawyer'].includes(userData?.role) && (
-              <Button size="compact-xs" variant="outline" radius="md" fw={600} style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }} onClick={() => navigate(`/admin/recommendation/${item.id}`)}>Interview</Button>
+              <Button size="compact-xs" variant="outline" radius="md" fw={600} style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }} onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { showClientInfo: true } })}>Interview</Button>
             )
           )}
           <Button size="compact-xs" variant="light" radius="md" fw={600} color="gray" onClick={() => openAppointmentModal(item.id)}>Details</Button>

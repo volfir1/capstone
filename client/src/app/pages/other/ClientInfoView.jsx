@@ -65,14 +65,12 @@ export default function ClientInfoView() {
           telephoneNumber: d?.telephoneNumber || '',
           presentAddressTelephone: d?.presentAddressTelephone || '',
           permanentAddressTelephone: d?.permanentAddressTelephone || '',
-          email: d?.email || '',
           presentAddress: d?.presentAddress || '',
           permanentAddress: d?.permanentAddress || '',
           spouse: d?.spouseName || d?.spouse || '',
           throughRelator: d?.throughRelator || (hasRelator ? 'yes' : 'no'),
           relatorName: d?.relatorName || '',
           relationshipToClient: d?.relationshipToClient || '',
-          relatorContactNumber: d?.relatorContactNumber || '',
           currentSourceOfIncome: d?.currentSourceOfIncome || '',
           monthlyIncome: d?.monthlyIncome !== undefined && d?.monthlyIncome !== null ? String(d.monthlyIncome) : '',
           natureOfWork: d?.natureOfWork || '',
@@ -141,14 +139,12 @@ export default function ClientInfoView() {
       telephoneNumber: values.telephoneNumber || undefined,
       presentAddressTelephone: values.presentAddressTelephone || undefined,
       permanentAddressTelephone: values.permanentAddressTelephone || undefined,
-      email: values.email || undefined,
       presentAddress: values.presentAddress || undefined,
       permanentAddress: values.permanentAddress || undefined,
       spouseName: values.spouse || undefined,
       throughRelator: values.throughRelator || undefined,
       relatorName: values.relatorName || undefined,
       relationshipToClient: values.relationshipToClient || undefined,
-      relatorContactNumber: values.relatorContactNumber || undefined,
       currentSourceOfIncome: values.currentSourceOfIncome || undefined,
       monthlyIncome: values.monthlyIncome || undefined,
       natureOfWork: values.natureOfWork || undefined,
@@ -217,14 +213,12 @@ export default function ClientInfoView() {
         telephoneNumber: d?.telephoneNumber || '',
         presentAddressTelephone: d?.presentAddressTelephone || '',
         permanentAddressTelephone: d?.permanentAddressTelephone || '',
-        email: d?.email || '',
         presentAddress: d?.presentAddress || '',
         permanentAddress: d?.permanentAddress || '',
         spouse: d?.spouseName || d?.spouse || '',
         throughRelator: d?.throughRelator || (hasRelator ? 'yes' : 'no'),
         relatorName: d?.relatorName || '',
         relationshipToClient: d?.relationshipToClient || '',
-        relatorContactNumber: d?.relatorContactNumber || '',
         currentSourceOfIncome: d?.currentSourceOfIncome || '',
         monthlyIncome: d?.monthlyIncome !== undefined && d?.monthlyIncome !== null ? String(d.monthlyIncome) : '',
         natureOfWork: d?.natureOfWork || '',
@@ -264,7 +258,7 @@ export default function ClientInfoView() {
       case 1:
         return <FinancialDetailsForm register={register} errors={errors} setValue={setValue} watch={watch} />;
       case 2:
-        return <CaseDetailsForm register={register} errors={errors} />;
+        return <CaseDetailsForm register={register} errors={errors} watch={watch} setValue={setValue} />;
       case 3:
         return <ReviewForm formData={{}} getValues={getValues} setValue={setValue} />;
       default:
@@ -388,14 +382,76 @@ export default function ClientInfoView() {
               )}
 
               <Group gap="xs">
-                {!['director', 'supervising_lawyer'].includes(userData?.role) && (
+                {active === totalSteps - 1 && !['director', 'supervising_lawyer'].includes(userData?.role) && (
                   <Button
                     color={PRIMARY_BROWN}
                     radius="md"
                     fw={600}
                     variant="light"
                     rightSection={<IconArrowRight size={16} />}
-                    onClick={() => navigate(`/admin/recommendation/${id}`)}
+                    loading={saving}
+                    onClick={async () => {
+                      // Save the client information sheet first, then navigate
+                      const values = getValues();
+                      const payload = {
+                        fullName: values.name || undefined,
+                        name: values.name || undefined,
+                        age: values.age ? Number(values.age) : undefined,
+                        birthday: values.birthday || undefined,
+                        sex: values.sex || undefined,
+                        civilStatus: values.civilStatus || undefined,
+                        citizenship: values.citizenship || undefined,
+                        contactNumber: values.contactNumber || undefined,
+                        cellphoneNumber: values.cellphoneNumber || undefined,
+                        telephoneNumber: values.telephoneNumber || undefined,
+                        presentAddressTelephone: values.presentAddressTelephone || undefined,
+                        permanentAddressTelephone: values.permanentAddressTelephone || undefined,
+                        presentAddress: values.presentAddress || undefined,
+                        permanentAddress: values.permanentAddress || undefined,
+                        spouseName: values.spouse || undefined,
+                        throughRelator: values.throughRelator || undefined,
+                        relatorName: values.relatorName || undefined,
+                        relationshipToClient: values.relationshipToClient || undefined,
+                        currentSourceOfIncome: values.currentSourceOfIncome || undefined,
+                        monthlyIncome: values.monthlyIncome || undefined,
+                        natureOfWork: values.natureOfWork || undefined,
+                        employerName: values.employerName || undefined,
+                        employerAddress: values.employerAddress || undefined,
+                        employerTelephone: values.employerTelephone || undefined,
+                        spouseSourceOfIncome: values.spouseSourceOfIncome || undefined,
+                        spouseMonthlyIncome: values.spouseMonthlyIncome || undefined,
+                        spouseEmployerAddress: values.spouseEmployerAddress || undefined,
+                        totalCombinedIncome: values.totalCombinedIncome || undefined,
+                        partyRepresented: values.partyRepresented || undefined,
+                        venue: values.venue || undefined,
+                        caseNumber: values.caseNumber || undefined,
+                        presentStage: values.presentStage || undefined,
+                        caseNature: values.caseNature || undefined,
+                        courtDivision: values.courtDivision || undefined,
+                        courtAddress: values.courtAddress || undefined,
+                        courtPhoneNumber: values.courtPhoneNumber || undefined,
+                        presidingOfficer: values.presidingOfficer || undefined,
+                        adverseParty: values.adverseParty || undefined,
+                        adversePartyAddress: values.adversePartyAddress || undefined,
+                        adversePartyCounsel: values.adversePartyCounsel || undefined,
+                        adversePartyCounselAddress: values.adversePartyCounselAddress || undefined,
+                        adversePartyCounselPhone: values.adversePartyCounselPhone || undefined,
+                        caseDescription: values.caseDescription || undefined,
+                        appointedDate: values.appointedDate || undefined,
+                        appointmentTime: values.appointmentTime || undefined,
+                      };
+                      setSaving(true);
+                      try {
+                        await apiClient.put(`/clientsinfo/${id}`, payload);
+                        notifications.show({ title: 'Saved', message: 'Client information saved. Proceeding to interview...', color: 'green' });
+                        navigate(`/admin/recommendation/${id}`, { state: { showClientInfo: true } });
+                      } catch (err) {
+                        console.error('Error saving before interview:', err);
+                        notifications.show({ title: 'Error', message: 'Failed to save client information.', color: 'red' });
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
                   >
                     Interview
                   </Button>

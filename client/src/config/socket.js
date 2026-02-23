@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 // Auto-reconnects on disconnect.
 
 let socket = null;
+let registeredUid = null;
 
 /**
  * Get or create the shared socket instance.
@@ -35,6 +36,11 @@ export const getSocket = () => {
 
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket.id);
+      // Re-register the user's UID on every (re)connect so the server
+      // always knows which room this socket belongs to.
+      if (registeredUid) {
+        socket.emit('register', registeredUid);
+      }
     });
 
     socket.on('disconnect', (reason) => {
@@ -48,13 +54,13 @@ export const getSocket = () => {
  * Register the current user's Firebase UID so the server can target them.
  */
 export const registerUser = (firebaseUid) => {
+  registeredUid = firebaseUid || null;
   const s = getSocket();
   if (firebaseUid && s.connected) {
     s.emit('register', firebaseUid);
-  } else if (firebaseUid) {
-    // If not connected yet, register once connected
-    s.once('connect', () => s.emit('register', firebaseUid));
   }
+  // No need for s.once('connect') — the 'connect' handler in getSocket()
+  // will emit 'register' automatically on every (re)connect.
 };
 
 /**
@@ -65,4 +71,5 @@ export const disconnectSocket = () => {
     socket.disconnect();
     socket = null;
   }
+  registeredUid = null;
 };

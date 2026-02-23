@@ -51,17 +51,22 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString();
 }
 
-function NotificationItem({ notification, onRead, onDelete }) {
+function NotificationItem({ notification, onRead, onDelete, onNavigate }) {
   const config = TYPE_CONFIG[notification.type] || TYPE_CONFIG.general;
   const Icon = config.icon;
 
   return (
     <Box
-      onClick={() => !notification.read && onRead(notification._id)}
+      onClick={() => {
+        if (!notification.read) onRead(notification._id);
+        if (onNavigate && notification.referenceId) {
+          onNavigate(notification.referenceId, notification.type);
+        }
+      }}
       style={{
         padding: '12px 16px',
         background: notification.read ? 'transparent' : '#FDFAF5',
-        cursor: notification.read ? 'default' : 'pointer',
+        cursor: (onNavigate && notification.referenceId) ? 'pointer' : (notification.read ? 'default' : 'pointer'),
         borderLeft: notification.read ? '3px solid transparent' : `3px solid ${config.color}`,
         transition: 'background 0.15s',
         position: 'relative',
@@ -134,6 +139,7 @@ export default function NotificationDropdown({
   onReadAll,
   onDelete,
   onRefresh,
+  onNavigate,
 }) {
   const [opened, setOpened] = React.useState(false);
 
@@ -235,6 +241,10 @@ export default function NotificationDropdown({
                     notification={n}
                     onRead={onRead}
                     onDelete={onDelete}
+                    onNavigate={(referenceId, type) => {
+                      setOpened(false);
+                      if (onNavigate) onNavigate(referenceId, type);
+                    }}
                   />
                 </React.Fragment>
               ))}

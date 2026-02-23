@@ -58,7 +58,7 @@ const Layout = ({
     markAllAsRead,
     deleteNotification,
     refresh: refreshNotifications,
-  } = useNotifications();
+  } = useNotifications(navigate);
   
   const currentPath = window.location.pathname;
   const actualUserRole = userData?.role || "client";
@@ -282,6 +282,13 @@ const Layout = ({
                 onReadAll={markAllAsRead}
                 onDelete={deleteNotification}
                 onRefresh={refreshNotifications}
+                onNavigate={(referenceId, type) => {
+                  if (referenceId) {
+                    navigate(`/admin/recommendation/${referenceId}`, {
+                      state: { showClientInfo: true, isViewingExistingReview: true },
+                    });
+                  }
+                }}
               />
 
               <Menu shadow="md" width={180} position="bottom-end">

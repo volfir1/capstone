@@ -80,9 +80,15 @@ export const createClientsInfo = async (req, res) => {
       email: payload.email,
       presentAddress: payload.presentAddress,
       permanentAddress: payload.permanentAddress,
-      spouseName: payload.spouseName,
+      spouseName: payload.spouseName || payload.spouse,
       relatorName: payload.relatorName,
+      relationshipToClient: payload.relationshipToClient,
       relatorContactNumber: payload.relatorContactNumber,
+      cellphoneNumber: payload.cellphoneNumber,
+      telephoneNumber: payload.telephoneNumber,
+      presentAddressTelephone: payload.presentAddressTelephone,
+      permanentAddressTelephone: payload.permanentAddressTelephone,
+      throughRelator: payload.throughRelator,
       
       // Financial Details fields
       currentSourceOfIncome: payload.currentSourceOfIncome,
@@ -90,6 +96,11 @@ export const createClientsInfo = async (req, res) => {
       natureOfWork: payload.natureOfWork,
       employerName: payload.employerName,
       employerAddress: payload.employerAddress,
+      employerTelephone: payload.employerTelephone,
+      spouseSourceOfIncome: payload.spouseSourceOfIncome,
+      spouseMonthlyIncome: payload.spouseMonthlyIncome,
+      spouseEmployerAddress: payload.spouseEmployerAddress,
+      totalCombinedIncome: payload.totalCombinedIncome,
       dependents: payload.dependents,
       
       // Case Details fields
@@ -100,9 +111,14 @@ export const createClientsInfo = async (req, res) => {
       natureOfCase: payload.natureOfCase,
       courtDivision: payload.courtDivision,
       courtAddress: payload.courtAddress,
+      courtPhoneNumber: payload.courtPhoneNumber,
       presidingOfficer: payload.presidingOfficer,
       caseDescription: payload.caseDescription,
       adverseParty: payload.adverseParty,
+      adversePartyAddress: payload.adversePartyAddress,
+      adversePartyCounsel: payload.adversePartyCounsel,
+      adversePartyCounselAddress: payload.adversePartyCounselAddress,
+      adversePartyCounselPhone: payload.adversePartyCounselPhone,
       legalMatter: payload.legalMatter,
       location: payload.location,
       appointmentType: payload.appointmentType,
@@ -296,6 +312,10 @@ export const updateClientsInfo = async (req, res) => {
     setField('presentAddress')
     setField('permanentAddress')
     setField('spouseName')
+    // Also accept 'spouse' as alias for 'spouseName'
+    if (!Object.prototype.hasOwnProperty.call(payload, 'spouseName') && Object.prototype.hasOwnProperty.call(payload, 'spouse')) {
+      update.spouseName = payload.spouse
+    }
     setField('throughRelator')
     setField('relatorName')
     setField('relationshipToClient')

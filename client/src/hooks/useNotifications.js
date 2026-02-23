@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, createElement } from 'react';
 import apiClient from '@config/api/apiClient';
 import notificationSound from '@assets/audio/notification.mp3';
 import { getSocket } from '@/config/socket';
+import { notifications as mantineNotifications } from '@mantine/notifications';
 
-const POLL_INTERVAL = 10000; // 10 seconds
+const POLL_INTERVAL = 60000; // 60 seconds (backup only — real-time updates via Socket.IO)
 
-export function useNotifications() {
+export function useNotifications(navigate) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -96,12 +97,45 @@ export function useNotifications() {
   useEffect(() => {
     mountedRef.current = true;
     fetchNotifications();
+    // Polling is a fallback in case a socket event is missed; primary updates come from Socket.IO
     intervalRef.current = setInterval(() => fetchNotifications(), POLL_INTERVAL);
 
     // Listen for real-time notification pushes via Socket.IO
     const socket = getSocket();
-    const handleNewNotification = () => {
-      if (mountedRef.current) fetchNotifications();
+    const handleNewNotification = (data) => {
+      if (mountedRef.current) {
+        fetchNotifications();
+        // Show a toast popup so the user sees the notification immediately
+        if (data && data.title) {
+          const canNavigate = navigate && data.referenceId;
+          mantineNotifications.show({
+            title: data.title,
+            message: canNavigate
+              ? createElement(
+                  'div',
+                  {
+                    onClick: () => {
+                      mantineNotifications.clean();
+                      navigate(`/admin/recommendation/${data.referenceId}`, {
+                        state: { showClientInfo: true, isViewingExistingReview: true },
+                      });
+                    },
+                    style: { cursor: 'pointer', margin: '-4px -8px', padding: '4px 8px' },
+                  },
+                  createElement('div', null, data.message || ''),
+                  createElement(
+                    'div',
+                    { style: { fontSize: 11, color: '#886b30', fontWeight: 600, marginTop: 6 } },
+                    'Click to view →'
+                  )
+                )
+              : data.message || '',
+            color: 'orange',
+            autoClose: 6000,
+            style: canNavigate ? { cursor: 'pointer' } : undefined,
+          });
+        }
+      }
     };
     socket.on('new-notification', handleNewNotification);
 

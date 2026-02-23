@@ -23,7 +23,9 @@ import {
     Alert,
     Modal,
     Timeline,
-    ScrollArea
+    ScrollArea,
+    Loader,
+    Center
 } from '@mantine/core';
 import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconArrowLeft, IconUpload, IconFile, IconX, IconDownload, IconEye, IconClock, IconCheck } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
@@ -31,16 +33,14 @@ import { useLocation, useParams, useSearchParams, useNavigate } from 'react-rout
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
 
-// Configure PDF.js worker in a way compatible with Vite. Avoid `?url` imports
-// which can fail in some environments — build a file URL pointing to
-// the `pdf.worker.min.js` inside the local `node_modules` so Vite treats
-// it as an asset to copy.
-// try {
-//     const pdfWorkerUrl = new URL('../../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js', import.meta.url).href;
-//     pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-// } catch (err) {
-//     console.warn('Could not set pdfjs workerSrc via node_modules URL, falling back to CDN or default:', err);
-// }
+// Configure PDF.js worker — try local node_modules first, fall back to CDN
+try {
+    const pdfWorkerUrl = new URL('../../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js', import.meta.url).href;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+} catch (err) {
+    console.warn('Could not set pdfjs workerSrc via node_modules URL, falling back to CDN:', err);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+}
 
 // Normalize server file URLs so client always requests the backend, not the dev server origin
 const getServerFileUrl = (pathOrUrl) => {
@@ -332,8 +332,9 @@ const PdfViewer = ({ url, fileData }) => {
                 } else if (fileData && fileData instanceof ArrayBuffer) {
                     arrayBuffer = fileData;
                 } else if (url) {
-                    const resp = await fetch(url);
-                    arrayBuffer = await resp.arrayBuffer();
+                    // Use robust fetch helper that retries multiple URL variants
+                    // and skips HTML responses from dev server 404s
+                    arrayBuffer = await fetchArrayBufferFromUrl(url);
                 }
 
                 if (!arrayBuffer) throw new Error('No PDF data');
@@ -921,6 +922,11 @@ export default function CaseRecordFormsDisplay() {
     const { caseId: caseIdParam } = useParams();
     const navigate = useNavigate();
 
+    // Client Information Sheet side panel state
+    const [showClientInfoPanel, setShowClientInfoPanel] = useState(false);
+    const [clientInfoData, setClientInfoData] = useState(null);
+    const [clientInfoLoading, setClientInfoLoading] = useState(false);
+
     const isFromAutoScheduledApproveFlow = Boolean(location?.state?.fromAutoScheduled);
 
     // Get caseId from URL params, search params, or location state
@@ -941,7 +947,13 @@ export default function CaseRecordFormsDisplay() {
         const review = location?.state?.review;
         const isViewingFlag = location?.state?.isViewingExistingReview;
         const clientInfo = location?.state?.clientInfo; // Get auto-fill data from location state
+        const showInfoPanel = location?.state?.showClientInfo;
         
+        // Show client info panel when reviewing an existing review or explicitly requested
+        if (isViewingFlag || showInfoPanel || review) {
+            setShowClientInfoPanel(true);
+        }
+
         if (review && review.content) {
             // Mark that this is opened from dashboard (has review in location state)
             setIsFromDashboard(true);
@@ -1031,6 +1043,83 @@ export default function CaseRecordFormsDisplay() {
         }
     }, [location]);
 
+    // When navigating from notification click (caseId in URL but no review in state),
+    // fetch the latest review for this caseId and load it into the form.
+    // Re-runs when caseIdParam changes (switching between notifications on the same route).
+    useEffect(() => {
+        const review = location?.state?.review;
+        const showInfoPanel = location?.state?.showClientInfo;
+        const isViewingFlag = location?.state?.isViewingExistingReview;
+        const caseId = getCaseId();
+
+        if (!review && (showInfoPanel || isViewingFlag) && caseId && caseId !== 'new-case') {
+            // Reset stale data before fetching new review
+            setClientInfoData(null);
+            setInterviewInfo({});
+            setActionInfo({});
+            setUploadedFile(null);
+            setDocumentVersions([]);
+
+            (async () => {
+                try {
+                    const res = await apiClient.get(`/reviews/${caseId}`);
+                    const reviews = res.data;
+                    if (reviews && reviews.length > 0) {
+                        const latestReview = reviews[0]; // sorted by createdAt desc
+                        setIsFromDashboard(true);
+                        setIsViewingExistingReview(isViewingFlag || true);
+                        setReviewId(latestReview._id || latestReview.id || null);
+                        setCurrentReviewStage(latestReview.reviewStage || 'supervising_lawyer');
+
+                        const ii = latestReview.content?.interviewInfo || latestReview.interviewInfo || {};
+
+                        // Restore uploaded file if exists
+                        if (ii.uploadedDocument) {
+                            try {
+                                if (ii.uploadedDocument.isServerFile) {
+                                    const mockFile = {
+                                        name: ii.uploadedDocument.fileName,
+                                        size: ii.uploadedDocument.fileSize,
+                                        type: ii.uploadedDocument.fileType,
+                                        serverFile: { url: ii.uploadedDocument.fileUrl, filename: ii.uploadedDocument.filename },
+                                        isServerFile: true,
+                                        uploadedBy: ii.uploadedDocument.uploadedBy,
+                                        uploadedByRole: ii.uploadedDocument.uploadedByRole,
+                                    };
+                                    setUploadedFile(mockFile);
+                                } else if (ii.uploadedDocument.fileData) {
+                                    const { fileName, fileType, fileData } = ii.uploadedDocument;
+                                    fetch(fileData)
+                                        .then(r => r.blob())
+                                        .then(blob => setUploadedFile(new File([blob], fileName, { type: fileType })))
+                                        .catch(err => console.error('Error restoring file:', err));
+                                }
+                            } catch (error) {
+                                console.error('Error processing uploaded document:', error);
+                            }
+                        }
+
+                        if (ii.documentVersions && Array.isArray(ii.documentVersions)) {
+                            setDocumentVersions(ii.documentVersions);
+                        }
+                        if (ii.clientEvidence) {
+                            setInterviewInfo(prev => ({ ...prev, ...ii }));
+                        } else {
+                            setInterviewInfo(ii);
+                        }
+                        if (latestReview.content?.actionInfo) {
+                            setActionInfo(latestReview.content.actionInfo);
+                        }
+                        setShowClientInfoPanel(true);
+                    }
+                } catch (err) {
+                    console.error('Error fetching review from notification:', err);
+                }
+            })();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [caseIdParam]);
+
     // Auto-fill client information when opening from appointment status
     useEffect(() => {
         const fetchClientInfo = async () => {
@@ -1097,6 +1186,28 @@ export default function CaseRecordFormsDisplay() {
         fetchClientInfo();
     }, [getCaseId, isViewingExistingReview, interviewInfo.clientName, location]);
 
+    // Fetch full client information for the side panel
+    // Re-fetch when caseIdParam changes (switching between notifications)
+    useEffect(() => {
+        if (!showClientInfoPanel) return;
+        const caseId = getCaseId();
+        if (!caseId || caseId === 'new-case') return;
+
+        const loadClientInfo = async () => {
+            setClientInfoLoading(true);
+            try {
+                const { default: apiClient } = await import('@config/api/apiClient');
+                const response = await apiClient.get(`/clientsinfo/${caseId}`);
+                setClientInfoData(response.data);
+            } catch (err) {
+                console.error('Error fetching client info for panel:', err);
+            } finally {
+                setClientInfoLoading(false);
+            }
+        };
+        loadClientInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showClientInfoPanel, caseIdParam]);
     
 
     // Clear uploaded file when switching away from 'legal-document' case type
@@ -1168,8 +1279,8 @@ export default function CaseRecordFormsDisplay() {
             return; // Nothing to view
         }
         
-        setCurrentViewingDoc(docToView);
-        // Normalize server-relative or localhost URLs so fetches target the backend
+        // Normalize server-relative or localhost URLs BEFORE setting state
+        // so the component renders with the correct URL on first render
         try {
             if (docToView?.fileUrl && typeof docToView.fileUrl === 'string') {
                 // If backend returned a relative path like "/uploads/..." convert it to absolute
@@ -1194,6 +1305,8 @@ export default function CaseRecordFormsDisplay() {
         } catch (normalizeErr) {
             console.warn('Error normalizing document URL', normalizeErr);
         }
+        
+        setCurrentViewingDoc(docToView);
         
         // If it's a Word document, convert to HTML using mammoth
         const isWordDoc = docToView.fileType?.includes('word') || 
@@ -2098,7 +2211,155 @@ export default function CaseRecordFormsDisplay() {
         { label: "Action", description: "Lawyer & Director" },
     ];
 
-    return (
+    // ── Read-only Client Information Sheet side panel ──
+    const ClientInfoSidePanel = () => {
+        if (clientInfoLoading) {
+            return (
+                <Paper shadow="xs" p="xl" radius="lg" bg="white" h="100%">
+                    <Center h={300}><Stack align="center" gap="md"><Loader size="sm" color={PRIMARY_BROWN} /><Text size="sm" c={MUTED_OLIVE}>Loading client information...</Text></Stack></Center>
+                </Paper>
+            );
+        }
+        if (!clientInfoData) {
+            return (
+                <Paper shadow="xs" p="xl" radius="lg" bg="white" h="100%">
+                    <Center h={200}><Text size="sm" c={MUTED_OLIVE}>No client information available.</Text></Center>
+                </Paper>
+            );
+        }
+
+        const d = clientInfoData;
+        const InfoField = ({ label, value, span = 6 }) => (
+            <Grid.Col span={span}>
+                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>{label}</Text>
+                <Text size="sm" c="#333" fw={500}>{value || 'N/A'}</Text>
+            </Grid.Col>
+        );
+
+        const formatDate = (val) => {
+            if (!val) return 'N/A';
+            try { return new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return val; }
+        };
+
+        return (
+            <Paper shadow="xs" radius="lg" bg="white" style={{ position: 'sticky', top: 20 }}>
+                <Box p="md" style={{ backgroundColor: PRIMARY_BROWN, borderRadius: '8px 8px 0 0' }}>
+                    <Group gap="sm">
+                        <IconFileText size={20} color="white" />
+                        <Text fw={700} size="sm" c="white">Client Information Sheet</Text>
+                    </Group>
+                </Box>
+                <ScrollArea h="calc(100vh - 160px)" p="md" offsetScrollbars>
+                    <Stack gap="lg">
+                        {/* Personal Details */}
+                        <Box>
+                            <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Personal Details</Text>
+                            <Grid gutter="xs">
+                                <InfoField label="Full Name" value={d.fullName || d.name} span={12} />
+                                <InfoField label="Age" value={d.age} />
+                                <InfoField label="Birthday" value={formatDate(d.birthday)} />
+                                <InfoField label="Sex" value={d.sex} />
+                                <InfoField label="Civil Status" value={d.civilStatus} />
+                                <InfoField label="Citizenship" value={d.citizenship} />
+                                <InfoField label="Contact Number" value={d.contactNumber} />
+                                <InfoField label="Cellphone" value={d.cellphoneNumber} />
+                                <InfoField label="Present Address" value={d.presentAddress} span={12} />
+                                <InfoField label="Present Address Tel." value={d.presentAddressTelephone} />
+                                <InfoField label="Permanent Address" value={d.permanentAddress} span={12} />
+                                <InfoField label="Permanent Address Tel." value={d.permanentAddressTelephone} />
+                                <InfoField label="Spouse" value={d.spouseName || d.spouse} span={12} />
+                            </Grid>
+                        </Box>
+                        <Divider />
+
+                        {/* Relator */}
+                        {(d.relatorName || d.relationshipToClient) && (
+                            <>
+                                <Box>
+                                    <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Relator / Representative</Text>
+                                    <Grid gutter="xs">
+                                        <InfoField label="Name" value={d.relatorName} span={12} />
+                                        <InfoField label="Relationship" value={d.relationshipToClient} />
+                                    </Grid>
+                                </Box>
+                                <Divider />
+                            </>
+                        )}
+
+                        {/* Financial Details */}
+                        <Box>
+                            <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Financial Details</Text>
+                            <Grid gutter="xs">
+                                <InfoField label="Source of Income" value={d.currentSourceOfIncome} span={12} />
+                                <InfoField label="Monthly Income" value={d.monthlyIncome} />
+                                <InfoField label="Nature of Work" value={d.natureOfWork} />
+                                <InfoField label="Employer" value={d.employerName} span={12} />
+                                <InfoField label="Employer Address" value={d.employerAddress} span={12} />
+                                <InfoField label="Employer Tel." value={d.employerTelephone} />
+                            </Grid>
+                        </Box>
+                        {(d.spouseSourceOfIncome || d.spouseMonthlyIncome) && (
+                            <Box>
+                                <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Spouse's Income</Text>
+                                <Grid gutter="xs">
+                                    <InfoField label="Source of Income" value={d.spouseSourceOfIncome} span={12} />
+                                    <InfoField label="Monthly Income" value={d.spouseMonthlyIncome} />
+                                    <InfoField label="Employer Address" value={d.spouseEmployerAddress} span={12} />
+                                    <InfoField label="Combined Income" value={d.totalCombinedIncome} />
+                                </Grid>
+                            </Box>
+                        )}
+                        <Divider />
+
+                        {/* Case Details */}
+                        <Box>
+                            <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Case Details</Text>
+                            <Grid gutter="xs">
+                                <InfoField label="Party Represented" value={d.partyRepresented} span={12} />
+                                <InfoField label="Venue" value={d.venue} span={12} />
+                                <InfoField label="Case Number" value={d.caseNumber} />
+                                <InfoField label="Present Stage" value={d.presentStage} />
+                                <InfoField label="Nature of Case" value={d.caseNature || d.natureOfCase} span={12} />
+                                <InfoField label="Court Division" value={d.courtDivision} span={12} />
+                                <InfoField label="Court Address" value={d.courtAddress} span={12} />
+                                <InfoField label="Court Phone" value={d.courtPhoneNumber} />
+                                <InfoField label="Presiding Officer" value={d.presidingOfficer} span={12} />
+                            </Grid>
+                        </Box>
+
+                        {(d.adverseParty || d.adversePartyAddress) && (
+                            <>
+                                <Divider />
+                                <Box>
+                                    <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Adverse Party</Text>
+                                    <Grid gutter="xs">
+                                        <InfoField label="Adverse Party" value={d.adverseParty} span={12} />
+                                        <InfoField label="Address" value={d.adversePartyAddress} span={12} />
+                                        <InfoField label="Counsel" value={d.adversePartyCounsel} span={12} />
+                                        <InfoField label="Counsel Address" value={d.adversePartyCounselAddress} span={12} />
+                                        <InfoField label="Counsel Phone" value={d.adversePartyCounselPhone} />
+                                    </Grid>
+                                </Box>
+                            </>
+                        )}
+
+                        {d.caseDescription && (
+                            <>
+                                <Divider />
+                                <Box>
+                                    <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Case Description</Text>
+                                    <Text size="sm" c="#333" style={{ whiteSpace: 'pre-wrap' }}>{d.caseDescription}</Text>
+                                </Box>
+                            </>
+                        )}
+                    </Stack>
+                </ScrollArea>
+            </Paper>
+        );
+    };
+
+    // Main content wrapped for split layout
+    const mainContent = (
         <Box 
             bg={THEMED_LIGHT_BG} 
             mih="100vh" 
@@ -2447,6 +2708,25 @@ export default function CaseRecordFormsDisplay() {
                     </Stack>
                 </Paper>
             </Container>
+        </Box>
+    );
+
+    return (
+        <>
+            {showClientInfoPanel ? (
+                <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl" px="md">
+                    <Grid gutter="xl">
+                        <Grid.Col span={{ base: 12, lg: 8 }}>
+                            {mainContent}
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, lg: 4 }}>
+                            <ClientInfoSidePanel />
+                        </Grid.Col>
+                    </Grid>
+                </Box>
+            ) : (
+                mainContent
+            )}
             
             {/* Document Viewer Modal */}
             <Modal
@@ -2572,6 +2852,6 @@ export default function CaseRecordFormsDisplay() {
                     </Stack>
                 )}
             </Modal>
-        </Box>
+        </>
     );
 }

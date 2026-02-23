@@ -103,7 +103,7 @@ export default function ReturnedCases() {
                 py="sm"
                 gap="md"
                 style={{ cursor: 'pointer' }}
-                onClick={() => navigate('/admin/recommendation', { state: { review: r } })}
+                onClick={() => navigate('/admin/recommendation', { state: { review: r, showClientInfo: true } })}
               >
                 <Box style={{ flex: 1, minWidth: 0 }}>
                   <Group gap={8} align="center" wrap="nowrap">

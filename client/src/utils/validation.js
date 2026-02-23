@@ -163,11 +163,6 @@ export const validationRules = {
   // PERSONAL DETAILS VALIDATION
   // ============================================
   name: {
-    required: "Name is required",
-    minLength: { 
-      value: 2, 
-      message: "Name must be at least 2 characters" 
-    },
     pattern: { 
       value: /^[a-zA-Z\s.'-]+$/, 
       message: "Please enter a valid name" 
@@ -175,7 +170,6 @@ export const validationRules = {
   },
   
   age: {
-    required: "Age is required",
     min: { 
       value: 1, 
       message: "Age must be at least 1" 
@@ -187,8 +181,8 @@ export const validationRules = {
   },
   
   birthday: {
-    required: "Birthday is required",
     validate: (value) => {
+      if (!value) return true;
       const selectedDate = new Date(value);
       const today = new Date();
       return selectedDate <= today || "Birthday cannot be in the future";
@@ -196,40 +190,19 @@ export const validationRules = {
   },
   
   contactNumber: {
-    required: "Contact number is required",
     pattern: { 
       value: /^[\d\s\-+()]+$/, 
       message: "Please enter a valid phone number" 
-    },
-    minLength: {
-      value: 7,
-      message: "Contact number must be at least 7 digits"
     }
   },
   
-  sex: {
-    required: "Sex is required"
-  },
+  sex: {},
   
-  civilStatus: {
-    required: "Civil status is required"
-  },
+  civilStatus: {},
   
-  citizenship: {
-    required: "Citizenship is required",
-    minLength: {
-      value: 2,
-      message: "Citizenship must be at least 2 characters"
-    }
-  },
+  citizenship: {},
   
-  spouse: {
-    // Optional field
-    minLength: {
-      value: 2,
-      message: "Spouse name must be at least 2 characters"
-    }
-  },
+  spouse: {},
   
   cellphoneNumber: {
     pattern: { 
@@ -238,13 +211,7 @@ export const validationRules = {
     }
   },
   
-  presentAddress: {
-    required: "Present address is required",
-    minLength: { 
-      value: 10, 
-      message: "Please provide a complete address" 
-    }
-  },
+  presentAddress: {},
   
   telephoneNumber: {
     pattern: { 
@@ -267,73 +234,33 @@ export const validationRules = {
     }
   },
   
-  permanentAddress: {
-    required: "Permanent address is required",
-    minLength: { 
-      value: 10, 
-      message: "Please provide a complete address" 
-    }
-  },
+  permanentAddress: {},
   
-  relatorName: {
-    minLength: {
-      value: 2,
-      message: "Relator name must be at least 2 characters"
-    }
-  },
+  relatorName: {},
   
-  relationshipToClient: {
-    minLength: {
-      value: 2,
-      message: "Relationship must be at least 2 characters"
-    }
-  },
+  relationshipToClient: {},
   
   // ============================================
   // FINANCIAL DETAILS VALIDATION
   // ============================================
-  currentSourceOfIncome: {
-    required: "Current source of income is required",
-    minLength: {
-      value: 3,
-      message: "Please provide more details"
-    }
-  },
+  currentSourceOfIncome: {},
   
   monthlyIncome: {
-    required: "Monthly income is required",
     min: { 
       value: 0, 
       message: "Income cannot be negative" 
     },
     validate: (value) => {
+      if (!value && value !== 0) return true;
       return !isNaN(value) || "Please enter a valid number";
     }
   },
   
-  natureOfWork: {
-    required: "Nature of work/business is required",
-    minLength: {
-      value: 3,
-      message: "Please provide more details"
-    }
-  },
+  natureOfWork: {},
   
-  employerName: {
-    required: "Employer/Business owner's name is required",
-    minLength: {
-      value: 2,
-      message: "Employer name must be at least 2 characters"
-    }
-  },
+  employerName: {},
   
-  employerAddress: {
-    required: "Employer/Business address is required",
-    minLength: {
-      value: 10,
-      message: "Please provide a complete address"
-    }
-  },
+  employerAddress: {},
   
   employerTelephone: {
     pattern: { 
@@ -342,12 +269,7 @@ export const validationRules = {
     }
   },
   
-  spouseSourceOfIncome: {
-    minLength: {
-      value: 3,
-      message: "Please provide more details"
-    }
-  },
+  spouseSourceOfIncome: {},
   
   spouseMonthlyIncome: {
     min: { 
@@ -356,12 +278,7 @@ export const validationRules = {
     }
   },
   
-  spouseEmployerAddress: {
-    minLength: {
-      value: 10,
-      message: "Please provide a complete address"
-    }
-  },
+  spouseEmployerAddress: {},
   
   totalCombinedIncome: {
     min: { 
@@ -373,61 +290,19 @@ export const validationRules = {
   // ============================================
   // CASE DETAILS VALIDATION
   // ============================================
-  partyRepresented: {
-    required: "Party represented is required",
-    minLength: {
-      value: 3,
-      message: "Please provide more details"
-    }
-  },
+  partyRepresented: {},
   
-  venue: {
-    required: "Venue/City is required",
-    minLength: {
-      value: 2,
-      message: "Venue must be at least 2 characters"
-    }
-  },
+  venue: {},
   
-  caseNumber: {
-    required: "Case/Docket number is required",
-    minLength: {
-      value: 3,
-      message: "Case number must be at least 3 characters"
-    }
-  },
+  caseNumber: {},
   
-  presentStage: {
-    required: "Present stage of the case is required",
-    minLength: {
-      value: 3,
-      message: "Please provide more details"
-    }
-  },
+  presentStage: {},
   
-  caseNature: {
-    required: "Nature of case is required",
-    minLength: { 
-      value: 10, 
-      message: "Please provide more details about the case" 
-    }
-  },
+  caseNature: {},
   
-  courtDivision: {
-    required: "Court/Agency/Tribunal division is required",
-    minLength: {
-      value: 3,
-      message: "Please provide complete information"
-    }
-  },
+  courtDivision: {},
   
-  courtAddress: {
-    required: "Court/Agency/Tribunal address is required",
-    minLength: {
-      value: 10,
-      message: "Please provide a complete address"
-    }
-  },
+  courtAddress: {},
   
   courtPhoneNumber: {
     pattern: { 
@@ -436,41 +311,15 @@ export const validationRules = {
     }
   },
   
-  presidingOfficer: {
-    required: "Presiding officer is required",
-    minLength: {
-      value: 3,
-      message: "Please provide the officer's name"
-    }
-  },
+  presidingOfficer: {},
   
-  adverseParty: {
-    minLength: {
-      value: 2,
-      message: "Party name must be at least 2 characters"
-    }
-  },
+  adverseParty: {},
   
-  adversePartyAddress: {
-    minLength: {
-      value: 10,
-      message: "Please provide a complete address"
-    }
-  },
+  adversePartyAddress: {},
   
-  adversePartyCounsel: {
-    minLength: {
-      value: 2,
-      message: "Counsel name must be at least 2 characters"
-    }
-  },
+  adversePartyCounsel: {},
   
-  adversePartyCounselAddress: {
-    minLength: {
-      value: 10,
-      message: "Please provide a complete address"
-    }
-  },
+  adversePartyCounselAddress: {},
   
   adversePartyCounselPhone: {
     pattern: { 

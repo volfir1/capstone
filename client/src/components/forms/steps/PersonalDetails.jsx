@@ -1,6 +1,6 @@
 import React from 'react';
 import { IconUser, IconInfoCircle, IconCheck, IconCalendar, IconPhone, IconHome, IconUsers } from '@tabler/icons-react';
-import { TextInput, Select, Group, Title, Paper, Grid, Stack, Checkbox, Tooltip, Alert, Text, Box, Radio, Divider } from '@mantine/core';
+import { TextInput, Select, Autocomplete, Group, Title, Paper, Grid, Stack, Checkbox, Tooltip, Alert, Text, Box, Radio, Divider } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { 
   PRIMARY_GOLD, 
@@ -126,6 +126,16 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
     }
   }, [throughRelator, setValue]);
 
+  // Format contact number with +63 when data is fetched/loaded
+  React.useEffect(() => {
+    const rawContact = watch?.('contactNumber');
+    if (rawContact && rawContact !== '+63 ' && !rawContact.startsWith('+63 ')) {
+      const formatted = formatPhoneNumber(rawContact);
+      setValue('contactNumber', formatted);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <Stack gap="md" mt="md">
       {/* Basic Identity */}
@@ -142,7 +152,6 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
           <Box>
             <Group gap={4} mb={6}>
               <Text size="sm" fw={600} c={CHARCOAL}>Name</Text>
-              <Text size="sm" c="red">*</Text>
             </Group>
             <TextInput
               placeholder="Juan Dela Cruz"
@@ -166,7 +175,6 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Birthday</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <DateInput
                 placeholder="Pick your birthday"
@@ -214,7 +222,6 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
             <Grid.Col span={4}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Sex</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <Select
                 placeholder="Select"
@@ -230,14 +237,12 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
             <Grid.Col span={4}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Civil Status</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
-              <Select
-                placeholder="Select"
+              <Autocomplete
+                placeholder="Select or type custom"
                 size="sm"
                 data={CIVIL_STATUS_OPTIONS}
-                {...register('civilStatus', validationRules.civilStatus)}
-                value={watch('civilStatus') || null}
+                value={watch('civilStatus') || ''}
                 onChange={(value) => setValue('civilStatus', value)}
                 error={errors.civilStatus?.message}
                 styles={{ input: { borderColor: errors.civilStatus ? '#E74C3C' : '#E0E0E0' } }}
@@ -246,7 +251,6 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
             <Grid.Col span={4}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Citizenship</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="Filipino"
@@ -259,22 +263,19 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
             </Grid.Col>
           </Grid>
 
-          {/* Spouse Name (conditional) */}
-          {(civilStatus === 'Married' || civilStatus === 'Widowed') && (
-            <Box>
-              <Group gap={4} mb={6}>
-                <Text size="sm" fw={600} c={CHARCOAL}>Spouse Name</Text>
-                {civilStatus === 'Married' && <Text size="sm" c="red">*</Text>}
-              </Group>
-              <TextInput
-                placeholder="Enter spouse name"
-                size="sm"
-                {...register('spouse', validationRules.spouse)}
-                error={errors.spouse?.message}
-                styles={{ input: { borderColor: errors.spouse ? '#E74C3C' : '#E0E0E0' } }}
-              />
-            </Box>
-          )}
+          {/* Spouse Name */}
+          <Box>
+            <Group gap={4} mb={6}>
+              <Text size="sm" fw={600} c={CHARCOAL}>Spouse Name</Text>
+            </Group>
+            <TextInput
+              placeholder="Enter spouse name"
+              size="sm"
+              {...register('spouse', validationRules.spouse)}
+              error={errors.spouse?.message}
+              styles={{ input: { borderColor: errors.spouse ? '#E74C3C' : '#E0E0E0' } }}
+            />
+          </Box>
         </Stack>
       </Paper>
 
@@ -292,7 +293,6 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Contact Number</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="912 345 6789"
@@ -356,7 +356,6 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
           <Box>
             <Group gap={4} mb={6}>
               <Text size="sm" fw={600} c={CHARCOAL}>Present Address</Text>
-              <Text size="sm" c="red">*</Text>
             </Group>
             <TextInput
               placeholder="123 Street, Barangay, City"
@@ -398,7 +397,6 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
           <Box>
             <Group gap={4} mb={6}>
               <Text size="sm" fw={600} c={CHARCOAL}>Permanent Address</Text>
-              <Text size="sm" c="red">*</Text>
             </Group>
             <TextInput
               placeholder="123 Street, Barangay, City"

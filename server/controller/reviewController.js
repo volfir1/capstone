@@ -39,11 +39,16 @@ export const createReview = async (req, res) => {
       const io = getIO();
       for (const r of allRecipients) {
         if (r.firebaseUid) {
+          // Build a human-readable message without raw IDs
+          const notifMessage = review.clientName
+            ? `A case requires your review. Client: ${review.clientName}`
+            : 'A case requires your review.';
+
           // Persistent notification
           createNotification({
             recipientId: r.firebaseUid,
             title: 'Review Pending',
-            message: `Case "${review.caseTitle || review.caseId}" requires your review.${review.clientName ? ` Client: ${review.clientName}` : ''}`,
+            message: notifMessage,
             type: 'review_pending',
             referenceId: review.caseId,
           });
@@ -59,8 +64,13 @@ export const createReview = async (req, res) => {
               step: review.step,
               createdAt: review.createdAt,
             });
-            // Push notification event so bell updates instantly
-            io.to(r.firebaseUid).emit('new-notification');
+            // Push notification event with payload so client can show a toast
+            io.to(r.firebaseUid).emit('new-notification', {
+              title: 'Review Pending',
+              message: notifMessage,
+              type: 'review_pending',
+              referenceId: review.caseId,
+            });
           }
         }
       }

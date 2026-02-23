@@ -481,7 +481,7 @@ export default function AdminDashboard() {
 
             return (
               <Box key={recordId}>
-                <Group px="lg" h={54} gap="xl" wrap="nowrap" style={{ borderLeft: `4px solid ${f.decision === 'accepted' ? '#40C057' : f.decision === 'rejected' ? '#FA5252' : PRIMARY_GOLD}`, background: i % 2 === 0 ? 'white' : '#FAFAFA', cursor: 'pointer' }} onClick={() => navigate('/admin/recommendation', { state: { review: f } })}>
+                <Group px="lg" h={54} gap="xl" wrap="nowrap" style={{ borderLeft: `4px solid ${f.decision === 'accepted' ? '#40C057' : f.decision === 'rejected' ? '#FA5252' : PRIMARY_GOLD}`, background: i % 2 === 0 ? 'white' : '#FAFAFA', cursor: 'pointer' }} onClick={() => navigate('/admin/recommendation', { state: { review: f, showClientInfo: true } })}>
                   <Box style={{ flex: 1.8, minWidth: 0 }}>
                     <Text fw={600} size="sm" c={CHARCOAL} truncate>{clientName || 'Unnamed Client'}</Text>
                   </Box>

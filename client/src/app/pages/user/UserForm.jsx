@@ -177,6 +177,7 @@ export default function UserForm() {
       ...finalData,
       fullName,
       caseNumber,
+      spouseName: finalData.spouse || finalData.spouseName || undefined,
       appointedDate: finalAppointedDate,
       appointmentTime,
       submittedAt: new Date().toISOString(),
@@ -299,7 +300,7 @@ export default function UserForm() {
       case 1:
         return <FinancialDetailsForm register={register} errors={errors} setValue={setValue} watch={watch} />;
       case 2:
-        return <CaseDetailsForm register={register} errors={errors} />;
+        return <CaseDetailsForm register={register} errors={errors} watch={watch} setValue={setValue} />;
       case 3:
         return <ReviewForm formData={formData} getValues={getValues} setValue={setValue} />;
       default:
