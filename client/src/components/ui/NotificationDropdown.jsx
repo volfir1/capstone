@@ -25,6 +25,8 @@ import {
   IconChecks,
 } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, CHARCOAL, ACCENT_TAN } from '@utils/constants';
+import { notifications as mantineNotifications } from '@mantine/notifications';
+import { IconTrash } from '@tabler/icons-react';
 
 // ── Icon + color map by notification type ──
 const TYPE_CONFIG = {
@@ -139,6 +141,7 @@ export default function NotificationDropdown({
   loading,
   onRead,
   onReadAll,
+  onClearAll,
   onDelete,
   onRefresh,
   onNavigate,
@@ -149,6 +152,18 @@ export default function NotificationDropdown({
     setOpened(true);
     // Always fetch fresh data when dropdown opens
     if (onRefresh) onRefresh();
+  };
+
+  const handleClearAll = async () => {
+    if (onClearAll) {
+      await onClearAll();
+      mantineNotifications.show({
+        title: 'Cleared',
+        message: 'All notifications have been deleted.',
+        color: 'green',
+        autoClose: 3000,
+      });
+    }
   };
 
   return (
@@ -215,6 +230,18 @@ export default function NotificationDropdown({
               style={{ fontSize: 11 }}
             >
               Mark all read
+            </Button>
+          )}
+          {notifications && notifications.length > 0 && (
+            <Button
+              variant="subtle"
+              size="compact-xs"
+              color="red"
+              leftSection={<IconTrash size={12} />}
+              onClick={handleClearAll}
+              style={{ fontSize: 11 }}
+            >
+              Clear All
             </Button>
           )}
         </Group>

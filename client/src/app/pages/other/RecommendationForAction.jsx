@@ -757,8 +757,18 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
     // Determine if supervising lawyer section should be disabled
     const supervisingLawyerDisabled = userRole === 'intern' || userRole === 'secretary' || userRole === 'director' || currentReviewStage === 'director';
     
-    // Determine if director section should be disabled - Allow both supervising_lawyer and director to edit
-    const directorSectionDisabled = userRole === 'intern' || userRole === 'secretary';
+    // Determine if director section should be disabled - Only the director can set the decision
+    const directorSectionDisabled = userRole !== 'director';
+
+    // Toggle handler for director's action radio buttons
+    const handleDecisionChange = (val) => {
+      // If clicking the already-selected value, unselect it (toggle off)
+      if (value.decision === val) {
+        onChange({ ...value, decision: '' });
+      } else {
+        onChange({ ...value, decision: val });
+      }
+    };
 
     return (
         <Paper shadow="md" p="xl" radius="lg" bg="white">
@@ -785,20 +795,23 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
 
             <Divider />
 
-            {/* Director's Action - Disabled for interns, secretary, and supervising lawyer */}
+            {/* Director's Action - Only the director can set accepted/rejected/pending */}
             <Title order={3} c={PRIMARY_BROWN}>Director's Action</Title>
-            <Radio.Group 
-                label="Decision" 
-                value={value.decision || ''} 
-                onChange={(val) => onChange({ ...value, decision: val })}
-                disabled={directorSectionDisabled}
-            >
+            <Box>
+                <Text size="sm" fw={500} mb={8}>Decision</Text>
                 <Group>
-                    <Radio value="accepted" label="Accepted" disabled={directorSectionDisabled} />
-                    <Radio value="rejected" label="Rejected" disabled={directorSectionDisabled} />
-                    <Radio value="pending" label="Pending" disabled={directorSectionDisabled} />
+                    {['accepted', 'rejected', 'pending'].map((opt) => (
+                        <Radio
+                            key={opt}
+                            value={opt}
+                            label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                            checked={value.decision === opt}
+                            onChange={() => handleDecisionChange(opt)}
+                            disabled={directorSectionDisabled}
+                        />
+                    ))}
                 </Group>
-            </Radio.Group>
+            </Box>
             
             <Textarea 
                 label="If accepted/pending, instruction(s); if rejected, reason(s):" 
@@ -2577,7 +2590,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="filled"
                                                             style={{ backgroundColor: '#FF8C42' }}
-                                                            disabled={saving || !actionInfo.decision || actionInfo.decision === 'rejected'}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Approving...' : 'Approve to Director'}
                                                         </Button>
@@ -2587,7 +2600,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
-                                                            disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Returning...' : 'Return to Intern'}
                                                         </Button>
@@ -2613,7 +2626,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="outline"
                                                             style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                            disabled={saving}
+                                                            disabled={saving || actionInfo.decision !== 'pending'}
                                                         >
                                                             {saving ? 'Saving...' : 'Save Changes'}
                                                         </Button>
@@ -2623,7 +2636,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="filled"
                                                             style={{ backgroundColor: PRIMARY_BROWN }}
-                                                            disabled={saving || actionInfo.decision !== 'accepted'}
+                                                            disabled={saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')}
                                                         >
                                                             {saving ? 'Finalizing...' : 'Finalize Record'}
                                                         </Button>
@@ -2633,7 +2646,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
-                                                            disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
+                                                            disabled={saving || !!actionInfo.decision}
                                                         >
                                                             {saving ? 'Returning...' : 'Return to Supervising Lawyer'}
                                                         </Button>

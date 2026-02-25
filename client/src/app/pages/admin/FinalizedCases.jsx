@@ -29,10 +29,8 @@ import {
   Menu,
   Tooltip,
   Pagination,
-  PasswordInput,
-  Progress,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconUserPlus, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash } from '@tabler/icons-react';
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
@@ -172,21 +170,14 @@ const initialState = {
   wordDocHtml: null,
   wordDocLoading: false,
   
-  // Create Account Modal
-  createAccountModalOpened: false,
-  selectedCaseForAccount: null,
-  accountForm: {
-    username: '',
-    password: '',
-    email: '',
-  },
-  creatingAccount: false,
 
   // Pagination
   currentPageAccepted: 1,
   currentPageWithoutRecord: 1,
   currentPageLegalAdvice: 1,
   currentPageDocumentDrafting: 1,
+  currentPageRejected: 1,
+  rejectedCaseTypeFilter: 'all',
 };
 
 // Reducer function
@@ -219,6 +210,13 @@ function stateReducer(state, action) {
         currentPageWithoutRecord: 1,
         currentPageLegalAdvice: 1,
         currentPageDocumentDrafting: 1,
+        currentPageRejected: 1,
+      };
+    case 'SET_REJECTED_CASE_TYPE_FILTER':
+      return {
+        ...state,
+        rejectedCaseTypeFilter: action.payload,
+        currentPageRejected: 1,
       };
     
     // Review Modal actions
@@ -306,31 +304,6 @@ function stateReducer(state, action) {
     case 'SET_WORD_DOC_LOADING':
       return { ...state, wordDocLoading: action.payload };
     
-    // Create Account Modal actions
-    case 'OPEN_CREATE_ACCOUNT_MODAL':
-      return {
-        ...state,
-        createAccountModalOpened: true,
-        selectedCaseForAccount: action.payload,
-        accountForm: {
-          username: '',
-          password: '',
-          email: '',
-        },
-        creatingAccount: false,
-      };
-    case 'CLOSE_CREATE_ACCOUNT_MODAL':
-      return {
-        ...state,
-        createAccountModalOpened: false,
-        selectedCaseForAccount: null,
-        accountForm: { username: '', password: '', email: '' },
-        creatingAccount: false,
-      };
-    case 'SET_ACCOUNT_FORM':
-      return { ...state, accountForm: action.payload };
-    case 'SET_CREATING_ACCOUNT':
-      return { ...state, creatingAccount: action.payload };
     
     // Case Record Modal actions
     case 'OPEN_CASE_RECORD_MODAL':
@@ -1416,6 +1389,29 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   // Group finalized records by decision and apply search filter
   const acceptedCases = filterCases(state.finalized.filter(f => f.decision === 'accepted'));
   
+  // Rejected cases — all types, with optional case type filter
+  const rejectedCasesAll = state.finalized.filter(f => f.decision === 'rejected');
+  const rejectedCasesFiltered = (() => {
+    let filtered = rejectedCasesAll;
+    // Apply search filter
+    if (state.searchTerm.trim()) {
+      const search = state.searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(f => {
+        const caseId = (f.caseId || '').toLowerCase();
+        const clientName = (f.clientName || f.content?.interviewInfo?.clientName || '').toLowerCase();
+        return caseId.includes(search) || clientName.includes(search);
+      });
+    }
+    // Apply case type filter
+    if (state.rejectedCaseTypeFilter !== 'all') {
+      filtered = filtered.filter(f => {
+        const caseType = f.content?.interviewInfo?.caseType || '';
+        return caseType === state.rejectedCaseTypeFilter;
+      });
+    }
+    return filtered;
+  })();
+  
   // Separate by case type
   const legalAdviceCases = acceptedCases.filter(isLegalAdvice);
   const documentDraftingCases = acceptedCases.filter(isDocumentDrafting);
@@ -1439,11 +1435,13 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   const paginatedAcceptedWithoutRecord = paginate(acceptedWithoutRecord, state.currentPageWithoutRecord);
   const paginatedLegalAdvice = paginate(legalAdviceCases, state.currentPageLegalAdvice);
   const paginatedDocumentDrafting = paginate(documentDraftingCases, state.currentPageDocumentDrafting);
+  const paginatedRejected = paginate(rejectedCasesFiltered, state.currentPageRejected);
 
   const totalPagesAccepted = Math.ceil(acceptedWithRecord.length / ITEMS_PER_PAGE);
   const totalPagesWithoutRecord = Math.ceil(acceptedWithoutRecord.length / ITEMS_PER_PAGE);
   const totalPagesLegalAdvice = Math.ceil(legalAdviceCases.length / ITEMS_PER_PAGE);
   const totalPagesDocumentDrafting = Math.ceil(documentDraftingCases.length / ITEMS_PER_PAGE);
+  const totalPagesRejected = Math.ceil(rejectedCasesFiltered.length / ITEMS_PER_PAGE);
 
   const fetchFinalized = async () => {
     try {
@@ -1495,6 +1493,17 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       dispatch({ type: 'SET_FINALIZED', payload: [] });
     } finally {
       dispatch({ type: 'SET_LOADING_FINALIZED', payload: false });
+    }
+  };
+
+  const handleDeleteFinalized = async (recordId) => {
+    try {
+      await apiClient.delete(`/finalize/${recordId}`);
+      dispatch({ type: 'SET_FINALIZED', payload: state.finalized.filter(f => (f._id || f.id) !== recordId) });
+      notifications.show({ title: 'Deleted', message: 'Finalized record has been deleted.', color: 'green', autoClose: 3000 });
+    } catch (err) {
+      console.error('Delete finalized error:', err);
+      notifications.show({ title: 'Error', message: 'Failed to delete finalized record.', color: 'red', autoClose: 4000 });
     }
   };
 
@@ -1998,48 +2007,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     }
   };
 
-  const handleCreateClientAccount = async () => {
-    try {
-      if (!state.accountForm.username || !state.accountForm.password) {
-        notifications.show({
-          title: 'Validation Error',
-          message: 'Username and password are required',
-          color: 'red',
-        });
-        return;
-      }
-
-      dispatch({ type: 'SET_CREATING_ACCOUNT', payload: true });
-
-      const resp = await apiClient.post('/auth/create-client-account', {
-        finalizeId: state.selectedCaseForAccount._id,
-        username: state.accountForm.username,
-        password: state.accountForm.password,
-        email: state.accountForm.email || undefined,
-      });
-
-      if (resp.data?.success) {
-        notifications.show({
-          title: 'Success',
-          message: `Client account created successfully! Username: ${resp.data.data.username}`,
-          color: 'green',
-        });
-        dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' });
-        // Refresh finalized cases to update the UI
-        await fetchFinalized();
-      }
-    } catch (err) {
-      console.error('Error creating client account:', err);
-      const errorMsg = err.response?.data?.message || err.message;
-      notifications.show({
-        title: 'Error',
-        message: `Failed to create client account: ${errorMsg}`,
-        color: 'red',
-      });
-    } finally {
-      dispatch({ type: 'SET_CREATING_ACCOUNT', payload: false });
-    }
-  };
 
   const updateEditedData = (path, value) => {
     const newData = { ...state.editedData };
@@ -2275,13 +2242,11 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 >
                   View Review
                 </Menu.Item>
-                {f.decision === 'accepted' && (
-                  <Menu.Item leftSection={<IconReceipt size={16} />}
-                    onClick={() => openAppointmentModal(f)}
-                  >
-                    Full Receipt
-                  </Menu.Item>
-                )}
+                <Menu.Item leftSection={<IconReceipt size={16} />}
+                  onClick={() => openAppointmentModal(f)}
+                >
+                  Full Receipt
+                </Menu.Item>
                 {f.decision === 'accepted' && !isLegalAdvice(f) && !isDocumentDrafting(f) && (
                   <Menu.Item leftSection={<IconFileText size={16} />}
                     onClick={() => openCaseRecordModal(f)}
@@ -2310,16 +2275,15 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     Version History
                   </Menu.Item>
                 )}
-                {f.decision === 'accepted' && !f.linkedCaseId && !f.clientAccountCreated && (
-                  <>
-                    <Menu.Divider />
-                    <Menu.Item leftSection={<IconUserPlus size={16} />} color="blue"
-                      onClick={() => dispatch({ type: 'OPEN_CREATE_ACCOUNT_MODAL', payload: f })}
-                    >
-                      Create Client Account
-                    </Menu.Item>
-                  </>
-                )}
+                <Menu.Divider />
+                <Menu.Item leftSection={<IconTrash size={16} />} color="red"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteFinalized(recordId);
+                  }}
+                >
+                  Delete Record
+                </Menu.Item>
               </Menu.Dropdown>
             </Menu>
           </Group>
@@ -3455,151 +3419,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
           )}
         </Modal>
 
-        {/* Create Client Account Modal */}
-        <Modal
-          opened={state.createAccountModalOpened}
-          onClose={() => dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' })}
-          title={
-            <Group gap="xs">
-              <IconUserPlus size={20} color={PRIMARY_BROWN} />
-              <Text fw={700} size="md" c={PRIMARY_BROWN}>
-                Create Client Account
-              </Text>
-            </Group>
-          }
-          size="sm"
-          radius="lg"
-          styles={{
-            body: { padding: '16px 24px 24px' },
-          }}
-        >
-          {state.selectedCaseForAccount && (() => {
-            const clientName = state.selectedCaseForAccount.content?.interviewInfo?.clientName || state.selectedCaseForAccount.clientName || 'Unknown';
-            const shortId = state.selectedCaseForAccount.caseId
-              ? (state.selectedCaseForAccount.caseId.length > 8 ? '#' + state.selectedCaseForAccount.caseId.slice(0, 8) : '#' + state.selectedCaseForAccount.caseId)
-              : '';
-            const pw = state.accountForm.password || '';
-            const pwStrength = pw.length === 0 ? 0 : pw.length < 6 ? 25 : pw.length < 8 ? 50 : (pw.length >= 8 && /[A-Z]/.test(pw) && /[0-9]/.test(pw)) ? 100 : 75;
-            const pwColor = pwStrength <= 25 ? 'red' : pwStrength <= 50 ? 'orange' : pwStrength <= 75 ? 'yellow' : 'green';
-            const pwLabel = pwStrength <= 25 ? 'Weak' : pwStrength <= 50 ? 'Fair' : pwStrength <= 75 ? 'Good' : 'Strong';
-
-            return (
-              <Stack gap="md">
-                <Box>
-                  <Group gap={6} mb={2}>
-                    <Text size="sm" c={CHARCOAL}>Client: <Text component="span" fw={700} inherit>{clientName}</Text></Text>
-                    <Text size="xs" c="dimmed" ff="monospace">{shortId}</Text>
-                  </Group>
-                  <Text size="xs" c="dimmed" lh={1.4}>
-                    Client will use these credentials to access their case information via the dashboard.
-                  </Text>
-                </Box>
-
-                <Divider color="#F0F0F0" />
-
-                <TextInput
-                  label="Username"
-                  placeholder="Enter username"
-                  required
-                  value={state.accountForm.username}
-                  onChange={(e) => dispatch({ 
-                    type: 'SET_ACCOUNT_FORM', 
-                    payload: { ...state.accountForm, username: e.target.value } 
-                  })}
-                  styles={{
-                    label: { color: CHARCOAL, fontWeight: 700, fontSize: '13px', marginBottom: 4 },
-                    input: {
-                      borderColor: '#D1D5DB',
-                      '&:focus': { borderColor: PRIMARY_BROWN, boxShadow: `0 0 0 3px rgba(139, 69, 19, 0.1)` },
-                      '&::placeholder': { color: '#9CA3AF' },
-                    },
-                    required: { color: '#E03131', fontSize: '14px' },
-                  }}
-                />
-
-                <Box>
-                  <PasswordInput
-                    label="Password"
-                    placeholder="Enter password"
-                    required
-                    value={state.accountForm.password}
-                    onChange={(e) => dispatch({ 
-                      type: 'SET_ACCOUNT_FORM', 
-                      payload: { ...state.accountForm, password: e.target.value } 
-                    })}
-                    styles={{
-                      label: { color: CHARCOAL, fontWeight: 700, fontSize: '13px', marginBottom: 4 },
-                      input: {
-                        borderColor: '#D1D5DB',
-                        '&:focus': { borderColor: PRIMARY_BROWN, boxShadow: `0 0 0 3px rgba(139, 69, 19, 0.1)` },
-                        '&::placeholder': { color: '#9CA3AF' },
-                      },
-                      required: { color: '#E03131', fontSize: '14px' },
-                    }}
-                  />
-                  {pw.length > 0 ? (
-                    <Box mt={6}>
-                      <Progress value={pwStrength} color={pwColor} size="xs" radius="xl" />
-                      <Text size="xs" c={pwColor === 'red' ? '#E03131' : pwColor === 'orange' ? '#E8590C' : pwColor === 'yellow' ? '#E67700' : '#2F9E44'} mt={2} fw={500}>
-                        {pwLabel}
-                      </Text>
-                    </Box>
-                  ) : (
-                    <Text size="xs" c="dimmed" mt={4}>Minimum 8 characters</Text>
-                  )}
-                </Box>
-
-                <TextInput
-                  label={
-                    <Group gap={4}>
-                      <Text size="xs" fw={700} c={CHARCOAL}>Email</Text>
-                      <Text size="xs" c="dimmed" fw={400}>(Optional)</Text>
-                    </Group>
-                  }
-                  type="email"
-                  placeholder="client@example.com"
-                  value={state.accountForm.email}
-                  onChange={(e) => dispatch({ 
-                    type: 'SET_ACCOUNT_FORM', 
-                    payload: { ...state.accountForm, email: e.target.value } 
-                  })}
-                  styles={{
-                    input: {
-                      borderColor: '#D1D5DB',
-                      '&:focus': { borderColor: PRIMARY_BROWN, boxShadow: `0 0 0 3px rgba(139, 69, 19, 0.1)` },
-                      '&::placeholder': { color: '#9CA3AF' },
-                    },
-                  }}
-                />
-
-                <Divider color="#F0F0F0" mt={4} />
-
-                <Group justify="flex-end" gap="sm">
-                  <Button
-                    variant="subtle"
-                    color="gray"
-                    onClick={() => dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' })}
-                    disabled={state.creatingAccount}
-                    styles={{
-                      root: { color: '#6B7280', '&:hover': { backgroundColor: '#F3F4F6' } },
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    style={{ backgroundColor: PRIMARY_BROWN }}
-                    onClick={handleCreateClientAccount}
-                    loading={state.creatingAccount}
-                    disabled={!state.accountForm.username || !state.accountForm.password}
-                  >
-                    Create Account
-                  </Button>
-                </Group>
-              </Stack>
-            );
-          })()}
-        </Modal>
-
         {/* Page Header */}
         <Group justify="space-between" align="center" mb="lg">
           <Box>
@@ -3644,21 +3463,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               styles={{ input: { border: '1px solid #E5E7EB', fontSize: '13px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' } }}
               radius="md"
             />
-            <Select
-              placeholder="Category"
-              size="sm"
-              radius="md"
-              value={state.categoryFilter}
-              onChange={(val) => dispatch({ type: 'SET_CATEGORY_FILTER', payload: val || 'all' })}
-              data={[
-                { value: 'all', label: 'All Categories' },
-                ...NATURE_OF_CASE_OPTIONS.map(cat => ({ value: cat, label: cat }))
-              ]}
-              leftSection={<IconFilter size={16} color={MUTED_OLIVE} />}
-              style={{ width: 200 }}
-              styles={{ input: { border: '1px solid #E5E7EB', fontSize: '13px' } }}
-              allowDeselect={false}
-            />
           </Group>
           
           <Tabs value={state.activeTab} onChange={(val) => dispatch({ type: 'SET_ACTIVE_TAB', payload: val })}
@@ -3688,6 +3492,12 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 style={{ fontSize: '13px', padding: '10px 14px' }}
               >
                 Document Drafting
+              </Tabs.Tab>
+              <Tabs.Tab value="rejected"
+                rightSection={<Badge size="xs" variant="light" color="red" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{rejectedCasesFiltered.length}</Badge>}
+                style={{ fontSize: '13px', padding: '10px 14px' }}
+              >
+                Rejected
               </Tabs.Tab>
             </Tabs.List>
 
@@ -3769,6 +3579,43 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   total={Math.max(1, totalPagesDocumentDrafting)} 
                   value={state.currentPageDocumentDrafting} 
                   onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageDocumentDrafting', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="rejected" pb="md">
+              <Group justify="flex-end" mb="md">
+                <Select
+                  size="xs"
+                  w={220}
+                  placeholder="Filter by case type"
+                  value={state.rejectedCaseTypeFilter}
+                  onChange={(val) => dispatch({ type: 'SET_REJECTED_CASE_TYPE_FILTER', payload: val || 'all' })}
+                  data={[
+                    { value: 'all', label: 'All Case Types' },
+                    { value: 'court-representation', label: 'Court Representation' },
+                    { value: 'legal-document', label: 'Drafting of Legal Document' },
+                    { value: 'legal-advice', label: 'Legal Advice' },
+                  ]}
+                  styles={{ input: { borderColor: '#d3c5a0' } }}
+                />
+              </Group>
+              <Stack gap={10}>
+                {state.loadingFinalized ? (
+                  <FinalizedCasesSkeleton />
+                ) : (
+                  paginatedRejected.length ? paginatedRejected.map(renderCaseCard) : (
+                    <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No rejected cases found</Text>
+                  )
+                )}
+              </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesRejected)} 
+                  value={state.currentPageRejected} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageRejected', page } })} 
                   color={PRIMARY_BROWN}
                   radius="md"
                 />

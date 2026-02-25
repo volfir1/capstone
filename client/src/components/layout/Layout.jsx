@@ -57,8 +57,10 @@ const Layout = ({
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    deleteAllNotifications,
     refresh: refreshNotifications,
   } = useNotifications(navigate);
+  
   
   const currentPath = window.location.pathname;
   const actualUserRole = userData?.role || "client";
@@ -281,6 +283,7 @@ const Layout = ({
                 onRead={markAsRead}
                 onReadAll={markAllAsRead}
                 onDelete={deleteNotification}
+                onClearAll={deleteAllNotifications}
                 onRefresh={refreshNotifications}
                 onNavigate={(referenceId, type) => {
                   if (referenceId) {

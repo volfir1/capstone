@@ -161,12 +161,14 @@ export const updateReview = async (req, res) => {
       const reviewClientName = updated.clientName || clientName || ''
       const io = getIO()
 
-      const notifyUsers = async (roles, title, message, type) => {
+      const notifyUsers = async (roles, title, message, type, { excludeUids = [] } = {}) => {
         const users = await User.find({ role: { $in: roles } }).select('firebaseUid').lean()
         const attorneys = await Attorney.find({ role: { $in: roles } }).select('firebaseUid').lean()
         const recipients = [...users, ...attorneys]
         for (const r of recipients) {
           if (!r.firebaseUid) continue
+          // Skip recipients already notified individually (avoids duplicates)
+          if (excludeUids.includes(r.firebaseUid)) continue
           createNotification({
             recipientId: r.firebaseUid,
             title,
@@ -235,12 +237,19 @@ export const updateReview = async (req, res) => {
           const msg = reviewClientName
             ? `A case has been returned for revision. Client: ${reviewClientName}`
             : 'A case has been returned for revision.'
-          // Notify the original reviewer (intern/secretary) by their stored reviewerId
+          // Resolve the reviewer's firebaseUid so we can exclude them from the broadcast
+          let reviewerUid = null
           if (updated.reviewerId) {
             await notifyById(updated.reviewerId, 'Case Returned for Revision', msg, 'review_returned')
+            // Resolve the uid used by notifyById so we can skip them below
+            let rUser = await User.findById(updated.reviewerId).select('firebaseUid').lean()
+            if (!rUser) rUser = await Attorney.findById(updated.reviewerId).select('firebaseUid').lean()
+            if (!rUser) rUser = await User.findOne({ firebaseUid: updated.reviewerId }).select('firebaseUid').lean()
+            if (!rUser) rUser = await Attorney.findOne({ firebaseUid: updated.reviewerId }).select('firebaseUid').lean()
+            reviewerUid = rUser?.firebaseUid || updated.reviewerId
           }
-          // Also notify all interns and secretaries so no one misses it
-          await notifyUsers(['intern', 'secretary'], 'Case Returned for Revision', msg, 'review_returned')
+          // Also notify all interns and secretaries, but skip the reviewer already notified above
+          await notifyUsers(['intern', 'secretary'], 'Case Returned for Revision', msg, 'review_returned', { excludeUids: reviewerUid ? [reviewerUid] : [] })
         } else if (newStage === 'supervising_lawyer' && oldStage === 'returned_to_intern') {
           // Intern resubmitted after revision — notify supervising lawyers
           const msg = reviewClientName

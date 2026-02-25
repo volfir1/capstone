@@ -15,6 +15,7 @@ export function useNotifications(navigate) {
   const mountedRef = useRef(true);
   const prevUnreadRef = useRef(null);
   const audioRef = useRef(null);
+  const shownToastIdsRef = useRef(new Set());
 
   // Play notification sound when new unread notifications arrive
   const playNotificationSound = useCallback(() => {
@@ -107,6 +108,14 @@ export function useNotifications(navigate) {
         fetchNotifications();
         // Show a toast popup so the user sees the notification immediately
         if (data && data.title) {
+          // Prevent duplicate toasts for the same notification id within a short window
+          const nid = data._id || data.id || null;
+          if (nid && shownToastIdsRef.current.has(nid)) return;
+          if (nid) {
+            shownToastIdsRef.current.add(nid);
+            // remove from recent set after the toast autoClose (plus small buffer)
+            setTimeout(() => shownToastIdsRef.current.delete(nid), 10000);
+          }
           const canNavigate = navigate && data.referenceId;
           mantineNotifications.show({
             title: data.title,
@@ -146,6 +155,17 @@ export function useNotifications(navigate) {
     };
   }, [fetchNotifications]);
 
+  const deleteAllNotifications = useCallback(async () => {
+    try {
+      await apiClient.delete('/notifications/clear-all');
+      setNotifications([]);
+      setUnreadCount(0);
+      setTotal(0);
+    } catch (err) {
+      console.error('Delete all notifications error:', err);
+    }
+  }, []);
+
   return {
     notifications,
     unreadCount,
@@ -155,6 +175,7 @@ export function useNotifications(navigate) {
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    deleteAllNotifications,
     refresh: fetchNotifications,
   };
 }

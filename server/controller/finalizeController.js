@@ -215,3 +215,15 @@ export const completeFinalize = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 }
+
+export const deleteFinalized = async (req, res) => {
+  try {
+    const { id } = req.params
+    const deleted = await Finalize.findByIdAndDelete(id)
+    if (!deleted) return res.status(404).json({ error: 'Finalized record not found' })
+    res.json({ success: true, message: 'Finalized record deleted' })
+  } catch (err) {
+    console.error('deleteFinalized error', err)
+    res.status(500).json({ error: err.message })
+  }
+}
