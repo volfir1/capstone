@@ -24,7 +24,8 @@ import {
   IconScale,
   IconLocationSearch,
   IconChartDots,
-  IconChartBar
+  IconChartBar,
+  IconClipboardCheck
 } from "@tabler/icons-react";
 
 export const NAVIGATION_CONFIG = {
@@ -32,7 +33,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
-    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
@@ -42,7 +43,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
-    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
@@ -52,7 +53,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
-    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
@@ -62,7 +63,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
-    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
@@ -72,7 +73,7 @@ export const NAVIGATION_CONFIG = {
     { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
     { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
     { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
-    { icon: IconFolder, label: "Returned Cases", path: 'returned', section: 'main' },
+    { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
     { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
     { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
     { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },

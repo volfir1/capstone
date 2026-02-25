@@ -39,11 +39,10 @@ const ProfilePage = lazy(() => import('./pages/other/Profile'))
 const ClientApplicationStatus = lazy(() => import('./pages/other/ClientFormStatus'))
 
 // Admin
-const AssignCase = lazy(() => import('./pages/admin/AssingCase'))
 const UserManagement = lazy(() => import('./pages/admin/userManagement'))
 const RecommendationForAction = lazy(() => import('./pages/other/RecommendationForAction'))
 const FinalizedCases = lazy(() => import('./pages/admin/FinalizedCases'))
-const ReturnedCases = lazy(() => import('./pages/other/Returned_Cases'))
+const AssignedCases = lazy(() => import('./pages/admin/AssignedCases'))
 const ClientInfoView = lazy(() => import('./pages/other/ClientInfoView'))
 const Analytics = lazy(() => import('./pages/admin/Analytics'))
 
@@ -162,7 +161,7 @@ function AppRoutes() {
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="recommendation/:caseId?" element={<RecommendationForAction />} />
-          <Route path="returned" element={<ReturnedCases />} />
+          <Route path="assigned-cases" element={<AssignedCases />} />
           <Route path="finalized" element={<FinalizedCases />} />
           <Route path="clientformstatus" element={<ClientApplicationStatus />} />
           <Route path="clientinfo/:id" element={<ClientInfoView />} />

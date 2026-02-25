@@ -135,6 +135,18 @@ export const updateFinalized = async (req, res) => {
   }
 }
 
+export const getFinalizeById = async (req, res) => {
+  try {
+    const { id } = req.params
+    const finalize = await Finalize.findById(id)
+    if (!finalize) return res.status(404).json({ error: 'Finalize record not found' })
+    res.json(finalize)
+  } catch (err) {
+    console.error('getFinalizeById error', err)
+    res.status(500).json({ error: err.message })
+  }
+}
+
 export const getFinalizeByCaseId = async (req, res) => {
   try {
     const { caseId } = req.params

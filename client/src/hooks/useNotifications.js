@@ -117,6 +117,7 @@ export function useNotifications(navigate) {
             setTimeout(() => shownToastIdsRef.current.delete(nid), 10000);
           }
           const canNavigate = navigate && data.referenceId;
+          const isCaseAssignment = data.type === 'case_assigned';
           mantineNotifications.show({
             title: data.title,
             message: canNavigate
@@ -125,9 +126,13 @@ export function useNotifications(navigate) {
                   {
                     onClick: () => {
                       mantineNotifications.clean();
-                      navigate(`/admin/recommendation/${data.referenceId}`, {
-                        state: { showClientInfo: true, isViewingExistingReview: true },
-                      });
+                      if (isCaseAssignment) {
+                        navigate('/admin/assigned-cases');
+                      } else {
+                        navigate(`/admin/recommendation/${data.referenceId}`, {
+                          state: { showClientInfo: true, isViewingExistingReview: true },
+                        });
+                      }
                     },
                     style: { cursor: 'pointer', margin: '-4px -8px', padding: '4px 8px' },
                   },
@@ -135,11 +140,11 @@ export function useNotifications(navigate) {
                   createElement(
                     'div',
                     { style: { fontSize: 11, color: '#886b30', fontWeight: 600, marginTop: 6 } },
-                    'Click to view →'
+                    isCaseAssignment ? 'Click to view assignments →' : 'Click to view →'
                   )
                 )
               : data.message || '',
-            color: 'orange',
+            color: isCaseAssignment ? 'blue' : 'orange',
             autoClose: 6000,
             style: canNavigate ? { cursor: 'pointer' } : undefined,
           });

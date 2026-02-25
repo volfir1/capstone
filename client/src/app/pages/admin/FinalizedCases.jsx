@@ -339,6 +339,54 @@ export default function FinalizedCases() {
   const [state, dispatch] = useReducer(stateReducer, initialState);
   const { userData } = useAuth();
 
+  // ── Assign Case Modal State ──
+  const [assignModalOpened, setAssignModalOpened] = useState(false);
+  const [assignTargetCase, setAssignTargetCase] = useState(null);
+  const [adminStaff, setAdminStaff] = useState([]);
+  const [assignForm, setAssignForm] = useState({ assigneeId: '', deadline: '', message: '' });
+  const [assignLoading, setAssignLoading] = useState(false);
+
+  const canAssignCases = ['director', 'secretary'].includes(userData?.role);
+
+  // Fetch admin staff for the assign dropdown
+  useEffect(() => {
+    if (canAssignCases) {
+      apiClient.get('/case-assignments/admin-staff')
+        .then(res => setAdminStaff(res.data?.data || []))
+        .catch(err => console.error('Failed to fetch admin staff:', err));
+    }
+  }, [canAssignCases]);
+
+  const openAssignModal = (finCase) => {
+    setAssignTargetCase(finCase);
+    setAssignForm({ assigneeId: '', deadline: '', message: '' });
+    setAssignModalOpened(true);
+  };
+
+  const handleAssignCase = async () => {
+    if (!assignForm.assigneeId || !assignForm.deadline || !assignForm.message) {
+      notifications.show({ title: 'Missing Fields', message: 'Please fill in all fields', color: 'orange' });
+      return;
+    }
+    setAssignLoading(true);
+    try {
+      await apiClient.post('/case-assignments', {
+        finalizeId: assignTargetCase._id,
+        assigneeId: assignForm.assigneeId,
+        deadline: assignForm.deadline,
+        message: assignForm.message,
+      });
+      notifications.show({ title: 'Success', message: 'Case assigned successfully', color: 'green' });
+      setAssignModalOpened(false);
+      setAssignTargetCase(null);
+    } catch (err) {
+      console.error('Assign case error:', err);
+      notifications.show({ title: 'Error', message: err.response?.data?.error || 'Failed to assign case', color: 'red' });
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
   // When document viewer opens with a Word document, attempt conversion to HTML
   useEffect(() => {
     const convertWordIfNeeded = async () => {
@@ -2275,6 +2323,19 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     Version History
                   </Menu.Item>
                 )}
+                {canAssignCases && f.decision === 'accepted' && (
+                  <>
+                    <Menu.Divider />
+                    <Menu.Item leftSection={<IconSend size={16} />} color="blue"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openAssignModal(f);
+                      }}
+                    >
+                      Assign Case
+                    </Menu.Item>
+                  </>
+                )}
                 <Menu.Divider />
                 <Menu.Item leftSection={<IconTrash size={16} />} color="red"
                   onClick={(e) => {
@@ -2732,8 +2793,12 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               </Group>
             </Group>
           }
-          size="lg"
+          size="calc(90vw)"
           radius="lg"
+          styles={{
+            title: { fontWeight: 700, width: '100%' },
+            body: { maxHeight: '80vh', overflowY: 'auto' },
+          }}
         >
           {state.loadingAppointment ? (
             <Center py="xl">
@@ -3218,10 +3283,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               </Group>
             </Group>
           }
-          size="xl"
+          size="calc(90vw)"
           styles={{
             title: { fontWeight: 700, width: '100%' },
-            body: { maxHeight: '70vh', overflowY: 'auto' },
+            body: { maxHeight: '80vh', overflowY: 'auto' },
           }}
         >
           {state.editedData && (
@@ -3624,6 +3689,87 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
           </Tabs>
         </Paper>
       </Container>
+
+      {/* ── Assign Case Modal ── */}
+      <Modal
+        opened={assignModalOpened}
+        onClose={() => setAssignModalOpened(false)}
+        title={
+          <Group gap="sm">
+            <Box style={{ width: 32, height: 32, borderRadius: '8px', background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconSend size={16} color="white" />
+            </Box>
+            <Title order={4} c={CHARCOAL}>Assign Case</Title>
+          </Group>
+        }
+        size="xl"
+        centered
+        styles={{ header: { borderBottom: '1px solid #F0F0F0', paddingBottom: 12 }, body: { padding: 24 } }}
+      >
+        {assignTargetCase && (
+          <Stack gap="lg">
+            <Paper p="sm" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #E8E3D5' }}>
+              <Text size="xs" c={MUTED_OLIVE} fw={600} tt="uppercase" mb={4}>Case</Text>
+              <Text size="sm" fw={600} c={CHARCOAL}>{assignTargetCase.caseTitle || 'Untitled'}</Text>
+              <Text size="xs" c="dimmed">{assignTargetCase.caseId} · {assignTargetCase.clientName || 'No client'}</Text>
+            </Paper>
+
+            <Select
+              label="Assign to Admin Staff"
+              placeholder="Select a staff member..."
+              required
+              value={assignForm.assigneeId}
+              onChange={(val) => setAssignForm(prev => ({ ...prev, assigneeId: val }))}
+              data={adminStaff
+                .filter(u => u._id !== (userData?._id || userData?.id))
+                .map(u => ({
+                  value: u._id,
+                  label: `${u.firstName} ${u.lastName} (${
+                    u.role === 'supervising_lawyer' ? 'Supervising Lawyer' :
+                    u.role === 'director' ? 'Director' :
+                    u.role === 'secretary' ? 'Secretary' :
+                    u.role === 'intern' ? 'Legal Intern' : u.role
+                  })`,
+                }))}
+              searchable
+              styles={{ input: { borderColor: '#E0E0E0' } }}
+            />
+
+            <TextInput
+              label="Deadline"
+              type="date"
+              required
+              value={assignForm.deadline}
+              onChange={(e) => setAssignForm(prev => ({ ...prev, deadline: e.target.value }))}
+              min={new Date().toISOString().split('T')[0]}
+              styles={{ input: { borderColor: '#E0E0E0' } }}
+            />
+
+            <Textarea
+              label="Message / Instructions"
+              placeholder="Describe what needs to be done for this case..."
+              required
+              minRows={6}
+              maxRows={12}
+              autosize
+              value={assignForm.message}
+              onChange={(e) => setAssignForm(prev => ({ ...prev, message: e.target.value }))}
+              styles={{ input: { borderColor: '#E0E0E0' } }}
+            />
+
+            <Button
+              fullWidth
+              size="md"
+              loading={assignLoading}
+              disabled={assignLoading || !assignForm.assigneeId || !assignForm.deadline || !assignForm.message}
+              onClick={handleAssignCase}
+              style={{ backgroundColor: PRIMARY_BROWN }}
+            >
+              {assignLoading ? 'Assigning...' : 'Assign Case'}
+            </Button>
+          </Stack>
+        )}
+      </Modal>
     </Box>
   );
 }
