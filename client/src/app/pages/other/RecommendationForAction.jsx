@@ -185,7 +185,7 @@ const MUTED_OLIVE = '#8A8A5C'; // Re-added for button styling
 // Helper component for Evidence Tables (Memoized)
 const EMPTY_EVIDENCE_ROW = { type: '', author: '', purpose: '', issues: '' };
 
-const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly }) => {
+const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly, showPurpose = true }) => {
     // Local state per-row so keystrokes never re-render siblings or the parent form
     const [local, setLocal] = React.useState(() => ({ ...EMPTY_EVIDENCE_ROW, ...row }));
 
@@ -230,6 +230,7 @@ const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly }) => {
                     onBlur={handleBlur('type')}
                     readOnly={readOnly} styles={inputStyles} />
             </Table.Td>
+
             <Table.Td>
                 <TextInput placeholder="Author/Custodian" size="xs" variant="unstyled"
                     value={local.author}
@@ -237,13 +238,17 @@ const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly }) => {
                     onBlur={handleBlur('author')}
                     readOnly={readOnly} styles={inputStyles} />
             </Table.Td>
-            <Table.Td>
-                <TextInput placeholder="Purpose" size="xs" variant="unstyled"
-                    value={local.purpose}
-                    onChange={handleChange('purpose')}
-                    onBlur={handleBlur('purpose')}
-                    readOnly={readOnly} styles={inputStyles} />
-            </Table.Td>
+
+            {showPurpose && (
+                <Table.Td>
+                    <TextInput placeholder="Purpose" size="xs" variant="unstyled"
+                        value={local.purpose}
+                        onChange={handleChange('purpose')}
+                        onBlur={handleBlur('purpose')}
+                        readOnly={readOnly} styles={inputStyles} />
+                </Table.Td>
+            )}
+
             <Table.Td>
                 <TextInput placeholder="Issues" size="xs" variant="unstyled"
                     value={local.issues}
@@ -256,7 +261,7 @@ const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly }) => {
 });
 EvidenceRow.displayName = 'EvidenceRow';
 
-const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, readOnly = false }) => {
+const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, readOnly = false, showPurpose = true }) => {
     // Ensure we have at least 3 rows
     const rows = value.length >= 3 ? value : [...value, ...Array(3 - value.length).fill(EMPTY_EVIDENCE_ROW)];
 
@@ -276,10 +281,10 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
             <Table withRowBorders withColumnBorders withTableBorder striped>
                 <Table.Thead>
                     <Table.Tr>
-                        <Table.Th style={{ width: '30%' }}>Type / Description</Table.Th>
-                        <Table.Th style={{ width: '25%' }}>Author / Custodian</Table.Th>
-                        <Table.Th style={{ width: '25%' }}>Purpose</Table.Th>
-                        <Table.Th style={{ width: '20%' }}>Admissibility Issues</Table.Th>
+                        <Table.Th style={{ width: showPurpose ? '30%' : '35%' }}>Type / Description</Table.Th>
+                        <Table.Th style={{ width: showPurpose ? '25%' : '30%' }}>Author / Custodian</Table.Th>
+                        {showPurpose && <Table.Th style={{ width: '25%' }}>Purpose</Table.Th>}
+                        <Table.Th style={{ width: showPurpose ? '20%' : '35%' }}>Admissibility Issues</Table.Th>
                     </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -290,10 +295,12 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
                             index={index}
                             onBlurRow={handleBlurRow}
                             readOnly={readOnly}
+                            showPurpose={showPurpose}
                         />
                     ))}
                 </Table.Tbody>
             </Table>
+
             {!readOnly && (
                 <Button
                     variant="subtle"
@@ -506,6 +513,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 value={value.adversePartyEvidence || []}
                 onChange={(evidence) => onChange({ ...value, adversePartyEvidence: evidence })}
                 readOnly={isReadOnly}
+                showPurpose={false}
             />
             
             <Divider />

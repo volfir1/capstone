@@ -594,7 +594,18 @@ export default function FinalizedCases() {
   const renderEvidenceToPdf = (doc, startY, title, evidence = []) => {
     if (!evidence || evidence.length === 0) return startY;
     const pageHeight = doc.internal.pageSize.getHeight();
-    const colWidths = [45, 50, 55, 45];
+
+    // Only omit "Purpose" for: Evidence on Hand / Available for the Adverse Party(ies)
+    const isAdversePartyEvidenceSection =
+      /evidence on hand/i.test(title) && /adverse party/i.test(title);
+
+    const headers = isAdversePartyEvidenceSection
+      ? ['Type / Description', 'Author / Custodian', 'Admissibility Issues']
+      : ['Type / Description', 'Author / Custodian', 'Purpose', 'Admissibility Issues'];
+
+    const colWidths = isAdversePartyEvidenceSection
+      ? [60, 60, 75]
+      : [45, 50, 55, 45];
     const startX = 12;
     let y = startY;
 
@@ -615,7 +626,6 @@ export default function FinalizedCases() {
     // Header
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
-    const headers = ['Type / Description', 'Author / Custodian', 'Purpose', 'Admissibility Issues'];
     const headerHeight = 8;
     addPageIfNeeded(headerHeight + 4);
     let xCursor = startX;
@@ -628,7 +638,9 @@ export default function FinalizedCases() {
 
     // Rows
     evidence.forEach((row) => {
-      const cells = [row?.type || '-', row?.author || '-', row?.purpose || '-', row?.issues || '-'];
+      const cells = isAdversePartyEvidenceSection
+        ? [row?.type || '-', row?.author || '-', row?.issues || '-']
+        : [row?.type || '-', row?.author || '-', row?.purpose || '-', row?.issues || '-'];
       const wrappedHeights = cells.map((cell, idx) => {
         const lines = doc.splitTextToSize(String(cell || '-'), colWidths[idx] - 4);
         return { lines, height: lines.length * 6 };
