@@ -1,8 +1,10 @@
 import ClientsInfo from '../models/clientsinfo.js'
 import admin from 'firebase-admin'
 import User from '../models/user.js'
+import Event from '../models/events.js'
 import { createNotification } from './notificationController.js'
 import { getIO } from '../socket.js'
+import { deleteEventWithRefreshToken } from '../utils/googleCalendar.js'
 
 // Helper: notify all users with a given role about a new appointment request
 const notifyRoleAboutNewAppointment = async (doc) => {
@@ -479,6 +481,54 @@ export const updateClientsInfo = async (req, res) => {
     return res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
+
+export const deleteClientsInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firebaseUid } = req.body || {};
+
+    const doc = await ClientsInfo.findById(id);
+    if (!doc) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    // If the appointment was already approved and has a linked event, clean up
+    if (doc.calendarEventId) {
+      try {
+        const linkedEvent = await Event.findById(doc.calendarEventId);
+        if (linkedEvent) {
+          // Try to delete from Google Calendar if linked
+          const googleEventId = linkedEvent.externalIds?.google;
+          if (googleEventId && firebaseUid) {
+            try {
+              const user = await User.findOne({ firebaseUid });
+              if (user?.google?.refreshToken) {
+                await deleteEventWithRefreshToken(
+                  user.google.refreshToken,
+                  user.google.primaryCalendarId || 'primary',
+                  googleEventId
+                );
+              }
+            } catch (gErr) {
+              console.warn('Failed to delete Google Calendar event during appointment delete:', gErr.message);
+            }
+          }
+          // Delete the linked local event
+          await Event.findByIdAndDelete(doc.calendarEventId);
+        }
+      } catch (evtErr) {
+        console.warn('Failed to clean up linked event:', evtErr.message);
+      }
+    }
+
+    await ClientsInfo.findByIdAndDelete(id);
+
+    return res.json({ message: 'Appointment deleted successfully' });
+  } catch (err) {
+    console.error('deleteClientsInfo error', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
 
 export const getAnalytics = async (req, res) => {
   const result = {

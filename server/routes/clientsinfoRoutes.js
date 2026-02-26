@@ -1,5 +1,5 @@
 import express from 'express'
-import { createClientsInfo, listClientsInfo, getClientsInfoById, updateClientsInfo, createPublicAppointment, getAnalytics } from '../controller/clientsinfoController.js'
+import { createClientsInfo, listClientsInfo, getClientsInfoById, updateClientsInfo, deleteClientsInfo, createPublicAppointment, getAnalytics } from '../controller/clientsinfoController.js'
 
 const router = express.Router()
 
@@ -27,5 +27,8 @@ router.get('/:id', getClientsInfoById)
 
 // PUT /api/clientsinfo/:id
 router.put('/:id', updateClientsInfo)
+
+// DELETE /api/clientsinfo/:id
+router.delete('/:id', deleteClientsInfo)
 
 export default router

@@ -129,25 +129,38 @@ const initialState = {
     civilStatus: '',
     citizenship: '',
     contactNumber: '',
+    cellphoneNumber: '',
     email: '',
     presentAddress: '',
+    presentAddressTelephone: '',
     permanentAddress: '',
+    permanentAddressTelephone: '',
     spouseName: '',
     relatorName: '',
+    relationshipToClient: '',
     currentSourceOfIncome: '',
     monthlyIncome: '',
     natureOfWork: '',
     employerName: '',
     employerAddress: '',
+    employerTelephone: '',
+    spouseSourceOfIncome: '',
+    spouseMonthlyIncome: '',
+    spouseEmployerAddress: '',
+    totalCombinedIncome: '',
     partyRepresented: '',
     venue: '',
     presentStage: '',
     courtDivision: '',
     courtAddress: '',
-    caseDescription: '',
+    courtPhoneNumber: '',
     caseNature: '',
     presidingOfficer: '',
-    appointmentType: '',
+    adverseParty: '',
+    adversePartyAddress: '',
+    adversePartyCounsel: '',
+    adversePartyCounselAddress: '',
+    adversePartyCounselPhone: '',
   },
   appointmentSaving: false,
   
@@ -500,25 +513,38 @@ export default function FinalizedCases() {
     civilStatus: details?.civilStatus || '',
     citizenship: details?.citizenship || '',
     contactNumber: details?.contactNumber || '',
+    cellphoneNumber: details?.cellphoneNumber || '',
     email: details?.email || '',
     presentAddress: details?.presentAddress || '',
+    presentAddressTelephone: details?.presentAddressTelephone || '',
     permanentAddress: details?.permanentAddress || '',
+    permanentAddressTelephone: details?.permanentAddressTelephone || '',
     spouseName: details?.spouseName || '',
     relatorName: details?.relatorName || '',
+    relationshipToClient: details?.relationshipToClient || '',
     currentSourceOfIncome: details?.currentSourceOfIncome || '',
     monthlyIncome: details?.monthlyIncome !== undefined && details?.monthlyIncome !== null ? String(details.monthlyIncome) : '',
     natureOfWork: details?.natureOfWork || '',
     employerName: details?.employerName || '',
     employerAddress: details?.employerAddress || '',
+    employerTelephone: details?.employerTelephone || '',
+    spouseSourceOfIncome: details?.spouseSourceOfIncome || '',
+    spouseMonthlyIncome: details?.spouseMonthlyIncome !== undefined && details?.spouseMonthlyIncome !== null ? String(details.spouseMonthlyIncome) : '',
+    spouseEmployerAddress: details?.spouseEmployerAddress || '',
+    totalCombinedIncome: details?.totalCombinedIncome !== undefined && details?.totalCombinedIncome !== null ? String(details.totalCombinedIncome) : '',
     partyRepresented: details?.partyRepresented || '',
     venue: details?.venue || '',
     presentStage: details?.presentStage || '',
     courtDivision: details?.courtDivision || '',
     courtAddress: details?.courtAddress || '',
-    presidingOfficer: details?.presidingOfficer || '',
-    caseDescription: details?.caseDescription || '',
+    courtPhoneNumber: details?.courtPhoneNumber || '',
     caseNature: details?.caseNature || details?.natureOfCase || '',
-    appointmentType: details?.caseDetails?.appointmentType || details?.appointmentType || details?.personal?.legalMatter || '',
+    presidingOfficer: details?.presidingOfficer || '',
+    adverseParty: details?.adverseParty || '',
+    adversePartyAddress: details?.adversePartyAddress || '',
+    adversePartyCounsel: details?.adversePartyCounsel || '',
+    adversePartyCounselAddress: details?.adversePartyCounselAddress || '',
+    adversePartyCounselPhone: details?.adversePartyCounselPhone || '',
   });
 
   const renderSectionRows = (doc, startY, title, rows) => {
@@ -1651,16 +1677,29 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       natureOfWork: state.appointmentForm.natureOfWork || undefined,
       employerName: state.appointmentForm.employerName || undefined,
       employerAddress: state.appointmentForm.employerAddress || undefined,
+      employerTelephone: state.appointmentForm.employerTelephone || undefined,
+      cellphoneNumber: state.appointmentForm.cellphoneNumber || undefined,
+      presentAddressTelephone: state.appointmentForm.presentAddressTelephone || undefined,
+      permanentAddressTelephone: state.appointmentForm.permanentAddressTelephone || undefined,
+      relationshipToClient: state.appointmentForm.relationshipToClient || undefined,
+      spouseSourceOfIncome: state.appointmentForm.spouseSourceOfIncome || undefined,
+      spouseMonthlyIncome: state.appointmentForm.spouseMonthlyIncome ? Number(state.appointmentForm.spouseMonthlyIncome) : undefined,
+      spouseEmployerAddress: state.appointmentForm.spouseEmployerAddress || undefined,
+      totalCombinedIncome: state.appointmentForm.totalCombinedIncome ? Number(state.appointmentForm.totalCombinedIncome) : undefined,
       partyRepresented: state.appointmentForm.partyRepresented || undefined,
       venue: state.appointmentForm.venue || undefined,
       presentStage: state.appointmentForm.presentStage || undefined,
       courtDivision: state.appointmentForm.courtDivision || undefined,
       courtAddress: state.appointmentForm.courtAddress || undefined,
+      courtPhoneNumber: state.appointmentForm.courtPhoneNumber || undefined,
       presidingOfficer: state.appointmentForm.presidingOfficer || undefined,
-      caseDescription: state.appointmentForm.caseDescription || undefined,
       caseNature: state.appointmentForm.caseNature || undefined,
       natureOfCase: state.appointmentForm.caseNature || undefined,
-      appointmentType: state.appointmentForm.appointmentType || undefined,
+      adverseParty: state.appointmentForm.adverseParty || undefined,
+      adversePartyAddress: state.appointmentForm.adversePartyAddress || undefined,
+      adversePartyCounsel: state.appointmentForm.adversePartyCounsel || undefined,
+      adversePartyCounselAddress: state.appointmentForm.adversePartyCounselAddress || undefined,
+      adversePartyCounselPhone: state.appointmentForm.adversePartyCounselPhone || undefined,
     };
 
     dispatch({ type: 'SET_APPOINTMENT_SAVING', payload: true });
@@ -2807,7 +2846,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               <Paper p="md" radius="md" style={{ backgroundColor: `${PRIMARY_GOLD}15`, border: `1px solid ${PRIMARY_GOLD}` }}>
                 <Group justify="space-between" align="center">
                   <Text fw={700} size="lg" c={PRIMARY_BROWN}>
-                    {state.appointmentDetails.caseDetails?.appointmentType || state.appointmentDetails.personal?.legalMatter || 'Appointment'}
+                    Appointment
                   </Text>
                   <Badge size="lg" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
                     {appointmentStatusLabel}
@@ -2823,14 +2862,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <Title order={4} mb="md" c={CHARCOAL}>Personal Details</Title>
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
-                  <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Full Name</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.fullName}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, fullName: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.fullName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, fullName: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.fullName || state.appointmentDetails.name || 'N/A'}</Text>
                     )}
@@ -2838,12 +2873,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        type="number"
-                        value={state.appointmentForm.age}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, age: e.target.value } })}
-                      />
+                      <TextInput size="sm" type="number" value={state.appointmentForm.age} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, age: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.age || 'N/A'}</Text>
                     )}
@@ -2851,12 +2881,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        type="date"
-                        value={state.appointmentForm.birthday}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, birthday: e.target.value } })}
-                      />
+                      <TextInput size="sm" type="date" value={state.appointmentForm.birthday} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, birthday: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.birthday || 'N/A'}</Text>
                     )}
@@ -2864,11 +2889,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.sex}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, sex: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.sex} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, sex: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.sex || 'N/A'}</Text>
                     )}
@@ -2876,11 +2897,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.civilStatus}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, civilStatus: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.civilStatus} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, civilStatus: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.civilStatus || 'N/A'}</Text>
                     )}
@@ -2888,11 +2905,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Citizenship</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.citizenship}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, citizenship: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.citizenship} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, citizenship: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.citizenship || 'N/A'}</Text>
                     )}
@@ -2900,61 +2913,81 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.contactNumber}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, contactNumber: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.contactNumber} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, contactNumber: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.contactNumber || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Cellphone Number</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.cellphoneNumber} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, cellphoneNumber: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.cellphoneNumber || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.presentAddress}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentAddress: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.presentAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentAddress: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address Tel.</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.presentAddressTelephone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentAddressTelephone: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentAddressTelephone || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.permanentAddress}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, permanentAddress: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.permanentAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, permanentAddress: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse Name</Text>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address Tel.</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.spouseName}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseName: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.permanentAddressTelephone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, permanentAddressTelephone: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseName || 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddressTelephone || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.spouseName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseName: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseName || state.appointmentDetails.spouse || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Relator / Representative */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Relator / Representative</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relator Name</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.relatorName}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relatorName: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.relatorName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relatorName: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relatorName || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relationship to Client</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.relationshipToClient} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relationshipToClient: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relationshipToClient || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                 </Grid>
@@ -2968,48 +3001,23 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Status</Text>
                     {state.appointmentEditMode ? (
-                      <Select
-                        size="sm"
-                        data={APPOINTMENT_STATUS_OPTIONS}
-                        placeholder="Select status"
-                        value={state.appointmentForm.status || null}
-                        onChange={(val) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, status: val || '' } })}
-                      />
+                      <Select size="sm" data={APPOINTMENT_STATUS_OPTIONS} placeholder="Select status" value={state.appointmentForm.status || null} onChange={(val) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, status: val || '' } })} />
                     ) : (
-                      <Badge size="lg" variant="light" color="gray" style={{ backgroundColor: `${PRIMARY_BROWN}10`, color: PRIMARY_BROWN }}>
-                        {appointmentStatusLabel}
-                      </Badge>
+                      <Badge size="lg" variant="light" color="gray" style={{ backgroundColor: `${PRIMARY_BROWN}10`, color: PRIMARY_BROWN }}>{appointmentStatusLabel}</Badge>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        type="date"
-                        size="sm"
-                        value={state.appointmentForm.appointedDate || ''}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointedDate: e.target.value } })}
-                      />
+                      <TextInput type="date" size="sm" value={state.appointmentForm.appointedDate || ''} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointedDate: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>
-                        {state.appointmentDetails.appointedDate ? new Date(state.appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        }) : 'N/A'}
-                      </Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.appointedDate ? new Date(state.appointmentDetails.appointedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Time</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        type="time"
-                        size="sm"
-                        value={state.appointmentForm.appointmentTime || ''}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointmentTime: e.target.value } })}
-                      />
+                      <TextInput type="time" size="sm" value={state.appointmentForm.appointmentTime || ''} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointmentTime: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.appointmentTime || 'N/A'}</Text>
                     )}
@@ -3023,13 +3031,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income Source</Text>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Source of Income</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.currentSourceOfIncome}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, currentSourceOfIncome: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.currentSourceOfIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, currentSourceOfIncome: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
                     )}
@@ -3037,26 +3041,15 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        type="number"
-                        value={state.appointmentForm.monthlyIncome}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, monthlyIncome: e.target.value } })}
-                      />
+                      <TextInput size="sm" type="number" value={state.appointmentForm.monthlyIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, monthlyIncome: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>
-                        {state.appointmentDetails.monthlyIncome ? `₱${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
-                      </Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.monthlyIncome ? `₱${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.natureOfWork}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, natureOfWork: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.natureOfWork} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, natureOfWork: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.natureOfWork || 'N/A'}</Text>
                     )}
@@ -3064,11 +3057,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.employerName}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerName: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.employerName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerName: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerName || 'N/A'}</Text>
                     )}
@@ -3076,13 +3065,57 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.employerAddress}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerAddress: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.employerAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerAddress: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Telephone</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.employerTelephone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerTelephone: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerTelephone || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Spouse's Income */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Spouse&apos;s Income</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Source of Income</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.spouseSourceOfIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseSourceOfIncome: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseSourceOfIncome || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" type="number" value={state.appointmentForm.spouseMonthlyIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseMonthlyIncome: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseMonthlyIncome ? `₱${Number(state.appointmentDetails.spouseMonthlyIncome).toLocaleString()}` : 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse Employer Address</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.spouseEmployerAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseEmployerAddress: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseEmployerAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Total Combined Income</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" type="number" value={state.appointmentForm.totalCombinedIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, totalCombinedIncome: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.totalCombinedIncome ? `₱${Number(state.appointmentDetails.totalCombinedIncome).toLocaleString()}` : 'N/A'}</Text>
                     )}
                   </Grid.Col>
                 </Grid>
@@ -3096,13 +3129,17 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.partyRepresented}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, partyRepresented: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.partyRepresented} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, partyRepresented: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.partyRepresented || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.venue} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, venue: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.venue || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
@@ -3110,61 +3147,25 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNumber || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Nature</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.caseNature}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, caseNature: e.target.value } })}
-                      />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNature || state.appointmentDetails.natureOfCase || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Type</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.appointmentType}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointmentType: e.target.value } })}
-                      />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseDetails?.appointmentType || state.appointmentDetails.personal?.legalMatter || state.appointmentDetails.appointmentType || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.venue}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, venue: e.target.value } })}
-                      />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.venue || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.presentStage}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentStage: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.presentStage} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentStage: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentStage || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Case</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.caseNature} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, caseNature: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNature || state.appointmentDetails.natureOfCase || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Division</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.courtDivision}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtDivision: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.courtDivision} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtDivision: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtDivision || 'N/A'}</Text>
                     )}
@@ -3172,38 +3173,73 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.courtAddress}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtAddress: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.courtAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtAddress: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Description</Text>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Phone Number</Text>
                     {state.appointmentEditMode ? (
-                      <Textarea
-                        size="sm"
-                        minRows={2}
-                        value={state.appointmentForm.caseDescription}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, caseDescription: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.courtPhoneNumber} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtPhoneNumber: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseDescription || 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtPhoneNumber || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.presidingOfficer} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presidingOfficer: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presidingOfficer || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Adverse Party */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Adverse Party</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party(ies)</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.adverseParty} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adverseParty: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adverseParty || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.presidingOfficer}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presidingOfficer: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.adversePartyAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyAddress: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presidingOfficer || 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.adversePartyCounsel} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounsel: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounsel || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel Address</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.adversePartyCounselAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounselAddress: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounselAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel Phone</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.adversePartyCounselPhone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounselPhone: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounselPhone || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                 </Grid>
@@ -3793,6 +3829,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const citizenship = txt(a.citizenship);
   const spouseName = txt(a.spouseName);
   const contactNumber = txt(a.contactNumber);
+  const cellphoneNumber = txt(a.cellphoneNumber || a.contactNumber);
   const presentAddress = txt(a.presentAddress);
   const presentAddressTelephone = txt(a.presentAddressTelephone);
   const permanentAddress = txt(a.permanentAddress);
@@ -3823,7 +3860,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const presidingOfficer = txt(a.presidingOfficer);
 
   // These are on the printed form but may not exist in your current schema/UI.
-  const presidingOfficerPhone = txt(a.presidingOfficerPhone || a.phoneNumber);
+  const presidingOfficerPhone = txt(a.courtPhoneNumber || a.presidingOfficerPhone || a.phoneNumber);
   const adverseParties = txt(a.adverseParty || a.adverseParties);
   const adversePartiesAddress = txt(a.adversePartyAddress || a.adversePartiesAddress);
   const adversePartiesCounsel = txt(a.adversePartyCounsel || a.adversePartiesCounsel);
@@ -3974,7 +4011,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 
   leftY += field({ labelText: "Citizenship:", value: citizenship, x: leftX, y: leftY, labelW: 22, lineW: leftW - 24 });
   leftY += field({ labelText: "Spouse:", value: spouseName, x: leftX, y: leftY, labelW: 16, lineW: leftW - 18 });
-  leftY += field({ labelText: "Cellphone Number/s:", value: contactNumber, x: leftX, y: leftY, labelW: 36, lineW: leftW - 38 });
+  leftY += field({ labelText: "Cellphone Number/s:", value: cellphoneNumber, x: leftX, y: leftY, labelW: 36, lineW: leftW - 38 });
   leftY += field({ labelText: "Present Address:", value: presentAddress, x: leftX, y: leftY, labelW: 30, lineToX: pageW - margin });
   leftY += field({ labelText: "Telephone Number:", value: presentAddressTelephone, x: leftX, y: leftY, labelW: 32, lineToX: pageW - margin });
   leftY += field({ labelText: "Permanent Address:", value: permanentAddress, x: leftX, y: leftY, labelW: 34, lineToX: pageW - margin });

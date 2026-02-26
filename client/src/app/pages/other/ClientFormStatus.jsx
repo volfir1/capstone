@@ -48,6 +48,9 @@ export default function StaffAppointmentManager() {
   const [eventToDelete, setEventToDelete] = useState(null);
   const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState(null);
+  const [deleteAppointmentModal, setDeleteAppointmentModal] = useState(false);
+  const [isDeletingAppointment, setIsDeletingAppointment] = useState(false);
   const [eventEditForm, setEventEditForm] = useState({
     title: '',
     description: '',
@@ -83,22 +86,31 @@ export default function StaffAppointmentManager() {
   }, [pendingAppointments, selectedFilterDate, searchQuery]);
 
   const allAppointmentsForCalendar = useMemo(() => {
+    // Collect event IDs that are linked to clientsinfo records (approved appointments)
+    // so we don't show both the clientsinfo AND the linked event on the calendar
+    const linkedEventIds = new Set(
+      pendingAppointments
+        .filter(apt => apt.calendarRecorded && apt.fullData?.calendarEventId)
+        .map(apt => apt.fullData.calendarEventId)
+    );
+
     const list = [
-      // Only show Initial Interview items that have NOT been accepted/confirmed (calendarRecorded)
-      ...pendingAppointments
-        .filter(apt => !apt.calendarRecorded)
-        .map(apt => ({
-          ...apt,
-          uniqueId: `apt-${apt.id}`,
-          date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
-          isEvent: false
-        })),
-      ...events.map(evt => ({
-        ...evt,
-        uniqueId: `evt-${evt.id}`,
-        date: evt.rawAppointedDate ? new Date(evt.rawAppointedDate) : null,
-        isEvent: true
-      }))
+      // Show ALL clientsinfo appointments (both pending and accepted) as "Initial Interview"
+      ...pendingAppointments.map(apt => ({
+        ...apt,
+        uniqueId: `apt-${apt.id}`,
+        date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
+        isEvent: false
+      })),
+      // Only show events that are NOT linked to a clientsinfo record (custom events only)
+      ...events
+        .filter(evt => !linkedEventIds.has(evt.id))
+        .map(evt => ({
+          ...evt,
+          uniqueId: `evt-${evt.id}`,
+          date: evt.rawAppointedDate ? new Date(evt.rawAppointedDate) : null,
+          isEvent: true
+        }))
     ];
 
     if (calendarFilter === 'All') return list;
@@ -266,6 +278,25 @@ export default function StaffAppointmentManager() {
     }
   };
 
+  const handleDeleteAppointment = async () => {
+    if (!appointmentToDelete) return;
+    setIsDeletingAppointment(true);
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      await apiClient.delete(`/clientsinfo/${appointmentToDelete.id}`, {
+        data: { firebaseUid: currentUser?.uid }
+      });
+      notifications.show({ title: 'Deleted', message: 'Appointment removed successfully.', color: 'green', icon: <IconCheck size={18} /> });
+      setDeleteAppointmentModal(false);
+      setAppointmentToDelete(null);
+      await loadAllData();
+    } catch (error) {
+      notifications.show({ title: 'Error', message: 'Failed to delete appointment.', color: 'red' });
+    } finally {
+      setIsDeletingAppointment(false);
+    }
+  };
+
   const handleRecordToCalendars = async (appointment) => {
     if (!appointment?.id) return;
     setIsUpdating(true);
@@ -274,11 +305,29 @@ export default function StaffAppointmentManager() {
       const title = appointment.clientName ? `${appointment.clientName} - Interview` : 'Client Interview';
       const description = appointment.purpose || `Case ID: ${appointment.id}`;
 
+      // Build proper date+time for Google Calendar using Asia/Manila timezone
+      const dateObj = new Date(appointment.rawAppointedDate);
+      const rawTime = appointment.fullData?.appointmentTime || ''; // stored as "HH:mm"
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+
+      let startHour = 9, startMin = 0;
+      if (rawTime) {
+        const parts = rawTime.split(':');
+        startHour = parseInt(parts[0]) || 9;
+        startMin = parseInt(parts[1]) || 0;
+      }
+
+      const startDateTime = `${year}-${month}-${day}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
+      const endHour = startHour + 1;
+      const endDateTime = `${year}-${month}-${day}T${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
+
       const googleEvent = {
         summary: title,
         description,
-        start: { dateTime: appointment.rawAppointedDate, timeZone: 'UTC' },
-        end: { dateTime: new Date(new Date(appointment.rawAppointedDate).getTime() + 3600000).toISOString(), timeZone: 'UTC' },
+        start: { dateTime: startDateTime, timeZone: 'Asia/Manila' },
+        end: { dateTime: endDateTime, timeZone: 'Asia/Manila' },
       };
 
       await apiClient.post('/google/events/atomic', {
@@ -357,6 +406,8 @@ export default function StaffAppointmentManager() {
             <Menu.Dropdown>
               <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => handleOpenEditAppointment(item)}>Edit Schedule</Menu.Item>
               <Menu.Item leftSection={<IconEye size={14} />} onClick={() => openAppointmentModal(item.id)}>View Details</Menu.Item>
+              <Menu.Divider />
+              <Menu.Item leftSection={<IconTrash size={14} />} color="red" onClick={() => { setAppointmentToDelete(item); setDeleteAppointmentModal(true); }}>Delete</Menu.Item>
             </Menu.Dropdown>
           </Menu>
         </Group>
@@ -576,6 +627,21 @@ export default function StaffAppointmentManager() {
           <Box p="lg" bg="red.0" style={{ borderRadius: '50%' }}><IconTrash size={40} color="red" /></Box>
           <Box><Text fw={700} size="lg">Are you absolutely sure?</Text><Text size="sm" c="dimmed">This will permanently delete this event from the calendar.</Text></Box>
           <Group grow w="100%"><Button variant="outline" color="gray" radius="md" fw={600} onClick={() => setDeleteConfirmModal(false)}>Cancel</Button><Button color="red" radius="md" fw={600} onClick={handleDeleteEvent} loading={isDeletingEvent}>Delete Forever</Button></Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={deleteAppointmentModal} onClose={() => { setDeleteAppointmentModal(false); setAppointmentToDelete(null); }} title="Delete Appointment" centered radius="xl">
+        <Stack gap="md" align="center" ta="center">
+          <Box p="lg" bg="red.0" style={{ borderRadius: '50%' }}><IconTrash size={40} color="red" /></Box>
+          <Box>
+            <Text fw={700} size="lg">Delete this appointment?</Text>
+            {appointmentToDelete && <Text size="sm" c="dimmed" mt={4}>{appointmentToDelete.clientName} — {appointmentToDelete.scheduledDate}</Text>}
+            <Text size="sm" c="dimmed" mt={4}>This will permanently remove the appointment{appointmentToDelete?.calendarRecorded ? ' and its linked calendar event' : ''}.</Text>
+          </Box>
+          <Group grow w="100%">
+            <Button variant="outline" color="gray" radius="md" fw={600} onClick={() => { setDeleteAppointmentModal(false); setAppointmentToDelete(null); }}>Cancel</Button>
+            <Button color="red" radius="md" fw={600} onClick={handleDeleteAppointment} loading={isDeletingAppointment}>Delete</Button>
+          </Group>
         </Stack>
       </Modal>
     </Box>

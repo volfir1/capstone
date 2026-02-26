@@ -246,14 +246,33 @@ export const rescheduleEvent = async (req, res) => {
 
         // Create new Google event with updated time
         const endDate = new Date(newEventDate.getTime() + 3600000); // 1 hour duration
+
+        // Build a local datetime string (without UTC offset) for Asia/Manila timezone
+        const pad = (n) => String(n).padStart(2, '0');
+        const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+
+        // Parse the time from the request to set correct hours on the date
+        const rescheduleDateObj = new Date(newDate);
+        if (newTime) {
+          const tm = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(newTime);
+          if (tm) {
+            let rh = parseInt(tm[1]);
+            const rap = tm[3].toUpperCase();
+            if (rap === 'PM' && rh !== 12) rh += 12;
+            if (rap === 'AM' && rh === 12) rh = 0;
+            rescheduleDateObj.setHours(rh, parseInt(tm[2]), 0, 0);
+          }
+        }
+        const reschEndDate = new Date(rescheduleDateObj.getTime() + 3600000);
+
         const newGoogleEvent = await createEventWithRefreshToken(
           user.google.refreshToken,
           user.google.primaryCalendarId || 'primary',
           {
             summary: localEvent.title,
             description: localEvent.description || '',
-            start: { dateTime: newEventDate.toISOString(), timeZone: 'UTC' },
-            end: { dateTime: endDate.toISOString(), timeZone: 'UTC' },
+            start: { dateTime: formatLocal(rescheduleDateObj), timeZone: 'Asia/Manila' },
+            end: { dateTime: formatLocal(reschEndDate), timeZone: 'Asia/Manila' },
             location: localEvent.location || '',
           }
         );
