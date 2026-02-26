@@ -92,7 +92,7 @@ export const getActivityLogs = async (req, res) => {
       ActivityLog.countDocuments(filter),
     ]);
 
-    // Get online status: users who logged in but haven't logged out since
+    // Get online status - users who logged in but haven't logged out since
     const onlineAgg = await ActivityLog.aggregate([
       { $sort: { createdAt: -1 } },
       { $group: { _id: '$firebaseUid', lastAction: { $first: '$action' }, userName: { $first: '$userName' }, userRole: { $first: '$userRole' }, lastSeen: { $first: '$createdAt' } } },
