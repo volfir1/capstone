@@ -84,12 +84,15 @@ export default function StaffAppointmentManager() {
 
   const allAppointmentsForCalendar = useMemo(() => {
     const list = [
-      ...pendingAppointments.map(apt => ({
-        ...apt,
-        uniqueId: `apt-${apt.id}`,
-        date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
-        isEvent: false
-      })),
+      // Only show Initial Interview items that have NOT been accepted/confirmed (calendarRecorded)
+      ...pendingAppointments
+        .filter(apt => !apt.calendarRecorded)
+        .map(apt => ({
+          ...apt,
+          uniqueId: `apt-${apt.id}`,
+          date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
+          isEvent: false
+        })),
       ...events.map(evt => ({
         ...evt,
         uniqueId: `evt-${evt.id}`,
@@ -150,6 +153,15 @@ export default function StaffAppointmentManager() {
         type: e.eventType || 'other',
         rawAppointedDate: e.eventDate,
         scheduledDate: e.eventDate ? new Date(e.eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD',
+        appointmentTime: e.eventDate ? (() => {
+          const d = new Date(e.eventDate);
+          const h = d.getHours();
+          const m = d.getMinutes();
+          if (h === 0 && m === 0) return '';  // midnight likely means no specific time
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          const displayH = h % 12 || 12;
+          return `${displayH}:${String(m).padStart(2, '0')} ${ampm}`;
+        })() : '',
         location: e.location || 'TBD',
         priority: e.priority || 'Medium',
         status: e.status || 'scheduled',
@@ -208,12 +220,43 @@ export default function StaffAppointmentManager() {
       return;
     }
     setIsUpdating(true);
-    const iso = newDate.toISOString();
-    const payload = { appointedDate: iso, appointmentTime: newTime || '' };
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
-      await apiClient.put(`/clientsinfo/${selectedAppointment.id}`, payload);
-      notifications.show({ title: 'Success', message: `Appointment updated successfully`, color: 'green', icon: <IconCheck size={18} /> });
+
+      if (selectedAppointment.calendarRecorded) {
+        // Accepted appointment — reschedule via Google Calendar sync endpoint
+        // Find the linked event by matching the appointment to its calendarEventId
+        const eventId = selectedAppointment.fullData?.calendarEventId || '';
+        
+        // Set the time on the new date
+        const dateWithTime = new Date(newDate);
+        if (newTime) {
+          const timeMatch = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(newTime);
+          if (timeMatch) {
+            let h = parseInt(timeMatch[1]);
+            const ampm = timeMatch[3].toUpperCase();
+            if (ampm === 'PM' && h !== 12) h += 12;
+            if (ampm === 'AM' && h === 12) h = 0;
+            dateWithTime.setHours(h, parseInt(timeMatch[2]), 0, 0);
+          }
+        }
+
+        await apiClient.post('/google/events/reschedule', {
+          firebaseUid: currentUser.uid,
+          eventId,
+          appointmentId: selectedAppointment.id,
+          newDate: dateWithTime.toISOString(),
+          newTime: newTime || '',
+        });
+        notifications.show({ title: 'Success', message: 'Appointment rescheduled and Google Calendar updated.', color: 'green', icon: <IconCheck size={18} /> });
+      } else {
+        // Pending appointment — simple update
+        const iso = newDate.toISOString();
+        const payload = { appointedDate: iso, appointmentTime: newTime || '' };
+        await apiClient.put(`/clientsinfo/${selectedAppointment.id}`, payload);
+        notifications.show({ title: 'Success', message: 'Appointment updated successfully', color: 'green', icon: <IconCheck size={18} /> });
+      }
+
       setRescheduleModal(false);
       await loadAllData();
     } catch (error) {
@@ -337,7 +380,9 @@ export default function StaffAppointmentManager() {
               <Button size="compact-xs" variant="outline" radius="md" fw={600} style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }} onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { showClientInfo: true } })}>Interview</Button>
             )
           )}
-          <Button size="compact-xs" variant="light" radius="md" fw={600} color="gray" onClick={() => openAppointmentModal(item.id)}>Details</Button>
+          {item.calendarRecorded && (
+            <Button size="compact-xs" variant="light" radius="md" fw={600} color="gray" onClick={() => openAppointmentModal(item.id)}>Details</Button>
+          )}
         </Group>
       </Stack>
     </Card>

@@ -431,7 +431,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                     styles={{
                         input: {
                             backgroundColor: '#F5F5F5',
-                            cursor: 'not-allowed'
+                            cursor: 'not-allowed',
+                            color: '#000'
                         }
                     }}
                 />
@@ -441,7 +442,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                     styles={{
                         input: {
                             backgroundColor: '#F5F5F5',
-                            cursor: 'not-allowed'
+                            cursor: 'not-allowed',
+                            color: '#000'
                         }
                     }}
                 />
@@ -451,7 +453,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                     styles={{
                         input: {
                             backgroundColor: '#F5F5F5',
-                            cursor: 'not-allowed'
+                            cursor: 'not-allowed',
+                            color: '#000'
                         }
                     }}
                 />
@@ -462,7 +465,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                     styles={{
                         input: {
                             backgroundColor: '#F5F5F5',
-                            cursor: 'not-allowed'
+                            cursor: 'not-allowed',
+                            color: '#000'
                         }
                     }}
                 />
@@ -480,7 +484,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 styles={{
                     input: {
                         backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
-                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                        cursor: isReadOnly ? 'not-allowed' : 'text',
+                        color: '#000'
                     }
                 }}
             />
@@ -515,7 +520,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 styles={{
                     input: {
                         backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
-                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                        cursor: isReadOnly ? 'not-allowed' : 'text',
+                        color: '#000'
                     }
                 }}
             />
@@ -706,7 +712,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 styles={{
                     input: {
                         backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
-                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                        cursor: isReadOnly ? 'not-allowed' : 'text',
+                        color: '#000'
                     }
                 }}
             />
@@ -784,11 +791,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                     minRows={4}
                     value={value.supervisingComment || ''}
                     onChange={(e) => onChange({ ...value, supervisingComment: e.target.value })}
-                    disabled={supervisingLawyerDisabled}
+                    readOnly={supervisingLawyerDisabled}
                     styles={{
                         input: {
                             backgroundColor: supervisingLawyerDisabled ? '#F5F5F5' : 'white',
                             cursor: supervisingLawyerDisabled ? 'not-allowed' : 'text',
+                            color: '#000',
                         },
                     }}
                 />
@@ -820,11 +828,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                 minRows={4}
                 value={value.decisionNote || ''}
                 onChange={(e) => onChange({ ...value, decisionNote: e.target.value })}
-                disabled={directorSectionDisabled}
+                readOnly={directorSectionDisabled}
                 styles={{
                     input: {
                         backgroundColor: directorSectionDisabled ? '#F5F5F5' : 'white',
                         cursor: directorSectionDisabled ? 'not-allowed' : 'text',
+                        color: '#000',
                     },
                 }}
             />
@@ -843,11 +852,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                         minRows={3}
                         value={value.assignedTo || ''}
                         onChange={(e) => onChange({ ...value, assignedTo: e.target.value })}
-                        disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
+                        readOnly={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
                         styles={{
                             input: {
                                 backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? '#F5F5F5' : 'white',
                                 cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? 'not-allowed' : 'text',
+                                color: '#000',
                             },
                         }}
                     />
@@ -859,11 +869,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             placeholder="Signature/Name of Supervising Lawyer" 
                             value={value.supervisingLawyer || ''}
                             onChange={(e) => onChange({ ...value, supervisingLawyer: e.target.value })}
-                            disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
+                            readOnly={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
                             styles={{
                                 input: {
                                     backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? '#F5F5F5' : 'white',
                                     cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? 'not-allowed' : 'text',
+                                    color: '#000',
                                 },
                             }}
                         />
@@ -872,11 +883,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             placeholder="Signature/Name of Director" 
                             value={value.directorSignature || ''}
                             onChange={(e) => onChange({ ...value, directorSignature: e.target.value })}
-                            disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
+                            readOnly={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
                             styles={{
                                 input: {
                                     backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? '#F5F5F5' : 'white',
                                     cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? 'not-allowed' : 'text',
+                                    color: '#000',
                                 },
                             }}
                         />
@@ -885,11 +897,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             type="date" 
                             value={value.signatureDate || ''}
                             onChange={(e) => onChange({ ...value, signatureDate: e.target.value })}
-                            disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer'}
+                            readOnly={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer'}
                             styles={{
                                 input: {
                                     backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
                                     cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                                    color: '#000',
                                 },
                             }}
                         />

@@ -46,6 +46,13 @@ const eventSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    externalIds: {
+      google: { type: String },
+    },
+    appointmentTime: {
+      type: String,
+      trim: true,
+    },
   },
   { timestamps: true }
 );

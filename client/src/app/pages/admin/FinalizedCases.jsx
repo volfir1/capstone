@@ -134,7 +134,6 @@ const initialState = {
     permanentAddress: '',
     spouseName: '',
     relatorName: '',
-    relatorContactNumber: '',
     currentSourceOfIncome: '',
     monthlyIncome: '',
     natureOfWork: '',
@@ -506,7 +505,6 @@ export default function FinalizedCases() {
     permanentAddress: details?.permanentAddress || '',
     spouseName: details?.spouseName || '',
     relatorName: details?.relatorName || '',
-    relatorContactNumber: details?.relatorContactNumber || '',
     currentSourceOfIncome: details?.currentSourceOfIncome || '',
     monthlyIncome: details?.monthlyIncome !== undefined && details?.monthlyIncome !== null ? String(details.monthlyIncome) : '',
     natureOfWork: details?.natureOfWork || '',
@@ -1648,7 +1646,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       permanentAddress: state.appointmentForm.permanentAddress || undefined,
       spouseName: state.appointmentForm.spouseName || undefined,
       relatorName: state.appointmentForm.relatorName || undefined,
-      relatorContactNumber: state.appointmentForm.relatorContactNumber || undefined,
       currentSourceOfIncome: state.appointmentForm.currentSourceOfIncome || undefined,
       monthlyIncome: state.appointmentForm.monthlyIncome ? Number(state.appointmentForm.monthlyIncome) : undefined,
       natureOfWork: state.appointmentForm.natureOfWork || undefined,
@@ -2960,18 +2957,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relatorName || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relator Contact Number</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.relatorContactNumber}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relatorContactNumber: e.target.value } })}
-                      />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relatorContactNumber || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
                 </Grid>
               </Paper>
 
@@ -3815,7 +3800,6 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 
   const relatorName = txt(a.relatorName);
   const relationshipToClient = txt(a.relationshipToClient);
-  const relatorContactNumber = txt(a.relatorContactNumber);
 
   const currentSourceOfIncome = txt(a.currentSourceOfIncome);
   const monthlyIncome = money(a.monthlyIncome);
@@ -3840,11 +3824,11 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 
   // These are on the printed form but may not exist in your current schema/UI.
   const presidingOfficerPhone = txt(a.presidingOfficerPhone || a.phoneNumber);
-  const adverseParties = txt(a.adverseParties);
-  const adversePartiesAddress = txt(a.adversePartiesAddress);
-  const adversePartiesCounsel = txt(a.adversePartiesCounsel);
-  const adversePartiesCounselAddress = txt(a.adversePartiesCounselAddress);
-  const adversePartiesCounselPhone = txt(a.adversePartiesCounselPhone);
+  const adverseParties = txt(a.adverseParty || a.adverseParties);
+  const adversePartiesAddress = txt(a.adversePartyAddress || a.adversePartiesAddress);
+  const adversePartiesCounsel = txt(a.adversePartyCounsel || a.adversePartiesCounsel);
+  const adversePartiesCounselAddress = txt(a.adversePartyCounselAddress || a.adversePartiesCounselAddress);
+  const adversePartiesCounselPhone = txt(a.adversePartyCounselPhone || a.adversePartiesCounselPhone);
 
   const setFont = (size = 11, style = "normal") => {
     doc.setFont("times", style);
@@ -4002,7 +3986,6 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 
   rightY += fieldBelow({ labelText: "Name of Relator / Representative:", value: relatorName, x: rightX, y: rightY, labelW: 50, lineW: rightW - 52 });
   rightY += field({ labelText: "Relationship to the Client:", value: relationshipToClient, x: rightX, y: rightY, labelW: 40, lineW: rightW - 42 });
-  rightY += field({ labelText: "Telephone Number:", value: relatorContactNumber, x: rightX, y: rightY, labelW: 32, lineW: rightW - 34 });
 
   y = Math.max(leftY, rightY) + 8;
 

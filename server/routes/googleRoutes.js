@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAuthUrl, oauthCallback, createEvent, createEventAndRecord } from '../controller/googleController.js';
+import { getAuthUrl, oauthCallback, createEvent, createEventAndRecord, rescheduleEvent } from '../controller/googleController.js';
 
 const router = express.Router();
 
@@ -14,5 +14,7 @@ router.get('/callback', oauthCallback);
 router.post('/events', createEvent);
 // Atomic: create Google event, then create system event and update appointment record
 router.post('/events/atomic', createEventAndRecord);
+// Reschedule an accepted appointment (body: { firebaseUid, eventId, appointmentId, newDate, newTime })
+router.post('/events/reschedule', rescheduleEvent);
 
 export default router;

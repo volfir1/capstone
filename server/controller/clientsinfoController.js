@@ -2,6 +2,40 @@ import ClientsInfo from '../models/clientsinfo.js'
 import admin from 'firebase-admin'
 import User from '../models/user.js'
 import { createNotification } from './notificationController.js'
+import { getIO } from '../socket.js'
+
+// Helper: notify all users with a given role about a new appointment request
+const notifyRoleAboutNewAppointment = async (doc) => {
+  try {
+    const clientName = doc.fullName || doc.name || 'A client';
+    const dateStr = doc.appointedDate
+      ? new Date(doc.appointedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : 'TBD';
+    const timeStr = doc.appointmentTime || '';
+
+    // Notify all secretaries about the new appointment request
+    const secretaries = await User.find({ role: 'secretary' }).select('firebaseUid').lean();
+    const io = getIO();
+
+    for (const sec of secretaries) {
+      if (sec.firebaseUid) {
+        const notification = await createNotification({
+          recipientId: sec.firebaseUid,
+          title: 'New Appointment Request',
+          message: `${clientName} has requested an appointment on ${dateStr}${timeStr ? ` at ${timeStr}` : ''}. Pending your approval.`,
+          type: 'appointment_created',
+          referenceId: doc._id.toString(),
+        });
+        // Real-time push via Socket.IO
+        if (io && notification) {
+          io.to(sec.firebaseUid).emit('new-notification', notification);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('notifyRoleAboutNewAppointment error:', err.message);
+  }
+};
 
 const normalizeDate = (value) => {
   if (!value) return null;
@@ -132,6 +166,10 @@ export const createClientsInfo = async (req, res) => {
     })
 
     const saved = await doc.save()
+
+    // Notify secretaries about new appointment request
+    notifyRoleAboutNewAppointment(saved);
+
     return res.status(201).json(saved)
   } catch (err) {
     console.error('createClientsInfo error', err)
@@ -183,6 +221,10 @@ export const createPublicAppointment = async (req, res) => {
     });
 
     const saved = await doc.save();
+
+    // Notify secretaries about new appointment request
+    notifyRoleAboutNewAppointment(saved);
+
     return res.status(201).json(saved);
   } catch (err) {
     console.error('createPublicAppointment error', err);
