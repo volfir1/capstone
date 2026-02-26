@@ -1,7 +1,43 @@
 import ClientsInfo from '../models/clientsinfo.js'
 import admin from 'firebase-admin'
 import User from '../models/user.js'
+import Event from '../models/events.js'
 import { createNotification } from './notificationController.js'
+import { getIO } from '../socket.js'
+import { deleteEventWithRefreshToken } from '../utils/googleCalendar.js'
+
+// Helper: notify all users with a given role about a new appointment request
+const notifyRoleAboutNewAppointment = async (doc) => {
+  try {
+    const clientName = doc.fullName || doc.name || 'A client';
+    const dateStr = doc.appointedDate
+      ? new Date(doc.appointedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : 'TBD';
+    const timeStr = doc.appointmentTime || '';
+
+    // Notify all secretaries about the new appointment request
+    const secretaries = await User.find({ role: 'secretary' }).select('firebaseUid').lean();
+    const io = getIO();
+
+    for (const sec of secretaries) {
+      if (sec.firebaseUid) {
+        const notification = await createNotification({
+          recipientId: sec.firebaseUid,
+          title: 'New Appointment Request',
+          message: `${clientName} has requested an appointment on ${dateStr}${timeStr ? ` at ${timeStr}` : ''}. Pending your approval.`,
+          type: 'appointment_created',
+          referenceId: doc._id.toString(),
+        });
+        // Real-time push via Socket.IO
+        if (io && notification) {
+          io.to(sec.firebaseUid).emit('new-notification', notification);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('notifyRoleAboutNewAppointment error:', err.message);
+  }
+};
 
 const normalizeDate = (value) => {
   if (!value) return null;
@@ -80,9 +116,15 @@ export const createClientsInfo = async (req, res) => {
       email: payload.email,
       presentAddress: payload.presentAddress,
       permanentAddress: payload.permanentAddress,
-      spouseName: payload.spouseName,
+      spouseName: payload.spouseName || payload.spouse,
       relatorName: payload.relatorName,
+      relationshipToClient: payload.relationshipToClient,
       relatorContactNumber: payload.relatorContactNumber,
+      cellphoneNumber: payload.cellphoneNumber,
+      telephoneNumber: payload.telephoneNumber,
+      presentAddressTelephone: payload.presentAddressTelephone,
+      permanentAddressTelephone: payload.permanentAddressTelephone,
+      throughRelator: payload.throughRelator,
       
       // Financial Details fields
       currentSourceOfIncome: payload.currentSourceOfIncome,
@@ -90,6 +132,11 @@ export const createClientsInfo = async (req, res) => {
       natureOfWork: payload.natureOfWork,
       employerName: payload.employerName,
       employerAddress: payload.employerAddress,
+      employerTelephone: payload.employerTelephone,
+      spouseSourceOfIncome: payload.spouseSourceOfIncome,
+      spouseMonthlyIncome: payload.spouseMonthlyIncome,
+      spouseEmployerAddress: payload.spouseEmployerAddress,
+      totalCombinedIncome: payload.totalCombinedIncome,
       dependents: payload.dependents,
       
       // Case Details fields
@@ -100,9 +147,14 @@ export const createClientsInfo = async (req, res) => {
       natureOfCase: payload.natureOfCase,
       courtDivision: payload.courtDivision,
       courtAddress: payload.courtAddress,
+      courtPhoneNumber: payload.courtPhoneNumber,
       presidingOfficer: payload.presidingOfficer,
       caseDescription: payload.caseDescription,
       adverseParty: payload.adverseParty,
+      adversePartyAddress: payload.adversePartyAddress,
+      adversePartyCounsel: payload.adversePartyCounsel,
+      adversePartyCounselAddress: payload.adversePartyCounselAddress,
+      adversePartyCounselPhone: payload.adversePartyCounselPhone,
       legalMatter: payload.legalMatter,
       location: payload.location,
       appointmentType: payload.appointmentType,
@@ -116,6 +168,10 @@ export const createClientsInfo = async (req, res) => {
     })
 
     const saved = await doc.save()
+
+    // Notify secretaries about new appointment request
+    notifyRoleAboutNewAppointment(saved);
+
     return res.status(201).json(saved)
   } catch (err) {
     console.error('createClientsInfo error', err)
@@ -167,9 +223,34 @@ export const createPublicAppointment = async (req, res) => {
     });
 
     const saved = await doc.save();
+
+    // Notify secretaries about new appointment request
+    notifyRoleAboutNewAppointment(saved);
+
     return res.status(201).json(saved);
   } catch (err) {
     console.error('createPublicAppointment error', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// Returns only basic schedule info for public calendar visibility
+export const listPublicSchedules = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const docs = await ClientsInfo.find({
+      appointedDate: { $gte: today },
+      status: { $nin: ['rejected'] }
+    })
+    .select('appointedDate appointmentTime status')
+    .sort({ appointedDate: 1, appointmentTime: 1 })
+    .lean();
+
+    return res.json(docs);
+  } catch (err) {
+    console.error('listPublicSchedules error', err);
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
@@ -269,10 +350,16 @@ export const updateClientsInfo = async (req, res) => {
     setField('contactNumber')
     setField('cellphoneNumber')
     setField('telephoneNumber')
+    setField('presentAddressTelephone')
+    setField('permanentAddressTelephone')
     setField('email')
     setField('presentAddress')
     setField('permanentAddress')
     setField('spouseName')
+    // Also accept 'spouse' as alias for 'spouseName'
+    if (!Object.prototype.hasOwnProperty.call(payload, 'spouseName') && Object.prototype.hasOwnProperty.call(payload, 'spouse')) {
+      update.spouseName = payload.spouse
+    }
     setField('throughRelator')
     setField('relatorName')
     setField('relationshipToClient')
@@ -394,3 +481,115 @@ export const updateClientsInfo = async (req, res) => {
     return res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
+
+export const deleteClientsInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firebaseUid } = req.body || {};
+
+    const doc = await ClientsInfo.findById(id);
+    if (!doc) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    // If the appointment was already approved and has a linked event, clean up
+    if (doc.calendarEventId) {
+      try {
+        const linkedEvent = await Event.findById(doc.calendarEventId);
+        if (linkedEvent) {
+          // Try to delete from Google Calendar if linked
+          const googleEventId = linkedEvent.externalIds?.google;
+          if (googleEventId && firebaseUid) {
+            try {
+              const user = await User.findOne({ firebaseUid });
+              if (user?.google?.refreshToken) {
+                await deleteEventWithRefreshToken(
+                  user.google.refreshToken,
+                  user.google.primaryCalendarId || 'primary',
+                  googleEventId
+                );
+              }
+            } catch (gErr) {
+              console.warn('Failed to delete Google Calendar event during appointment delete:', gErr.message);
+            }
+          }
+          // Delete the linked local event
+          await Event.findByIdAndDelete(doc.calendarEventId);
+        }
+      } catch (evtErr) {
+        console.warn('Failed to clean up linked event:', evtErr.message);
+      }
+    }
+
+    await ClientsInfo.findByIdAndDelete(id);
+
+    return res.json({ message: 'Appointment deleted successfully' });
+  } catch (err) {
+    console.error('deleteClientsInfo error', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+export const getAnalytics = async (req, res) => {
+  const result = {
+    totalClients: 0,
+    statusDistribution: [],
+    genderDistribution: [],
+    civilStatusDistribution: [],
+    natureDistribution: [],
+    errors: {}
+  };
+
+  try {
+    try {
+      result.totalClients = await ClientsInfo.countDocuments();
+    } catch (e) {
+      console.error('Error counting clients:', e);
+      result.errors.totalClients = e.message;
+    }
+
+    try {
+      result.statusDistribution = await ClientsInfo.aggregate([
+        { $group: { _id: "$status", count: { $sum: 1 } } }
+      ]);
+    } catch (e) {
+      console.error('Error aggregating status:', e);
+      result.errors.statusDistribution = e.message;
+    }
+
+    try {
+      result.genderDistribution = await ClientsInfo.aggregate([
+        { $group: { _id: "$sex", count: { $sum: 1 } } }
+      ]);
+    } catch (e) {
+      console.error('Error aggregating sex:', e);
+      result.errors.genderDistribution = e.message;
+    }
+
+    try {
+      result.civilStatusDistribution = await ClientsInfo.aggregate([
+        { $group: { _id: "$civilStatus", count: { $sum: 1 } } }
+      ]);
+    } catch (e) {
+      console.error('Error aggregating civilStatus:', e);
+      result.errors.civilStatusDistribution = e.message;
+    }
+
+    try {
+      result.natureDistribution = await ClientsInfo.aggregate([
+        { $match: { natureOfCase: { $exists: true, $ne: null } } },
+        { $group: { _id: "$natureOfCase", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 }
+      ]);
+    } catch (e) {
+      console.error('Error aggregating nature:', e);
+      result.errors.natureDistribution = e.message;
+    }
+
+    return res.json(result);
+  } catch (err) {
+    console.error('getAnalytics critical error:', err);
+    return res.status(500).json({ message: 'Critical Server Error', error: err.message });
+  }
+};

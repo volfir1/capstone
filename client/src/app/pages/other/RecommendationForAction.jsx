@@ -23,21 +23,23 @@ import {
     Alert,
     Modal,
     Timeline,
-    ScrollArea
+    ScrollArea,
+    Loader,
+    Center
 } from '@mantine/core';
 import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconArrowLeft, IconUpload, IconFile, IconX, IconDownload, IconEye, IconClock, IconCheck } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
-// Import the worker as a URL so Vite can serve it as an asset
-import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.js?url';
 
-// Configure PDF.js worker to the imported asset URL
+// Configure PDF.js worker — try local node_modules first, fall back to CDN
 try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+    const pdfWorkerUrl = new URL('../../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js', import.meta.url).href;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 } catch (err) {
-    console.warn('Could not set pdfjs workerSrc', err);
+    console.warn('Could not set pdfjs workerSrc via node_modules URL, falling back to CDN:', err);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 }
 
 // Normalize server file URLs so client always requests the backend, not the dev server origin
@@ -183,7 +185,7 @@ const MUTED_OLIVE = '#8A8A5C'; // Re-added for button styling
 // Helper component for Evidence Tables (Memoized)
 const EMPTY_EVIDENCE_ROW = { type: '', author: '', purpose: '', issues: '' };
 
-const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly }) => {
+const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly, showPurpose = true }) => {
     // Local state per-row so keystrokes never re-render siblings or the parent form
     const [local, setLocal] = React.useState(() => ({ ...EMPTY_EVIDENCE_ROW, ...row }));
 
@@ -228,6 +230,7 @@ const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly }) => {
                     onBlur={handleBlur('type')}
                     readOnly={readOnly} styles={inputStyles} />
             </Table.Td>
+
             <Table.Td>
                 <TextInput placeholder="Author/Custodian" size="xs" variant="unstyled"
                     value={local.author}
@@ -235,13 +238,17 @@ const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly }) => {
                     onBlur={handleBlur('author')}
                     readOnly={readOnly} styles={inputStyles} />
             </Table.Td>
-            <Table.Td>
-                <TextInput placeholder="Purpose" size="xs" variant="unstyled"
-                    value={local.purpose}
-                    onChange={handleChange('purpose')}
-                    onBlur={handleBlur('purpose')}
-                    readOnly={readOnly} styles={inputStyles} />
-            </Table.Td>
+
+            {showPurpose && (
+                <Table.Td>
+                    <TextInput placeholder="Purpose" size="xs" variant="unstyled"
+                        value={local.purpose}
+                        onChange={handleChange('purpose')}
+                        onBlur={handleBlur('purpose')}
+                        readOnly={readOnly} styles={inputStyles} />
+                </Table.Td>
+            )}
+
             <Table.Td>
                 <TextInput placeholder="Issues" size="xs" variant="unstyled"
                     value={local.issues}
@@ -254,7 +261,7 @@ const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly }) => {
 });
 EvidenceRow.displayName = 'EvidenceRow';
 
-const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, readOnly = false }) => {
+const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, readOnly = false, showPurpose = true }) => {
     // Ensure we have at least 3 rows
     const rows = value.length >= 3 ? value : [...value, ...Array(3 - value.length).fill(EMPTY_EVIDENCE_ROW)];
 
@@ -274,10 +281,10 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
             <Table withRowBorders withColumnBorders withTableBorder striped>
                 <Table.Thead>
                     <Table.Tr>
-                        <Table.Th style={{ width: '30%' }}>Type / Description</Table.Th>
-                        <Table.Th style={{ width: '25%' }}>Author / Custodian</Table.Th>
-                        <Table.Th style={{ width: '25%' }}>Purpose</Table.Th>
-                        <Table.Th style={{ width: '20%' }}>Admissibility Issues</Table.Th>
+                        <Table.Th style={{ width: showPurpose ? '30%' : '35%' }}>Type / Description</Table.Th>
+                        <Table.Th style={{ width: showPurpose ? '25%' : '30%' }}>Author / Custodian</Table.Th>
+                        {showPurpose && <Table.Th style={{ width: '25%' }}>Purpose</Table.Th>}
+                        <Table.Th style={{ width: showPurpose ? '20%' : '35%' }}>Admissibility Issues</Table.Th>
                     </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -288,10 +295,12 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
                             index={index}
                             onBlurRow={handleBlurRow}
                             readOnly={readOnly}
+                            showPurpose={showPurpose}
                         />
                     ))}
                 </Table.Tbody>
             </Table>
+
             {!readOnly && (
                 <Button
                     variant="subtle"
@@ -330,8 +339,9 @@ const PdfViewer = ({ url, fileData }) => {
                 } else if (fileData && fileData instanceof ArrayBuffer) {
                     arrayBuffer = fileData;
                 } else if (url) {
-                    const resp = await fetch(url);
-                    arrayBuffer = await resp.arrayBuffer();
+                    // Use robust fetch helper that retries multiple URL variants
+                    // and skips HTML responses from dev server 404s
+                    arrayBuffer = await fetchArrayBufferFromUrl(url);
                 }
 
                 if (!arrayBuffer) throw new Error('No PDF data');
@@ -428,7 +438,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                     styles={{
                         input: {
                             backgroundColor: '#F5F5F5',
-                            cursor: 'not-allowed'
+                            cursor: 'not-allowed',
+                            color: '#000'
                         }
                     }}
                 />
@@ -438,7 +449,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                     styles={{
                         input: {
                             backgroundColor: '#F5F5F5',
-                            cursor: 'not-allowed'
+                            cursor: 'not-allowed',
+                            color: '#000'
                         }
                     }}
                 />
@@ -448,7 +460,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                     styles={{
                         input: {
                             backgroundColor: '#F5F5F5',
-                            cursor: 'not-allowed'
+                            cursor: 'not-allowed',
+                            color: '#000'
                         }
                     }}
                 />
@@ -459,7 +472,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                     styles={{
                         input: {
                             backgroundColor: '#F5F5F5',
-                            cursor: 'not-allowed'
+                            cursor: 'not-allowed',
+                            color: '#000'
                         }
                     }}
                 />
@@ -477,7 +491,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 styles={{
                     input: {
                         backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
-                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                        cursor: isReadOnly ? 'not-allowed' : 'text',
+                        color: '#000'
                     }
                 }}
             />
@@ -498,6 +513,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 value={value.adversePartyEvidence || []}
                 onChange={(evidence) => onChange({ ...value, adversePartyEvidence: evidence })}
                 readOnly={isReadOnly}
+                showPurpose={false}
             />
             
             <Divider />
@@ -512,7 +528,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 styles={{
                     input: {
                         backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
-                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                        cursor: isReadOnly ? 'not-allowed' : 'text',
+                        color: '#000'
                     }
                 }}
             />
@@ -703,7 +720,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 styles={{
                     input: {
                         backgroundColor: isReadOnly ? '#F5F5F5' : 'white',
-                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                        cursor: isReadOnly ? 'not-allowed' : 'text',
+                        color: '#000'
                     }
                 }}
             />
@@ -754,8 +772,18 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
     // Determine if supervising lawyer section should be disabled
     const supervisingLawyerDisabled = userRole === 'intern' || userRole === 'secretary' || userRole === 'director' || currentReviewStage === 'director';
     
-    // Determine if director section should be disabled - Allow both supervising_lawyer and director to edit
-    const directorSectionDisabled = userRole === 'intern' || userRole === 'secretary';
+    // Determine if director section should be disabled - Only the director can set the decision
+    const directorSectionDisabled = userRole !== 'director';
+
+    // Toggle handler for director's action radio buttons
+    const handleDecisionChange = (val) => {
+      // If clicking the already-selected value, unselect it (toggle off)
+      if (value.decision === val) {
+        onChange({ ...value, decision: '' });
+      } else {
+        onChange({ ...value, decision: val });
+      }
+    };
 
     return (
         <Paper shadow="md" p="xl" radius="lg" bg="white">
@@ -771,31 +799,35 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                     minRows={4}
                     value={value.supervisingComment || ''}
                     onChange={(e) => onChange({ ...value, supervisingComment: e.target.value })}
-                    disabled={supervisingLawyerDisabled}
+                    readOnly={supervisingLawyerDisabled}
                     styles={{
                         input: {
                             backgroundColor: supervisingLawyerDisabled ? '#F5F5F5' : 'white',
                             cursor: supervisingLawyerDisabled ? 'not-allowed' : 'text',
+                            color: '#000',
                         },
                     }}
                 />
 
             <Divider />
 
-            {/* Director's Action - Disabled for interns, secretary, and supervising lawyer */}
+            {/* Director's Action - Only the director can set accepted/rejected/pending */}
             <Title order={3} c={PRIMARY_BROWN}>Director's Action</Title>
-            <Radio.Group 
-                label="Decision" 
-                value={value.decision || ''} 
-                onChange={(val) => onChange({ ...value, decision: val })}
-                disabled={directorSectionDisabled}
-            >
+            <Box>
+                <Text size="sm" fw={500} mb={8}>Decision</Text>
                 <Group>
-                    <Radio value="accepted" label="Accepted" disabled={directorSectionDisabled} />
-                    <Radio value="rejected" label="Rejected" disabled={directorSectionDisabled} />
-                    <Radio value="pending" label="Pending" disabled={directorSectionDisabled} />
+                    {['accepted', 'rejected', 'pending'].map((opt) => (
+                        <Radio
+                            key={opt}
+                            value={opt}
+                            label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                            checked={value.decision === opt}
+                            onChange={() => handleDecisionChange(opt)}
+                            disabled={directorSectionDisabled}
+                        />
+                    ))}
                 </Group>
-            </Radio.Group>
+            </Box>
             
             <Textarea 
                 label="If accepted/pending, instruction(s); if rejected, reason(s):" 
@@ -804,11 +836,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                 minRows={4}
                 value={value.decisionNote || ''}
                 onChange={(e) => onChange({ ...value, decisionNote: e.target.value })}
-                disabled={directorSectionDisabled}
+                readOnly={directorSectionDisabled}
                 styles={{
                     input: {
                         backgroundColor: directorSectionDisabled ? '#F5F5F5' : 'white',
                         cursor: directorSectionDisabled ? 'not-allowed' : 'text',
+                        color: '#000',
                     },
                 }}
             />
@@ -827,11 +860,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                         minRows={3}
                         value={value.assignedTo || ''}
                         onChange={(e) => onChange({ ...value, assignedTo: e.target.value })}
-                        disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
+                        readOnly={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
                         styles={{
                             input: {
                                 backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? '#F5F5F5' : 'white',
                                 cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? 'not-allowed' : 'text',
+                                color: '#000',
                             },
                         }}
                     />
@@ -843,11 +877,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             placeholder="Signature/Name of Supervising Lawyer" 
                             value={value.supervisingLawyer || ''}
                             onChange={(e) => onChange({ ...value, supervisingLawyer: e.target.value })}
-                            disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
+                            readOnly={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
                             styles={{
                                 input: {
                                     backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? '#F5F5F5' : 'white',
                                     cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? 'not-allowed' : 'text',
+                                    color: '#000',
                                 },
                             }}
                         />
@@ -856,11 +891,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             placeholder="Signature/Name of Director" 
                             value={value.directorSignature || ''}
                             onChange={(e) => onChange({ ...value, directorSignature: e.target.value })}
-                            disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
+                            readOnly={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director'}
                             styles={{
                                 input: {
                                     backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? '#F5F5F5' : 'white',
                                     cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer' || currentReviewStage === 'director') ? 'not-allowed' : 'text',
+                                    color: '#000',
                                 },
                             }}
                         />
@@ -869,11 +905,12 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             type="date" 
                             value={value.signatureDate || ''}
                             onChange={(e) => onChange({ ...value, signatureDate: e.target.value })}
-                            disabled={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer'}
+                            readOnly={userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer'}
                             styles={{
                                 input: {
                                     backgroundColor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer') ? '#F5F5F5' : 'white',
                                     cursor: (userRole === 'intern' || userRole === 'secretary' || userRole === 'supervising_lawyer') ? 'not-allowed' : 'text',
+                                    color: '#000',
                                 },
                             }}
                         />
@@ -919,6 +956,11 @@ export default function CaseRecordFormsDisplay() {
     const { caseId: caseIdParam } = useParams();
     const navigate = useNavigate();
 
+    // Client Information Sheet side panel state
+    const [showClientInfoPanel, setShowClientInfoPanel] = useState(false);
+    const [clientInfoData, setClientInfoData] = useState(null);
+    const [clientInfoLoading, setClientInfoLoading] = useState(false);
+
     const isFromAutoScheduledApproveFlow = Boolean(location?.state?.fromAutoScheduled);
 
     // Get caseId from URL params, search params, or location state
@@ -939,7 +981,13 @@ export default function CaseRecordFormsDisplay() {
         const review = location?.state?.review;
         const isViewingFlag = location?.state?.isViewingExistingReview;
         const clientInfo = location?.state?.clientInfo; // Get auto-fill data from location state
+        const showInfoPanel = location?.state?.showClientInfo;
         
+        // Show client info panel when reviewing an existing review or explicitly requested
+        if (isViewingFlag || showInfoPanel || review) {
+            setShowClientInfoPanel(true);
+        }
+
         if (review && review.content) {
             // Mark that this is opened from dashboard (has review in location state)
             setIsFromDashboard(true);
@@ -1029,6 +1077,83 @@ export default function CaseRecordFormsDisplay() {
         }
     }, [location]);
 
+    // When navigating from notification click (caseId in URL but no review in state),
+    // fetch the latest review for this caseId and load it into the form.
+    // Re-runs when caseIdParam changes (switching between notifications on the same route).
+    useEffect(() => {
+        const review = location?.state?.review;
+        const showInfoPanel = location?.state?.showClientInfo;
+        const isViewingFlag = location?.state?.isViewingExistingReview;
+        const caseId = getCaseId();
+
+        if (!review && (showInfoPanel || isViewingFlag) && caseId && caseId !== 'new-case') {
+            // Reset stale data before fetching new review
+            setClientInfoData(null);
+            setInterviewInfo({});
+            setActionInfo({});
+            setUploadedFile(null);
+            setDocumentVersions([]);
+
+            (async () => {
+                try {
+                    const res = await apiClient.get(`/reviews/${caseId}`);
+                    const reviews = res.data;
+                    if (reviews && reviews.length > 0) {
+                        const latestReview = reviews[0]; // sorted by createdAt desc
+                        setIsFromDashboard(true);
+                        setIsViewingExistingReview(isViewingFlag || true);
+                        setReviewId(latestReview._id || latestReview.id || null);
+                        setCurrentReviewStage(latestReview.reviewStage || 'supervising_lawyer');
+
+                        const ii = latestReview.content?.interviewInfo || latestReview.interviewInfo || {};
+
+                        // Restore uploaded file if exists
+                        if (ii.uploadedDocument) {
+                            try {
+                                if (ii.uploadedDocument.isServerFile) {
+                                    const mockFile = {
+                                        name: ii.uploadedDocument.fileName,
+                                        size: ii.uploadedDocument.fileSize,
+                                        type: ii.uploadedDocument.fileType,
+                                        serverFile: { url: ii.uploadedDocument.fileUrl, filename: ii.uploadedDocument.filename },
+                                        isServerFile: true,
+                                        uploadedBy: ii.uploadedDocument.uploadedBy,
+                                        uploadedByRole: ii.uploadedDocument.uploadedByRole,
+                                    };
+                                    setUploadedFile(mockFile);
+                                } else if (ii.uploadedDocument.fileData) {
+                                    const { fileName, fileType, fileData } = ii.uploadedDocument;
+                                    fetch(fileData)
+                                        .then(r => r.blob())
+                                        .then(blob => setUploadedFile(new File([blob], fileName, { type: fileType })))
+                                        .catch(err => console.error('Error restoring file:', err));
+                                }
+                            } catch (error) {
+                                console.error('Error processing uploaded document:', error);
+                            }
+                        }
+
+                        if (ii.documentVersions && Array.isArray(ii.documentVersions)) {
+                            setDocumentVersions(ii.documentVersions);
+                        }
+                        if (ii.clientEvidence) {
+                            setInterviewInfo(prev => ({ ...prev, ...ii }));
+                        } else {
+                            setInterviewInfo(ii);
+                        }
+                        if (latestReview.content?.actionInfo) {
+                            setActionInfo(latestReview.content.actionInfo);
+                        }
+                        setShowClientInfoPanel(true);
+                    }
+                } catch (err) {
+                    console.error('Error fetching review from notification:', err);
+                }
+            })();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [caseIdParam]);
+
     // Auto-fill client information when opening from appointment status
     useEffect(() => {
         const fetchClientInfo = async () => {
@@ -1095,6 +1220,28 @@ export default function CaseRecordFormsDisplay() {
         fetchClientInfo();
     }, [getCaseId, isViewingExistingReview, interviewInfo.clientName, location]);
 
+    // Fetch full client information for the side panel
+    // Re-fetch when caseIdParam changes (switching between notifications)
+    useEffect(() => {
+        if (!showClientInfoPanel) return;
+        const caseId = getCaseId();
+        if (!caseId || caseId === 'new-case') return;
+
+        const loadClientInfo = async () => {
+            setClientInfoLoading(true);
+            try {
+                const { default: apiClient } = await import('@config/api/apiClient');
+                const response = await apiClient.get(`/clientsinfo/${caseId}`);
+                setClientInfoData(response.data);
+            } catch (err) {
+                console.error('Error fetching client info for panel:', err);
+            } finally {
+                setClientInfoLoading(false);
+            }
+        };
+        loadClientInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showClientInfoPanel, caseIdParam]);
     
 
     // Clear uploaded file when switching away from 'legal-document' case type
@@ -1166,8 +1313,8 @@ export default function CaseRecordFormsDisplay() {
             return; // Nothing to view
         }
         
-        setCurrentViewingDoc(docToView);
-        // Normalize server-relative or localhost URLs so fetches target the backend
+        // Normalize server-relative or localhost URLs BEFORE setting state
+        // so the component renders with the correct URL on first render
         try {
             if (docToView?.fileUrl && typeof docToView.fileUrl === 'string') {
                 // If backend returned a relative path like "/uploads/..." convert it to absolute
@@ -1192,6 +1339,8 @@ export default function CaseRecordFormsDisplay() {
         } catch (normalizeErr) {
             console.warn('Error normalizing document URL', normalizeErr);
         }
+        
+        setCurrentViewingDoc(docToView);
         
         // If it's a Word document, convert to HTML using mammoth
         const isWordDoc = docToView.fileType?.includes('word') || 
@@ -2096,7 +2245,155 @@ export default function CaseRecordFormsDisplay() {
         { label: "Action", description: "Lawyer & Director" },
     ];
 
-    return (
+    // ── Read-only Client Information Sheet side panel ──
+    const ClientInfoSidePanel = () => {
+        if (clientInfoLoading) {
+            return (
+                <Paper shadow="xs" p="xl" radius="lg" bg="white" h="100%">
+                    <Center h={300}><Stack align="center" gap="md"><Loader size="sm" color={PRIMARY_BROWN} /><Text size="sm" c={MUTED_OLIVE}>Loading client information...</Text></Stack></Center>
+                </Paper>
+            );
+        }
+        if (!clientInfoData) {
+            return (
+                <Paper shadow="xs" p="xl" radius="lg" bg="white" h="100%">
+                    <Center h={200}><Text size="sm" c={MUTED_OLIVE}>No client information available.</Text></Center>
+                </Paper>
+            );
+        }
+
+        const d = clientInfoData;
+        const InfoField = ({ label, value, span = 6 }) => (
+            <Grid.Col span={span}>
+                <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>{label}</Text>
+                <Text size="sm" c="#333" fw={500}>{value || 'N/A'}</Text>
+            </Grid.Col>
+        );
+
+        const formatDate = (val) => {
+            if (!val) return 'N/A';
+            try { return new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return val; }
+        };
+
+        return (
+            <Paper shadow="xs" radius="lg" bg="white" style={{ position: 'sticky', top: 20 }}>
+                <Box p="md" style={{ backgroundColor: PRIMARY_BROWN, borderRadius: '8px 8px 0 0' }}>
+                    <Group gap="sm">
+                        <IconFileText size={20} color="white" />
+                        <Text fw={700} size="sm" c="white">Client Information Sheet</Text>
+                    </Group>
+                </Box>
+                <ScrollArea h="calc(100vh - 160px)" p="md" offsetScrollbars>
+                    <Stack gap="lg">
+                        {/* Personal Details */}
+                        <Box>
+                            <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Personal Details</Text>
+                            <Grid gutter="xs">
+                                <InfoField label="Full Name" value={d.fullName || d.name} span={12} />
+                                <InfoField label="Age" value={d.age} />
+                                <InfoField label="Birthday" value={formatDate(d.birthday)} />
+                                <InfoField label="Sex" value={d.sex} />
+                                <InfoField label="Civil Status" value={d.civilStatus} />
+                                <InfoField label="Citizenship" value={d.citizenship} />
+                                <InfoField label="Contact Number" value={d.contactNumber} />
+                                <InfoField label="Cellphone" value={d.cellphoneNumber} />
+                                <InfoField label="Present Address" value={d.presentAddress} span={12} />
+                                <InfoField label="Present Address Tel." value={d.presentAddressTelephone} />
+                                <InfoField label="Permanent Address" value={d.permanentAddress} span={12} />
+                                <InfoField label="Permanent Address Tel." value={d.permanentAddressTelephone} />
+                                <InfoField label="Spouse" value={d.spouseName || d.spouse} span={12} />
+                            </Grid>
+                        </Box>
+                        <Divider />
+
+                        {/* Relator */}
+                        {(d.relatorName || d.relationshipToClient) && (
+                            <>
+                                <Box>
+                                    <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Relator / Representative</Text>
+                                    <Grid gutter="xs">
+                                        <InfoField label="Name" value={d.relatorName} span={12} />
+                                        <InfoField label="Relationship" value={d.relationshipToClient} />
+                                    </Grid>
+                                </Box>
+                                <Divider />
+                            </>
+                        )}
+
+                        {/* Financial Details */}
+                        <Box>
+                            <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Financial Details</Text>
+                            <Grid gutter="xs">
+                                <InfoField label="Source of Income" value={d.currentSourceOfIncome} span={12} />
+                                <InfoField label="Monthly Income" value={d.monthlyIncome} />
+                                <InfoField label="Nature of Work" value={d.natureOfWork} />
+                                <InfoField label="Employer" value={d.employerName} span={12} />
+                                <InfoField label="Employer Address" value={d.employerAddress} span={12} />
+                                <InfoField label="Employer Tel." value={d.employerTelephone} />
+                            </Grid>
+                        </Box>
+                        {(d.spouseSourceOfIncome || d.spouseMonthlyIncome) && (
+                            <Box>
+                                <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Spouse's Income</Text>
+                                <Grid gutter="xs">
+                                    <InfoField label="Source of Income" value={d.spouseSourceOfIncome} span={12} />
+                                    <InfoField label="Monthly Income" value={d.spouseMonthlyIncome} />
+                                    <InfoField label="Employer Address" value={d.spouseEmployerAddress} span={12} />
+                                    <InfoField label="Combined Income" value={d.totalCombinedIncome} />
+                                </Grid>
+                            </Box>
+                        )}
+                        <Divider />
+
+                        {/* Case Details */}
+                        <Box>
+                            <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Case Details</Text>
+                            <Grid gutter="xs">
+                                <InfoField label="Party Represented" value={d.partyRepresented} span={12} />
+                                <InfoField label="Venue" value={d.venue} span={12} />
+                                <InfoField label="Case Number" value={d.caseNumber} />
+                                <InfoField label="Present Stage" value={d.presentStage} />
+                                <InfoField label="Nature of Case" value={d.caseNature || d.natureOfCase} span={12} />
+                                <InfoField label="Court Division" value={d.courtDivision} span={12} />
+                                <InfoField label="Court Address" value={d.courtAddress} span={12} />
+                                <InfoField label="Court Phone" value={d.courtPhoneNumber} />
+                                <InfoField label="Presiding Officer" value={d.presidingOfficer} span={12} />
+                            </Grid>
+                        </Box>
+
+                        {(d.adverseParty || d.adversePartyAddress) && (
+                            <>
+                                <Divider />
+                                <Box>
+                                    <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Adverse Party</Text>
+                                    <Grid gutter="xs">
+                                        <InfoField label="Adverse Party" value={d.adverseParty} span={12} />
+                                        <InfoField label="Address" value={d.adversePartyAddress} span={12} />
+                                        <InfoField label="Counsel" value={d.adversePartyCounsel} span={12} />
+                                        <InfoField label="Counsel Address" value={d.adversePartyCounselAddress} span={12} />
+                                        <InfoField label="Counsel Phone" value={d.adversePartyCounselPhone} />
+                                    </Grid>
+                                </Box>
+                            </>
+                        )}
+
+                        {d.caseDescription && (
+                            <>
+                                <Divider />
+                                <Box>
+                                    <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Case Description</Text>
+                                    <Text size="sm" c="#333" style={{ whiteSpace: 'pre-wrap' }}>{d.caseDescription}</Text>
+                                </Box>
+                            </>
+                        )}
+                    </Stack>
+                </ScrollArea>
+            </Paper>
+        );
+    };
+
+    // Main content wrapped for split layout
+    const mainContent = (
         <Box 
             bg={THEMED_LIGHT_BG} 
             mih="100vh" 
@@ -2314,7 +2611,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="filled"
                                                             style={{ backgroundColor: '#FF8C42' }}
-                                                            disabled={saving || !actionInfo.decision || actionInfo.decision === 'rejected'}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Approving...' : 'Approve to Director'}
                                                         </Button>
@@ -2324,7 +2621,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
-                                                            disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Returning...' : 'Return to Intern'}
                                                         </Button>
@@ -2350,7 +2647,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="outline"
                                                             style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                            disabled={saving}
+                                                            disabled={saving || actionInfo.decision !== 'pending'}
                                                         >
                                                             {saving ? 'Saving...' : 'Save Changes'}
                                                         </Button>
@@ -2360,7 +2657,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="filled"
                                                             style={{ backgroundColor: PRIMARY_BROWN }}
-                                                            disabled={saving || actionInfo.decision !== 'accepted'}
+                                                            disabled={saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')}
                                                         >
                                                             {saving ? 'Finalizing...' : 'Finalize Record'}
                                                         </Button>
@@ -2370,7 +2667,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size="md"
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
-                                                            disabled={saving || !actionInfo.decision || actionInfo.decision !== 'rejected'}
+                                                            disabled={saving || !!actionInfo.decision}
                                                         >
                                                             {saving ? 'Returning...' : 'Return to Supervising Lawyer'}
                                                         </Button>
@@ -2445,6 +2742,25 @@ export default function CaseRecordFormsDisplay() {
                     </Stack>
                 </Paper>
             </Container>
+        </Box>
+    );
+
+    return (
+        <>
+            {showClientInfoPanel ? (
+                <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl" px="md">
+                    <Grid gutter="xl">
+                        <Grid.Col span={{ base: 12, lg: 8 }}>
+                            {mainContent}
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, lg: 4 }}>
+                            <ClientInfoSidePanel />
+                        </Grid.Col>
+                    </Grid>
+                </Box>
+            ) : (
+                mainContent
+            )}
             
             {/* Document Viewer Modal */}
             <Modal
@@ -2570,6 +2886,6 @@ export default function CaseRecordFormsDisplay() {
                     </Stack>
                 )}
             </Modal>
-        </Box>
+        </>
     );
 }

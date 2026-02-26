@@ -31,7 +31,7 @@ import { useState } from "react";
 import { useUsers } from "@/hooks/admin/users";
 import { filterUsers } from "@/utils/userManagementUtils";
 import { useSearch } from "@/utils/userManagementUtils";
-import { Loaders } from "@/components/ui/Loader";
+import UserManagementSkeleton from "@/components/skeleton/UserManagementSkeleton";
 import UserSearchFilter from "@/components/search/userSearch";
 import {
   PRIMARY_GOLD,
@@ -170,7 +170,7 @@ export default function UserManagementTable() {
   };
 
   if (isLoading) {
-    return <Loaders />;
+    return <UserManagementSkeleton />;
   }
 
   if (error) {

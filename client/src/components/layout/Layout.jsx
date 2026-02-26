@@ -57,8 +57,10 @@ const Layout = ({
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    deleteAllNotifications,
     refresh: refreshNotifications,
-  } = useNotifications();
+  } = useNotifications(navigate);
+  
   
   const currentPath = window.location.pathname;
   const actualUserRole = userData?.role || "client";
@@ -281,7 +283,17 @@ const Layout = ({
                 onRead={markAsRead}
                 onReadAll={markAllAsRead}
                 onDelete={deleteNotification}
+                onClearAll={deleteAllNotifications}
                 onRefresh={refreshNotifications}
+                onNavigate={(referenceId, type) => {
+                  if (type === 'case_assigned') {
+                    navigate('/admin/assigned-cases');
+                  } else if (referenceId) {
+                    navigate(`/admin/recommendation/${referenceId}`, {
+                      state: { showClientInfo: true, isViewingExistingReview: true },
+                    });
+                  }
+                }}
               />
 
               <Menu shadow="md" width={180} position="bottom-end">

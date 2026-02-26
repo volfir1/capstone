@@ -1,10 +1,5 @@
 import ActivityLog from '../models/activityLog.js';
-import User from '../models/user.js';
-import Attorney from '../models/attorney.js';
 import admin from 'firebase-admin';
-import { createNotification } from './notificationController.js';
-
-const ADMIN_ROLES = ['secretary', 'intern', 'attorney', 'pao_lawyer', 'legal_volunteer', 'supervising_lawyer', 'director'];
 
 // ── Helper: resolve firebaseUid from the Authorization header ──
 const getUidFromHeader = async (req) => {
@@ -26,8 +21,9 @@ export const createActivityLog = async (req, res) => {
 
     const { action, userEmail, userName, userRole } = req.body;
 
-    if (!action || !['login', 'logout'].includes(action)) {
-      return res.status(400).json({ success: false, message: 'Invalid action. Must be "login" or "logout".' });
+    const VALID_ACTIONS = ['login', 'logout', 'case_created', 'case_updated', 'case_assigned', 'review_submitted', 'finalize_decision'];
+    if (!action || !VALID_ACTIONS.includes(action)) {
+      return res.status(400).json({ success: false, message: `Invalid action. Must be one of: ${VALID_ACTIONS.join(', ')}` });
     }
 
     const log = await ActivityLog.create({
@@ -39,38 +35,6 @@ export const createActivityLog = async (req, res) => {
       ipAddress: req.ip || req.connection?.remoteAddress || '',
       userAgent: req.headers['user-agent'] || '',
     });
-
-    // ── Notify all admin-role users about login/logout ──
-    const displayName = userName || userEmail || 'A user';
-    const roleLabel = (userRole || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'User';
-    const actionLabel = action === 'login' ? 'logged in' : 'logged out';
-    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-    // Find all admin-role users (exclude the person who just logged in/out)
-    const [adminUsers, adminAttorneys] = await Promise.all([
-      User.find({ role: { $in: ADMIN_ROLES }, firebaseUid: { $ne: uid } }).select('firebaseUid role').lean(),
-      Attorney.find({ firebaseUid: { $ne: uid } }).select('firebaseUid role').lean(),
-    ]);
-
-    const recipientUids = new Set();
-    adminUsers.forEach(u => { if (u.firebaseUid) recipientUids.add(u.firebaseUid); });
-    adminAttorneys.forEach(a => { if (a.firebaseUid) recipientUids.add(a.firebaseUid); });
-
-    console.log(`[ActivityLog] ${action} by ${displayName} (${userRole}) — notifying ${recipientUids.size} admin(s)`);
-
-    const notifPromises = [];
-    for (const recipientId of recipientUids) {
-      notifPromises.push(
-        createNotification({
-          recipientId,
-          title: action === 'login' ? 'User Logged In' : 'User Logged Out',
-          message: `${displayName} (${roleLabel}) ${actionLabel} at ${now}.`,
-          type: 'general',
-          referenceId: log._id.toString(),
-        })
-      );
-    }
-    await Promise.all(notifPromises);
 
     res.status(201).json({ success: true, data: log });
   } catch (error) {
@@ -92,7 +56,8 @@ export const getActivityLogs = async (req, res) => {
 
     // Build filter
     const filter = {};
-    if (action && ['login', 'logout'].includes(action)) {
+    const VALID_ACTIONS = ['login', 'logout', 'case_created', 'case_updated', 'case_assigned', 'review_submitted', 'finalize_decision'];
+    if (action && VALID_ACTIONS.includes(action)) {
       filter.action = action;
     }
 

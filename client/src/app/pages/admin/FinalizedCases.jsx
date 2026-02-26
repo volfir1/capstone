@@ -29,14 +29,13 @@ import {
   Menu,
   Tooltip,
   Pagination,
-  PasswordInput,
-  Progress,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconUserPlus, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash } from '@tabler/icons-react';
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, BG, CHARCOAL, ACCENT_TAN, NATURE_OF_CASE_OPTIONS, CATEGORY_COLORS } from '@utils/constants';
+import FinalizedCasesSkeleton from '@/components/skeleton/FinalizedCasesSkeleton';
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { CaseInformationSection } from '../other/CaseInformationSection';
@@ -130,26 +129,38 @@ const initialState = {
     civilStatus: '',
     citizenship: '',
     contactNumber: '',
+    cellphoneNumber: '',
     email: '',
     presentAddress: '',
+    presentAddressTelephone: '',
     permanentAddress: '',
+    permanentAddressTelephone: '',
     spouseName: '',
     relatorName: '',
-    relatorContactNumber: '',
+    relationshipToClient: '',
     currentSourceOfIncome: '',
     monthlyIncome: '',
     natureOfWork: '',
     employerName: '',
     employerAddress: '',
+    employerTelephone: '',
+    spouseSourceOfIncome: '',
+    spouseMonthlyIncome: '',
+    spouseEmployerAddress: '',
+    totalCombinedIncome: '',
     partyRepresented: '',
     venue: '',
     presentStage: '',
     courtDivision: '',
     courtAddress: '',
-    caseDescription: '',
+    courtPhoneNumber: '',
     caseNature: '',
     presidingOfficer: '',
-    appointmentType: '',
+    adverseParty: '',
+    adversePartyAddress: '',
+    adversePartyCounsel: '',
+    adversePartyCounselAddress: '',
+    adversePartyCounselPhone: '',
   },
   appointmentSaving: false,
   
@@ -171,15 +182,14 @@ const initialState = {
   wordDocHtml: null,
   wordDocLoading: false,
   
-  // Create Account Modal
-  createAccountModalOpened: false,
-  selectedCaseForAccount: null,
-  accountForm: {
-    username: '',
-    password: '',
-    email: '',
-  },
-  creatingAccount: false,
+
+  // Pagination
+  currentPageAccepted: 1,
+  currentPageWithoutRecord: 1,
+  currentPageLegalAdvice: 1,
+  currentPageDocumentDrafting: 1,
+  currentPageRejected: 1,
+  rejectedCaseTypeFilter: 'all',
 };
 
 // Reducer function
@@ -196,9 +206,30 @@ function stateReducer(state, action) {
     case 'SET_ACTIVE_TAB':
       return { ...state, activeTab: action.payload };
     case 'SET_SEARCH_TERM':
-      return { ...state, searchTerm: action.payload };
+      return { 
+        ...state, 
+        searchTerm: action.payload,
+        currentPageAccepted: 1,
+        currentPageWithoutRecord: 1,
+        currentPageLegalAdvice: 1,
+        currentPageDocumentDrafting: 1,
+      };
     case 'SET_CATEGORY_FILTER':
-      return { ...state, categoryFilter: action.payload };
+      return { 
+        ...state, 
+        categoryFilter: action.payload,
+        currentPageAccepted: 1,
+        currentPageWithoutRecord: 1,
+        currentPageLegalAdvice: 1,
+        currentPageDocumentDrafting: 1,
+        currentPageRejected: 1,
+      };
+    case 'SET_REJECTED_CASE_TYPE_FILTER':
+      return {
+        ...state,
+        rejectedCaseTypeFilter: action.payload,
+        currentPageRejected: 1,
+      };
     
     // Review Modal actions
     case 'OPEN_REVIEW_MODAL':
@@ -285,31 +316,6 @@ function stateReducer(state, action) {
     case 'SET_WORD_DOC_LOADING':
       return { ...state, wordDocLoading: action.payload };
     
-    // Create Account Modal actions
-    case 'OPEN_CREATE_ACCOUNT_MODAL':
-      return {
-        ...state,
-        createAccountModalOpened: true,
-        selectedCaseForAccount: action.payload,
-        accountForm: {
-          username: '',
-          password: '',
-          email: '',
-        },
-        creatingAccount: false,
-      };
-    case 'CLOSE_CREATE_ACCOUNT_MODAL':
-      return {
-        ...state,
-        createAccountModalOpened: false,
-        selectedCaseForAccount: null,
-        accountForm: { username: '', password: '', email: '' },
-        creatingAccount: false,
-      };
-    case 'SET_ACCOUNT_FORM':
-      return { ...state, accountForm: action.payload };
-    case 'SET_CREATING_ACCOUNT':
-      return { ...state, creatingAccount: action.payload };
     
     // Case Record Modal actions
     case 'OPEN_CASE_RECORD_MODAL':
@@ -332,6 +338,9 @@ function stateReducer(state, action) {
     case 'SET_CASE_RECORD_DATA':
       return { ...state, caseRecordData: action.payload };
     
+    case 'SET_CURRENT_PAGE':
+      return { ...state, [action.payload.tab]: action.payload.page };
+    
     default:
       return state;
   }
@@ -341,6 +350,54 @@ export default function FinalizedCases() {
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(stateReducer, initialState);
   const { userData } = useAuth();
+
+  // ── Assign Case Modal State ──
+  const [assignModalOpened, setAssignModalOpened] = useState(false);
+  const [assignTargetCase, setAssignTargetCase] = useState(null);
+  const [adminStaff, setAdminStaff] = useState([]);
+  const [assignForm, setAssignForm] = useState({ assigneeId: '', deadline: '', message: '' });
+  const [assignLoading, setAssignLoading] = useState(false);
+
+  const canAssignCases = ['director', 'secretary'].includes(userData?.role);
+
+  // Fetch admin staff for the assign dropdown
+  useEffect(() => {
+    if (canAssignCases) {
+      apiClient.get('/case-assignments/admin-staff')
+        .then(res => setAdminStaff(res.data?.data || []))
+        .catch(err => console.error('Failed to fetch admin staff:', err));
+    }
+  }, [canAssignCases]);
+
+  const openAssignModal = (finCase) => {
+    setAssignTargetCase(finCase);
+    setAssignForm({ assigneeId: '', deadline: '', message: '' });
+    setAssignModalOpened(true);
+  };
+
+  const handleAssignCase = async () => {
+    if (!assignForm.assigneeId || !assignForm.deadline || !assignForm.message) {
+      notifications.show({ title: 'Missing Fields', message: 'Please fill in all fields', color: 'orange' });
+      return;
+    }
+    setAssignLoading(true);
+    try {
+      await apiClient.post('/case-assignments', {
+        finalizeId: assignTargetCase._id,
+        assigneeId: assignForm.assigneeId,
+        deadline: assignForm.deadline,
+        message: assignForm.message,
+      });
+      notifications.show({ title: 'Success', message: 'Case assigned successfully', color: 'green' });
+      setAssignModalOpened(false);
+      setAssignTargetCase(null);
+    } catch (err) {
+      console.error('Assign case error:', err);
+      notifications.show({ title: 'Error', message: err.response?.data?.error || 'Failed to assign case', color: 'red' });
+    } finally {
+      setAssignLoading(false);
+    }
+  };
 
   // When document viewer opens with a Word document, attempt conversion to HTML
   useEffect(() => {
@@ -456,26 +513,38 @@ export default function FinalizedCases() {
     civilStatus: details?.civilStatus || '',
     citizenship: details?.citizenship || '',
     contactNumber: details?.contactNumber || '',
+    cellphoneNumber: details?.cellphoneNumber || '',
     email: details?.email || '',
     presentAddress: details?.presentAddress || '',
+    presentAddressTelephone: details?.presentAddressTelephone || '',
     permanentAddress: details?.permanentAddress || '',
+    permanentAddressTelephone: details?.permanentAddressTelephone || '',
     spouseName: details?.spouseName || '',
     relatorName: details?.relatorName || '',
-    relatorContactNumber: details?.relatorContactNumber || '',
+    relationshipToClient: details?.relationshipToClient || '',
     currentSourceOfIncome: details?.currentSourceOfIncome || '',
     monthlyIncome: details?.monthlyIncome !== undefined && details?.monthlyIncome !== null ? String(details.monthlyIncome) : '',
     natureOfWork: details?.natureOfWork || '',
     employerName: details?.employerName || '',
     employerAddress: details?.employerAddress || '',
+    employerTelephone: details?.employerTelephone || '',
+    spouseSourceOfIncome: details?.spouseSourceOfIncome || '',
+    spouseMonthlyIncome: details?.spouseMonthlyIncome !== undefined && details?.spouseMonthlyIncome !== null ? String(details.spouseMonthlyIncome) : '',
+    spouseEmployerAddress: details?.spouseEmployerAddress || '',
+    totalCombinedIncome: details?.totalCombinedIncome !== undefined && details?.totalCombinedIncome !== null ? String(details.totalCombinedIncome) : '',
     partyRepresented: details?.partyRepresented || '',
     venue: details?.venue || '',
     presentStage: details?.presentStage || '',
     courtDivision: details?.courtDivision || '',
     courtAddress: details?.courtAddress || '',
-    presidingOfficer: details?.presidingOfficer || '',
-    caseDescription: details?.caseDescription || '',
+    courtPhoneNumber: details?.courtPhoneNumber || '',
     caseNature: details?.caseNature || details?.natureOfCase || '',
-    appointmentType: details?.caseDetails?.appointmentType || details?.appointmentType || details?.personal?.legalMatter || '',
+    presidingOfficer: details?.presidingOfficer || '',
+    adverseParty: details?.adverseParty || '',
+    adversePartyAddress: details?.adversePartyAddress || '',
+    adversePartyCounsel: details?.adversePartyCounsel || '',
+    adversePartyCounselAddress: details?.adversePartyCounselAddress || '',
+    adversePartyCounselPhone: details?.adversePartyCounselPhone || '',
   });
 
   const renderSectionRows = (doc, startY, title, rows) => {
@@ -525,7 +594,18 @@ export default function FinalizedCases() {
   const renderEvidenceToPdf = (doc, startY, title, evidence = []) => {
     if (!evidence || evidence.length === 0) return startY;
     const pageHeight = doc.internal.pageSize.getHeight();
-    const colWidths = [45, 50, 55, 45];
+
+    // Only omit "Purpose" for: Evidence on Hand / Available for the Adverse Party(ies)
+    const isAdversePartyEvidenceSection =
+      /evidence on hand/i.test(title) && /adverse party/i.test(title);
+
+    const headers = isAdversePartyEvidenceSection
+      ? ['Type / Description', 'Author / Custodian', 'Admissibility Issues']
+      : ['Type / Description', 'Author / Custodian', 'Purpose', 'Admissibility Issues'];
+
+    const colWidths = isAdversePartyEvidenceSection
+      ? [60, 60, 75]
+      : [45, 50, 55, 45];
     const startX = 12;
     let y = startY;
 
@@ -546,7 +626,6 @@ export default function FinalizedCases() {
     // Header
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
-    const headers = ['Type / Description', 'Author / Custodian', 'Purpose', 'Admissibility Issues'];
     const headerHeight = 8;
     addPageIfNeeded(headerHeight + 4);
     let xCursor = startX;
@@ -559,7 +638,9 @@ export default function FinalizedCases() {
 
     // Rows
     evidence.forEach((row) => {
-      const cells = [row?.type || '-', row?.author || '-', row?.purpose || '-', row?.issues || '-'];
+      const cells = isAdversePartyEvidenceSection
+        ? [row?.type || '-', row?.author || '-', row?.issues || '-']
+        : [row?.type || '-', row?.author || '-', row?.purpose || '-', row?.issues || '-'];
       const wrappedHeights = cells.map((cell, idx) => {
         const lines = doc.splitTextToSize(String(cell || '-'), colWidths[idx] - 4);
         return { lines, height: lines.length * 6 };
@@ -607,61 +688,8 @@ export default function FinalizedCases() {
       return;
     }
 
-    const summaryRows = [
-      { label: 'Case Title', value: formatText(state.caseRecordData.title) },
-      { label: 'Case ID', value: formatText(state.caseRecordData.caseId) },
-      { label: 'Nature of Case', value: formatText(state.caseRecordData.nature) },
-      { label: 'Tribunal', value: formatText(state.caseRecordData.tribunal) },
-      { label: 'Branch', value: formatText(state.caseRecordData.branch) },
-      { label: 'Presiding Judge', value: formatText(state.caseRecordData.presidingJudge) },
-      { label: 'Contact Details', value: formatText(state.caseRecordData.contactDetails || state.caseRecordData.telEmail) },
-      { label: 'Created By', value: formatText(state.caseRecordData.createdBy) },
-      { label: 'Last Modified By', value: formatText(state.caseRecordData.lastModifiedBy) },
-    ];
-
-    const partiesRows = [
-      { label: 'Parties', value: formatText(state.caseRecordData.parties) },
-      { label: 'Opposing Counsel', value: formatText(state.caseRecordData.opposingCounsel) },
-      { label: 'Public Prosecutor', value: formatText(state.caseRecordData.publicProsecutor) },
-      { label: 'Counsels', value: formatText(state.caseRecordData.counsels) },
-    ];
-
-    const addressesRows = [
-      { label: 'Client Address', value: formatText(state.caseRecordData.clientAddress) },
-      { label: 'Other Notes', value: formatText(state.caseRecordData.others) },
-    ];
-
-    const historyRows = [
-      { label: 'Case History', value: formatText(state.caseRecordData.caseHistory) },
-      { label: 'Remarks', value: formatText(state.caseRecordData.remarks) },
-    ];
-
-    // Build the same Case Record PDF as before, but add a final landscape page
-    // that matches the printed form layout (CASE HISTORY / REMARKS).
-    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    let y = 20;
-    doc.setFont('times', 'normal');
-    doc.setFontSize(18);
-    doc.setTextColor(74, 53, 31);
-    doc.text('Case Record', 14, y);
-    y += 10;
-
-    const sections = [
-      { heading: 'Case Record Summary', rows: summaryRows },
-      { heading: 'Parties & Representation', rows: partiesRows },
-      { heading: 'Addresses & Contact', rows: addressesRows },
-      { heading: 'Case History & Remarks', rows: historyRows },
-    ];
-
-    sections.forEach(({ heading, rows }) => {
-      if (rows) {
-        y = renderSectionRows(doc, y, heading, rows);
-      }
-      y += 2;
-    });
-
-    // Landscape form page (matches your photo)
-    doc.addPage('a4', 'landscape');
+    // Only landscape form page layout
+    const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
     drawCaseRecordHistoryRemarksPage(doc, {
       title: formatText(state.caseRecordData.title),
       caseId: formatText(state.caseRecordData.caseId),
@@ -717,7 +745,7 @@ export default function FinalizedCases() {
       const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
 
       // Page 1
-      drawRecommendationForActionTemplate(doc, {
+      const endY = drawRecommendationForActionTemplate(doc, {
         dateOfInterview: formatDate(interview.dateOfInterview || interview.dateInterview || d.dateOfInterview),
         clientName: formatText(d.clientName || interview.clientName),
         dateSubmitted: formatDate(action.signatureDate || d.updatedAt || d.createdAt),
@@ -733,8 +761,7 @@ export default function FinalizedCases() {
         forLegalAdvice: interview.forLegalAdvice === true || interview.forLegalAdvice === 'true' || interview.forLegalAdvice === 1 || interview.forLegalAdvice === '1',
       });
 
-      // Page 2
-      doc.addPage();
+      // Supervising Lawyer's Comment + Director's Action (continue on same page if space)
       drawRecommendationForActionDirectorPage(doc, {
         supervisingComment: formatText(action.supervisingComment),
         decision: formatText(action.decision || d.decision),
@@ -743,45 +770,48 @@ export default function FinalizedCases() {
         supervisingLawyer: formatText(action.supervisingLawyer),
         directorSignature: formatText(action.directorSignature),
         signatureDate: formatDate(action.signatureDate),
-      });
+      }, endY);
 
-      // Page 3 (landscape Case Record form layout)
-      let caseRecord = state.caseRecordData;
-      const hasCaseRecordLoaded = caseRecord && Object.keys(caseRecord).length > 0;
-      const isSameFinalizeId = state.selectedCaseId && finalizeId && state.selectedCaseId === finalizeId;
+      // Page 3 (landscape Case Record form layout) - only for court representation cases
+      const caseType = d.content?.interviewInfo?.caseType;
+      const isCaseWithRecord = caseType !== 'legal-advice' && caseType !== 'legal-document';
 
-      if (!hasCaseRecordLoaded || !isSameFinalizeId) {
-        // Attempt to fetch the case record for this finalized record.
-        try {
-          if (finalizeId) {
-            const resp = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
-            caseRecord = resp?.data || resp?.data?.data || caseRecord;
+      if (isCaseWithRecord) {
+        let caseRecord = state.caseRecordData;
+        const hasCaseRecordLoaded = caseRecord && Object.keys(caseRecord).length > 0;
+        const isSameFinalizeId = state.selectedCaseId && finalizeId && state.selectedCaseId === finalizeId;
+
+        if (!hasCaseRecordLoaded || !isSameFinalizeId) {
+          try {
+            if (finalizeId) {
+              const resp = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
+              caseRecord = resp?.data || resp?.data?.data || caseRecord;
+            }
+          } catch (err) {
+            console.warn('No case record found for third page:', err);
           }
-        } catch (err) {
-          // If no case record exists, we'll still add the page (blank-ish) rather than failing export.
-          console.warn('No case record found for third page:', err);
         }
-      }
 
-      doc.addPage('a4', 'landscape');
-      drawCaseRecordHistoryRemarksPage(doc, {
-        title: formatText(caseRecord?.title || d.content?.caseInfo?.title || d.title),
-        caseId: formatText(caseRecord?.caseId || d.caseId),
-        nature: formatText(caseRecord?.nature || d.content?.caseInfo?.nature || d.category),
-        tribunal: formatText(caseRecord?.tribunal),
-        branch: formatText(caseRecord?.branch),
-        presidingJudge: formatText(caseRecord?.presidingJudge),
-        telEmail: formatText(caseRecord?.contactDetails || caseRecord?.telEmail || d.content?.interviewInfo?.contactNumber || d.content?.interviewInfo?.email),
-        parties: formatText(caseRecord?.parties),
-        contactDetails: formatText(caseRecord?.contactDetails || caseRecord?.telEmail),
-        counsels: formatText(caseRecord?.counsels),
-        publicProsecutor: formatText(caseRecord?.publicProsecutor),
-        opposingCounsel: formatText(caseRecord?.opposingCounsel),
-        clientAddress: formatText(caseRecord?.clientAddress || d.content?.interviewInfo?.presentAddress || d.content?.interviewInfo?.permanentAddress),
-        others: formatText(caseRecord?.others),
-        caseHistory: formatText(caseRecord?.caseHistory),
-        remarks: formatText(caseRecord?.remarks),
-      });
+        doc.addPage('a4', 'landscape');
+        drawCaseRecordHistoryRemarksPage(doc, {
+          title: formatText(caseRecord?.title || d.content?.caseInfo?.title || d.title),
+          caseId: formatText(caseRecord?.caseId || d.caseId),
+          nature: formatText(caseRecord?.nature || d.content?.caseInfo?.nature || d.category),
+          tribunal: formatText(caseRecord?.tribunal),
+          branch: formatText(caseRecord?.branch),
+          presidingJudge: formatText(caseRecord?.presidingJudge),
+          telEmail: formatText(caseRecord?.contactDetails || caseRecord?.telEmail || d.content?.interviewInfo?.contactNumber || d.content?.interviewInfo?.email),
+          parties: formatText(caseRecord?.parties),
+          contactDetails: formatText(caseRecord?.contactDetails || caseRecord?.telEmail),
+          counsels: formatText(caseRecord?.counsels),
+          publicProsecutor: formatText(caseRecord?.publicProsecutor),
+          opposingCounsel: formatText(caseRecord?.opposingCounsel),
+          clientAddress: formatText(caseRecord?.clientAddress || d.content?.interviewInfo?.presentAddress || d.content?.interviewInfo?.permanentAddress),
+          others: formatText(caseRecord?.others),
+          caseHistory: formatText(caseRecord?.caseHistory),
+          remarks: formatText(caseRecord?.remarks),
+        });
+      }
 
       addDateTimeHeaderToAllPages(doc);
       doc.save('Recommendation_For_Action.pdf');
@@ -809,10 +839,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   const GAP_SM = 4;
   const GAP_MD = 6;
 
-  const FAST_FACTS_H = 34;
-  const CLIENT_EVIDENCE_H = 50;
-  const ADVERSE_EVIDENCE_H = 36;
-  const ADVICE_H = 18;
+  const ROW_H_BASE = 14; // height per evidence row in mm
+  const TABLE_HEADER_H = 8; // header height for evidence tables
+  const MIN_BOX_H = 18; // minimum box height for text sections
 
   const setFont = (size, style = "normal") => {
     doc.setFont("times", style);
@@ -823,6 +852,17 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
 
   const safeText = (v) => (v == null ? "" : String(v));
+
+  // Measure the height needed for text in a box
+  const measureTextHeight = (text, w, fontSize = 9, minH = MIN_BOX_H) => {
+    setFont(fontSize, "normal");
+    const padding = 2;
+    const maxW = Math.max(1, w - padding * 2);
+    const lh = lineHeightMm(fontSize);
+    const lines = doc.splitTextToSize(safeText(text), maxW);
+    const textH = lines.length * lh + padding * 2 + 2;
+    return Math.max(minH, textH);
+  };
 
   const drawMultilineInRect = (text, x, y, w, h, fontSize = 9) => {
     setFont(fontSize, "normal");
@@ -844,7 +884,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       ...(r || {}),
     }));
     while (filled.length < minRows) filled.push({ ...shape });
-    return filled.slice(0, minRows);
+    return filled;
   };
 
   const drawTable = (x, y, w, h, headers, colRatios, rowData = [], bodyRows = 3) => {
@@ -966,6 +1006,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   doc.text("Fast Facts", margin, y);
   y += GAP_XS;
 
+  const FAST_FACTS_H = measureTextHeight(data.fastFacts, pageW - margin * 2, 9, 20);
   doc.rect(margin, y, pageW - margin * 2, FAST_FACTS_H);
   drawMultilineInRect(data.fastFacts, margin, y, pageW - margin * 2, FAST_FACTS_H, 9);
   y += FAST_FACTS_H + GAP_MD;
@@ -977,6 +1018,8 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
 
   const clientRows = normalizeEvidence(data.clientEvidence, 3, { type: "", author: "", purpose: "", issues: "" });
   const clientRowData = clientRows.map((r) => [r.type, r.author, r.purpose, r.issues]);
+  const clientBodyRows = clientRowData.length;
+  const CLIENT_EVIDENCE_H = TABLE_HEADER_H + clientBodyRows * ROW_H_BASE;
 
   drawTable(
     margin,
@@ -986,17 +1029,25 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     ["Type / Description", "Author / Custodian", "Purpose", "Admissibility Issues"],
     [0.28, 0.22, 0.20, 0.30],
     clientRowData,
-    3
+    clientBodyRows
   );
   y += CLIENT_EVIDENCE_H + GAP_MD;
 
   // Evidence (Adverse)
+  const adverseRows = normalizeEvidence(data.adversePartyEvidence, 3, { type: "", author: "", issues: "" });
+  const adverseRowData = adverseRows.map((r) => [r.type, r.author, r.issues]);
+  const adverseBodyRows = adverseRowData.length;
+  const ADVERSE_EVIDENCE_H = TABLE_HEADER_H + adverseBodyRows * ROW_H_BASE;
+
+  // Check if adverse evidence table fits on current page
+  if (y + 5 + ADVERSE_EVIDENCE_H > pageH - margin) {
+    doc.addPage();
+    y = margin;
+  }
+
   setFont(10, "bold");
   doc.text("Evidence on Hand / Available for the Adverse Party(ies)", margin, y);
   y += GAP_XS;
-
-  const adverseRows = normalizeEvidence(data.adversePartyEvidence, 2, { type: "", author: "", issues: "" });
-  const adverseRowData = adverseRows.map((r) => [r.type, r.author, r.issues]);
 
   drawTable(
     margin,
@@ -1006,9 +1057,18 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     ["Type / Description", "Author / Custodian", "Admissibility Issues"],
     [0.35, 0.30, 0.35],
     adverseRowData,
-    2
+    adverseBodyRows
   );
   y += ADVERSE_EVIDENCE_H + (GAP_MD + 2);
+
+  // Pre-compute advice and opinion heights for page break check
+  const adviceH = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
+  const opinionH = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
+  const remainingNeeded = GAP_XS + adviceH + (GAP_MD + 2) + 4 + opinionH + margin + 10;
+  if (y + remainingNeeded > pageH) {
+    doc.addPage();
+    y = margin;
+  }
 
   // Advice + checkbox
   setFont(10, "bold");
@@ -1030,6 +1090,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
 
   y += GAP_XS;
 
+  const ADVICE_H = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
   doc.rect(margin, y, pageW - margin * 2, ADVICE_H);
   drawMultilineInRect(data.internAdvice, margin, y, pageW - margin * 2, ADVICE_H, 9);
   y += ADVICE_H + (GAP_MD + 2);
@@ -1039,16 +1100,26 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   doc.text("Legal Opinion", margin, y);
   y += 4;
 
-  const opinionH = Math.max(20, pageH - y - margin);
-  doc.rect(margin, y, pageW - margin * 2, opinionH);
-  drawMultilineInRect(data.legalOpinion, margin, y, pageW - margin * 2, opinionH, 9);
+  const OPINION_H = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
+  // Check if opinion fits; add page if needed
+  if (y + OPINION_H > pageH - margin) {
+    doc.addPage();
+    y = margin;
+    setFont(10, "bold");
+    doc.text("Legal Opinion", margin, y);
+    y += 4;
+  }
+  doc.rect(margin, y, pageW - margin * 2, OPINION_H);
+  drawMultilineInRect(data.legalOpinion, margin, y, pageW - margin * 2, OPINION_H, 9);
+  y += OPINION_H + GAP_MD;
+  return y;
 };
 
   /**
    * Draws the continuation page (Supervising Lawyer's Comment + Director's Action + Assigned To)
    * based on the provided page photo.
    */
-  const drawRecommendationForActionDirectorPage = (doc, data = {}) => {
+  const drawRecommendationForActionDirectorPage = (doc, data = {}, startY = null) => {
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 14;
@@ -1063,11 +1134,16 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     const mmPerPt = 0.3528;
     const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
 
-    const drawRuledBox = (x, y, w, h, gap = 6) => {
-      doc.rect(x, y, w, h);
-      for (let yy = y + gap; yy < y + h; yy += gap) {
-        doc.line(x, yy, x + w, yy);
-      }
+    const MIN_BOX_H = 20;
+
+    const measureTextHeight = (text, w, fontSize = 10, minH = MIN_BOX_H) => {
+      setFont(fontSize, 'normal');
+      const padding = 2;
+      const maxW = Math.max(1, w - padding * 2);
+      const lh = lineHeightMm(fontSize);
+      const lines = doc.splitTextToSize(safeText(text), maxW);
+      const textH = lines.length * lh + padding * 2 + 2;
+      return Math.max(minH, textH);
     };
 
     const drawMultilineInRect = (text, x, y, w, h, fontSize = 10) => {
@@ -1109,15 +1185,32 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     };
 
     const fullW = pageW - margin * 2;
-    let y = margin;
+
+    // Estimate total height needed for the director section
+    const commentH = measureTextHeight(data.supervisingComment, fullW, 10, 30);
+    const actionH = measureTextHeight(data.decisionNote, fullW, 10, 30);
+    const totalNeeded = 6 + commentH + 10 + 6 + 5 + 5 + actionH + 12 + 10 + 36; // approx
+
+    // Determine starting y: continue on current page if there's enough space, otherwise new page
+    let y;
+    if (startY != null && startY + totalNeeded <= pageH - margin) {
+      y = startY;
+    } else {
+      if (startY != null) {
+        // Not enough space on current page, add new page
+        doc.addPage();
+      } else {
+        doc.addPage();
+      }
+      y = margin;
+    }
 
     // Supervising Lawyer's Comment
     setFont(11, 'bold');
     doc.text("Supervising Lawyer's Comment", margin, y);
     y += 6;
 
-    const commentH = 55;
-    drawRuledBox(margin, y, fullW, commentH, 6);
+    doc.rect(margin, y, fullW, commentH);
     drawMultilineInRect(data.supervisingComment, margin, y, fullW, commentH, 10);
     y += commentH + 10;
 
@@ -1144,10 +1237,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     doc.text('If accepted/pending, instruction(s); if rejected, reason(s):', margin, y);
     y += 5;
 
-    const actionH = 60;
-    drawRuledBox(margin, y, fullW, actionH, 6);
-    drawMultilineInRect(data.decisionNote, margin, y, fullW, actionH, 10);
-    y += actionH + 12;
+    const actionBoxH = measureTextHeight(data.decisionNote, fullW, 10, 30);
+    doc.rect(margin, y, fullW, actionBoxH);
+    drawMultilineInRect(data.decisionNote, margin, y, fullW, actionBoxH, 10);
+    y += actionBoxH + 12;
 
     // Assigned to (two columns)
     setFont(11, 'bold');
@@ -1249,7 +1342,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     setFont(9, 'normal');
     const leftFields = [
       { label: 'Title of the Case:', value: data.title },
-      { label: 'Case ID:', value: data.caseId },
       { label: 'Nature of the Case:', value: data.nature },
       { label: 'Tribunal:', value: data.tribunal },
       { label: 'Branch:', value: data.branch },
@@ -1315,9 +1407,24 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     doc.text('(deadlines/material dates, etc.)', rightSectionX + rightSectionW / 2, sectionY + 12, { align: 'center' });
 
     const boxY = sectionY + 14;
-    const boxH = sectionH - 14;
-    drawRuledRect(leftSectionX, boxY, leftSectionW, boxH, 6);
-    drawRuledRect(rightSectionX, boxY, rightSectionW, boxH, 6);
+    const availableH = sectionH - 14;
+
+    // Measure text to make dynamic boxes (use at least half remaining space, up to full)
+    const measureBoxText = (text, boxW, fontSize = 9) => {
+      setFont(fontSize, 'normal');
+      const padding = 2;
+      const maxW = Math.max(1, boxW - padding * 2);
+      const lh = lineHeightMm(fontSize);
+      const lines = doc.splitTextToSize(safeText(text), maxW);
+      return lines.length * lh + padding * 2 + 4;
+    };
+
+    const historyTextH = measureBoxText(data.caseHistory, leftSectionW);
+    const remarksTextH = measureBoxText(data.remarks, rightSectionW);
+    const boxH = Math.max(Math.max(historyTextH, remarksTextH), Math.min(availableH, 40));
+
+    doc.rect(leftSectionX, boxY, leftSectionW, boxH);
+    doc.rect(rightSectionX, boxY, rightSectionW, boxH);
 
     drawMultilineInRect(data.caseHistory, leftSectionX, boxY, leftSectionW, boxH, 9);
     drawMultilineInRect(data.remarks, rightSectionX, boxY, rightSectionW, boxH, 9);
@@ -1366,6 +1473,29 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   // Group finalized records by decision and apply search filter
   const acceptedCases = filterCases(state.finalized.filter(f => f.decision === 'accepted'));
   
+  // Rejected cases — all types, with optional case type filter
+  const rejectedCasesAll = state.finalized.filter(f => f.decision === 'rejected');
+  const rejectedCasesFiltered = (() => {
+    let filtered = rejectedCasesAll;
+    // Apply search filter
+    if (state.searchTerm.trim()) {
+      const search = state.searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(f => {
+        const caseId = (f.caseId || '').toLowerCase();
+        const clientName = (f.clientName || f.content?.interviewInfo?.clientName || '').toLowerCase();
+        return caseId.includes(search) || clientName.includes(search);
+      });
+    }
+    // Apply case type filter
+    if (state.rejectedCaseTypeFilter !== 'all') {
+      filtered = filtered.filter(f => {
+        const caseType = f.content?.interviewInfo?.caseType || '';
+        return caseType === state.rejectedCaseTypeFilter;
+      });
+    }
+    return filtered;
+  })();
+  
   // Separate by case type
   const legalAdviceCases = acceptedCases.filter(isLegalAdvice);
   const documentDraftingCases = acceptedCases.filter(isDocumentDrafting);
@@ -1376,6 +1506,26 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   // Split court representation cases by whether they have case records
   const acceptedWithRecord = courtRepresentationCases.filter(f => state.caseRecordsMap[f._id || f.id]);
   const acceptedWithoutRecord = courtRepresentationCases.filter(f => !state.caseRecordsMap[f._id || f.id]);
+
+  // Pagination Logic
+  const ITEMS_PER_PAGE = 10;
+  
+  const paginate = (items, page) => {
+    const start = (page - 1) * ITEMS_PER_PAGE;
+    return items.slice(start, start + ITEMS_PER_PAGE);
+  };
+
+  const paginatedAcceptedWithRecord = paginate(acceptedWithRecord, state.currentPageAccepted);
+  const paginatedAcceptedWithoutRecord = paginate(acceptedWithoutRecord, state.currentPageWithoutRecord);
+  const paginatedLegalAdvice = paginate(legalAdviceCases, state.currentPageLegalAdvice);
+  const paginatedDocumentDrafting = paginate(documentDraftingCases, state.currentPageDocumentDrafting);
+  const paginatedRejected = paginate(rejectedCasesFiltered, state.currentPageRejected);
+
+  const totalPagesAccepted = Math.ceil(acceptedWithRecord.length / ITEMS_PER_PAGE);
+  const totalPagesWithoutRecord = Math.ceil(acceptedWithoutRecord.length / ITEMS_PER_PAGE);
+  const totalPagesLegalAdvice = Math.ceil(legalAdviceCases.length / ITEMS_PER_PAGE);
+  const totalPagesDocumentDrafting = Math.ceil(documentDraftingCases.length / ITEMS_PER_PAGE);
+  const totalPagesRejected = Math.ceil(rejectedCasesFiltered.length / ITEMS_PER_PAGE);
 
   const fetchFinalized = async () => {
     try {
@@ -1427,6 +1577,17 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       dispatch({ type: 'SET_FINALIZED', payload: [] });
     } finally {
       dispatch({ type: 'SET_LOADING_FINALIZED', payload: false });
+    }
+  };
+
+  const handleDeleteFinalized = async (recordId) => {
+    try {
+      await apiClient.delete(`/finalize/${recordId}`);
+      dispatch({ type: 'SET_FINALIZED', payload: state.finalized.filter(f => (f._id || f.id) !== recordId) });
+      notifications.show({ title: 'Deleted', message: 'Finalized record has been deleted.', color: 'green', autoClose: 3000 });
+    } catch (err) {
+      console.error('Delete finalized error:', err);
+      notifications.show({ title: 'Error', message: 'Failed to delete finalized record.', color: 'red', autoClose: 4000 });
     }
   };
 
@@ -1523,22 +1684,34 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       permanentAddress: state.appointmentForm.permanentAddress || undefined,
       spouseName: state.appointmentForm.spouseName || undefined,
       relatorName: state.appointmentForm.relatorName || undefined,
-      relatorContactNumber: state.appointmentForm.relatorContactNumber || undefined,
       currentSourceOfIncome: state.appointmentForm.currentSourceOfIncome || undefined,
       monthlyIncome: state.appointmentForm.monthlyIncome ? Number(state.appointmentForm.monthlyIncome) : undefined,
       natureOfWork: state.appointmentForm.natureOfWork || undefined,
       employerName: state.appointmentForm.employerName || undefined,
       employerAddress: state.appointmentForm.employerAddress || undefined,
+      employerTelephone: state.appointmentForm.employerTelephone || undefined,
+      cellphoneNumber: state.appointmentForm.cellphoneNumber || undefined,
+      presentAddressTelephone: state.appointmentForm.presentAddressTelephone || undefined,
+      permanentAddressTelephone: state.appointmentForm.permanentAddressTelephone || undefined,
+      relationshipToClient: state.appointmentForm.relationshipToClient || undefined,
+      spouseSourceOfIncome: state.appointmentForm.spouseSourceOfIncome || undefined,
+      spouseMonthlyIncome: state.appointmentForm.spouseMonthlyIncome ? Number(state.appointmentForm.spouseMonthlyIncome) : undefined,
+      spouseEmployerAddress: state.appointmentForm.spouseEmployerAddress || undefined,
+      totalCombinedIncome: state.appointmentForm.totalCombinedIncome ? Number(state.appointmentForm.totalCombinedIncome) : undefined,
       partyRepresented: state.appointmentForm.partyRepresented || undefined,
       venue: state.appointmentForm.venue || undefined,
       presentStage: state.appointmentForm.presentStage || undefined,
       courtDivision: state.appointmentForm.courtDivision || undefined,
       courtAddress: state.appointmentForm.courtAddress || undefined,
+      courtPhoneNumber: state.appointmentForm.courtPhoneNumber || undefined,
       presidingOfficer: state.appointmentForm.presidingOfficer || undefined,
-      caseDescription: state.appointmentForm.caseDescription || undefined,
       caseNature: state.appointmentForm.caseNature || undefined,
       natureOfCase: state.appointmentForm.caseNature || undefined,
-      appointmentType: state.appointmentForm.appointmentType || undefined,
+      adverseParty: state.appointmentForm.adverseParty || undefined,
+      adversePartyAddress: state.appointmentForm.adversePartyAddress || undefined,
+      adversePartyCounsel: state.appointmentForm.adversePartyCounsel || undefined,
+      adversePartyCounselAddress: state.appointmentForm.adversePartyCounselAddress || undefined,
+      adversePartyCounselPhone: state.appointmentForm.adversePartyCounselPhone || undefined,
     };
 
     dispatch({ type: 'SET_APPOINTMENT_SAVING', payload: true });
@@ -1589,6 +1762,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                      docToView.fileName?.endsWith('.docx') || 
                      docToView.fileName?.endsWith('.doc');
     
+    // If it's a PDF, the iframe will handle it
+    // No extra processing needed for PDF
+    
     if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
       dispatch({ type: 'SET_WORD_DOC_LOADING', payload: true });
       try {
@@ -1612,6 +1788,94 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       } finally {
         dispatch({ type: 'SET_WORD_DOC_LOADING', payload: false });
       }
+    }
+  };
+
+  // Function to handle downloading documents programmatically (works cross-origin)
+  const handleDownloadDocument = async (documentData) => {
+    if (!documentData) return;
+    try {
+      const url = documentData.fileUrl
+        ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
+        : documentData.fileData;
+      if (!url) {
+        notifications.show({ title: 'Error', message: 'No file URL available', color: 'red' });
+        return;
+      }
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch file');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = documentData.fileName || 'document';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download failed:', err);
+      // Fallback: open in new tab
+      const url = documentData.fileUrl
+        ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
+        : documentData.fileData;
+      if (url) window.open(url, '_blank');
+      else notifications.show({ title: 'Error', message: 'Download failed', color: 'red' });
+    }
+  };
+
+  // Function to handle deleting a version from version history
+  const handleDeleteVersion = async (versionIndex) => {
+    if (!state.selectedCaseForVersions) return;
+    const caseData = state.selectedCaseForVersions;
+    const finalizeId = caseData._id || caseData.id;
+    const versions = [...(caseData.content?.interviewInfo?.documentVersions || [])];
+    const versionToDelete = versions[versionIndex];
+    if (!versionToDelete) return;
+
+    try {
+      // Delete the file from server if it has a fileUrl
+      if (versionToDelete.fileUrl) {
+        const filename = versionToDelete.fileUrl.split('/').pop();
+        if (filename) {
+          try {
+            await apiClient.delete(`/upload/document/${encodeURIComponent(filename)}`);
+          } catch (fileErr) {
+            console.warn('Could not delete file from server:', fileErr);
+          }
+        }
+      }
+
+      // Remove version from array
+      versions.splice(versionIndex, 1);
+
+      // Update the finalize record
+      const updatedContent = JSON.parse(JSON.stringify(caseData.content || {}));
+      if (!updatedContent.interviewInfo) updatedContent.interviewInfo = {};
+      updatedContent.interviewInfo.documentVersions = versions;
+
+      await apiClient.put(`/finalize/${finalizeId}`, { content: updatedContent });
+
+      // Update local state
+      const updatedCase = {
+        ...caseData,
+        content: updatedContent,
+      };
+      dispatch({
+        type: 'OPEN_VERSION_HISTORY_MODAL',
+        payload: { case: updatedCase, versions },
+      });
+
+      // Refresh finalized list
+      const resp = await apiClient.get('/finalize');
+      const data = resp.data?.data ?? resp.data ?? [];
+      const finalizedData = Array.isArray(data) ? data : [];
+      dispatch({ type: 'SET_FINALIZED', payload: finalizedData });
+
+      notifications.show({ title: 'Deleted', message: 'Version deleted successfully.', color: 'green' });
+    } catch (err) {
+      console.error('Error deleting version:', err);
+      notifications.show({ title: 'Error', message: 'Failed to delete version.', color: 'red' });
     }
   };
 
@@ -1839,48 +2103,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     }
   };
 
-  const handleCreateClientAccount = async () => {
-    try {
-      if (!state.accountForm.username || !state.accountForm.password) {
-        notifications.show({
-          title: 'Validation Error',
-          message: 'Username and password are required',
-          color: 'red',
-        });
-        return;
-      }
-
-      dispatch({ type: 'SET_CREATING_ACCOUNT', payload: true });
-
-      const resp = await apiClient.post('/auth/create-client-account', {
-        finalizeId: state.selectedCaseForAccount._id,
-        username: state.accountForm.username,
-        password: state.accountForm.password,
-        email: state.accountForm.email || undefined,
-      });
-
-      if (resp.data?.success) {
-        notifications.show({
-          title: 'Success',
-          message: `Client account created successfully! Username: ${resp.data.data.username}`,
-          color: 'green',
-        });
-        dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' });
-        // Refresh finalized cases to update the UI
-        await fetchFinalized();
-      }
-    } catch (err) {
-      console.error('Error creating client account:', err);
-      const errorMsg = err.response?.data?.message || err.message;
-      notifications.show({
-        title: 'Error',
-        message: `Failed to create client account: ${errorMsg}`,
-        color: 'red',
-      });
-    } finally {
-      dispatch({ type: 'SET_CREATING_ACCOUNT', payload: false });
-    }
-  };
 
   const updateEditedData = (path, value) => {
     const newData = { ...state.editedData };
@@ -2116,14 +2338,12 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 >
                   View Review
                 </Menu.Item>
-                {f.decision === 'accepted' && (
-                  <Menu.Item leftSection={<IconReceipt size={16} />}
-                    onClick={() => openAppointmentModal(f)}
-                  >
-                    Full Receipt
-                  </Menu.Item>
-                )}
-                {f.decision === 'accepted' && !isLegalAdvice(f) && (
+                <Menu.Item leftSection={<IconReceipt size={16} />}
+                  onClick={() => openAppointmentModal(f)}
+                >
+                  Full Receipt
+                </Menu.Item>
+                {f.decision === 'accepted' && !isLegalAdvice(f) && !isDocumentDrafting(f) && (
                   <Menu.Item leftSection={<IconFileText size={16} />}
                     onClick={() => openCaseRecordModal(f)}
                   >
@@ -2151,16 +2371,28 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     Version History
                   </Menu.Item>
                 )}
-                {f.decision === 'accepted' && !f.linkedCaseId && !f.clientAccountCreated && (
+                {canAssignCases && f.decision === 'accepted' && (
                   <>
                     <Menu.Divider />
-                    <Menu.Item leftSection={<IconUserPlus size={16} />} color="blue"
-                      onClick={() => dispatch({ type: 'OPEN_CREATE_ACCOUNT_MODAL', payload: f })}
+                    <Menu.Item leftSection={<IconSend size={16} />} color="blue"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openAssignModal(f);
+                      }}
                     >
-                      Create Client Account
+                      Assign Case
                     </Menu.Item>
                   </>
                 )}
+                <Menu.Divider />
+                <Menu.Item leftSection={<IconTrash size={16} />} color="red"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteFinalized(recordId);
+                  }}
+                >
+                  Delete Record
+                </Menu.Item>
               </Menu.Dropdown>
             </Menu>
           </Group>
@@ -2331,7 +2563,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                           </Text>
                         )}
                         <Group gap="xs" mt="sm">
-                          {state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl && (
+                          {(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl || state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileData) && (
                             <>
                               <Button
                                 size="xs"
@@ -2347,9 +2579,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                                 variant="light"
                                 color="green"
                                 leftSection={<IconDownload size={14} />}
-                                component="a"
-                                href={getServerFileUrl(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileUrl)}
-                                download={state.selectedCaseForVersions.content.interviewInfo.uploadedDocument.fileName}
+                                onClick={() => handleDownloadDocument(state.selectedCaseForVersions.content.interviewInfo.uploadedDocument)}
                               >
                                 Download
                               </Button>
@@ -2390,7 +2620,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                           {new Date(version.uploadedAt).toLocaleString()}
                         </Text>
                         <Group gap="xs">
-                          {version.fileUrl ? (
+                          {(version.fileUrl || version.fileData) ? (
                             <>
                               <Button
                                 size="xs"
@@ -2403,33 +2633,20 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                               <Button
                                 size="xs"
                                 variant="subtle"
+                                color="green"
                                 leftSection={<IconDownload size={14} />}
-                                component="a"
-                                href={getServerFileUrl(version.fileUrl)}
-                                download={version.fileName}
+                                onClick={() => handleDownloadDocument(version)}
                               >
                                 Download
-                              </Button>
-                            </>
-                          ) : version.fileData ? (
-                            <>
-                              <Button
-                                size="xs"
-                                variant="subtle"
-                                leftSection={<IconEye size={14} />}
-                                onClick={() => handleViewDocument(version)}
-                              >
-                                View
                               </Button>
                               <Button
                                 size="xs"
                                 variant="subtle"
-                                leftSection={<IconDownload size={14} />}
-                                component="a"
-                                href={version.fileData}
-                                download={version.fileName}
+                                color="red"
+                                leftSection={<IconTrash size={14} />}
+                                onClick={() => handleDeleteVersion(index)}
                               >
-                                Download
+                                Delete
                               </Button>
                             </>
                           ) : (
@@ -2484,9 +2701,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Button
                     size="sm"
                     leftSection={<IconDownload size={16} />}
-                    component="a"
-                    href={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
-                    download={state.currentViewingDoc.fileName}
+                    onClick={() => handleDownloadDocument(state.currentViewingDoc)}
                     style={{ backgroundColor: PRIMARY_BROWN }}
                   >
                     Download
@@ -2541,9 +2756,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                           <Button
                             size="lg"
                             leftSection={<IconDownload size={20} />}
-                            component="a"
-                            href={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
-                            download={state.currentViewingDoc.fileName}
+                            onClick={() => handleDownloadDocument(state.currentViewingDoc)}
                             style={{ backgroundColor: PRIMARY_BROWN }}
                           >
                             Download to View/Edit
@@ -2565,9 +2778,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     <Button
                       size="lg"
                       leftSection={<IconDownload size={20} />}
-                      component="a"
-                      href={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
-                      download={state.currentViewingDoc.fileName}
+                      onClick={() => handleDownloadDocument(state.currentViewingDoc)}
                       style={{ backgroundColor: PRIMARY_BROWN }}
                     >
                       Download File
@@ -2630,8 +2841,12 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               </Group>
             </Group>
           }
-          size="lg"
+          size="calc(90vw)"
           radius="lg"
+          styles={{
+            title: { fontWeight: 700, width: '100%' },
+            body: { maxHeight: '80vh', overflowY: 'auto' },
+          }}
         >
           {state.loadingAppointment ? (
             <Center py="xl">
@@ -2643,7 +2858,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               <Paper p="md" radius="md" style={{ backgroundColor: `${PRIMARY_GOLD}15`, border: `1px solid ${PRIMARY_GOLD}` }}>
                 <Group justify="space-between" align="center">
                   <Text fw={700} size="lg" c={PRIMARY_BROWN}>
-                    {state.appointmentDetails.caseDetails?.appointmentType || state.appointmentDetails.personal?.legalMatter || 'Appointment'}
+                    Appointment
                   </Text>
                   <Badge size="lg" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>
                     {appointmentStatusLabel}
@@ -2659,14 +2874,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <Title order={4} mb="md" c={CHARCOAL}>Personal Details</Title>
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
-                  <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Name</Text>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Full Name</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.fullName}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, fullName: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.fullName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, fullName: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.fullName || state.appointmentDetails.name || 'N/A'}</Text>
                     )}
@@ -2674,12 +2885,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        type="number"
-                        value={state.appointmentForm.age}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, age: e.target.value } })}
-                      />
+                      <TextInput size="sm" type="number" value={state.appointmentForm.age} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, age: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.age || 'N/A'}</Text>
                     )}
@@ -2687,12 +2893,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        type="date"
-                        value={state.appointmentForm.birthday}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, birthday: e.target.value } })}
-                      />
+                      <TextInput size="sm" type="date" value={state.appointmentForm.birthday} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, birthday: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.birthday || 'N/A'}</Text>
                     )}
@@ -2700,11 +2901,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.sex}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, sex: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.sex} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, sex: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.sex || 'N/A'}</Text>
                     )}
@@ -2712,11 +2909,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.civilStatus}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, civilStatus: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.civilStatus} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, civilStatus: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.civilStatus || 'N/A'}</Text>
                     )}
@@ -2724,11 +2917,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Citizenship</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.citizenship}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, citizenship: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.citizenship} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, citizenship: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.citizenship || 'N/A'}</Text>
                     )}
@@ -2736,85 +2925,81 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.contactNumber}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, contactNumber: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.contactNumber} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, contactNumber: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.contactNumber || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Email</Text>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Cellphone Number</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.email}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, email: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.cellphoneNumber} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, cellphoneNumber: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.email || 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.cellphoneNumber || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.presentAddress}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentAddress: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.presentAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentAddress: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address Tel.</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.presentAddressTelephone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentAddressTelephone: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentAddressTelephone || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.permanentAddress}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, permanentAddress: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.permanentAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, permanentAddress: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse Name</Text>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address Tel.</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.spouseName}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseName: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.permanentAddressTelephone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, permanentAddressTelephone: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseName || 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddressTelephone || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.spouseName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseName: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseName || state.appointmentDetails.spouse || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Relator / Representative */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Relator / Representative</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relator Name</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.relatorName}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relatorName: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.relatorName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relatorName: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relatorName || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relator Contact Number</Text>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relationship to Client</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.relatorContactNumber}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relatorContactNumber: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.relationshipToClient} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relationshipToClient: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relatorContactNumber || 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relationshipToClient || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                 </Grid>
@@ -2828,48 +3013,23 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Status</Text>
                     {state.appointmentEditMode ? (
-                      <Select
-                        size="sm"
-                        data={APPOINTMENT_STATUS_OPTIONS}
-                        placeholder="Select status"
-                        value={state.appointmentForm.status || null}
-                        onChange={(val) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, status: val || '' } })}
-                      />
+                      <Select size="sm" data={APPOINTMENT_STATUS_OPTIONS} placeholder="Select status" value={state.appointmentForm.status || null} onChange={(val) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, status: val || '' } })} />
                     ) : (
-                      <Badge size="lg" variant="light" color="gray" style={{ backgroundColor: `${PRIMARY_BROWN}10`, color: PRIMARY_BROWN }}>
-                        {appointmentStatusLabel}
-                      </Badge>
+                      <Badge size="lg" variant="light" color="gray" style={{ backgroundColor: `${PRIMARY_BROWN}10`, color: PRIMARY_BROWN }}>{appointmentStatusLabel}</Badge>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        type="date"
-                        size="sm"
-                        value={state.appointmentForm.appointedDate || ''}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointedDate: e.target.value } })}
-                      />
+                      <TextInput type="date" size="sm" value={state.appointmentForm.appointedDate || ''} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointedDate: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>
-                        {state.appointmentDetails.appointedDate ? new Date(state.appointmentDetails.appointedDate).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        }) : 'N/A'}
-                      </Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.appointedDate ? new Date(state.appointmentDetails.appointedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Time</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        type="time"
-                        size="sm"
-                        value={state.appointmentForm.appointmentTime || ''}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointmentTime: e.target.value } })}
-                      />
+                      <TextInput type="time" size="sm" value={state.appointmentForm.appointmentTime || ''} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointmentTime: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.appointmentTime || 'N/A'}</Text>
                     )}
@@ -2883,13 +3043,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Income Source</Text>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Source of Income</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.currentSourceOfIncome}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, currentSourceOfIncome: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.currentSourceOfIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, currentSourceOfIncome: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
                     )}
@@ -2897,26 +3053,15 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        type="number"
-                        value={state.appointmentForm.monthlyIncome}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, monthlyIncome: e.target.value } })}
-                      />
+                      <TextInput size="sm" type="number" value={state.appointmentForm.monthlyIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, monthlyIncome: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>
-                        {state.appointmentDetails.monthlyIncome ? `₱${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}
-                      </Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.monthlyIncome ? `₱${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.natureOfWork}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, natureOfWork: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.natureOfWork} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, natureOfWork: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.natureOfWork || 'N/A'}</Text>
                     )}
@@ -2924,11 +3069,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.employerName}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerName: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.employerName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerName: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerName || 'N/A'}</Text>
                     )}
@@ -2936,13 +3077,57 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.employerAddress}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerAddress: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.employerAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerAddress: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Telephone</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.employerTelephone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerTelephone: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerTelephone || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Spouse's Income */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Spouse&apos;s Income</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Source of Income</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.spouseSourceOfIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseSourceOfIncome: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseSourceOfIncome || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" type="number" value={state.appointmentForm.spouseMonthlyIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseMonthlyIncome: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseMonthlyIncome ? `₱${Number(state.appointmentDetails.spouseMonthlyIncome).toLocaleString()}` : 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse Employer Address</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.spouseEmployerAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseEmployerAddress: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseEmployerAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Total Combined Income</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" type="number" value={state.appointmentForm.totalCombinedIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, totalCombinedIncome: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.totalCombinedIncome ? `₱${Number(state.appointmentDetails.totalCombinedIncome).toLocaleString()}` : 'N/A'}</Text>
                     )}
                   </Grid.Col>
                 </Grid>
@@ -2956,13 +3141,17 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.partyRepresented}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, partyRepresented: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.partyRepresented} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, partyRepresented: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.partyRepresented || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.venue} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, venue: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.venue || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={6}>
@@ -2970,61 +3159,25 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNumber || 'N/A'}</Text>
                   </Grid.Col>
                   <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Nature</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.caseNature}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, caseNature: e.target.value } })}
-                      />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNature || state.appointmentDetails.natureOfCase || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Type</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.appointmentType}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointmentType: e.target.value } })}
-                      />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseDetails?.appointmentType || state.appointmentDetails.personal?.legalMatter || state.appointmentDetails.appointmentType || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.venue}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, venue: e.target.value } })}
-                      />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.venue || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={6}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.presentStage}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentStage: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.presentStage} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentStage: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentStage || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Case</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.caseNature} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, caseNature: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNature || state.appointmentDetails.natureOfCase || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Division</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.courtDivision}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtDivision: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.courtDivision} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtDivision: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtDivision || 'N/A'}</Text>
                     )}
@@ -3032,38 +3185,73 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.courtAddress}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtAddress: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.courtAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtAddress: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Description</Text>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Phone Number</Text>
                     {state.appointmentEditMode ? (
-                      <Textarea
-                        size="sm"
-                        minRows={2}
-                        value={state.appointmentForm.caseDescription}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, caseDescription: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.courtPhoneNumber} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtPhoneNumber: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseDescription || 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtPhoneNumber || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.presidingOfficer} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presidingOfficer: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presidingOfficer || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {/* Adverse Party */}
+              <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+                <Title order={4} mb="md" c={CHARCOAL}>Adverse Party</Title>
+                <Divider mb="md" color="#F0F0F0" />
+                <Grid gutter="md">
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party(ies)</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.adverseParty} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adverseParty: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adverseParty || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Address</Text>
                     {state.appointmentEditMode ? (
-                      <TextInput
-                        size="sm"
-                        value={state.appointmentForm.presidingOfficer}
-                        onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presidingOfficer: e.target.value } })}
-                      />
+                      <TextInput size="sm" value={state.appointmentForm.adversePartyAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyAddress: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presidingOfficer || 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.adversePartyCounsel} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounsel: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounsel || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel Address</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.adversePartyCounselAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounselAddress: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounselAddress || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel Phone</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.adversePartyCounselPhone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounselPhone: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounselPhone || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                 </Grid>
@@ -3085,6 +3273,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               <Title order={3} c={PRIMARY_BROWN}>Recommendation for Action</Title>
               <Group gap="sm">
                 {!state.editMode ? (
+                  ['director', 'supervising_lawyer', 'secretary'].includes(userData?.role) && (
                   <Button
                     size="xs"
                     variant="outline"
@@ -3093,6 +3282,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   >
                     Edit
                   </Button>
+                  )
                 ) : (
                   <>
                     <Button
@@ -3126,10 +3316,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               </Group>
             </Group>
           }
-          size="xl"
+          size="calc(90vw)"
           styles={{
             title: { fontWeight: 700, width: '100%' },
-            body: { maxHeight: '70vh', overflowY: 'auto' },
+            body: { maxHeight: '80vh', overflowY: 'auto' },
           }}
         >
           {state.editedData && (
@@ -3157,49 +3347,19 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <SimpleGrid cols={2} spacing="sm" mb="md">
                   <Box>
                     <Text size="xs" c="dimmed">Date of Interview</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        type="date"
-                        value={state.editedData.content?.interviewInfo?.dateOfInterview || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.dateOfInterview', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Date Submitted</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        type="date"
-                        value={state.editedData.content?.interviewInfo?.dateSubmitted || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.dateSubmitted', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Client's Name</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        value={state.editedData.content?.interviewInfo?.clientName || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.clientName', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.clientName || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.clientName || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        value={state.editedData.content?.interviewInfo?.interviewingInterns || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.interviewingInterns', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
                   </Box>
                 </SimpleGrid>
                 <Divider my="md" />
@@ -3277,78 +3437,16 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <Divider my="md" />
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
-                  {state.editMode ? (
-                    <Radio.Group
-                      value={state.editedData.decision || ''}
-                      onChange={(val) => {
-                        const updated = { ...state.editedData, decision: val };
-                        // Also update the nested path for consistency
-                        if (!updated.content) updated.content = {};
-                        if (!updated.content.actionInfo) updated.content.actionInfo = {};
-                        updated.content.actionInfo.decision = val;
-                        dispatch({ type: 'SET_EDITED_DATA', payload: updated });
-                      }}
-                    >
-                      <Group>
-                        <Radio value="accepted" label="Accepted" />
-                        <Radio value="rejected" label="Rejected" />
-                        <Radio value="pending" label="Pending" />
-                      </Group>
-                    </Radio.Group>
-                  ) : (
-                    <Badge 
-                      size="lg" 
-                      color={
-                        state.editedData.decision === 'accepted' ? 'green' : 
-                        state.editedData.decision === 'rejected' ? 'red' : 
-                        'yellow'
-                      }
-                    >
-                      {(state.editedData.decision || 'pending').toUpperCase()}
-                    </Badge>
-                  )}
-                </Box>
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Case Category</Text>
-                  {state.editMode ? (
-                    <Select
-                      placeholder="Select a category"
-                      value={state.editedData.content?.caseInfo?.nature || state.editedData.category || 'Other'}
-                      onChange={(val) => updateEditedData('content.caseInfo.nature', val)}
-                      data={[
-                        { value: 'Civil Case', label: 'Civil Case' },
-                        { value: 'Criminal Case', label: 'Criminal Case' },
-                        { value: 'Family Law', label: 'Family Law' },
-                        { value: 'Labor and Employment', label: 'Labor and Employment' },
-                        { value: 'Land and Property Disputes', label: 'Land and Property Disputes' },
-                        { value: 'Contract Disputes', label: 'Contract Disputes' },
-                        { value: 'Personal Injury', label: 'Personal Injury' },
-                        { value: 'Debt Collection', label: 'Debt Collection' },
-                        { value: 'Inheritance and Estate', label: 'Inheritance and Estate' },
-                        { value: 'Business and Commercial Law', label: 'Business and Commercial Law' },
-                        { value: 'Consumer Protection', label: 'Consumer Protection' },
-                        { value: 'Tax Law', label: 'Tax Law' },
-                        { value: 'Immigration', label: 'Immigration' },
-                        { value: 'Intellectual Property', label: 'Intellectual Property' },
-                        { value: 'Environmental Law', label: 'Environmental Law' },
-                        { value: 'Administrative Law', label: 'Administrative Law' },
-                        { value: 'Human Rights Violation', label: 'Human Rights Violation' },
-                        { value: 'Cybercrime', label: 'Cybercrime' },
-                        { value: 'Election Law', label: 'Election Law' },
-                        { value: 'Other', label: 'Other' },
-                      ]}
-                      clearable={false}
-                      searchable
-                    />
-                  ) : (
-                    <Badge 
-                      size="lg" 
-                      variant="light"
-                      color={CATEGORY_COLORS[state.editedData.content?.caseInfo?.nature || state.editedData.category] || 'gray'}
-                    >
-                      {state.editedData.content?.caseInfo?.nature || state.editedData.category || 'Other'}
-                    </Badge>
-                  )}
+                  <Badge 
+                    size="lg" 
+                    color={
+                      state.editedData.decision === 'accepted' ? 'green' : 
+                      state.editedData.decision === 'rejected' ? 'red' : 
+                      'yellow'
+                    }
+                  >
+                    {(state.editedData.decision || 'pending').toUpperCase()}
+                  </Badge>
                 </Box>
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
@@ -3367,50 +3465,19 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 <SimpleGrid cols={2} spacing="sm">
                   <Box>
                     <Text size="xs" c="dimmed">Assigned To</Text>
-                    {state.editMode ? (
-                      <Textarea
-                        autosize
-                        minRows={2}
-                        value={state.editedData.content?.actionInfo?.assignedTo || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.assignedTo', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Supervising Lawyer</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        value={state.editedData.content?.actionInfo?.supervisingLawyer || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.supervisingLawyer', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Director's Signature</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        value={state.editedData.content?.actionInfo?.directorSignature || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.directorSignature', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
                   </Box>
                   <Box>
                     <Text size="xs" c="dimmed">Signature Date</Text>
-                    {state.editMode ? (
-                      <TextInput
-                        type="date"
-                        value={state.editedData.content?.actionInfo?.signatureDate || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.signatureDate', e.target.value)}
-                      />
-                    ) : (
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.signatureDate || '-'}</Text>
-                    )}
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.signatureDate || '-'}</Text>
                   </Box>
                 </SimpleGrid>
               </Paper>
@@ -3448,151 +3515,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               </Group>
             </Stack>
           )}
-        </Modal>
-
-        {/* Create Client Account Modal */}
-        <Modal
-          opened={state.createAccountModalOpened}
-          onClose={() => dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' })}
-          title={
-            <Group gap="xs">
-              <IconUserPlus size={20} color={PRIMARY_BROWN} />
-              <Text fw={700} size="md" c={PRIMARY_BROWN}>
-                Create Client Account
-              </Text>
-            </Group>
-          }
-          size="sm"
-          radius="lg"
-          styles={{
-            body: { padding: '16px 24px 24px' },
-          }}
-        >
-          {state.selectedCaseForAccount && (() => {
-            const clientName = state.selectedCaseForAccount.content?.interviewInfo?.clientName || state.selectedCaseForAccount.clientName || 'Unknown';
-            const shortId = state.selectedCaseForAccount.caseId
-              ? (state.selectedCaseForAccount.caseId.length > 8 ? '#' + state.selectedCaseForAccount.caseId.slice(0, 8) : '#' + state.selectedCaseForAccount.caseId)
-              : '';
-            const pw = state.accountForm.password || '';
-            const pwStrength = pw.length === 0 ? 0 : pw.length < 6 ? 25 : pw.length < 8 ? 50 : (pw.length >= 8 && /[A-Z]/.test(pw) && /[0-9]/.test(pw)) ? 100 : 75;
-            const pwColor = pwStrength <= 25 ? 'red' : pwStrength <= 50 ? 'orange' : pwStrength <= 75 ? 'yellow' : 'green';
-            const pwLabel = pwStrength <= 25 ? 'Weak' : pwStrength <= 50 ? 'Fair' : pwStrength <= 75 ? 'Good' : 'Strong';
-
-            return (
-              <Stack gap="md">
-                <Box>
-                  <Group gap={6} mb={2}>
-                    <Text size="sm" c={CHARCOAL}>Client: <Text component="span" fw={700} inherit>{clientName}</Text></Text>
-                    <Text size="xs" c="dimmed" ff="monospace">{shortId}</Text>
-                  </Group>
-                  <Text size="xs" c="dimmed" lh={1.4}>
-                    Client will use these credentials to access their case information via the dashboard.
-                  </Text>
-                </Box>
-
-                <Divider color="#F0F0F0" />
-
-                <TextInput
-                  label="Username"
-                  placeholder="Enter username"
-                  required
-                  value={state.accountForm.username}
-                  onChange={(e) => dispatch({ 
-                    type: 'SET_ACCOUNT_FORM', 
-                    payload: { ...state.accountForm, username: e.target.value } 
-                  })}
-                  styles={{
-                    label: { color: CHARCOAL, fontWeight: 700, fontSize: '13px', marginBottom: 4 },
-                    input: {
-                      borderColor: '#D1D5DB',
-                      '&:focus': { borderColor: PRIMARY_BROWN, boxShadow: `0 0 0 3px rgba(139, 69, 19, 0.1)` },
-                      '&::placeholder': { color: '#9CA3AF' },
-                    },
-                    required: { color: '#E03131', fontSize: '14px' },
-                  }}
-                />
-
-                <Box>
-                  <PasswordInput
-                    label="Password"
-                    placeholder="Enter password"
-                    required
-                    value={state.accountForm.password}
-                    onChange={(e) => dispatch({ 
-                      type: 'SET_ACCOUNT_FORM', 
-                      payload: { ...state.accountForm, password: e.target.value } 
-                    })}
-                    styles={{
-                      label: { color: CHARCOAL, fontWeight: 700, fontSize: '13px', marginBottom: 4 },
-                      input: {
-                        borderColor: '#D1D5DB',
-                        '&:focus': { borderColor: PRIMARY_BROWN, boxShadow: `0 0 0 3px rgba(139, 69, 19, 0.1)` },
-                        '&::placeholder': { color: '#9CA3AF' },
-                      },
-                      required: { color: '#E03131', fontSize: '14px' },
-                    }}
-                  />
-                  {pw.length > 0 ? (
-                    <Box mt={6}>
-                      <Progress value={pwStrength} color={pwColor} size="xs" radius="xl" />
-                      <Text size="xs" c={pwColor === 'red' ? '#E03131' : pwColor === 'orange' ? '#E8590C' : pwColor === 'yellow' ? '#E67700' : '#2F9E44'} mt={2} fw={500}>
-                        {pwLabel}
-                      </Text>
-                    </Box>
-                  ) : (
-                    <Text size="xs" c="dimmed" mt={4}>Minimum 8 characters</Text>
-                  )}
-                </Box>
-
-                <TextInput
-                  label={
-                    <Group gap={4}>
-                      <Text size="xs" fw={700} c={CHARCOAL}>Email</Text>
-                      <Text size="xs" c="dimmed" fw={400}>(Optional)</Text>
-                    </Group>
-                  }
-                  type="email"
-                  placeholder="client@example.com"
-                  value={state.accountForm.email}
-                  onChange={(e) => dispatch({ 
-                    type: 'SET_ACCOUNT_FORM', 
-                    payload: { ...state.accountForm, email: e.target.value } 
-                  })}
-                  styles={{
-                    input: {
-                      borderColor: '#D1D5DB',
-                      '&:focus': { borderColor: PRIMARY_BROWN, boxShadow: `0 0 0 3px rgba(139, 69, 19, 0.1)` },
-                      '&::placeholder': { color: '#9CA3AF' },
-                    },
-                  }}
-                />
-
-                <Divider color="#F0F0F0" mt={4} />
-
-                <Group justify="flex-end" gap="sm">
-                  <Button
-                    variant="subtle"
-                    color="gray"
-                    onClick={() => dispatch({ type: 'CLOSE_CREATE_ACCOUNT_MODAL' })}
-                    disabled={state.creatingAccount}
-                    styles={{
-                      root: { color: '#6B7280', '&:hover': { backgroundColor: '#F3F4F6' } },
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    style={{ backgroundColor: PRIMARY_BROWN }}
-                    onClick={handleCreateClientAccount}
-                    loading={state.creatingAccount}
-                    disabled={!state.accountForm.username || !state.accountForm.password}
-                  >
-                    Create Account
-                  </Button>
-                </Group>
-              </Stack>
-            );
-          })()}
         </Modal>
 
         {/* Page Header */}
@@ -3639,21 +3561,6 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               styles={{ input: { border: '1px solid #E5E7EB', fontSize: '13px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' } }}
               radius="md"
             />
-            <Select
-              placeholder="Category"
-              size="sm"
-              radius="md"
-              value={state.categoryFilter}
-              onChange={(val) => dispatch({ type: 'SET_CATEGORY_FILTER', payload: val || 'all' })}
-              data={[
-                { value: 'all', label: 'All Categories' },
-                ...NATURE_OF_CASE_OPTIONS.map(cat => ({ value: cat, label: cat }))
-              ]}
-              leftSection={<IconFilter size={16} color={MUTED_OLIVE} />}
-              style={{ width: 200 }}
-              styles={{ input: { border: '1px solid #E5E7EB', fontSize: '13px' } }}
-              allowDeselect={false}
-            />
           </Group>
           
           <Tabs value={state.activeTab} onChange={(val) => dispatch({ type: 'SET_ACTIVE_TAB', payload: val })}
@@ -3684,58 +3591,218 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               >
                 Document Drafting
               </Tabs.Tab>
+              <Tabs.Tab value="rejected"
+                rightSection={<Badge size="xs" variant="light" color="red" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{rejectedCasesFiltered.length}</Badge>}
+                style={{ fontSize: '13px', padding: '10px 14px' }}
+              >
+                Rejected
+              </Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="accepted" pb="md">
               <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
+                  <FinalizedCasesSkeleton />
                 ) : (
-                  acceptedWithRecord.length ? acceptedWithRecord.map(renderCaseCard) : (
+                  paginatedAcceptedWithRecord.length ? paginatedAcceptedWithRecord.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases with case records found</Text>
                   )
                 )}
               </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesAccepted)} 
+                  value={state.currentPageAccepted} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageAccepted', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
             </Tabs.Panel>
 
             <Tabs.Panel value="without-record" pb="md">
               <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
+                  <FinalizedCasesSkeleton />
                 ) : (
-                  acceptedWithoutRecord.length ? acceptedWithoutRecord.map(renderCaseCard) : (
+                  paginatedAcceptedWithoutRecord.length ? paginatedAcceptedWithoutRecord.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases without case records found</Text>
                   )
                 )}
               </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesWithoutRecord)} 
+                  value={state.currentPageWithoutRecord} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageWithoutRecord', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
             </Tabs.Panel>
 
             <Tabs.Panel value="legal-advice" pb="md">
               <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
+                  <FinalizedCasesSkeleton />
                 ) : (
-                  legalAdviceCases.length ? legalAdviceCases.map(renderCaseCard) : (
+                  paginatedLegalAdvice.length ? paginatedLegalAdvice.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No legal advice cases found</Text>
                   )
                 )}
               </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesLegalAdvice)} 
+                  value={state.currentPageLegalAdvice} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageLegalAdvice', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
             </Tabs.Panel>
 
             <Tabs.Panel value="document-drafting" pb="md">
               <Stack gap={10}>
                 {state.loadingFinalized ? (
-                  <Center py="xl"><Loader color={PRIMARY_BROWN} /></Center>
+                  <FinalizedCasesSkeleton />
                 ) : (
-                  documentDraftingCases.length ? documentDraftingCases.map(renderCaseCard) : (
+                  paginatedDocumentDrafting.length ? paginatedDocumentDrafting.map(renderCaseCard) : (
                     <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No document drafting cases found</Text>
                   )
                 )}
               </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesDocumentDrafting)} 
+                  value={state.currentPageDocumentDrafting} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageDocumentDrafting', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="rejected" pb="md">
+              <Group justify="flex-end" mb="md">
+                <Select
+                  size="xs"
+                  w={220}
+                  placeholder="Filter by case type"
+                  value={state.rejectedCaseTypeFilter}
+                  onChange={(val) => dispatch({ type: 'SET_REJECTED_CASE_TYPE_FILTER', payload: val || 'all' })}
+                  data={[
+                    { value: 'all', label: 'All Case Types' },
+                    { value: 'court-representation', label: 'Court Representation' },
+                    { value: 'legal-document', label: 'Drafting of Legal Document' },
+                    { value: 'legal-advice', label: 'Legal Advice' },
+                  ]}
+                  styles={{ input: { borderColor: '#d3c5a0' } }}
+                />
+              </Group>
+              <Stack gap={10}>
+                {state.loadingFinalized ? (
+                  <FinalizedCasesSkeleton />
+                ) : (
+                  paginatedRejected.length ? paginatedRejected.map(renderCaseCard) : (
+                    <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No rejected cases found</Text>
+                  )
+                )}
+              </Stack>
+              <Group justify="center" mt="xl">
+                <Pagination 
+                  total={Math.max(1, totalPagesRejected)} 
+                  value={state.currentPageRejected} 
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageRejected', page } })} 
+                  color={PRIMARY_BROWN}
+                  radius="md"
+                />
+              </Group>
             </Tabs.Panel>
           </Tabs>
         </Paper>
       </Container>
+
+      {/* ── Assign Case Modal ── */}
+      <Modal
+        opened={assignModalOpened}
+        onClose={() => setAssignModalOpened(false)}
+        title={
+          <Group gap="sm">
+            <Box style={{ width: 32, height: 32, borderRadius: '8px', background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconSend size={16} color="white" />
+            </Box>
+            <Title order={4} c={CHARCOAL}>Assign Case</Title>
+          </Group>
+        }
+        size="xl"
+        centered
+        styles={{ header: { borderBottom: '1px solid #F0F0F0', paddingBottom: 12 }, body: { padding: 24 } }}
+      >
+        {assignTargetCase && (
+          <Stack gap="lg">
+            <Paper p="sm" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #E8E3D5' }}>
+              <Text size="xs" c={MUTED_OLIVE} fw={600} tt="uppercase" mb={4}>Case</Text>
+              <Text size="sm" fw={600} c={CHARCOAL}>{assignTargetCase.caseTitle || 'Untitled'}</Text>
+              <Text size="xs" c="dimmed">{assignTargetCase.caseId} · {assignTargetCase.clientName || 'No client'}</Text>
+            </Paper>
+
+            <Select
+              label="Assign to Admin Staff"
+              placeholder="Select a staff member..."
+              required
+              value={assignForm.assigneeId}
+              onChange={(val) => setAssignForm(prev => ({ ...prev, assigneeId: val }))}
+              data={adminStaff
+                .filter(u => u._id !== (userData?._id || userData?.id))
+                .map(u => ({
+                  value: u._id,
+                  label: `${u.firstName} ${u.lastName} (${
+                    u.role === 'supervising_lawyer' ? 'Supervising Lawyer' :
+                    u.role === 'director' ? 'Director' :
+                    u.role === 'secretary' ? 'Secretary' :
+                    u.role === 'intern' ? 'Legal Intern' : u.role
+                  })`,
+                }))}
+              searchable
+              styles={{ input: { borderColor: '#E0E0E0' } }}
+            />
+
+            <TextInput
+              label="Deadline"
+              type="date"
+              required
+              value={assignForm.deadline}
+              onChange={(e) => setAssignForm(prev => ({ ...prev, deadline: e.target.value }))}
+              min={new Date().toISOString().split('T')[0]}
+              styles={{ input: { borderColor: '#E0E0E0' } }}
+            />
+
+            <Textarea
+              label="Message / Instructions"
+              placeholder="Describe what needs to be done for this case..."
+              required
+              minRows={6}
+              maxRows={12}
+              autosize
+              value={assignForm.message}
+              onChange={(e) => setAssignForm(prev => ({ ...prev, message: e.target.value }))}
+              styles={{ input: { borderColor: '#E0E0E0' } }}
+            />
+
+            <Button
+              fullWidth
+              size="md"
+              loading={assignLoading}
+              disabled={assignLoading || !assignForm.assigneeId || !assignForm.deadline || !assignForm.message}
+              onClick={handleAssignCase}
+              style={{ backgroundColor: PRIMARY_BROWN }}
+            >
+              {assignLoading ? 'Assigning...' : 'Assign Case'}
+            </Button>
+          </Stack>
+        )}
+      </Modal>
     </Box>
   );
 }
@@ -3774,12 +3841,14 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const citizenship = txt(a.citizenship);
   const spouseName = txt(a.spouseName);
   const contactNumber = txt(a.contactNumber);
+  const cellphoneNumber = txt(a.cellphoneNumber || a.contactNumber);
   const presentAddress = txt(a.presentAddress);
+  const presentAddressTelephone = txt(a.presentAddressTelephone);
   const permanentAddress = txt(a.permanentAddress);
+  const permanentAddressTelephone = txt(a.permanentAddressTelephone);
 
   const relatorName = txt(a.relatorName);
   const relationshipToClient = txt(a.relationshipToClient);
-  const relatorContactNumber = txt(a.relatorContactNumber);
 
   const currentSourceOfIncome = txt(a.currentSourceOfIncome);
   const monthlyIncome = money(a.monthlyIncome);
@@ -3803,12 +3872,12 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const presidingOfficer = txt(a.presidingOfficer);
 
   // These are on the printed form but may not exist in your current schema/UI.
-  const presidingOfficerPhone = txt(a.presidingOfficerPhone || a.phoneNumber);
-  const adverseParties = txt(a.adverseParties);
-  const adversePartiesAddress = txt(a.adversePartiesAddress);
-  const adversePartiesCounsel = txt(a.adversePartiesCounsel);
-  const adversePartiesCounselAddress = txt(a.adversePartiesCounselAddress);
-  const adversePartiesCounselPhone = txt(a.adversePartiesCounselPhone);
+  const presidingOfficerPhone = txt(a.courtPhoneNumber || a.presidingOfficerPhone || a.phoneNumber);
+  const adverseParties = txt(a.adverseParty || a.adverseParties);
+  const adversePartiesAddress = txt(a.adversePartyAddress || a.adversePartiesAddress);
+  const adversePartiesCounsel = txt(a.adversePartyCounsel || a.adversePartiesCounsel);
+  const adversePartiesCounselAddress = txt(a.adversePartyCounselAddress || a.adversePartiesCounselAddress);
+  const adversePartiesCounselPhone = txt(a.adversePartyCounselPhone || a.adversePartiesCounselPhone);
 
   const setFont = (size = 11, style = "normal") => {
     doc.setFont("times", style);
@@ -3824,6 +3893,8 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const line = (x1, y, x2) => doc.line(x1, y, x2, y);
 
   // Draw "Label: ____" with value printed just above the line.
+  // Returns the vertical height consumed (supports multi-line wrapping).
+  // When text wraps, each continuation line also gets an underline.
   const field = ({ labelText, value, x, y, labelW, lineW, lineToX }) => {
     label(labelText, x, y);
     const lx = x + labelW;
@@ -3832,10 +3903,51 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
     line(lx, ly, x2);
     if (value) {
       setFont(10, "normal");
-      // place value slightly above the underline
-      const maxW = Math.max(0, (x2 - lx) - 2);
-      doc.text(value, lx + 1, y - 0.6, { maxWidth: maxW });
+      const maxW = Math.max(1, (x2 - lx) - 2);
+      const lines = doc.splitTextToSize(String(value), maxW);
+      const lh = 10 * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
+      // First line sits above the underline
+      doc.text(lines[0], lx + 1, y - 0.6);
+      // Continuation lines: draw text + underline for each
+      for (let i = 1; i < lines.length; i++) {
+        const contY = y + (i * lh);
+        doc.text(lines[i], lx + 1, contY - 0.6);
+        line(lx, contY + 0.6, x2);
+      }
+      return Math.max(7, lines.length * lh + 3);
     }
+    return 7;
+  };
+
+  // Like field(), but draws the value BELOW the underline (for long names that wrap).
+  // Returns the total height consumed including any wrapped lines below.
+  const fieldBelow = ({ labelText, value, x, y, labelW, lineW, lineToX }) => {
+    label(labelText, x, y);
+    const lx = x + labelW;
+    const ly = y + 0.6;
+    const x2 = typeof lineToX === 'number' ? lineToX : lx + lineW;
+    line(lx, ly, x2);
+    if (value) {
+      setFont(10, "normal");
+      const maxW = Math.max(1, (x2 - lx) - 2);
+      const lines = doc.splitTextToSize(String(value), maxW);
+      const lh = 10 * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
+      // First line sits on the underline (above it), remaining lines go below
+      if (lines.length <= 1) {
+        doc.text(lines, lx + 1, y - 0.6);
+        return 7;
+      }
+      doc.text(lines[0], lx + 1, y - 0.6);
+      // Draw continuation lines below the underline
+      for (let i = 1; i < lines.length; i++) {
+        const contY = y + 2 + (i * lh);
+        doc.text(lines[i], lx + 1, contY);
+        // Draw underline for each continuation line
+        line(lx, contY + 1.2, x2);
+      }
+      return 7 + ((lines.length - 1) * lh) + 2;
+    }
+    return 7;
   };
 
   // Section title (PERSONAL DETAILS, etc.)
@@ -3879,193 +3991,151 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   y = orgBoxY + orgBoxH + 10;
 
   // --- Layout columns ---
-  const gap = 8;
+  const gap = 6;
   const leftX = margin;
-  const leftW = (pageW - margin * 2 - gap) * 0.62;
+  const leftW = (pageW - margin * 2 - gap) * 0.46;
   const rightX = leftX + leftW + gap;
   const rightW = pageW - margin - rightX;
+  const fullW = pageW - margin * 2;
 
-  // --- PERSONAL DETAILS ---
+  // --- PERSONAL DETAILS (left) & RELATOR / REPRESENTATIVE (right) ---
+  // These two columns are laid out independently so wrapping in one
+  // column does not shift the other.
   sectionTitle("PERSONAL DETAILS", leftX, y);
   y += 6;
 
-  // Row spacing
   const rowH = 7;
+  let leftY = y;
+  let rightY = y;
 
-  field({ labelText: "Name:", value: fullName, x: leftX, y, labelW: 14, lineW: leftW - 16 });
-  field({ labelText: "If through a Relator / Representative:", value: "", x: rightX, y, labelW: 54, lineW: rightW - 56 });
-  y += rowH;
+  // ---- Left column – Personal Details ----
+  leftY += field({ labelText: "Name:", value: fullName, x: leftX, y: leftY, labelW: 14, lineW: leftW - 16 });
 
-  field({ labelText: "Age:", value: age, x: leftX, y, labelW: 10, lineW: 18 });
-  field({ labelText: "Birthday:", value: birthday, x: leftX + 34, y, labelW: 16, lineW: leftW - 34 - 18 });
-  field({ labelText: "Name of Relator / Representative:", value: relatorName, x: rightX, y, labelW: 50, lineW: rightW - 52 });
-  y += rowH;
+  const ageH = field({ labelText: "Age:", value: age, x: leftX, y: leftY, labelW: 10, lineW: 18 });
+  const bdayH = field({ labelText: "Birthday:", value: birthday, x: leftX + 34, y: leftY, labelW: 16, lineW: leftW - 34 - 18 });
+  leftY += Math.max(ageH, bdayH);
 
-  field({ labelText: "Contact Number/s:", value: contactNumber, x: leftX, y, labelW: 32, lineW: leftW - 34 });
-  field({ labelText: "Relationship to the Client:", value: relationshipToClient, x: rightX, y, labelW: 40, lineW: rightW - 42 });
-  y += rowH;
+  leftY += field({ labelText: "Contact Number/s:", value: contactNumber, x: leftX, y: leftY, labelW: 32, lineW: leftW - 34 });
 
-  field({ labelText: "Sex:", value: sex, x: leftX, y, labelW: 10, lineW: 26 });
-  field({ labelText: "Civil Status:", value: civilStatus, x: leftX + 40, y, labelW: 22, lineW: leftW - 40 - 24 });
-  field({ labelText: "Telephone Number:", value: relatorContactNumber, x: rightX, y, labelW: 32, lineW: rightW - 34 });
-  y += rowH;
+  const sexH = field({ labelText: "Sex:", value: sex, x: leftX, y: leftY, labelW: 10, lineW: 16 });
+  const csH = field({ labelText: "Civil Status:", value: civilStatus, x: leftX + 30, y: leftY, labelW: 22, lineW: leftW - 30 - 24 });
+  leftY += Math.max(sexH, csH);
 
-  field({ labelText: "Citizenship:", value: citizenship, x: leftX, y, labelW: 22, lineW: leftW - 24 });
-  y += rowH;
+  leftY += field({ labelText: "Citizenship:", value: citizenship, x: leftX, y: leftY, labelW: 22, lineW: leftW - 24 });
+  leftY += field({ labelText: "Spouse:", value: spouseName, x: leftX, y: leftY, labelW: 16, lineW: leftW - 18 });
+  leftY += field({ labelText: "Cellphone Number/s:", value: cellphoneNumber, x: leftX, y: leftY, labelW: 36, lineW: leftW - 38 });
+  leftY += field({ labelText: "Present Address:", value: presentAddress, x: leftX, y: leftY, labelW: 30, lineToX: pageW - margin });
+  leftY += field({ labelText: "Telephone Number:", value: presentAddressTelephone, x: leftX, y: leftY, labelW: 32, lineToX: pageW - margin });
+  leftY += field({ labelText: "Permanent Address:", value: permanentAddress, x: leftX, y: leftY, labelW: 34, lineToX: pageW - margin });
+  leftY += field({ labelText: "Telephone Number:", value: permanentAddressTelephone, x: leftX, y: leftY, labelW: 32, lineToX: pageW - margin });
 
-  field({ labelText: "Spouse:", value: spouseName, x: leftX, y, labelW: 16, lineW: leftW - 18 });
-  y += rowH;
+  // ---- Right column – Relator / Representative (independent layout) ----
+  label("If through a Relator / Representative:", rightX, rightY);
+  rightY += rowH;
 
-  field({ labelText: "Cellphone Number/s:", value: contactNumber, x: leftX, y, labelW: 36, lineW: leftW - 38 });
-  y += rowH;
+  rightY += fieldBelow({ labelText: "Name of Relator / Representative:", value: relatorName, x: rightX, y: rightY, labelW: 50, lineW: rightW - 52 });
+  rightY += field({ labelText: "Relationship to the Client:", value: relationshipToClient, x: rightX, y: rightY, labelW: 40, lineW: rightW - 42 });
 
-  field({ labelText: "Present Address:", value: presentAddress, x: leftX, y, labelW: 30, lineW: leftW - 32 });
-  y += rowH;
-
-  field({ labelText: "Permanent Address:", value: permanentAddress, x: leftX, y, labelW: 34, lineW: leftW - 36 });
-  y += rowH;
-
-  field({ labelText: "Telephone Number:", value: "", x: leftX, y, labelW: 32, lineW: leftW - 34 });
-  y += 8;
+  y = Math.max(leftY, rightY) + 8;
 
   // --- FINANCIAL DETAILS ---
   sectionTitle("FINANCIAL DETAILS", leftX, y);
   y += 6;
 
-  // Financial rows have two fields on one line inside the LEFT column.
-  // Use explicit boundaries to prevent underline/value overlap.
-  const leftColEndX = leftX + leftW;
-  const finRightFieldX = leftX + 64; // start of the right-side field label within left column
+  // Financial fields use the full page width to match the printed form.
+  const finFullEndX = pageW - margin;
+  const finSplitX = leftX + (fullW * 0.58); // split point for two-field rows
 
-  field({
-    labelText: "Current Source of Income:",
-    value: currentSourceOfIncome,
-    x: leftX,
-    y,
-    labelW: 40,
-    lineToX: finRightFieldX - 2,
-  });
-  field({
-    labelText: "Income / Month:",
-    value: monthlyIncome,
-    x: finRightFieldX,
-    y,
-    labelW: 24,
-    lineToX: leftColEndX,
-  });
-  y += rowH;
+  { const h1 = field({ labelText: "Current Source of Income:", value: currentSourceOfIncome, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
+    const h2 = field({ labelText: "Income / Month:", value: monthlyIncome, x: finSplitX, y, labelW: 24, lineToX: finFullEndX });
+    y += Math.max(h1, h2); }
 
-  field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 48, lineW: leftW - 50 });
-  y += rowH;
+  y += field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 48, lineToX: finFullEndX });
 
-  field({ labelText: "Employer / Business Owner's Name:", value: employerName, x: leftX, y, labelW: 60, lineW: leftW - 62 });
-  y += rowH;
+  y += field({ labelText: "Employer / Business Owner's Name:", value: employerName, x: leftX, y, labelW: 60, lineToX: finFullEndX });
 
-  field({ labelText: "Employer / Business Address:", value: employerAddress, x: leftX, y, labelW: 52, lineW: leftW - 54 });
-  y += rowH;
+  y += field({ labelText: "Employer / Business Address:", value: employerAddress, x: leftX, y, labelW: 52, lineToX: finFullEndX });
 
-  // Telephone shares a row in the printed layout; avoid overlap.
-  const finTelFieldX = leftX + 72;
-  field({
-    labelText: "Nature of Work / Business:",
-    value: natureOfWork,
-    x: leftX,
-    y,
-    labelW: 40,
-    lineToX: finTelFieldX - 2,
-  });
-  field({
-    labelText: "Telephone:",
-    value: employerTelephone,
-    x: finTelFieldX,
-    y,
-    labelW: 18,
-    lineToX: leftColEndX,
-  });
-  y += rowH;
+  { const h1 = field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
+    const h2 = field({ labelText: "Telephone:", value: employerTelephone, x: finSplitX, y, labelW: 18, lineToX: finFullEndX });
+    y += Math.max(h1, h2); }
 
-  field({
-    labelText: "Spouse's Source of Income:",
-    value: spouseSourceOfIncome,
-    x: leftX,
-    y,
-    labelW: 44,
-    lineToX: finRightFieldX - 2,
-  });
-  field({
-    labelText: "Income / Month:",
-    value: spouseMonthlyIncome,
-    x: finRightFieldX,
-    y,
-    labelW: 24,
-    lineToX: leftColEndX,
-  });
-  y += rowH;
+  { const h1 = field({ labelText: "Spouse's Source of Income:", value: spouseSourceOfIncome, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
+    const h2 = field({ labelText: "Income / Month:", value: spouseMonthlyIncome, x: finSplitX, y, labelW: 24, lineToX: finFullEndX });
+    y += Math.max(h1, h2); }
 
-  field({ labelText: "Spouse's Employer / Business Address:", value: spouseEmployerAddress, x: leftX, y, labelW: 66, lineW: leftW - 68 });
-  y += rowH;
+  y += field({ labelText: "Spouse's Employer / Business Address:", value: spouseEmployerAddress, x: leftX, y, labelW: 60, lineToX: finFullEndX });
 
-  field({ labelText: "Total Combined Monthly Income:", value: totalCombinedIncome, x: leftX, y, labelW: 56, lineW: leftW - 58 });
-  y += 8;
+  y += field({ labelText: "Total Combined Monthly Income:", value: totalCombinedIncome, x: leftX, y, labelW: 56, lineToX: finFullEndX });
+  y += 1;
 
   // --- CASE DETAILS ---
+  // Pre-compute footer height so we can check for page overflow
+  const privacyText = "DATA PRIVACY: Sebastinian Office of Legal Aid (SOLA) College of Law is committed to upholding the Philippine Data Privacy Act which implements the Constitutional right to informational privacy of data subjects. This form is operated and maintained by the SOLA. Your personal information is collected and processed in order for us to verify your identity, assess your application, and contact you about your case. Rest assured the information provided herein will be treated with utmost confidentiality.";
+  setFont(7, "normal");
+  const privacyMaxW = pageW - margin * 2 - 4;
+  const privacyLines = doc.splitTextToSize(privacyText, privacyMaxW);
+  const privacyLh = 7 * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
+  const footerH = privacyLines.length * privacyLh + 6;
+  const footerReserved = footerH + margin + 4; // space reserved at bottom for footer + padding
+
+  // Helper: if y would go past the footer area, add a new page
+  const checkPageBreak = (extraH = 10) => {
+    if (y + extraH > pageH - footerReserved) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  checkPageBreak(14);
   sectionTitle("CASE DETAILS", leftX, y);
   y += 6;
 
-  // Case section was looking too tall; use a tighter row height here.
-  const caseRowH = 5.5;
+  checkPageBreak();
+  { const h1 = field({ labelText: "Party Represented:", value: partyRepresented, x: leftX, y, labelW: 34, lineW: leftW - 36 - 10 });
+    const h2 = field({ labelText: "Venue / City:", value: venue, x: rightX, y, labelW: 26, lineW: rightW - 28 });
+    y += Math.max(h1, h2); }
 
-  field({ labelText: "Party Represented:", value: partyRepresented, x: leftX, y, labelW: 34, lineW: leftW - 36 - 10 });
-  field({ labelText: "Venue / City:", value: venue, x: rightX, y, labelW: 26, lineW: rightW - 28 });
-  y += caseRowH;
+  checkPageBreak();
+  { const h1 = field({ labelText: "Present Stage of the Case:", value: presentStage, x: leftX, y, labelW: 50, lineW: leftW - 52 });
+    const h2 = field({ labelText: "Case / Docket Number:", value: caseNumber, x: rightX, y, labelW: 40, lineW: rightW - 42 });
+    y += Math.max(h1, h2); }
 
-  field({ labelText: "Present Stage of the Case:", value: presentStage, x: leftX, y, labelW: 50, lineW: leftW - 52 });
-  field({ labelText: "Case / Docket Number:", value: caseNumber, x: rightX, y, labelW: 40, lineW: rightW - 42 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Nature:", value: caseNature, x: leftX, y, labelW: 14, lineW: pageW - margin * 2 - 16 });
 
-  field({ labelText: "Nature:", value: caseNature, x: leftX, y, labelW: 14, lineW: pageW - margin * 2 - 16 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Court / Agency / Tribunal Division:", value: courtDivision, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
 
-  field({ labelText: "Court / Agency / Tribunal Division:", value: courtDivision, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Court / Agency / Tribunal Address:", value: courtAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
 
-  field({ labelText: "Court / Agency / Tribunal Address:", value: courtAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
-  y += caseRowH;
+  checkPageBreak();
+  { const h1 = field({ labelText: "Presiding Officer:", value: presidingOfficer, x: leftX, y, labelW: 34, lineToX: rightX - 2 });
+    const h2 = field({ labelText: "Phone Number:", value: presidingOfficerPhone, x: rightX + 6, y, labelW: 28, lineW: rightW - 34 });
+    y += Math.max(h1, h2); }
 
-  // Prevent the Presiding Officer underline from running into the Phone Number field.
-  field({ labelText: "Presiding Officer:", value: presidingOfficer, x: leftX, y, labelW: 34, lineToX: rightX - 2 });
-  field({ labelText: "Phone Number:", value: presidingOfficerPhone, x: rightX + 6, y, labelW: 28, lineW: rightW - 34 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies):", value: adverseParties, x: leftX, y, labelW: 36, lineW: pageW - margin * 2 - 38 });
 
-  field({ labelText: "Adverse Party(ies):", value: adverseParties, x: leftX, y, labelW: 36, lineW: pageW - margin * 2 - 38 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies) Address:", value: adversePartiesAddress, x: leftX, y, labelW: 52, lineW: pageW - margin * 2 - 54 });
 
-  field({ labelText: "Adverse Party(ies) Address:", value: adversePartiesAddress, x: leftX, y, labelW: 52, lineW: pageW - margin * 2 - 54 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies) Counsel:", value: adversePartiesCounsel, x: leftX, y, labelW: 50, lineW: pageW - margin * 2 - 52 });
 
-  field({ labelText: "Adverse Party(ies) Counsel:", value: adversePartiesCounsel, x: leftX, y, labelW: 50, lineW: pageW - margin * 2 - 52 });
-  y += caseRowH;
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies) Counsel Address:", value: adversePartiesCounselAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
 
-  field({ labelText: "Adverse Party(ies) Counsel Address:", value: adversePartiesCounselAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
-  y += caseRowH;
-
-  field({ labelText: "Adverse Party(ies) Counsel Phone Number:", value: adversePartiesCounselPhone, x: leftX, y, labelW: 76, lineW: pageW - margin * 2 - 78 });
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies) Counsel Phone Number:", value: adversePartiesCounselPhone, x: leftX, y, labelW: 76, lineW: pageW - margin * 2 - 78 });
   y += 10;
 
-  // --- Data privacy footer box ---
-  const footerH = 18;
+  // --- Data privacy footer box (always at bottom of last page) ---
   const footerY = pageH - margin - footerH;
   doc.rect(margin, footerY, pageW - margin * 2, footerH);
   setFont(7, "normal");
-  doc.text(
-    "\n"+
-    "DATA PRIVACY: Sebastinian Office of Legal Aid (SOLA) College of Law is committed to upholding the Philippine Data Privacy Act which implements the\n" +
-      "Constitutional right to informational privacy of data subjects. This form is operated and maintained by the SOLA. Your personal information is collected and\n" +
-      "processed in order for us to verify your identity, assess your application, and contact you about your case. Rest assured the information provided herein will\n" +
-      "be treated with utmost confidentiality.",
-    margin + 2,
-    footerY + 6
-  );
+  doc.text(privacyLines, margin + 2, footerY + 3 + privacyLh);
 };
 // Robust fetch helper: tries absolute/relative and retries with 127.0.0.1 if localhost fails,
 // and avoids returning HTML pages (dev server 404) which break binary parsers like mammoth.

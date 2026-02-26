@@ -7,6 +7,7 @@ import {
   Group,
   Stack,
   Button,
+  ActionIcon,
   TextInput,
   Avatar,
   Divider,
@@ -26,11 +27,13 @@ import {
   IconX,
   IconShieldCheck,
   IconCamera,
+  IconRefresh,
 } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
 import { uploadToCloudinary } from '@utils/cloudinary';
 import { useAuth } from '@context/authContext';
+import ProfileSkeleton from '@/components/skeleton/ProfileSkeleton';
 
 export default function ClientProfile() {
   const { refreshUserData } = useAuth();
@@ -164,16 +167,7 @@ export default function ClientProfile() {
   };
 
   if (loading) {
-    return (
-      <Box bg={BG} mih="100vh" py="xl">
-        <Center py="xl">
-          <Stack align="center" gap="md">
-            <Loader size="lg" color={PRIMARY_BROWN} />
-            <Text c={MUTED_OLIVE}>Loading profile...</Text>
-          </Stack>
-        </Center>
-      </Box>
-    );
+    return <ProfileSkeleton />;
   }
 
   const displayData = isEditing ? editedData : userData;
@@ -312,15 +306,19 @@ export default function ClientProfile() {
 
                 {/* Actions */}
                 {!isEditing ? (
-                  <Button
-                    fullWidth
-                    variant="outline"
-                    leftSection={<IconEdit size={16} />}
-                    onClick={handleEdit}
-                    style={{ borderColor: PRIMARY_BROWN, color: PRIMARY_BROWN }}
-                  >
-                    Edit Profile
-                  </Button>
+                  <Group style={{ width: '100%' }} spacing="xs">
+                    <Button
+                      variant="outline"
+                      leftSection={<IconEdit size={16} />}
+                      onClick={handleEdit}
+                      style={{ flex: 1, borderColor: PRIMARY_BROWN, color: PRIMARY_BROWN }}
+                    >
+                      Edit Profile
+                    </Button>
+                    <ActionIcon variant="default" onClick={() => { fetchUserProfile(); refreshUserData().catch(() => {}); }}>
+                      <IconRefresh size={18} />
+                    </ActionIcon>
+                  </Group>
                 ) : (
                   <Stack w="100%" gap="xs">
                     <Button

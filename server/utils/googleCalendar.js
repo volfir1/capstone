@@ -58,3 +58,32 @@ export async function createEventWithAccessToken(accessToken, calendarId = 'prim
 
   return res.data;
 }
+
+export async function updateEventWithRefreshToken(refreshToken, calendarId = 'primary', eventId, event = {}) {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+  const res = await calendar.events.update({
+    calendarId,
+    eventId,
+    requestBody: event,
+  });
+
+  return res.data;
+}
+
+export async function deleteEventWithRefreshToken(refreshToken, calendarId = 'primary', eventId) {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+  await calendar.events.delete({
+    calendarId,
+    eventId,
+  });
+
+  return true;
+}

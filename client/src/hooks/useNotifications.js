@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, createElement } from 'react';
 import apiClient from '@config/api/apiClient';
 import notificationSound from '@assets/audio/notification.mp3';
+import { getSocket } from '@/config/socket';
+import { notifications as mantineNotifications } from '@mantine/notifications';
 
-const POLL_INTERVAL = 10000; // 10 seconds
+const POLL_INTERVAL = 60000; // 60 seconds (backup only — real-time updates via Socket.IO)
 
-export function useNotifications() {
+export function useNotifications(navigate) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -13,6 +15,7 @@ export function useNotifications() {
   const mountedRef = useRef(true);
   const prevUnreadRef = useRef(null);
   const audioRef = useRef(null);
+  const shownToastIdsRef = useRef(new Set());
 
   // Play notification sound when new unread notifications arrive
   const playNotificationSound = useCallback(() => {
@@ -91,16 +94,82 @@ export function useNotifications() {
     }
   }, []);
 
-  // Initial fetch + polling (always fetches full list)
+  // Initial fetch + polling + real-time socket listener
   useEffect(() => {
     mountedRef.current = true;
     fetchNotifications();
+    // Polling is a fallback in case a socket event is missed; primary updates come from Socket.IO
     intervalRef.current = setInterval(() => fetchNotifications(), POLL_INTERVAL);
+
+    // Listen for real-time notification pushes via Socket.IO
+    const socket = getSocket();
+    const handleNewNotification = (data) => {
+      if (mountedRef.current) {
+        fetchNotifications();
+        // Show a toast popup so the user sees the notification immediately
+        if (data && data.title) {
+          // Prevent duplicate toasts for the same notification id within a short window
+          const nid = data._id || data.id || null;
+          if (nid && shownToastIdsRef.current.has(nid)) return;
+          if (nid) {
+            shownToastIdsRef.current.add(nid);
+            // remove from recent set after the toast autoClose (plus small buffer)
+            setTimeout(() => shownToastIdsRef.current.delete(nid), 10000);
+          }
+          const canNavigate = navigate && data.referenceId;
+          const isCaseAssignment = data.type === 'case_assigned';
+          mantineNotifications.show({
+            title: data.title,
+            message: canNavigate
+              ? createElement(
+                  'div',
+                  {
+                    onClick: () => {
+                      mantineNotifications.clean();
+                      if (isCaseAssignment) {
+                        navigate('/admin/assigned-cases');
+                      } else {
+                        navigate(`/admin/recommendation/${data.referenceId}`, {
+                          state: { showClientInfo: true, isViewingExistingReview: true },
+                        });
+                      }
+                    },
+                    style: { cursor: 'pointer', margin: '-4px -8px', padding: '4px 8px' },
+                  },
+                  createElement('div', null, data.message || ''),
+                  createElement(
+                    'div',
+                    { style: { fontSize: 11, color: '#886b30', fontWeight: 600, marginTop: 6 } },
+                    isCaseAssignment ? 'Click to view assignments →' : 'Click to view →'
+                  )
+                )
+              : data.message || '',
+            color: isCaseAssignment ? 'blue' : 'orange',
+            autoClose: 6000,
+            style: canNavigate ? { cursor: 'pointer' } : undefined,
+          });
+        }
+      }
+    };
+    socket.on('new-notification', handleNewNotification);
+
     return () => {
       mountedRef.current = false;
       clearInterval(intervalRef.current);
+      socket.off('new-notification', handleNewNotification);
     };
   }, [fetchNotifications]);
+
+  const deleteAllNotifications = useCallback(async () => {
+    try {
+      await apiClient.delete('/notifications/clear-all');
+      setNotifications([]);
+      setUnreadCount(0);
+      setTotal(0);
+    } catch (err) {
+      console.error('Delete all notifications error:', err);
+    }
+  }, []);
 
   return {
     notifications,
@@ -111,6 +180,7 @@ export function useNotifications() {
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    deleteAllNotifications,
     refresh: fetchNotifications,
   };
 }

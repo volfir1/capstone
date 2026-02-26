@@ -4,7 +4,22 @@ import { TextInput, Textarea, Group, Title, Paper, Grid, Stack, Text, Box } from
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, CHARCOAL } from '@utils/constants';
 import { validationRules } from '@utils/validation';
 
-export default function CaseDetailsForm({ register, errors }) {
+export default function CaseDetailsForm({ register, errors, watch, setValue }) {
+  // Auto-format phone number with fixed +63
+  const formatPhoneNumber = (value) => {
+    if (!value) return '';
+    const cleaned = value.replace(/\D/g, '');
+    const number = cleaned.startsWith('63') ? cleaned.substring(2) : cleaned;
+    const limited = number.substring(0, 10);
+    if (limited.length <= 3) {
+      return `+63 ${limited}`;
+    } else if (limited.length <= 6) {
+      return `+63 ${limited.slice(0, 3)} ${limited.slice(3)}`;
+    } else {
+      return `+63 ${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6)}`;
+    }
+  };
+
   return (
     <Stack gap="md" mt="md">
       {/* Case Information */}
@@ -21,7 +36,6 @@ export default function CaseDetailsForm({ register, errors }) {
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Party Represented</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="Plaintiff/Defendant"
@@ -34,7 +48,6 @@ export default function CaseDetailsForm({ register, errors }) {
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Case / Docket Number</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="Case No. 2024-123"
@@ -50,7 +63,6 @@ export default function CaseDetailsForm({ register, errors }) {
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Venue / City</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="Manila"
@@ -63,7 +75,6 @@ export default function CaseDetailsForm({ register, errors }) {
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Present Stage</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="Pre-trial, Trial, etc."
@@ -78,7 +89,6 @@ export default function CaseDetailsForm({ register, errors }) {
           <Box>
             <Group gap={4} mb={6}>
               <Text size="sm" fw={600} c={CHARCOAL}>Nature of Case</Text>
-              <Text size="sm" c="red">*</Text>
             </Group>
             <Textarea
               placeholder="Describe the nature of the case..."
@@ -107,7 +117,6 @@ export default function CaseDetailsForm({ register, errors }) {
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Division</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="RTC Branch 1"
@@ -120,7 +129,6 @@ export default function CaseDetailsForm({ register, errors }) {
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Presiding Officer</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="Hon. Judge Name"
@@ -136,7 +144,6 @@ export default function CaseDetailsForm({ register, errors }) {
             <Grid.Col span={8}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Court Address</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="Justice Hall, City"
@@ -149,10 +156,18 @@ export default function CaseDetailsForm({ register, errors }) {
             <Grid.Col span={4}>
               <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Phone Number</Text>
               <TextInput
-                placeholder="(02) 1111-2222"
+                placeholder="+63 XXX XXX XXXX"
                 size="sm"
                 {...register('courtPhoneNumber', validationRules.courtPhoneNumber)}
                 error={errors.courtPhoneNumber?.message}
+                value={watch('courtPhoneNumber') || '+63 '}
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value);
+                  setValue('courtPhoneNumber', formatted);
+                }}
+                onFocus={(e) => {
+                  if (!e.target.value || e.target.value === '') setValue('courtPhoneNumber', '+63 ');
+                }}
                 styles={{ input: { borderColor: errors.courtPhoneNumber ? '#E74C3C' : '#E0E0E0' } }}
               />
             </Grid.Col>
@@ -217,10 +232,18 @@ export default function CaseDetailsForm({ register, errors }) {
             <Grid.Col span={4}>
               <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Counsel Phone</Text>
               <TextInput
-                placeholder="(02) 3333-4444"
+                placeholder="+63 XXX XXX XXXX"
                 size="sm"
                 {...register('adversePartyCounselPhone', validationRules.adversePartyCounselPhone)}
                 error={errors.adversePartyCounselPhone?.message}
+                value={watch('adversePartyCounselPhone') || '+63 '}
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value);
+                  setValue('adversePartyCounselPhone', formatted);
+                }}
+                onFocus={(e) => {
+                  if (!e.target.value || e.target.value === '') setValue('adversePartyCounselPhone', '+63 ');
+                }}
                 styles={{ input: { borderColor: errors.adversePartyCounselPhone ? '#E74C3C' : '#E0E0E0' } }}
               />
             </Grid.Col>
