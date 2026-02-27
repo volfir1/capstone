@@ -1,44 +1,13 @@
 import '../config/env.js';
-import { GoogleAuth } from 'google-auth-library';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import ChatBot from "../models/chatbot.js";
 import User from "../models/user.js";
 
-// Clean the private key
-const cleanPrivateKey = process.env.FIREBASE_PRIVATE_KEY
-  ?.trim()
-  ?.replace(/^["']|["']$/g, '')
-  ?.replace(/\\n/g, '\n');
-
-console.log('Firebase Project ID:', process.env.FIREBASE_PROJECT_ID);
-console.log('Firebase Client Email:', process.env.FIREBASE_CLIENT_EMAIL);
-console.log('Private Key loaded:', !!cleanPrivateKey);
-
-// Create Google Auth client with service account credentials
-const auth = new GoogleAuth({
-  credentials: {
-    type: 'service_account',
-    project_id: process.env.FIREBASE_PROJECT_ID,
-    private_key: cleanPrivateKey,
-    client_email: process.env.FIREBASE_CLIENT_EMAIL,
-    client_id: '',
-    auth_uri: 'https://accounts.google.com/o/oauth2/auth',
-    token_uri: 'https://oauth2.googleapis.com/token',
-    auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
-  },
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-});
-
-// Initialize GoogleGenAI with the auth client
-const ai = new GoogleGenAI({
-  project: process.env.FIREBASE_PROJECT_ID,
-  location: 'us-central1',
-  googleAuth: auth,
-});
+// Initialize Gemini API
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // System prompt - defines chatbot behavior
-const SYSTEM_PROMPT = `You are JustReach AI, a helpful assistant for JUSTREACH: Accessible Legal Services Network, a Philippine legal services platform. Your role is to:
+const SYSTEM_INSTRUCTION = `You are JustReach AI, a helpful assistant for JUSTREACH: Accessible Legal Services Network, a Philippine legal services platform. Your role is to:
 
 1. Provide ONLY general legal information about Philippine law
 2. NEVER give specific legal advice or assess individual cases
@@ -101,63 +70,76 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    let conversationHistory = [];
+    // Get the model (using 1.5 flash for better free tier limits)
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: SYSTEM_INSTRUCTION
+    });
 
-    // Check if user is authenticated (optional)
-    if (req.user) {
-      const user = await User.findOne({ email: req.user.email });
-      if (user) {
-        let conversation = await ChatBot.findOne({
-          userId: user._id,
-          isActive: true,
-        });
+    let history = [];
+    let user = null;
 
-        if (!conversation) {
-          conversation = await ChatBot.create({
+    // Check if user is authenticated (optional) to load history
+    if (req.user && req.user.email) {
+      try {
+        user = await User.findOne({ email: req.user.email });
+        if (user) {
+          let conversation = await ChatBot.findOne({
             userId: user._id,
-            conversationHistory: [],
+            isActive: true,
           });
+
+          if (conversation && conversation.conversationHistory) {
+            // Map DB history to Gemini format
+            history = conversation.conversationHistory.map(msg => ({
+              role: msg.role === 'user' ? 'user' : 'model',
+              parts: [{ text: msg.message }]
+            }));
+          } else if (!conversation) {
+            // Create new conversation if none exists
+            conversation = await ChatBot.create({
+              userId: user._id,
+              conversationHistory: [],
+              isActive: true
+            });
+          }
         }
-
-        conversationHistory = conversation.conversationHistory;
-
-        // Add user message to history
-        conversation.conversationHistory.push({
-          role: "user",
-          message: message,
-        });
+      } catch (dbError) {
+        console.warn('Error fetching user history:', dbError);
+        // Continue without history if DB fails
       }
     }
 
-    // Build conversation contents
-    const contents = `${SYSTEM_PROMPT}\n\n${conversationHistory
-      .map((msg) => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.message}`)
-      .join("\n")}\n\nUser: ${message}`;
-
-    // Generate response using Vertex AI
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash", // Gemini 2.0 Flash
-      contents: contents,
+    // Start chat session
+    const chat = model.startChat({
+      history: history,
+      generationConfig: {
+        maxOutputTokens: 1000,
+        temperature: 0.7,
+      },
     });
 
-    const botResponse = response.text;
+    // Send message to Gemini
+    const result = await chat.sendMessage(message);
+    const botResponse = result.response.text();
 
     // Save bot response if user is authenticated
-    if (req.user) {
-      const user = await User.findOne({ email: req.user.email });
-      if (user) {
-        const conversation = await ChatBot.findOne({
-          userId: user._id,
-          isActive: true,
-        });
-
-        if (conversation) {
-          conversation.conversationHistory.push({
-            role: "model",
-            message: botResponse,
-          });
-          await conversation.save();
-        }
+    if (user) {
+      try {
+        await ChatBot.findOneAndUpdate(
+          { userId: user._id, isActive: true },
+          { 
+            $push: { 
+              conversationHistory: [
+                { role: "user", message: message },
+                { role: "model", message: botResponse }
+              ] 
+            } 
+          },
+          { upsert: true } // Create if doesn't exist (safety fallback)
+        );
+      } catch (saveError) {
+        console.warn('Error saving chat history:', saveError);
       }
     }
 
@@ -165,15 +147,28 @@ export const sendMessage = async (req, res) => {
       success: true,
       data: {
         message: botResponse,
-        isAuthenticated: !!req.user,
+        isAuthenticated: !!user,
       },
     });
   } catch (error) {
-    console.error("Chatbot error:", error);
-    res.status(500).json({
+    console.error("Chatbot error details:", error);
+    
+    // Handle specific API errors
+    let errorMessage = "Failed to process message";
+    let statusCode = 500;
+
+    // Check for resource exhaustion or safety errors
+    if (error.status === 429 || error.message?.includes('429')) {
+      statusCode = 429;
+      errorMessage = "I'm currently receiving too many requests. Please try again in a minute.";
+    } else if (error.message?.includes('SAFETY')) {
+      errorMessage = "I cannot answer that question as it may violate safety guidelines.";
+    }
+
+    res.status(statusCode).json({
       success: false,
-      message: "Failed to process message",
-      error: error.message,
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -181,9 +176,11 @@ export const sendMessage = async (req, res) => {
 // Get conversation history (requires auth)
 export const getChatHistory = async (req, res) => {
   try {
-    const userEmail = req.user.email;
+    if (!req.user || !req.user.email) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
 
-    const user = await User.findOne({ email: userEmail });
+    const user = await User.findOne({ email: req.user.email });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -224,9 +221,11 @@ export const getChatHistory = async (req, res) => {
 // Clear/End conversation (requires auth)
 export const clearChatHistory = async (req, res) => {
   try {
-    const userEmail = req.user.email;
+    if (!req.user || !req.user.email) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
 
-    const user = await User.findOne({ email: userEmail });
+    const user = await User.findOne({ email: req.user.email });
     if (!user) {
       return res.status(404).json({
         success: false,

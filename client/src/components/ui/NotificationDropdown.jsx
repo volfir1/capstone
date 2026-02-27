@@ -25,6 +25,8 @@ import {
   IconChecks,
 } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, CHARCOAL, ACCENT_TAN } from '@utils/constants';
+import { notifications as mantineNotifications } from '@mantine/notifications';
+import { IconTrash } from '@tabler/icons-react';
 
 // ── Icon + color map by notification type ──
 const TYPE_CONFIG = {
@@ -35,6 +37,8 @@ const TYPE_CONFIG = {
   case_accepted:       { icon: IconGavel,         color: '#10B981' },
   case_rejected:       { icon: IconAlertCircle,   color: '#EF4444' },
   review_pending:      { icon: IconCheckbox,      color: '#F97316' },
+  review_returned:     { icon: IconAlertCircle,   color: '#EF4444' },
+  review_resubmitted:  { icon: IconCheckbox,      color: '#3B82F6' },
   account_verified:    { icon: IconChecks,        color: '#10B981' },
   general:             { icon: IconBell,          color: ACCENT_TAN },
 };
@@ -51,17 +55,22 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString();
 }
 
-function NotificationItem({ notification, onRead, onDelete }) {
+function NotificationItem({ notification, onRead, onDelete, onNavigate }) {
   const config = TYPE_CONFIG[notification.type] || TYPE_CONFIG.general;
   const Icon = config.icon;
 
   return (
     <Box
-      onClick={() => !notification.read && onRead(notification._id)}
+      onClick={() => {
+        if (!notification.read) onRead(notification._id);
+        if (onNavigate && notification.referenceId) {
+          onNavigate(notification.referenceId, notification.type);
+        }
+      }}
       style={{
         padding: '12px 16px',
         background: notification.read ? 'transparent' : '#FDFAF5',
-        cursor: notification.read ? 'default' : 'pointer',
+        cursor: (onNavigate && notification.referenceId) ? 'pointer' : (notification.read ? 'default' : 'pointer'),
         borderLeft: notification.read ? '3px solid transparent' : `3px solid ${config.color}`,
         transition: 'background 0.15s',
         position: 'relative',
@@ -132,8 +141,10 @@ export default function NotificationDropdown({
   loading,
   onRead,
   onReadAll,
+  onClearAll,
   onDelete,
   onRefresh,
+  onNavigate,
 }) {
   const [opened, setOpened] = React.useState(false);
 
@@ -141,6 +152,18 @@ export default function NotificationDropdown({
     setOpened(true);
     // Always fetch fresh data when dropdown opens
     if (onRefresh) onRefresh();
+  };
+
+  const handleClearAll = async () => {
+    if (onClearAll) {
+      await onClearAll();
+      mantineNotifications.show({
+        title: 'Cleared',
+        message: 'All notifications have been deleted.',
+        color: 'green',
+        autoClose: 3000,
+      });
+    }
   };
 
   return (
@@ -209,6 +232,18 @@ export default function NotificationDropdown({
               Mark all read
             </Button>
           )}
+          {notifications && notifications.length > 0 && (
+            <Button
+              variant="subtle"
+              size="compact-xs"
+              color="red"
+              leftSection={<IconTrash size={12} />}
+              onClick={handleClearAll}
+              style={{ fontSize: 11 }}
+            >
+              Clear All
+            </Button>
+          )}
         </Group>
 
         {/* Body */}
@@ -235,6 +270,10 @@ export default function NotificationDropdown({
                     notification={n}
                     onRead={onRead}
                     onDelete={onDelete}
+                    onNavigate={(referenceId, type) => {
+                      setOpened(false);
+                      if (onNavigate) onNavigate(referenceId, type);
+                    }}
                   />
                 </React.Fragment>
               ))}

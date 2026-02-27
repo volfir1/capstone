@@ -9,10 +9,10 @@ import {
   Badge,
   rem,
 } from "@mantine/core";
-import { PRIMARY_GOLD, PRIMARY_BROWN } from "../../../../utils/constants"; // Adjust path as needed
+import { PRIMARY_GOLD, PRIMARY_BROWN } from "../../../../utils/constants"; // Adjust the path as needed
 
 /**
- * A reusable Call to Action (CTA) component.
+ * A reusable Call to Action (CTA) component
  */
 export default function CTA() {
   return (

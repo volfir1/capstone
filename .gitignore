@@ -66,3 +66,4 @@ postman/
 insomnia/
 *.postman_collection.json
 *.insomnia.json
+.vercel

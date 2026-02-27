@@ -5,6 +5,19 @@ import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, CHARCOAL } from '@utils/const
 import { validationRules } from '@utils/validation';
 
 export default function FinancialDetailsForm({ register, errors, watch, setValue }) {
+  // Auto-format Philippine landline as (0A) XXXX-XXXX
+  const formatTelephoneNumber = (value) => {
+    if (!value) return '';
+    const digitsOnly = value.replace(/\D/g, '');
+    const withLeadingZero = digitsOnly.startsWith('0') ? digitsOnly : `0${digitsOnly}`;
+    const limited = withLeadingZero.slice(0, 10);
+
+    if (limited.length <= 2) return `(${limited}`;
+    if (limited.length <= 4) return `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+    if (limited.length <= 8) return `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6)}`;
+    return `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6, 10)}`;
+  };
+
   const parseIncome = (value) => {
     if (value === undefined || value === null || value === '') return 0;
     const cleaned = value.toString().replace(/,/g, '');
@@ -41,7 +54,6 @@ export default function FinancialDetailsForm({ register, errors, watch, setValue
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Source of Income</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="Employment, Business, etc."
@@ -54,7 +66,6 @@ export default function FinancialDetailsForm({ register, errors, watch, setValue
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Income / Month (₱)</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 type="number"
@@ -71,7 +82,6 @@ export default function FinancialDetailsForm({ register, errors, watch, setValue
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Nature of Work / Business</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="Sales, IT, Retail, etc."
@@ -84,7 +94,6 @@ export default function FinancialDetailsForm({ register, errors, watch, setValue
             <Grid.Col span={6}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Employer Name</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="ABC Corporation"
@@ -100,7 +109,6 @@ export default function FinancialDetailsForm({ register, errors, watch, setValue
             <Grid.Col span={8}>
               <Group gap={4} mb={6}>
                 <Text size="sm" fw={600} c={CHARCOAL}>Employer / Business Address</Text>
-                <Text size="sm" c="red">*</Text>
               </Group>
               <TextInput
                 placeholder="456 Business St, City"
@@ -117,6 +125,14 @@ export default function FinancialDetailsForm({ register, errors, watch, setValue
                 size="sm"
                 {...register('employerTelephone', validationRules.employerTelephone)}
                 error={errors.employerTelephone?.message}
+                value={watch('employerTelephone') || ''}
+                onChange={(e) => {
+                  const formatted = formatTelephoneNumber(e.target.value);
+                  setValue('employerTelephone', formatted);
+                }}
+                onFocus={(e) => {
+                  if (!e.target.value || e.target.value === '') setValue('employerTelephone', '(');
+                }}
                 styles={{ input: { borderColor: errors.employerTelephone ? '#E74C3C' : '#E0E0E0' } }}
               />
             </Grid.Col>
@@ -187,9 +203,10 @@ export default function FinancialDetailsForm({ register, errors, watch, setValue
             type="number"
             placeholder="Auto-calculated"
             size="sm"
+            readOnly
             {...register('totalCombinedIncome', validationRules.totalCombinedIncome)}
             error={errors.totalCombinedIncome?.message}
-            styles={{ input: { borderColor: errors.totalCombinedIncome ? '#E74C3C' : '#E0E0E0' } }}
+            styles={{ input: { borderColor: errors.totalCombinedIncome ? '#E74C3C' : '#E0E0E0', backgroundColor: '#F0F0F0', cursor: 'not-allowed' } }}
           />
           <Text size="xs" c={MUTED_OLIVE} mt={4}>
             Automatically calculated from your income and spouse's income

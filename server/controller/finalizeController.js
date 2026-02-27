@@ -135,6 +135,18 @@ export const updateFinalized = async (req, res) => {
   }
 }
 
+export const getFinalizeById = async (req, res) => {
+  try {
+    const { id } = req.params
+    const finalize = await Finalize.findById(id)
+    if (!finalize) return res.status(404).json({ error: 'Finalize record not found' })
+    res.json(finalize)
+  } catch (err) {
+    console.error('getFinalizeById error', err)
+    res.status(500).json({ error: err.message })
+  }
+}
+
 export const getFinalizeByCaseId = async (req, res) => {
   try {
     const { caseId } = req.params
@@ -213,5 +225,17 @@ export const completeFinalize = async (req, res) => {
   } catch (err) {
     console.error('completeFinalize error', err);
     res.status(500).json({ error: err.message });
+  }
+}
+
+export const deleteFinalized = async (req, res) => {
+  try {
+    const { id } = req.params
+    const deleted = await Finalize.findByIdAndDelete(id)
+    if (!deleted) return res.status(404).json({ error: 'Finalized record not found' })
+    res.json({ success: true, message: 'Finalized record deleted' })
+  } catch (err) {
+    console.error('deleteFinalized error', err)
+    res.status(500).json({ error: err.message })
   }
 }

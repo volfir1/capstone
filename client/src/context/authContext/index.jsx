@@ -4,6 +4,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { getUserData } from "@/features/auth/user";
 import { verifyUser } from "@/features/auth/auth";
 import apiClient from "@config/api/apiClient";
+import { registerUser as registerSocketUser, disconnectSocket } from "@/config/socket";
 
 const AuthContext = React.createContext();
 
@@ -52,6 +53,8 @@ export default function AuthProvider({ children }) {
                 const backendUserData = await getUserData();
                 setUserData(backendUserData);
                 console.log('User data loaded:', backendUserData);
+                // Register with Socket.IO for real-time events
+                registerSocketUser(user.uid);
                 // Log login activity
                 if (!loginLoggedRef.current) {
                   loginLoggedRef.current = true;
@@ -74,6 +77,8 @@ export default function AuthProvider({ children }) {
                     const attorneyData = attorneyResponse.data.data;
                     setUserData(attorneyData);
                     console.log('Attorney data loaded:', attorneyData);
+                    // Register with Socket.IO for real-time events
+                    registerSocketUser(user.uid);
 
                     // Log login activity for attorney
                     if (!loginLoggedRef.current) {
@@ -127,6 +132,7 @@ export default function AuthProvider({ children }) {
         setUserLoggedIn(false);
         setUserData(null);
         loginLoggedRef.current = false;
+        disconnectSocket();
 
         // Clear localStorage
         localStorage.removeItem('token');

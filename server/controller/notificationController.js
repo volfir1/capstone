@@ -102,6 +102,19 @@ export const markAllAsRead = async (req, res) => {
   }
 };
 
+// ── DELETE /notifications — delete all notifications for user ──
+export const deleteAllNotifications = async (req, res) => {
+  try {
+    const uid = await getUidFromHeader(req);
+    if (!uid) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    await Notification.deleteMany({ recipientId: uid });
+    res.json({ success: true, message: 'All notifications deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // ── DELETE /notifications/:id ──
 export const deleteNotification = async (req, res) => {
   try {

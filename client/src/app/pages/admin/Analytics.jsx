@@ -10,7 +10,6 @@ import {
   Table,
   Badge,
   Select,
-  Loader,
   Center,
   Card,
   SimpleGrid,
@@ -22,7 +21,8 @@ import {
   Tooltip,
   Divider,
   ThemeIcon,
-  RingProgress,
+  Grid,
+  ActionIcon,
 } from '@mantine/core';
 import {
   IconChartBar,
@@ -31,6 +31,7 @@ import {
   IconGavel,
   IconBriefcase,
   IconDownload,
+  IconRefresh,
   IconCalendar,
   IconScale,
   IconFileAnalytics,
@@ -39,12 +40,15 @@ import {
   IconMedal,
   IconFileText,
   IconFileDescription,
+  IconArrowRight,
+  IconFilter
 } from '@tabler/icons-react';
-import { BarChart, DonutChart } from '@mantine/charts';
+import { AreaChart, DonutChart } from '@mantine/charts';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, CATEGORY_COLORS } from '@utils/constants';
+import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, CATEGORY_COLORS, ACCENT_TAN, THEMED_LIGHT_BG } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
+import AnalyticsSkeleton from '@components/skeleton/AnalyticsSkeleton';
 
 // Role accent colors
 const ROLE_COLORS = {
@@ -55,15 +59,6 @@ const ROLE_COLORS = {
 
 // Medal icons for top 3
 const MEDALS = ['🥇', '🥈', '🥉'];
-
-// Performance color coding
-const getPerformanceColor = (count, maxCount) => {
-  if (maxCount === 0) return 'gray';
-  const ratio = count / maxCount;
-  if (ratio >= 0.7) return 'green';
-  if (ratio >= 0.3) return 'orange';
-  return 'gray';
-};
 
 // Date range options
 const DATE_RANGES = [
@@ -80,9 +75,7 @@ export default function Analytics() {
   const [users, setUsers] = useState([]);
   const [caseTypeFilter, setCaseTypeFilter] = useState('all');
   const [dateRange, setDateRange] = useState('all');
-  const [internsStats, setInternsStats] = useState([]);
-  const [supervisingLawyersStats, setSupervisingLawyersStats] = useState([]);
-  const [directorsStats, setDirectorsStats] = useState([]);
+  const [clientAnalytics, setClientAnalytics] = useState(null);
   
   // Modal state
   const [modalOpened, setModalOpened] = useState(false);
@@ -136,40 +129,111 @@ export default function Analytics() {
     return cases;
   }, [finalizedCases, dateRange, caseTypeFilter]);
 
+  // Personnel Stats (calculated from filtered cases)
+  const personnelStats = useMemo(() => {
+    const userMap = {};
+    users.forEach(user => {
+      userMap[user._id] = {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        profileImage: user.profileImage
+      };
+    });
+
+    const internCounts = {};
+    const supervisingLawyerCounts = {};
+    const directorCounts = {};
+
+    filteredCases.forEach(c => {
+      const internId = c.content?.interviewInfo?.interviewingInternsId;
+      const internName = c.content?.interviewInfo?.interviewingInterns;
+      if (internId) {
+        if (!internCounts[internId]) {
+            internCounts[internId] = { 
+                id: internId, 
+                name: internName || (userMap[internId] ? `${userMap[internId].firstName} ${userMap[internId].lastName}` : 'Unknown'), 
+                profileImage: userMap[internId]?.profileImage,
+                count: 0 
+            };
+        }
+        internCounts[internId].count++;
+      }
+
+      const lawyerId = c.content?.actionInfo?.supervisingLawyerId;
+      const lawyerName = c.content?.actionInfo?.supervisingLawyer;
+      if (lawyerId) {
+        if (!supervisingLawyerCounts[lawyerId]) {
+            supervisingLawyerCounts[lawyerId] = { 
+                id: lawyerId, 
+                name: lawyerName || (userMap[lawyerId] ? `${userMap[lawyerId].firstName} ${userMap[lawyerId].lastName}` : 'Unknown'), 
+                profileImage: userMap[lawyerId]?.profileImage,
+                count: 0 
+            };
+        }
+        supervisingLawyerCounts[lawyerId].count++;
+      }
+
+      const directorId = c.content?.actionInfo?.directorId;
+      const directorName = c.content?.actionInfo?.directorSignature;
+      if (directorId) {
+        if (!directorCounts[directorId]) {
+            directorCounts[directorId] = { 
+                id: directorId, 
+                name: directorName || (userMap[directorId] ? `${userMap[directorId].firstName} ${userMap[directorId].lastName}` : 'Unknown'), 
+                profileImage: userMap[directorId]?.profileImage,
+                count: 0 
+            };
+        }
+        directorCounts[directorId].count++;
+      }
+    });
+
+    return {
+        interns: Object.values(internCounts).sort((a, b) => b.count - a.count),
+        lawyers: Object.values(supervisingLawyerCounts).sort((a, b) => b.count - a.count),
+        directors: Object.values(directorCounts).sort((a, b) => b.count - a.count)
+    };
+  }, [filteredCases, users]);
+
   // Summary metrics
   const summaryMetrics = useMemo(() => {
     const total = filteredCases.length;
     const accepted = filteredCases.filter(c => c.decision === 'accepted').length;
     const rejected = filteredCases.filter(c => c.decision === 'rejected').length;
     const pending = filteredCases.filter(c => c.decision === 'pending' || !c.decision).length;
+    
+    // Calculate unique active users strictly from the calculated stats to ensure consistency
     const uniquePersonnel = new Set();
-    filteredCases.forEach(c => {
-      if (c.content?.interviewInfo?.interviewingInternsId) uniquePersonnel.add(c.content.interviewInfo.interviewingInternsId);
-      if (c.content?.actionInfo?.supervisingLawyerId) uniquePersonnel.add(c.content.actionInfo.supervisingLawyerId);
-      if (c.content?.actionInfo?.directorId) uniquePersonnel.add(c.content.actionInfo.directorId);
-    });
-    return { total, accepted, rejected, pending, activeUsers: uniquePersonnel.size };
-  }, [filteredCases]);
+    personnelStats.interns.forEach(p => uniquePersonnel.add(p.id));
+    personnelStats.lawyers.forEach(p => uniquePersonnel.add(p.id));
+    personnelStats.directors.forEach(p => uniquePersonnel.add(p.id));
 
-  // Category distribution for chart
-  const { categoryChartData, categorySeries } = useMemo(() => {
-    const counts = {};
+    return { total, accepted, rejected, pending, activeUsers: uniquePersonnel.size };
+  }, [filteredCases, personnelStats]);
+
+  // Cases Over Time Trend
+  const casesOverTimeData = useMemo(() => {
+    const trend = {};
     filteredCases.forEach(c => {
-      const cat = c.content?.caseInfo?.nature || c.category || 'Other';
-      counts[cat] = (counts[cat] || 0) + 1;
+      if (!c.createdAt) return;
+      const date = new Date(c.createdAt);
+      // Group by Month Year (e.g. "Feb 2024")
+      const key = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      // Keep a sortable key for sorting later
+      const sortKey = date.toISOString().slice(0, 7); // YYYY-MM
+      
+      if (!trend[sortKey]) {
+        trend[sortKey] = { label: key, count: 0 };
+      }
+      trend[sortKey].count++;
     });
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    // Each category becomes a separate data point with its own key
-    const data = sorted.map(([name, value]) => {
-      const label = name.length > 20 ? name.substring(0, 18) + '\u2026' : name;
-      return { category: label, [label]: value };
-    });
-    const series = sorted.map(([name]) => {
-      const label = name.length > 20 ? name.substring(0, 18) + '\u2026' : name;
-      const mantineColor = CATEGORY_COLORS[name] || 'blue';
-      return { name: label, color: `${mantineColor}.6` };
-    });
-    return { categoryChartData: data, categorySeries: series };
+
+    return Object.keys(trend).sort().map(key => ({
+      date: trend[key].label,
+      Cases: trend[key].count
+    }));
   }, [filteredCases]);
 
   // Donut chart data for decisions
@@ -182,119 +246,31 @@ export default function Analytics() {
     ].filter(d => d.value > 0);
   }, [summaryMetrics]);
 
-  useEffect(() => {
-    if (filteredCases.length > 0 && users.length > 0) {
-      calculateStats();
-    } else if (filteredCases.length === 0) {
-      setInternsStats([]);
-      setSupervisingLawyersStats([]);
-      setDirectorsStats([]);
-    }
-  }, [filteredCases, users]);
-
-  const calculateStats = () => {
-    // Create user lookup map
-    const userMap = {};
-    users.forEach(user => {
-      userMap[user._id] = {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role
-      };
-    });
-
-    // Count cases by intern
-    const internCounts = {};
-    filteredCases.forEach(c => {
-      const internId = c.content?.interviewInfo?.interviewingInternsId;
-      const internName = c.content?.interviewInfo?.interviewingInterns;
-      if (internId) {
-        if (!internCounts[internId]) {
-          internCounts[internId] = {
-            id: internId,
-            name: internName || (userMap[internId] ? `${userMap[internId].firstName} ${userMap[internId].lastName}` : 'Unknown'),
-            count: 0
-          };
-        }
-        internCounts[internId].count++;
-      }
-    });
-
-    // Count cases by supervising lawyer
-    const supervisingLawyerCounts = {};
-    filteredCases.forEach(c => {
-      const lawyerId = c.content?.actionInfo?.supervisingLawyerId;
-      const lawyerName = c.content?.actionInfo?.supervisingLawyer;
-      if (lawyerId) {
-        if (!supervisingLawyerCounts[lawyerId]) {
-          supervisingLawyerCounts[lawyerId] = {
-            id: lawyerId,
-            name: lawyerName || (userMap[lawyerId] ? `${userMap[lawyerId].firstName} ${userMap[lawyerId].lastName}` : 'Unknown'),
-            count: 0
-          };
-        }
-        supervisingLawyerCounts[lawyerId].count++;
-      }
-    });
-
-    // Count cases by director
-    const directorCounts = {};
-    filteredCases.forEach(c => {
-      const directorId = c.content?.actionInfo?.directorId;
-      const directorName = c.content?.actionInfo?.directorSignature;
-      if (directorId) {
-        if (!directorCounts[directorId]) {
-          directorCounts[directorId] = {
-            id: directorId,
-            name: directorName || (userMap[directorId] ? `${userMap[directorId].firstName} ${userMap[directorId].lastName}` : 'Unknown'),
-            count: 0
-          };
-        }
-        directorCounts[directorId].count++;
-      }
-    });
-
-    // Convert to arrays and sort by count (descending)
-    const internsList = Object.values(internCounts).sort((a, b) => b.count - a.count);
-    const lawyersList = Object.values(supervisingLawyerCounts).sort((a, b) => b.count - a.count);
-    const directorsList = Object.values(directorCounts).sort((a, b) => b.count - a.count);
-
-    setInternsStats(internsList);
-    setSupervisingLawyersStats(lawyersList);
-    setDirectorsStats(directorsList);
-  };
-
   const handleUserClick = (user, role) => {
     setSelectedUser({ ...user, role });
     
-    // Filter cases based on role
     let cases = [];
-    if (role === 'intern') {
-      cases = finalizedCases.filter(c => c.content?.interviewInfo?.interviewingInternsId === user.id);
-    } else if (role === 'supervising lawyer') {
-      cases = finalizedCases.filter(c => c.content?.actionInfo?.supervisingLawyerId === user.id);
-    } else if (role === 'director') {
-      cases = finalizedCases.filter(c => c.content?.actionInfo?.directorId === user.id);
-    }
+    if (role === 'intern') cases = finalizedCases.filter(c => c.content?.interviewInfo?.interviewingInternsId === user.id);
+    else if (role === 'supervising lawyer') cases = finalizedCases.filter(c => c.content?.actionInfo?.supervisingLawyerId === user.id);
+    else if (role === 'director') cases = finalizedCases.filter(c => c.content?.actionInfo?.directorId === user.id);
     
-    // Categorize by case type
-    const categorizedCases = {
+    setUserCases({
       legalAdvice: cases.filter(c => c.content?.interviewInfo?.caseType === 'legal-advice'),
       legalDocument: cases.filter(c => c.content?.interviewInfo?.caseType === 'legal-document'),
       courtRepresentation: cases.filter(c => c.content?.interviewInfo?.caseType === 'court-representation')
-    };
-    
-    setUserCases(categorizedCases);
+    });
     setModalOpened(true);
   };
 
   const renderCasesList = (cases, type) => {
     if (cases.length === 0) {
       return (
-        <Text size="sm" c="dimmed" ta="center" py="xl">
-          No {type} cases handled
-        </Text>
+        <Stack align="center" py="xl" gap="xs">
+          <ThemeIcon size="xl" radius="xl" color="gray" variant="light">
+            <IconFileAnalytics size={24} />
+          </ThemeIcon>
+          <Text size="sm" c="dimmed">No {type} cases found.</Text>
+        </Stack>
       );
     }
 
@@ -312,21 +288,22 @@ export default function Analytics() {
           {cases.map((c) => (
             <Table.Tr key={c._id}>
               <Table.Td>
-                <Text size="sm" fw={500}>{c.caseId || 'N/A'}</Text>
+                <Text size="sm" fw={500} c={CHARCOAL}>{c.caseId || 'N/A'}</Text>
               </Table.Td>
               <Table.Td>
                 <Text size="sm">{c.clientName || c.content?.interviewInfo?.clientName || 'N/A'}</Text>
               </Table.Td>
               <Table.Td>
                 <Badge 
-                  color={c.decision === 'accepted' ? 'green' : c.decision === 'rejected' ? 'red' : 'blue'}
+                  color={c.decision === 'accepted' ? 'green' : c.decision === 'rejected' ? 'red' : 'yellow'}
                   variant="light"
+                  size="sm"
                 >
-                  {c.decision || 'N/A'}
+                  {c.decision || 'Pending'}
                 </Badge>
               </Table.Td>
               <Table.Td>
-                <Text size="sm">{c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A'}</Text>
+                <Text size="sm" c="dimmed">{c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A'}</Text>
               </Table.Td>
             </Table.Tr>
           ))}
@@ -335,463 +312,358 @@ export default function Analytics() {
     );
   };
 
-  // PDF Export
   const handleExportPDF = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const now = new Date();
-    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-
-    // -- Header --
-    doc.setFontSize(20);
-    doc.setTextColor(139, 69, 19); // PRIMARY_BROWN
-    doc.text('Analytics Report', pageWidth / 2, 20, { align: 'center' });
-
+    
+    doc.setFontSize(22);
+    doc.setTextColor(139, 69, 19);
+    doc.text('JustReach Analytics Report', pageWidth / 2, 20, { align: 'center' });
+    
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(`Generated on ${dateStr}`, pageWidth / 2, 28, { align: 'center' });
-
-    const filters = [];
-    if (dateRange !== 'all') {
-      const label = DATE_RANGES.find(d => d.value === dateRange)?.label || dateRange;
-      filters.push(label);
-    }
-    if (caseTypeFilter !== 'all') {
-      filters.push(`Case Type: ${caseTypeFilter}`);
-    }
-    if (filters.length > 0) {
-      doc.text(`Filters: ${filters.join(' | ')}`, pageWidth / 2, 34, { align: 'center' });
-    }
+    doc.text(`Generated on ${now.toLocaleDateString()}`, pageWidth / 2, 28, { align: 'center' });
 
     doc.autoTable = autoTable;
 
-    // -- Summary --
-    let y = filters.length > 0 ? 44 : 38;
-    doc.setFontSize(12);
+    let y = 40;
+    
+    doc.setFontSize(14);
     doc.setTextColor(50);
-    doc.text('Summary', 14, y);
-    y += 2;
+    doc.text('Summary Overview', 14, y);
+    y += 5;
 
     autoTable(doc, {
       startY: y,
-      head: [['Total Cases', 'Active Personnel', 'Accepted', 'Rejected']],
-      body: [[summaryMetrics.total, summaryMetrics.activeUsers, summaryMetrics.accepted, summaryMetrics.rejected]],
-      theme: 'grid',
-      headStyles: { fillColor: [139, 69, 19], textColor: 255, fontStyle: 'bold', halign: 'center' },
-      bodyStyles: { halign: 'center', fontSize: 11, fontStyle: 'bold' },
-      margin: { left: 14, right: 14 },
-    });
-
-    y = doc.lastAutoTable.finalY + 10;
-
-    // -- Personnel Overview --
-    doc.setFontSize(12);
-    doc.setTextColor(50);
-    doc.text('Personnel Overview', 14, y);
-    y += 2;
-
-    autoTable(doc, {
-      startY: y,
-      head: [['Role', 'Active Count']],
+      head: [['Metric', 'Value']],
       body: [
-        ['Interns', internsStats.length],
-        ['Supervising Lawyers', supervisingLawyersStats.length],
-        ['Directors', directorsStats.length],
+        ['Total Cases', summaryMetrics.total],
+        ['Active Personnel', summaryMetrics.activeUsers],
+        ['Accepted', summaryMetrics.accepted],
+        ['Rejected', summaryMetrics.rejected]
       ],
-      theme: 'striped',
-      headStyles: { fillColor: [139, 69, 19], textColor: 255, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 10 },
-      columnStyles: { 1: { halign: 'center' } },
-      margin: { left: 14, right: 14 },
+      theme: 'grid',
+      headStyles: { fillColor: [139, 69, 19] }
     });
+    
+    y = doc.lastAutoTable.finalY + 15;
 
-    // -- Leaderboard tables --
     const sections = [
-      { title: 'Interns Performance', data: internsStats },
-      { title: 'Supervising Lawyers Performance', data: supervisingLawyersStats },
-      { title: 'Directors Performance', data: directorsStats },
+      { title: 'Top Interns', data: personnelStats.interns },
+      { title: 'Top Lawyers', data: personnelStats.lawyers },
+      { title: 'Top Directors', data: personnelStats.directors },
     ];
 
     sections.forEach(({ title, data }) => {
       if (data.length === 0) return;
-      y = doc.lastAutoTable.finalY + 12;
-
-      // Check if we need a new page
-      if (y > doc.internal.pageSize.getHeight() - 40) {
+      
+      if (y > 250) {
         doc.addPage();
         y = 20;
       }
 
-      doc.setFontSize(12);
-      doc.setTextColor(50);
+      doc.setFontSize(14);
       doc.text(title, 14, y);
-      y += 2;
+      y += 5;
 
       autoTable(doc, {
         startY: y,
-        head: [['Rank', 'Name', 'Cases Handled']],
-        body: data.map((item, i) => [i + 1, item.name, item.count]),
+        head: [['Rank', 'Name', 'Cases']],
+        body: data.slice(0, 10).map((d, i) => [i + 1, d.name, d.count]),
         theme: 'striped',
-        headStyles: { fillColor: [139, 69, 19], textColor: 255, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 10 },
-        columnStyles: {
-          0: { halign: 'center', cellWidth: 25 },
-          2: { halign: 'center', cellWidth: 35 },
-        },
-        margin: { left: 14, right: 14 },
+        headStyles: { fillColor: [139, 69, 19] }
       });
+      
+      y = doc.lastAutoTable.finalY + 10;
     });
-
-    // -- Footer --
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150);
-      doc.text(
-        `JustReach Legal Services - Analytics Report | Page ${i} of ${pageCount}`,
-        pageWidth / 2,
-        doc.internal.pageSize.getHeight() - 8,
-        { align: 'center' }
-      );
-    }
 
     doc.save(`analytics_report_${now.toISOString().slice(0, 10)}.pdf`);
   };
 
-  // Render leaderboard section
-  const renderLeaderboard = (title, icon, data, roleColor, roleName) => {
+  const StatCard = ({ title, value, icon: Icon, color, subtext }) => (
+    <Card shadow="sm" padding="lg" radius="md" withBorder>
+        <Group justify="space-between" align="start">
+            <Stack gap={0}>
+                <Text size="xs" c={MUTED_OLIVE} fw={700} tt="uppercase" lts={1}>{title}</Text>
+                <Text size="2.5rem" fw={800} c={PRIMARY_BROWN} lh={1.1}>{value}</Text>
+                {subtext && <Text size="xs" c="dimmed" mt={4}>{subtext}</Text>}
+            </Stack>
+            <ThemeIcon size={50} radius="md" variant="light" color={color} style={{ backgroundColor: `${color}15` }}>
+                <Icon size={28} stroke={1.5} />
+            </ThemeIcon>
+        </Group>
+    </Card>
+  );
+
+  const LeaderboardCard = ({ title, icon: Icon, data, roleColor, onUserClick }) => {
     const maxCount = data.length > 0 ? data[0].count : 0;
-    const totalCases = data.reduce((sum, d) => sum + d.count, 0);
-
+    
     return (
-      <Card shadow="sm" padding="lg" radius="md" withBorder style={{ borderLeft: `4px solid ${roleColor.primary}` }}>
-        <Stack gap="md">
-          {/* Header */}
-          <Group justify="space-between" align="center">
-            <Group gap="xs">
-              <ThemeIcon size="lg" radius="md" color={roleColor.primary} variant="light">
-                {icon}
-              </ThemeIcon>
-              <Box>
-                <Title order={4} c={PRIMARY_BROWN}>{title}</Title>
-                <Text size="xs" c="dimmed">
-                  {data.length} active {roleName.toLowerCase()}{data.length !== 1 ? 's' : ''} &middot; {totalCases} case{totalCases !== 1 ? 's' : ''} total
-                </Text>
-              </Box>
-            </Group>
+      <Paper shadow="sm" radius="md" p="lg" withBorder style={{ height: '100%', borderColor: 'rgba(0,0,0,0.08)' }}>
+        <Group justify="space-between" mb="lg">
+          <Group gap="sm">
+            <ThemeIcon size="lg" radius="md" color={roleColor.primary} variant="light" style={{ backgroundColor: roleColor.light }}>
+              <Icon size={20} stroke={1.5} />
+            </ThemeIcon>
+            <Box>
+              <Text size="sm" fw={700} c={CHARCOAL} tt="uppercase" lts={0.5}>{title}</Text>
+              <Text size="xs" c="dimmed">{data.length} active members</Text>
+            </Box>
           </Group>
+        </Group>
 
-          {data.length === 0 ? (
-            <Paper p="xl" radius="md" style={{ backgroundColor: '#f8f9fa' }}>
-              <Text size="sm" c="dimmed" ta="center">
-                No data available for this period
-              </Text>
-            </Paper>
-          ) : (
-            <>
-              {/* Leaderboard List */}
-              <Stack gap={0}>
-                {data.slice(0, data.length > 3 ? data.length : 3).map((item, index) => (
-                  <Group
-                    key={item.id}
-                    justify="space-between"
-                    align="center"
-                    wrap="nowrap"
-                    py="sm"
-                    px="md"
-                    style={{
-                      borderBottom: index < data.length - 1 ? '1px solid #f0f0f0' : 'none',
-                      backgroundColor: index === 0 ? '#fafafa' : 'transparent',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => handleUserClick(item, roleName)}
-                  >
-                    <Group gap="md" wrap="nowrap" style={{ flex: 1 }}>
-                      <Text size="sm" fw={600} c="dimmed" style={{ width: 28, textAlign: 'center' }}>
-                        {index < 3 ? MEDALS[index] : `#${index + 1}`}
-                      </Text>
-                      <Box style={{ flex: 1 }}>
-                        <Text fw={index === 0 ? 600 : 400} size="sm" c={CHARCOAL}>
-                          {item.name}
-                        </Text>
-                        {/* Inline progress bar */}
-                        <Progress
-                          value={maxCount > 0 ? (item.count / maxCount) * 100 : 0}
-                          color={roleColor.primary}
-                          size={4}
-                          radius="xl"
-                          mt={4}
-                        />
-                      </Box>
-                    </Group>
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN} style={{ whiteSpace: 'nowrap' }}>
-                      {item.count} {item.count === 1 ? 'case' : 'cases'}
-                    </Text>
+        {data.length === 0 ? (
+          <Center h={150}>
+            <Text c="dimmed" size="sm">No activity recorded yet</Text>
+          </Center>
+        ) : (
+          <Stack gap={10}>
+            {data.slice(0, 5).map((item, index) => (
+              <Group 
+                key={item.id} 
+                wrap="nowrap" 
+                align="center"
+                style={{ 
+                  cursor: 'pointer',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  transition: 'all 0.2s ease',
+                }} 
+                onClick={() => onUserClick(item)}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = roleColor.light}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                {/* Rank */}
+                <Box w={24} style={{ textAlign: 'center' }}>
+                  {index < 3 ? (
+                    <Text size="lg" style={{ lineHeight: 1 }}>{MEDALS[index]}</Text>
+                  ) : (
+                    <Text size="xs" c="dimmed" fw={600}>#{index + 1}</Text>
+                  )}
+                </Box>
+
+                {/* Avatar & Info */}
+                <Avatar 
+                  src={item.profileImage}
+                  size="sm" 
+                  radius="xl" 
+                  color={roleColor.primary} 
+                  variant={index === 0 ? 'filled' : 'light'}
+                >
+                  <IconUser size={16} />
+                </Avatar>
+
+                <Box style={{ flex: 1, minWidth: 0 }}>
+                  <Group justify="space-between" mb={4} wrap="nowrap">
+                    <Text size="sm" fw={600} c={CHARCOAL} truncate style={{ lineHeight: 1.2 }}>{item.name}</Text>
+                    <Text size="xs" fw={700} c={roleColor.primary}>{item.count} Cases</Text>
                   </Group>
-                ))}
-              </Stack>
-            </>
-          )}
-        </Stack>
-      </Card>
+                  <Progress 
+                    value={(item.count / maxCount) * 100} 
+                    size={4} 
+                    color={roleColor.primary} 
+                    radius="xl" 
+                  />
+                </Box>
+              </Group>
+            ))}
+          </Stack>
+        )}
+      </Paper>
     );
   };
 
   if (loading) {
-    return (
-      <Box bg={BG} mih="100vh" py="xl">
-        <Container size="xl" py="xl">
-          <Center style={{ minHeight: '60vh' }}>
-            <Loader size="xl" color={PRIMARY_BROWN} />
-          </Center>
-        </Container>
-      </Box>
-    );
+    return <AnalyticsSkeleton />;
   }
 
   return (
     <Box bg={BG} mih="100vh" py="xl">
-      <Container size="xl" py="xl">
-        {/* Header */}
-        <Paper shadow="md" radius="lg" p="xl" mb="xl">
-          <Stack gap="xl">
-            <Group justify="space-between" align="flex-start" wrap="wrap">
-              <Group gap="md">
-                <IconChartBar size={32} color={PRIMARY_BROWN} />
-                <Box>
-                  <Title order={1} c={PRIMARY_BROWN}>
-                    Analytics Dashboard
-                  </Title>
-                  <Text size="sm" c={MUTED_OLIVE}>
-                    Performance metrics and case statistics
-                  </Text>
-                </Box>
+      <Container size="xl">
+        
+        {/* Header Section */}
+        <Stack gap="md" mb="xl">
+          <Group justify="space-between" align="flex-end">
+            <Box>
+              <Group gap="xs" mb={4}>
+                <IconChartBar size={28} color={PRIMARY_BROWN} />
+                <Title order={2} c={PRIMARY_BROWN}>Performance Analytics</Title>
               </Group>
-              <Group gap="sm" wrap="wrap">
-                <Select
-                  placeholder="Date Range"
-                  value={dateRange}
-                  onChange={(val) => setDateRange(val || 'all')}
-                  data={DATE_RANGES}
-                  leftSection={<IconCalendar size={16} />}
-                  style={{ minWidth: 160 }}
-                  styles={{
-                    input: {
-                      borderRadius: '8px',
-                      border: `1px solid ${PRIMARY_GOLD}`,
-                    }
-                  }}
-                />
-                <Select
+              <Text c={MUTED_OLIVE} size="sm">Track case statistics and personnel performance</Text>
+            </Box>
+            
+            <Group>
+              <Select
+                placeholder="Timeframe"
+                value={dateRange}
+                onChange={(v) => setDateRange(v || 'all')}
+                data={DATE_RANGES}
+                leftSection={<IconCalendar size={16} />}
+                w={160}
+                radius="md"
+              />
+               <Select
                   placeholder="Case Type"
                   value={caseTypeFilter}
                   onChange={(val) => setCaseTypeFilter(val || 'all')}
                   data={[
                     { value: 'all', label: 'All Case Types' },
                     { value: 'court-representation', label: 'For Representation' },
-                    { value: 'legal-advice', label: 'Legal Advice Only' },
-                    { value: 'legal-document', label: 'Drafting of Legal Documents' }
+                    { value: 'legal-advice', label: 'Legal Advice' },
+                    { value: 'legal-document', label: 'Documents' }
                   ]}
-                  clearable
-                  onClear={() => setCaseTypeFilter('all')}
-                  style={{ minWidth: 200 }}
-                  styles={{
-                    input: {
-                      borderRadius: '8px',
-                      border: `1px solid ${PRIMARY_GOLD}`,
-                    }
-                  }}
+                  leftSection={<IconFilter size={16} />}
+                  w={200}
+                  radius="md"
                 />
-                <Tooltip label="Export analytics as PDF">
-                  <Button
-                    variant="light"
-                    color={PRIMARY_BROWN}
-                    leftSection={<IconDownload size={16} />}
-                    onClick={handleExportPDF}
-                    radius="md"
-                  >
-                    Export PDF
-                  </Button>
-                </Tooltip>
-              </Group>
+              <ActionIcon 
+                variant="light" 
+                color={PRIMARY_BROWN} 
+                size="lg" 
+                onClick={fetchData}
+                loading={loading}
+                radius="md"
+                title="Refresh Data"
+              >
+                <IconRefresh size={20} />
+              </ActionIcon>
+              <Button 
+                leftSection={<IconDownload size={16} />} 
+                color={PRIMARY_BROWN} 
+                variant="filled" 
+                onClick={handleExportPDF}
+                radius="md"
+              >
+                Export
+              </Button>
             </Group>
-
-            {/* Summary Metrics Row */}
-            <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-              <Card shadow="xs" padding="md" radius="md" withBorder>
-                <Group gap="sm" align="center" wrap="nowrap">
-                  <ThemeIcon size="lg" radius="md" color="blue" variant="light">
-                    <IconFileAnalytics size={20} />
-                  </ThemeIcon>
-                  <Stack gap={0} align="center" style={{ flex: 1 }}>
-                    <Text size="2rem" fw={800} c={PRIMARY_BROWN} lh={1.1}>
-                      {summaryMetrics.total}
-                    </Text>
-                    <Text size="xs" c="dimmed" fw={500}>Total Cases</Text>
-                  </Stack>
-                </Group>
-              </Card>
-              <Card shadow="xs" padding="md" radius="md" withBorder>
-                <Group gap="sm" align="center" wrap="nowrap">
-                  <ThemeIcon size="lg" radius="md" color="teal" variant="light">
-                    <IconUsers size={20} />
-                  </ThemeIcon>
-                  <Stack gap={0} align="center" style={{ flex: 1 }}>
-                    <Text size="2rem" fw={800} c={PRIMARY_BROWN} lh={1.1}>
-                      {summaryMetrics.activeUsers}
-                    </Text>
-                    <Text size="xs" c="dimmed" fw={500}>Active Personnel</Text>
-                  </Stack>
-                </Group>
-              </Card>
-              <Card shadow="xs" padding="md" radius="md" withBorder>
-                <Group gap="sm" align="center" wrap="nowrap">
-                  <ThemeIcon size="lg" radius="md" color="green" variant="light">
-                    <IconTrendingUp size={20} />
-                  </ThemeIcon>
-                  <Stack gap={0} align="center" style={{ flex: 1 }}>
-                    <Text size="2rem" fw={800} c="green" lh={1.1}>
-                      {summaryMetrics.accepted}
-                    </Text>
-                    <Text size="xs" c="dimmed" fw={500}>Accepted</Text>
-                  </Stack>
-                </Group>
-              </Card>
-              <Card shadow="xs" padding="md" radius="md" withBorder>
-                <Group gap="sm" align="center" wrap="nowrap">
-                  <ThemeIcon size="lg" radius="md" color="red" variant="light">
-                    <IconScale size={20} />
-                  </ThemeIcon>
-                  <Stack gap={0} align="center" style={{ flex: 1 }}>
-                    <Text size="2rem" fw={800} c="red.7" lh={1.1}>
-                      {summaryMetrics.rejected}
-                    </Text>
-                    <Text size="xs" c="dimmed" fw={500}>Rejected</Text>
-                  </Stack>
-                </Group>
-              </Card>
-            </SimpleGrid>
-
-            {/* Role Stats Cards */}
-            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-              <Card shadow="xs" padding="md" radius="md" withBorder>
-                <Group gap="sm" align="center" wrap="nowrap">
-                  <ThemeIcon size="lg" radius="md" color="blue" variant="light">
-                    <IconUser size={20} />
-                  </ThemeIcon>
-                  <Stack gap={0} align="center" style={{ flex: 1 }}>
-                    <Text size="2rem" fw={800} c={PRIMARY_BROWN} lh={1.1}>
-                      {internsStats.length}
-                    </Text>
-                    <Text size="xs" c="dimmed" fw={500}>Interns</Text>
-                  </Stack>
-                </Group>
-              </Card>
-              <Card shadow="xs" padding="md" radius="md" withBorder>
-                <Group gap="sm" align="center" wrap="nowrap">
-                  <ThemeIcon size="lg" radius="md" color="teal" variant="light">
-                    <IconGavel size={20} />
-                  </ThemeIcon>
-                  <Stack gap={0} align="center" style={{ flex: 1 }}>
-                    <Text size="2rem" fw={800} c={PRIMARY_BROWN} lh={1.1}>
-                      {supervisingLawyersStats.length}
-                    </Text>
-                    <Text size="xs" c="dimmed" fw={500}>Supervising Lawyers</Text>
-                  </Stack>
-                </Group>
-              </Card>
-              <Card shadow="xs" padding="md" radius="md" withBorder>
-                <Group gap="sm" align="center" wrap="nowrap">
-                  <ThemeIcon size="lg" radius="md" color="grape" variant="light">
-                    <IconBriefcase size={20} />
-                  </ThemeIcon>
-                  <Stack gap={0} align="center" style={{ flex: 1 }}>
-                    <Text size="2rem" fw={800} c={PRIMARY_BROWN} lh={1.1}>
-                      {directorsStats.length}
-                    </Text>
-                    <Text size="xs" c="dimmed" fw={500}>Directors</Text>
-                  </Stack>
-                </Group>
-              </Card>
-            </SimpleGrid>
-          </Stack>
-        </Paper>
-
-        {/* Charts Row */}
-        {filteredCases.length > 0 && (
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl" mb="xl">
-            {/* Case Category Distribution */}
-            {categoryChartData.length > 0 && (
-              <Card shadow="sm" padding="lg" radius="md" withBorder>
-                <Stack gap="md">
-                  <Title order={4} c={PRIMARY_BROWN}>Cases by Category</Title>
-                  <BarChart
-                    h={280}
-                    data={categoryChartData}
-                    dataKey="category"
-                    series={categorySeries}
-                    tickLine="y"
-                    gridAxis="y"
-                    barProps={{ radius: [4, 4, 0, 0] }}
-                  />
-                </Stack>
-              </Card>
-            )}
-            {/* Decision Distribution */}
-            {decisionChartData.length > 0 && (
-              <Card shadow="sm" padding="lg" radius="md" withBorder>
-                <Stack gap="md">
-                  <Title order={4} c={PRIMARY_BROWN}>Case Decisions</Title>
-                  <Center>
-                    <DonutChart
-                      data={decisionChartData}
-                      size={200}
-                      thickness={30}
-                      tooltipDataSource="segment"
-                      paddingAngle={2}
-                    />
-                  </Center>
-                  <Group justify="center" gap="lg" mt="xs">
-                    {decisionChartData.map(d => (
-                      <Group key={d.name} gap={6}>
-                        <Box style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: d.color }} />
-                        <Text size="sm" c="dimmed">{d.name}: {d.value}</Text>
-                      </Group>
-                    ))}
-                  </Group>
-                </Stack>
-              </Card>
-            )}
-          </SimpleGrid>
-        )}
-
-        {/* Leaderboards */}
-        <Stack gap="xl">
-          {renderLeaderboard(
-            'Interns Performance',
-            <IconUser size={20} />,
-            internsStats,
-            ROLE_COLORS.intern,
-            'intern'
-          )}
-          
-          {renderLeaderboard(
-            'Supervising Lawyers Performance',
-            <IconGavel size={20} />,
-            supervisingLawyersStats,
-            ROLE_COLORS.lawyer,
-            'supervising lawyer'
-          )}
-          
-          {renderLeaderboard(
-            'Directors Performance',
-            <IconBriefcase size={20} />,
-            directorsStats,
-            ROLE_COLORS.director,
-            'director'
-          )}
+          </Group>
         </Stack>
+
+        {/* Key Metrics Grid */}
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg" mb="xl">
+            <StatCard 
+                title="Total Cases" 
+                value={summaryMetrics.total} 
+                icon={IconFileAnalytics} 
+                color="blue" 
+                subtext="Processed finalized cases"
+            />
+            <StatCard 
+                title="Accepted" 
+                value={summaryMetrics.accepted} 
+                icon={IconTrendingUp} 
+                color="green" 
+                subtext={`${((summaryMetrics.accepted / (summaryMetrics.total || 1)) * 100).toFixed(0)}% acceptance rate`}
+            />
+            <StatCard 
+                title="Rejected" 
+                value={summaryMetrics.rejected} 
+                icon={IconScale} 
+                color="red" 
+                subtext="Cases declined or referred"
+            />
+            <StatCard 
+                title="Active Team" 
+                value={summaryMetrics.activeUsers} 
+                icon={IconUsers} 
+                color="grape" 
+                subtext="Personnel with active cases"
+            />
+        </SimpleGrid>
+
+        <Grid gutter="lg" mb="xl">
+            {/* Case Trend Chart (Replaced Category Distribution) */}
+            <Grid.Col span={{ base: 12, md: 8 }}>
+                <Card shadow="sm" radius="md" padding="lg" withBorder h="100%">
+                    <Group justify="space-between" mb="lg">
+                      <Title order={4} c={PRIMARY_BROWN}>Cases Processed Over Time</Title>
+                    </Group>
+                    {casesOverTimeData.length > 0 ? (
+                        <AreaChart
+                            h={300}
+                            data={casesOverTimeData}
+                            dataKey="date"
+                            series={[{ name: 'Cases', color: PRIMARY_GOLD }]}
+                            curveType="monotone"
+                            tickLine="y"
+                            gridAxis="xy"
+                            withGradient
+                        />
+                    ) : (
+                        <Center h={200}><Text c="dimmed">No data available for trend analysis</Text></Center>
+                    )}
+                </Card>
+            </Grid.Col>
+
+            {/* Decisions Donut */}
+            <Grid.Col span={{ base: 12, md: 4 }}>
+                <Card shadow="sm" radius="md" padding="lg" withBorder h="100%">
+                    <Title order={4} c={PRIMARY_BROWN} mb="lg">Decision Breakdown</Title>
+                    <Center h={240}>
+                      {decisionChartData.length > 0 ? (
+                        <DonutChart 
+                            size={180} 
+                            thickness={25} 
+                            data={decisionChartData} 
+                            withLabels 
+                            labelsType="percent" 
+                            paddingAngle={2}
+                            tooltipDataSource="segment"
+                        />
+                      ) : <Text c="dimmed">No data</Text>}
+                    </Center>
+                    <Stack gap="xs" mt="md">
+                        {decisionChartData.map(d => (
+                            <Group key={d.name} justify="space-between">
+                                <Group gap="xs">
+                                    <Box w={8} h={8} bg={d.color} style={{borderRadius: '50%'}} />
+                                    <Text size="sm" c="dimmed">{d.name}</Text>
+                                </Group>
+                                <Text size="sm" fw={600}>{d.value}</Text>
+                            </Group>
+                        ))}
+                    </Stack>
+                </Card>
+            </Grid.Col>
+        </Grid>
+
+        {/* Personnel Performance Section */}
+        <Box mb="sm">
+          <Title order={3} c={PRIMARY_BROWN} mb={4}>Top Performers</Title>
+          <Text size="sm" c="dimmed">Recognizing the most active contributors</Text>
+        </Box>
+        
+        <Grid gutter="lg">
+            <Grid.Col span={{ base: 12, md: 4 }}>
+                <LeaderboardCard 
+                    title="Interns" 
+                    icon={IconUser} 
+                    data={personnelStats.interns} 
+                    roleColor={ROLE_COLORS.intern} 
+                    onUserClick={(u) => handleUserClick(u, 'intern')}
+                />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 4 }}>
+                <LeaderboardCard 
+                    title="Supervising Lawyers" 
+                    icon={IconGavel} 
+                    data={personnelStats.lawyers} 
+                    roleColor={ROLE_COLORS.lawyer} 
+                    onUserClick={(u) => handleUserClick(u, 'supervising lawyer')}
+                />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 4 }}>
+                <LeaderboardCard 
+                    title="Directors" 
+                    icon={IconBriefcase} 
+                    data={personnelStats.directors} 
+                    roleColor={ROLE_COLORS.director} 
+                    onUserClick={(u) => handleUserClick(u, 'director')}
+                />
+            </Grid.Col>
+        </Grid>
 
         {/* User Details Modal */}
         <Modal
@@ -808,75 +680,67 @@ export default function Analytics() {
                 <Text fw={700} size="lg" c={PRIMARY_BROWN}>
                   {selectedUser?.name}
                 </Text>
-                <Text size="sm" c={MUTED_OLIVE}>
-                  {selectedUser?.role === 'intern' ? 'Intern' : 
-                   selectedUser?.role === 'supervising lawyer' ? 'Supervising Lawyer' : 
-                   'Director'}
-                </Text>
+                <Badge variant="light" color="gray" size="sm">{selectedUser?.role?.toUpperCase()}</Badge>
               </Box>
             </Group>
           }
           size="xl"
-          styles={{
-            title: { width: '100%' }
-          }}
+          padding="xl"
+          radius="md"
         >
           <Stack gap="lg">
-            {/* Summary Stats */}
-            <SimpleGrid cols={3} spacing="md">
-              <Card shadow="sm" padding="md" radius="md" style={{ backgroundColor: `${PRIMARY_BROWN}10` }}>
+             <SimpleGrid cols={3} spacing="md">
+              <Card shadow="sm" padding="md" radius="md" bg={`${PRIMARY_BROWN}10`} withBorder style={{ borderColor: `${PRIMARY_BROWN}30` }}>
                 <Stack gap="xs" align="center">
-                  <IconFileText size={32} color={PRIMARY_BROWN} />
-                  <Text size="xs" c={MUTED_OLIVE} fw={600} ta="center">LEGAL ADVICE</Text>
-                  <Text size="xl" fw={700} c={PRIMARY_BROWN}>{userCases.legalAdvice?.length || 0}</Text>
+                  <IconFileText size={28} color={PRIMARY_BROWN} />
+                  <Text size="xs" c={MUTED_OLIVE} fw={700} ta="center" tt="uppercase">Legal Advice</Text>
+                  <Text size="xl" fw={800} c={PRIMARY_BROWN}>{userCases.legalAdvice?.length || 0}</Text>
                 </Stack>
               </Card>
-              <Card shadow="sm" padding="md" radius="md" style={{ backgroundColor: `${PRIMARY_GOLD}10` }}>
+              <Card shadow="sm" padding="md" radius="md" bg={`${PRIMARY_GOLD}10`} withBorder style={{ borderColor: `${PRIMARY_GOLD}30` }}>
                 <Stack gap="xs" align="center">
-                  <IconFileDescription size={32} style={{ color: PRIMARY_BROWN }} />
-                  <Text size="xs" c={MUTED_OLIVE} fw={600} ta="center">DOCUMENT DRAFTING</Text>
-                  <Text size="xl" fw={700} c={PRIMARY_BROWN}>{userCases.legalDocument?.length || 0}</Text>
+                  <IconFileDescription size={28} style={{ color: PRIMARY_BROWN }} />
+                  <Text size="xs" c={MUTED_OLIVE} fw={700} ta="center" tt="uppercase">Docs Drafted</Text>
+                  <Text size="xl" fw={800} c={PRIMARY_BROWN}>{userCases.legalDocument?.length || 0}</Text>
                 </Stack>
               </Card>
-              <Card shadow="sm" padding="md" radius="md" style={{ backgroundColor: `${MUTED_OLIVE}10` }}>
+              <Card shadow="sm" padding="md" radius="md" bg={`${MUTED_OLIVE}10`} withBorder style={{ borderColor: `${MUTED_OLIVE}30` }}>
                 <Stack gap="xs" align="center">
-                  <IconScale size={32} color={MUTED_OLIVE} />
-                  <Text size="xs" c={MUTED_OLIVE} fw={600} ta="center">COURT REPRESENTATION</Text>
-                  <Text size="xl" fw={700} c={PRIMARY_BROWN}>{userCases.courtRepresentation?.length || 0}</Text>
+                  <IconScale size={28} color={MUTED_OLIVE} />
+                  <Text size="xs" c={MUTED_OLIVE} fw={700} ta="center" tt="uppercase">Represented</Text>
+                  <Text size="xl" fw={800} c={PRIMARY_BROWN}>{userCases.courtRepresentation?.length || 0}</Text>
                 </Stack>
               </Card>
             </SimpleGrid>
-
+            
             <Divider />
-
-            {/* Cases by Type */}
-            <Tabs defaultValue="legalAdvice" variant="pills">
-              <Tabs.List>
+            
+             <Tabs defaultValue="legalAdvice" variant="pills" color="brown" radius="md">
+              <Tabs.List grow mb="md">
                 <Tabs.Tab value="legalAdvice" leftSection={<IconFileText size={16} />}>
-                  Legal Advice ({userCases.legalAdvice?.length || 0})
+                  Legal Advice
                 </Tabs.Tab>
                 <Tabs.Tab value="legalDocument" leftSection={<IconFileDescription size={16} />}>
-                  Document Drafting ({userCases.legalDocument?.length || 0})
+                  Drafting
                 </Tabs.Tab>
                 <Tabs.Tab value="courtRepresentation" leftSection={<IconScale size={16} />}>
-                  Court Representation ({userCases.courtRepresentation?.length || 0})
+                  Representation
                 </Tabs.Tab>
               </Tabs.List>
 
-              <Tabs.Panel value="legalAdvice" pt="lg">
+              <Tabs.Panel value="legalAdvice">
                 {renderCasesList(userCases.legalAdvice || [], 'legal advice')}
               </Tabs.Panel>
-
-              <Tabs.Panel value="legalDocument" pt="lg">
+              <Tabs.Panel value="legalDocument">
                 {renderCasesList(userCases.legalDocument || [], 'document drafting')}
               </Tabs.Panel>
-
-              <Tabs.Panel value="courtRepresentation" pt="lg">
+              <Tabs.Panel value="courtRepresentation">
                 {renderCasesList(userCases.courtRepresentation || [], 'court representation')}
               </Tabs.Panel>
             </Tabs>
           </Stack>
         </Modal>
+
       </Container>
     </Box>
   );

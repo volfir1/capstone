@@ -18,9 +18,11 @@ import {
   Checkbox,
   FileButton,
   Loader,
+  ActionIcon,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { Loaders } from '@/components/ui/Loader';
+import ProfileSkeleton from '@/components/skeleton/ProfileSkeleton';
 import {
   IconUser,
   IconMail,
@@ -33,6 +35,7 @@ import {
   IconCertificate,
   IconBriefcase,
   IconCamera,
+  IconRefresh,
 } from '@tabler/icons-react';
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, ACCENT_TAN } from '@utils/constants';
 import apiClient from '@config/api/apiClient';
@@ -294,7 +297,7 @@ export default function AdminProfile() {
   };
 
   if (authLoading) {
-    return <Loaders height={window.innerHeight} />;
+    return <ProfileSkeleton />;
   }
 
   const inputStyles = {
@@ -439,15 +442,19 @@ export default function AdminProfile() {
 
                 {/* Actions */}
                 {!isEditing ? (
-                  <Button
-                    fullWidth
-                    variant="outline"
-                    leftSection={<IconEdit size={16} />}
-                    onClick={handleEdit}
-                    style={{ borderColor: PRIMARY_BROWN, color: PRIMARY_BROWN }}
-                  >
-                    Edit Profile
-                  </Button>
+                  <Group style={{ width: '100%' }} spacing="xs">
+                    <Button
+                      variant="outline"
+                      leftSection={<IconEdit size={16} />}
+                      onClick={handleEdit}
+                      style={{ flex: 1, borderColor: PRIMARY_BROWN, color: PRIMARY_BROWN }}
+                    >
+                      Edit Profile
+                    </Button>
+                    <ActionIcon variant="default" onClick={() => { refreshUserData().catch(() => {}); }}>
+                      <IconRefresh size={18} />
+                    </ActionIcon>
+                  </Group>
                 ) : (
                   <Stack w="100%" gap="xs">
                     <Button

@@ -66,7 +66,9 @@ export default function ReviewForm({ formData, getValues, setValue }) {
           <ReviewField label="Civil Status" value={allData.civilStatus} />
           <ReviewField label="Contact Number" value={allData.contactNumber} />
           <ReviewField label="Present Address" value={allData.presentAddress} span={12} />
+          <ReviewField label="Present Address Telephone" value={allData.presentAddressTelephone} />
           <ReviewField label="Permanent Address" value={allData.permanentAddress} span={12} />
+          <ReviewField label="Permanent Address Telephone" value={allData.permanentAddressTelephone} />
         </Grid>
       </Paper>
 

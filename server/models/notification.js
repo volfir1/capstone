@@ -28,6 +28,8 @@ const notificationSchema = new mongoose.Schema(
         'case_accepted',        // Case finalized & accepted
         'case_rejected',        // Case finalized & rejected
         'review_pending',       // Review needs attention
+        'review_returned',      // Review returned for revision
+        'review_resubmitted',   // Revised review resubmitted
         'account_verified',     // Account verification
         'general',
       ],

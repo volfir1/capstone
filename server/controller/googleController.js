@@ -1,8 +1,9 @@
 import User from '../models/user.js';
-import { generateAuthUrl, getTokensFromCode, createEventWithRefreshToken, createEventWithAccessToken } from '../utils/googleCalendar.js';
+import { generateAuthUrl, getTokensFromCode, createEventWithRefreshToken, createEventWithAccessToken, updateEventWithRefreshToken, deleteEventWithRefreshToken } from '../utils/googleCalendar.js';
 import Event from '../models/events.js';
 import ClientsInfo from '../models/clientsinfo.js';
 import { createNotification } from './notificationController.js';
+import { getIO } from '../socket.js';
 
 export const getAuthUrl = async (req, res) => {
   try {
@@ -170,9 +171,174 @@ export const createEventAndRecord = async (req, res) => {
       }
     }
 
+    // 5) If the accepted appointment is for TODAY, notify secretaries and interns
+    const eventDate = new Date(savedEvent.eventDate);
+    const today = new Date();
+    const isToday = eventDate.getFullYear() === today.getFullYear() &&
+      eventDate.getMonth() === today.getMonth() &&
+      eventDate.getDate() === today.getDate();
+
+    if (isToday) {
+      try {
+        const clientName = savedEvent.clientName || 'A client';
+        const io = getIO();
+        // Notify all secretaries and interns
+        const staffUsers = await User.find({ role: { $in: ['secretary', 'intern'] } }).select('firebaseUid').lean();
+        for (const staff of staffUsers) {
+          if (staff.firebaseUid) {
+            const notification = await createNotification({
+              recipientId: staff.firebaseUid,
+              title: 'Interview Scheduled Today',
+              message: `${clientName} has an interview today: "${savedEvent.title}".`,
+              type: 'appointment_created',
+              referenceId: savedEvent._id.toString(),
+            });
+            if (io && notification) {
+              io.to(staff.firebaseUid).emit('new-notification', notification);
+            }
+          }
+        }
+      } catch (notifErr) {
+        console.warn('Failed to send today-interview notifications:', notifErr.message);
+      }
+    }
+
     res.json({ success: true, event: savedEvent, google: createdGoogleEvent });
   } catch (err) {
     console.error('createEventAndRecord error', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Reschedule an accepted appointment: update local event, clientsinfo, and Google Calendar
+export const rescheduleEvent = async (req, res) => {
+  try {
+    const { firebaseUid, eventId, appointmentId, newDate, newTime } = req.body;
+
+    if (!firebaseUid || !eventId || !newDate) {
+      return res.status(400).json({ error: 'firebaseUid, eventId, and newDate are required' });
+    }
+
+    const user = await User.findOne({ firebaseUid });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // 1) Find the local event
+    const localEvent = await Event.findById(eventId);
+    if (!localEvent) return res.status(404).json({ error: 'Event not found' });
+
+    const oldDate = localEvent.eventDate;
+    const newEventDate = new Date(newDate);
+
+    // 2) Update Google Calendar if linked
+    const googleEventId = localEvent.externalIds?.google;
+    if (googleEventId && user.google?.refreshToken) {
+      try {
+        // Delete old Google event and create new one
+        try {
+          await deleteEventWithRefreshToken(
+            user.google.refreshToken,
+            user.google.primaryCalendarId || 'primary',
+            googleEventId
+          );
+        } catch (delErr) {
+          console.warn('Failed to delete old Google Calendar event:', delErr.message);
+        }
+
+        // Create new Google event with updated time
+        const endDate = new Date(newEventDate.getTime() + 3600000); // 1 hour duration
+
+        // Build a local datetime string (without UTC offset) for Asia/Manila timezone
+        const pad = (n) => String(n).padStart(2, '0');
+        const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+
+        // Parse the time from the request to set correct hours on the date
+        const rescheduleDateObj = new Date(newDate);
+        if (newTime) {
+          const tm = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(newTime);
+          if (tm) {
+            let rh = parseInt(tm[1]);
+            const rap = tm[3].toUpperCase();
+            if (rap === 'PM' && rh !== 12) rh += 12;
+            if (rap === 'AM' && rh === 12) rh = 0;
+            rescheduleDateObj.setHours(rh, parseInt(tm[2]), 0, 0);
+          }
+        }
+        const reschEndDate = new Date(rescheduleDateObj.getTime() + 3600000);
+
+        const newGoogleEvent = await createEventWithRefreshToken(
+          user.google.refreshToken,
+          user.google.primaryCalendarId || 'primary',
+          {
+            summary: localEvent.title,
+            description: localEvent.description || '',
+            start: { dateTime: formatLocal(rescheduleDateObj), timeZone: 'Asia/Manila' },
+            end: { dateTime: formatLocal(reschEndDate), timeZone: 'Asia/Manila' },
+            location: localEvent.location || '',
+          }
+        );
+
+        // Update the external Google ID on the local event
+        localEvent.externalIds = { google: newGoogleEvent?.id || '' };
+      } catch (gErr) {
+        console.error('Google Calendar reschedule error:', gErr.message);
+        // Continue even if Google Calendar update fails
+      }
+    }
+
+    // 3) Update local event
+    localEvent.eventDate = newEventDate;
+    localEvent.status = 'rescheduled';
+    if (newTime) localEvent.appointmentTime = newTime;
+    await localEvent.save();
+
+    // 4) Update ClientsInfo if linked
+    if (appointmentId) {
+      try {
+        const updatePayload = { appointedDate: newEventDate };
+        if (newTime) {
+          // Convert display time like "09:00 AM" to "09:00" for storage
+          const timeMatch = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(newTime);
+          if (timeMatch) {
+            let h = parseInt(timeMatch[1]);
+            const m = timeMatch[2];
+            const ampm = timeMatch[3].toUpperCase();
+            if (ampm === 'PM' && h !== 12) h += 12;
+            if (ampm === 'AM' && h === 12) h = 0;
+            updatePayload.appointmentTime = `${String(h).padStart(2, '0')}:${m}`;
+          } else {
+            updatePayload.appointmentTime = newTime;
+          }
+        }
+        await ClientsInfo.findByIdAndUpdate(appointmentId, updatePayload);
+      } catch (e) {
+        console.warn('Failed to update ClientsInfo during reschedule:', e.message);
+      }
+    }
+
+    // 5) Send notifications about reschedule
+    const io = getIO();
+    const oldDateStr = new Date(oldDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const newDateStr = newEventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const clientName = localEvent.clientName || 'A client';
+
+    // Notify client
+    if (appointmentId) {
+      const clientInfo = await ClientsInfo.findById(appointmentId).select('firebaseUid').lean();
+      if (clientInfo?.firebaseUid) {
+        const notification = await createNotification({
+          recipientId: clientInfo.firebaseUid,
+          title: 'Appointment Rescheduled',
+          message: `Your appointment "${localEvent.title}" has been rescheduled from ${oldDateStr} to ${newDateStr}${newTime ? ` at ${newTime}` : ''}.`,
+          type: 'appointment_updated',
+          referenceId: eventId,
+        });
+        if (io && notification) io.to(clientInfo.firebaseUid).emit('new-notification', notification);
+      }
+    }
+
+    res.json({ success: true, event: localEvent });
+  } catch (err) {
+    console.error('rescheduleEvent error:', err);
     res.status(500).json({ error: err.message });
   }
 };
