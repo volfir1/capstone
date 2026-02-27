@@ -20,7 +20,7 @@ const Signup = lazy(() => import("./pages/auth/Signup/Signup"));
 const Login = lazy(() => import("./pages/auth/Login/Login"));
 const AttorneySignup = lazy(() => import('./pages/auth/Signup/AttorneySingup.jsx'))
 const AttorneyLogin = lazy(() => import('./pages/auth/Login/AttorneyLogin.jsx'))
-const TrackAppointment = lazy (()=> import('./pages/user/TrackAppointment'))
+const TrackAppointment = lazy(() => import('./pages/user/TrackAppointment'))
 
 const Home = lazy(() => import("./pages/user/Home"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
@@ -28,10 +28,10 @@ const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
 const PageNotFound = lazy(() => import("./pages/other/PageNotFound"));
 const AIChatbot = lazy(() => import("./pages/other/AIChatbot"));
 
-const LandingPage = lazy(()=> import("./pages/LandingPage"))
-const AboutPage = lazy(()=> import('./pages/About'))
-const FeaturesPage = lazy(()=> import('./pages/Features'))
-const HowItWorks = lazy(()=> import('./pages/How')) 
+const LandingPage = lazy(() => import("./pages/LandingPage"))
+const AboutPage = lazy(() => import('./pages/About'))
+const FeaturesPage = lazy(() => import('./pages/Features'))
+const HowItWorks = lazy(() => import('./pages/How'))
 const UserForm = lazy(() => import('./pages/user/UserForm'))
 const Appointment = lazy(() => import('./pages/Appointment'))
 const TrackCase = lazy(() => import('./pages/user/TrackCase'))
@@ -46,8 +46,9 @@ const AssignedCases = lazy(() => import('./pages/admin/AssignedCases'))
 const ClientInfoView = lazy(() => import('./pages/other/ClientInfoView'))
 const Analytics = lazy(() => import('./pages/admin/Analytics'))
 
-// Intern
-
+// Public
+const Privacy = lazy(() => import('./pages/admin/Privacy'))
+const Terms = lazy(() => import('./pages/admin/Terms'))
 
 const theme = createTheme({
   fontFamily: "Montserrat, sans-serif",
@@ -62,17 +63,17 @@ function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false, int
     console.log('ProtectedRoute: Showing loader - loading is true');
     return <Loaders height={window.innerHeight} />;
   }
-  
+
   if (!userLoggedIn) {
     console.log('ProtectedRoute: Redirecting to login - not logged in');
     return <Navigate to="/auth/login" replace />;
   }
-  
+
   if (!userData) {
     console.log('ProtectedRoute: Showing loader - userData is null');
     return <Loaders height={window.innerHeight} />;
   }
-  
+
   if (!userData?.isVerified) {
     console.log('ProtectedRoute: Redirecting to login - not verified');
     return <Navigate to="/auth/login" replace />;
@@ -117,14 +118,18 @@ function AppRoutes() {
   return (
     <Suspense fallback={<Loaders height={window.innerHeight} />}>
       <Routes>
-         <Route path="auth">
+        {/* Public routes */}
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
+
+        <Route path="auth">
           <Route path="login" element={<Login />} />
           <Route path="signup" element={<Signup />} />
           <Route path="attorneylogin" element={<AttorneyLogin />} />
           <Route path="attorneysignup" element={<AttorneySignup />} />
         </Route>
-       
-       
+
+
         {/* User */}
         <Route
           path="/user"
@@ -138,7 +143,7 @@ function AppRoutes() {
         >
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<Home />} />
-{/* Chat route disabled per checklist. Commented out to preserve code for future use.
+          {/* Chat route disabled per checklist. Commented out to preserve code for future use.
   const UserChat = lazy(() => import('./pages/user/Chat'))
   <Route path="chat/:caseId?" element={<UserChat/>}/>
 */}
@@ -155,7 +160,7 @@ function AppRoutes() {
               <Layout>
                 <Outlet />
               </Layout>
-            </ProtectedRoute> 
+            </ProtectedRoute>
           }
         >
           <Route index element={<AdminDashboard />} />
@@ -168,7 +173,7 @@ function AppRoutes() {
           <Route path="analytics" element={<Analytics />} />
           <Route path="profile" element={<AdminProfile />} />
         </Route>
-        
+
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Navigate to="/auth/login" replace />} />
@@ -177,7 +182,7 @@ function AppRoutes() {
         <Route path="/ai-chatbot" element={<AIChatbot />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/features" element={<FeaturesPage />} />
-        <Route path="/how" element={<HowItWorks/>} />
+        <Route path="/how" element={<HowItWorks />} />
         <Route path="*" element={<PageNotFound />} />
 
       </Routes>

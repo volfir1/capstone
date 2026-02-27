@@ -35,7 +35,7 @@ export default function HomepageHeader({ activePage }) {
           <Link to="/" style={{ textDecoration: 'none' }}>
             <Group gap="xs">
               <Image
-                src="/src/assets/images/logo.svg"
+                src="/sola_logo.png"
                 alt="JustReach Logo"
                 w={35}
                 h={35}
@@ -43,10 +43,10 @@ export default function HomepageHeader({ activePage }) {
               />
               <Box>
                 <Text span size="lg" fw={700} c={PRIMARY_GOLD} style={{ lineHeight: 1 }}>
-                  Just
+                  SOLA -
                 </Text>
-                <Text span size="lg" fw={700} c={PRIMARY_BROWN} style={{ lineHeight: 1 }}>
-                  Reach
+                <Text span size="lg" fw={700} c={PRIMARY_BROWN} style={{ lineHeight: 1 }} ml={5}>
+                    JustReach
                 </Text>
               </Box>
             </Group>
