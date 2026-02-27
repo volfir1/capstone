@@ -7,7 +7,7 @@ import { Notifications } from "@mantine/notifications";
 import "@mantine/notifications/styles.css";
 import { DatesProvider } from "@mantine/dates";
 import AuthProvider, { useAuth } from "../context/authContext";
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { Layout } from "../components/layout/Layout";
 import { lazy, Suspense } from "react";
 import { Loaders } from "../components/ui/Loader";
@@ -33,9 +33,9 @@ const AboutPage = lazy(() => import('./pages/About'))
 const FeaturesPage = lazy(() => import('./pages/Features'))
 const HowItWorks = lazy(() => import('./pages/How'))
 const UserForm = lazy(() => import('./pages/user/UserForm'))
-const Appointment = lazy(() => import('./pages/Appointment'))
-const TrackCase = lazy(() => import('./pages/user/TrackCase'))
-const ProfilePage = lazy(() => import('./pages/other/Profile'))
+  const Appointment = lazy(() => import('./pages/Appointment'))
+  // const TrackCase = lazy(() => import('./pages/user/TrackCase'))
+  // const ProfilePage = lazy(() => import('./pages/other/Profile'))
 const ClientApplicationStatus = lazy(() => import('./pages/other/ClientFormStatus'))
 
 // Admin
@@ -79,9 +79,17 @@ function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false, int
     return <Navigate to="/auth/login" replace />;
   }
 
+  // Block default `user` role (pending state) from accessing any routes.
+  if (userData?.role === 'user') {
+    console.log('ProtectedRoute: Blocking default `user` role - redirecting to login');
+    return <Navigate to="/auth/login" replace />;
+  }
+
   if (adminOnly && userData?.role !== "secretary" && userData?.role !== "attorney" && userData?.role !== "pao_lawyer" && userData?.role !== "legal_volunteer" && userData?.role !== "intern" && userData?.role !== "supervising_lawyer" && userData?.role !== "director") {
+    /*
     console.log('ProtectedRoute: Redirecting to /user/home - not secretary or attorney');
     return <Navigate to="/user/home" replace />;
+    */
   }
 
   if (attorneyOnly && userData?.role !== "attorney" && userData?.role !== "pao_lawyer" && userData?.role !== "legal_volunteer") {
@@ -105,12 +113,18 @@ function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false, int
 
 function AppRoutes() {
   const { userLoggedIn, userData, loading } = useAuth();
+  const location = useLocation();
 
   console.log('AppRoutes render:', { loading, userLoggedIn, hasUserData: !!userData, pathname: window.location.pathname });
 
   if (loading) {
-    console.log('AppRoutes: Showing loader');
-    return <Loaders height={window.innerHeight} />;
+    // If we're on auth pages, don't show the global loader overlay — keep the login UI visible
+    if (location.pathname && location.pathname.startsWith('/auth')) {
+      console.log('AppRoutes: Loading but on auth page — skipping global loader');
+    } else {
+      console.log('AppRoutes: Showing loader');
+      return <Loaders height={window.innerHeight} />;
+    }
   }
 
   console.log('AppRoutes: Rendering routes');
@@ -130,8 +144,8 @@ function AppRoutes() {
         </Route>
 
 
-        {/* User */}
-        <Route
+       {/* User Routes */}
+        {/* <Route
           path="/user"
           element={
             <ProtectedRoute>
@@ -143,14 +157,14 @@ function AppRoutes() {
         >
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<Home />} />
-          {/* Chat route disabled per checklist. Commented out to preserve code for future use.
+           Chat route disabled per checklist. Commented out to preserve code for future use.
   const UserChat = lazy(() => import('./pages/user/Chat'))
   <Route path="chat/:caseId?" element={<UserChat/>}/>
-*/}
+
           <Route path="profile" element={<UserProfile />} />
           <Route path="appointment" element={<UserForm />} />
           <Route path="track" element={<TrackAppointment />} />
-        </Route>
+        </Route> */}
 
         {/* Admin - Unified for Secretary, Attorney, and Intern */}
         <Route

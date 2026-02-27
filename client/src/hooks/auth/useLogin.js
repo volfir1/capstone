@@ -15,6 +15,7 @@ import {
   successNotif,
   failNotif,
   verificationNotif,
+  pendingRoleNotif,
   welcomeNotif,
 } from "@utils/notification";
 
@@ -26,6 +27,7 @@ export const useLogin = () => {
   const [hasNavigated, setHasNavigated] = useState(false);
   const notificationShown = useRef(false); // Add this ref
   const verificationNotified = useRef(false);
+  const pendingNotified = useRef(false);
   
   const {
     register,
@@ -73,6 +75,21 @@ export const useLogin = () => {
         notificationShown.current = false;
         return;
       }
+        verificationNotified.current = false; // allow verification notif again on a fresh attempt
+        pendingNotified.current = false; // allow pending notif again on a fresh attempt
+      // If user's role is the default `user`, treat as pending and prevent access
+      if (userData.role === 'user') {
+        console.log('User role is `user` (pending) — notifying and signing out');
+        if (!pendingNotified.current) {
+          pendingRoleNotif();
+          pendingNotified.current = true;
+        }
+        doSignOut();
+        setIsSigningIn(false);
+        setHasNavigated(false);
+        notificationShown.current = false;
+        return;
+      }
 
       // Only show notification once
       if (!notificationShown.current) {
@@ -104,6 +121,7 @@ export const useLogin = () => {
         setIsSigningIn(false);
         notificationShown.current = false; // Reset for next login
         verificationNotified.current = false;
+        pendingNotified.current = false;
       }, 3000);
 
       return () => {
@@ -122,6 +140,8 @@ export const useLogin = () => {
     setErrorMessage("");
     setHasNavigated(false);
     notificationShown.current = false; // Reset on new login attempt
+    verificationNotified.current = false;
+    pendingNotified.current = false;
     verificationNotified.current = false;
 
     try {
@@ -173,6 +193,8 @@ export const useLogin = () => {
     setErrorMessage("");
     setHasNavigated(false);
     notificationShown.current = false; // Reset on new login attempt
+    verificationNotified.current = false; // allow verification notif again on a fresh attempt
+    pendingNotified.current = false; // allow pending notif again on a fresh attempt
     verificationNotified.current = false; // allow verification notif again on a fresh attempt
 
     try {

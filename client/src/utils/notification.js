@@ -19,16 +19,19 @@ export const showInfo = (title, message) =>
 
 // --- Auth notifications ---
 export const successNotif = () =>
-  notifications.show({ title: 'Login Success', message: 'You have been logged in successfully.', color: 'green', autoClose: 4000 });
+  notifications.show({ id: 'auth-success', title: 'Login Success', message: 'You have been logged in successfully.', color: 'green', autoClose: 4000 });
 
 export const failNotif = () =>
-  notifications.show({ title: 'Login Failed', message: 'Invalid credentials. Please try again.', color: 'red', autoClose: 4000 });
+  notifications.show({ id: 'auth-fail', title: 'Login Failed', message: 'Invalid credentials. Please try again.', color: 'red', autoClose: 4000 });
 
 export const verificationNotif = () =>
-  notifications.show({ title: 'Email Not Verified', message: 'Please verify your email first.', color: 'yellow', autoClose: 4000 });
+  notifications.show({ id: 'auth-verification', title: 'Email Not Verified', message: 'Please verify your email first.', color: 'yellow', autoClose: 4000 });
 
 export const welcomeNotif = (firstName) =>
-  notifications.show({ title: 'Welcome Back', message: `Welcome back, ${firstName}!`, color: 'green', autoClose: 4000 });
+  notifications.show({ id: 'auth-welcome', title: 'Welcome Back', message: `Welcome back, ${firstName}!`, color: 'green', autoClose: 4000 });
+
+export const pendingRoleNotif = () =>
+  notifications.show({ id: 'auth-pending-role', title: 'Account Pending Approval', message: 'Please wait for admin to update your role.', color: 'yellow', autoClose: 4000 });
 
 // --- Review / Submit notifications ---
 export const reviewSavedNotif = () =>
