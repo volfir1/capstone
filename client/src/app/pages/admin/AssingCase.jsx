@@ -42,7 +42,7 @@ export default function AssignCases() {
     fetchAttorneys();
   }, []);
 
-  // Update selectedCase when cases list changes (after assignment)
+  // Update selectedCase when cases list changes (after assignment).
   useEffect(() => {
     if (selectedCase && cases.length > 0) {
       const updatedCase = cases.find(c => c._id === selectedCase._id);
