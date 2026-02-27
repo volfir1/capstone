@@ -14,14 +14,16 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirect);
 }
 
-export function generateAuthUrl(state) {
+export function generateAuthUrl(state, loginHint) {
   const oauth2Client = getOAuth2Client();
-  const url = oauth2Client.generateAuthUrl({
+  const opts = {
     access_type: 'offline',
     prompt: 'consent',
     scope: SCOPES,
     state,
-  });
+  };
+  if (loginHint) opts.login_hint = loginHint;
+  const url = oauth2Client.generateAuthUrl(opts);
   return url;
 }
 
@@ -37,6 +39,23 @@ export async function createEventWithRefreshToken(refreshToken, calendarId = 'pr
 
   const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
+  // Ensure an end time exists when only start is provided. Default duration: 30 minutes.
+  try {
+    if (event && event.start && !event.end) {
+      const startDT = event.start.dateTime || event.start.date;
+      if (startDT) {
+        const startDate = new Date(startDT);
+        if (!Number.isNaN(startDate.getTime())) {
+          const endDate = new Date(startDate.getTime() + 30 * 60000);
+          event.end = { dateTime: endDate.toISOString(), timeZone: event.start.timeZone || 'Asia/Manila' };
+        }
+      }
+    }
+  } catch (e) {
+    // If parsing fails, proceed without modifying the event and let Google API return an error.
+    console.warn('Failed to auto-populate event.end from start:', e?.message || e);
+  }
+
   const res = await calendar.events.insert({
     calendarId,
     requestBody: event,
@@ -50,6 +69,22 @@ export async function createEventWithAccessToken(accessToken, calendarId = 'prim
   oauth2Client.setCredentials({ access_token: accessToken });
 
   const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+  // Ensure an end time exists when only start is provided. Default duration: 30 minutes.
+  try {
+    if (event && event.start && !event.end) {
+      const startDT = event.start.dateTime || event.start.date;
+      if (startDT) {
+        const startDate = new Date(startDT);
+        if (!Number.isNaN(startDate.getTime())) {
+          const endDate = new Date(startDate.getTime() + 30 * 60000);
+          event.end = { dateTime: endDate.toISOString(), timeZone: event.start.timeZone || 'Asia/Manila' };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to auto-populate event.end from start:', e?.message || e);
+  }
 
   const res = await calendar.events.insert({
     calendarId,

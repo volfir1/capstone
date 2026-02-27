@@ -46,6 +46,7 @@ import { notifications } from '@mantine/notifications';
 import { useAuth } from '@/context/authContext';
 import apiClient from '@config/api/apiClient';
 import { CaseInformationSection } from '../other/CaseInformationSection';
+import AssignedCasesSkeleton from '@/components/skeleton/AssignedCasesSkeleton';
 import {
   PRIMARY_GOLD,
   PRIMARY_BROWN,
@@ -601,16 +602,7 @@ export default function AssignedCases() {
     ? receiptDetails.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     : 'N/A';
 
-  if (loading) {
-    return (
-      <Center py="xl" style={{ minHeight: 400 }}>
-        <Stack align="center" gap="md">
-          <Loader size="lg" color={PRIMARY_BROWN} />
-          <Text c="dimmed">Loading assignments...</Text>
-        </Stack>
-      </Center>
-    );
-  }
+  if (loading) return <AssignedCasesSkeleton />;
 
   return (
     <Box p="lg">

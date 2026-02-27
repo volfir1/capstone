@@ -44,6 +44,8 @@ export default function StaffAppointmentManager() {
   const itemsPerPage = 10;
 
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [appointmentToApprove, setAppointmentToApprove] = useState(null);
+  const [approveModalOpened, setApproveModalOpened] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventToDelete, setEventToDelete] = useState(null);
   const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
@@ -51,6 +53,8 @@ export default function StaffAppointmentManager() {
   const [appointmentToDelete, setAppointmentToDelete] = useState(null);
   const [deleteAppointmentModal, setDeleteAppointmentModal] = useState(false);
   const [isDeletingAppointment, setIsDeletingAppointment] = useState(false);
+  const [reconnectModalOpened, setReconnectModalOpened] = useState(false);
+  const [reconnectUrl, setReconnectUrl] = useState(null);
   const [eventEditForm, setEventEditForm] = useState({
     title: '',
     description: '',
@@ -303,7 +307,14 @@ export default function StaffAppointmentManager() {
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
       const title = appointment.clientName ? `${appointment.clientName} - Interview` : 'Client Interview';
-      const description = appointment.purpose || `Case ID: ${appointment.id}`;
+      // Include exact appointment time and case id in the event description so Google displays it clearly
+      const rawTimeDisplay = appointment.fullData?.appointmentTime || '';
+      const description = `${appointment.purpose || ''}${appointment.purpose ? '\n' : ''}Time: ${rawTimeDisplay || 'TBD'}\nCase ID: ${appointment.id}`;
+
+      // Use appointment location or a clear fallback so Google Maps links work when clicking the event
+      const locationText = (appointment.location && appointment.location.trim())
+        ? appointment.location.trim()
+        : 'SOLA Office, San Sebastian College - Recoletos Manila Legal Aid';
 
       // Build proper date+time for Google Calendar using Asia/Manila timezone
       const dateObj = new Date(appointment.rawAppointedDate);
@@ -319,19 +330,28 @@ export default function StaffAppointmentManager() {
         startMin = parseInt(parts[1]) || 0;
       }
 
-      const startDateTime = `${year}-${month}-${day}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
+      // Use explicit Asia/Manila offset (+08:00) to ensure Google interprets the intended local time
+      const tzOffset = '+08:00';
+      const startDateTime = `${year}-${month}-${day}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00${tzOffset}`;
+      // Only set an explicit end if the appointment has an end or duration; otherwise let server default to 30 minutes
       const endHour = startHour + 1;
-      const endDateTime = `${year}-${month}-${day}T${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
+      const endDateTime = `${year}-${month}-${day}T${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00${tzOffset}`;
 
       const googleEvent = {
         summary: title,
         description,
         start: { dateTime: startDateTime, timeZone: 'Asia/Manila' },
-        end: { dateTime: endDateTime, timeZone: 'Asia/Manila' },
+        // omit `end` to allow server to apply a sensible default (30 minutes) unless a specific end/duration is provided
+        location: locationText,
       };
 
-      await apiClient.post('/google/events/atomic', {
+      const accessToken = (() => {
+        try { return localStorage.getItem('googleAccessToken'); } catch (e) { return null; }
+      })();
+
+      const resp = await apiClient.post('/google/events/atomic', {
         firebaseUid: currentUser.uid,
+        accessToken: accessToken || undefined,
         event: googleEvent,
         meta: {
           appointmentId: appointment.id,
@@ -345,12 +365,84 @@ export default function StaffAppointmentManager() {
         }
       });
 
-      notifications.show({ title: 'Success', message: 'Synced to calendar successfully.', color: 'green' });
-      await loadAllData();
+      if (resp?.data?.success) {
+        notifications.show({ title: 'Success', message: 'Synced to calendar successfully.', color: 'green' });
+        await loadAllData();
+      } else {
+        notifications.show({ title: 'Warning', message: resp?.data?.message || 'Sync may not have completed.', color: 'yellow' });
+      }
     } catch (err) {
-      notifications.show({ title: 'Error', message: 'Failed to sync to calendar.', color: 'red' });
+      console.error('Record to calendars error:', err);
+      const apiErr = err?.response?.data || err;
+      // If user hasn't connected Google, prompt to connect
+      if (apiErr?.error && (apiErr.error === 'User has not connected Google Calendar' || apiErr.message?.toLowerCase?.().includes('not connected') || apiErr.details?.toString?.().toLowerCase?.().includes('missing google refresh'))) {
+        try {
+          const { default: apiClient } = await import('@config/api/apiClient');
+          const r = await apiClient.post('/google/connect', { firebaseUid: currentUser.uid, loginHint: currentUser?.email });
+          const url = r?.data?.url || r?.data;
+          if (url) {
+            notifications.show({ title: 'Connect Google', message: 'You need to connect Google Calendar. Opening consent page...', color: 'yellow' });
+            window.open(url, '_blank');
+          } else {
+            notifications.show({ title: 'Connect Google', message: 'Please connect Google Calendar via the admin settings.', color: 'yellow' });
+          }
+        } catch (connectErr) {
+            console.error('Failed to get google connect url', connectErr);
+            notifications.show({ title: 'Error', message: 'Could not initiate Google connect flow.', color: 'red' });
+          }
+        } else if (apiErr?.error === 'invalid_grant') {
+          // Stored refresh token invalid/revoked — surface reconnect UI with server-provided connectUrl
+          const url = apiErr?.connectUrl || null;
+          setReconnectUrl(url);
+          setReconnectModalOpened(true);
+        } else if (apiErr?.error === 'api_not_enabled' || apiErr?.error === 'invalid_access_token' || apiErr?.error === 'token_project_mismatch') {
+      } else if (apiErr?.error === 'api_not_enabled' || apiErr?.error === 'invalid_access_token' || apiErr?.error === 'token_project_mismatch') {
+        // If the token belongs to a different Google project or API is disabled, open server connect URL
+        try {
+          const { default: apiClient } = await import('@config/api/apiClient');
+          // Try to use connectUrl returned from server first
+          const connectUrl = apiErr?.connectUrl;
+          if (connectUrl) {
+            notifications.show({ title: 'Connect Google', message: 'Please complete Google consent for calendar access. Opening consent page...', color: 'yellow' });
+            window.open(connectUrl, '_blank');
+          } else {
+            const r2 = await apiClient.post('/google/connect', { firebaseUid: currentUser.uid, loginHint: currentUser?.email });
+            const url2 = r2?.data?.url || r2?.data;
+            if (url2) {
+              notifications.show({ title: 'Connect Google', message: 'Please complete Google consent for calendar access. Opening consent page...', color: 'yellow' });
+              window.open(url2, '_blank');
+            } else {
+              notifications.show({ title: 'Connect Google', message: 'Please connect Google Calendar via the admin settings.', color: 'yellow' });
+            }
+          }
+        } catch (e) {
+          console.error('Failed to initiate connect flow', e);
+          notifications.show({ title: 'Error', message: 'Could not initiate Google connect flow.', color: 'red' });
+        }
+      } else if (apiErr?.error === 'insufficient_scopes') {
+        notifications.show({ title: 'Permission error', message: 'Google calendar scopes missing. Re-consent required.', color: 'red' });
+      } else {
+        notifications.show({ title: 'Error', message: apiErr?.message || 'Failed to sync to calendar.', color: 'red' });
+      }
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleConnectGoogle = async () => {
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      const r = await apiClient.post('/google/connect', { firebaseUid: currentUser.uid, loginHint: currentUser?.email });
+      const url = r?.data?.url || r?.data || r?.data?.connectUrl;
+      if (url) {
+        notifications.show({ title: 'Connect Google', message: 'Opening Google consent to connect Calendar...', color: 'yellow' });
+        window.open(url, '_blank');
+      } else {
+        notifications.show({ title: 'Error', message: 'Could not get Google connect URL.', color: 'red' });
+      }
+    } catch (e) {
+      console.error('Failed to start Google connect', e);
+      notifications.show({ title: 'Error', message: 'Failed to initiate Google connect flow.', color: 'red' });
     }
   };
 
@@ -425,7 +517,7 @@ export default function StaffAppointmentManager() {
 
         <Group grow gap="xs" mt={4}>
           {!item.calendarRecorded ? (
-            <Button size="compact-xs" radius="md" fw={600} style={{ backgroundColor: PRIMARY_BROWN }} onClick={() => handleRecordToCalendars(item)} loading={isUpdating}>Approve</Button>
+            <Button size="compact-xs" radius="md" fw={600} style={{ backgroundColor: PRIMARY_BROWN }} onClick={() => { setAppointmentToApprove(item); setApproveModalOpened(true); }} loading={isUpdating}>Approve</Button>
           ) : (
             !['director', 'supervising_lawyer'].includes(userData?.role) && (
               <Button size="compact-xs" variant="outline" radius="md" fw={600} style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }} onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { showClientInfo: true } })}>Interview</Button>
@@ -596,6 +688,18 @@ export default function StaffAppointmentManager() {
       </Container>
 
       {/* Modals */}
+      <Modal opened={approveModalOpened} onClose={() => { setApproveModalOpened(false); setAppointmentToApprove(null); }} title={<Text fw={700} size="lg">Confirm Approval</Text>} size="sm" radius="xl" centered>
+        <Stack gap="md" align="center">
+          <Text size="sm">Approve this appointment and add it to Google Calendar?</Text>
+          {appointmentToApprove && (
+            <Text size="sm" fw={600}>{appointmentToApprove.clientName} — {appointmentToApprove.scheduledDate}</Text>
+          )}
+          <Group position="right" style={{ width: '100%' }}>
+            <Button variant="subtle" color="gray" onClick={() => { setApproveModalOpened(false); setAppointmentToApprove(null); }}>Cancel</Button>
+            <Button color={PRIMARY_BROWN} onClick={async () => { setApproveModalOpened(false); await handleRecordToCalendars(appointmentToApprove); setAppointmentToApprove(null); }}>Yes, approve</Button>
+          </Group>
+        </Stack>
+      </Modal>
       <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title={<Text fw={700} size="lg">Reschedule Appointment</Text>} size="md" radius="xl">
         <Stack gap="md">
           {selectedAppointment && (
@@ -641,6 +745,32 @@ export default function StaffAppointmentManager() {
           <Group grow w="100%">
             <Button variant="outline" color="gray" radius="md" fw={600} onClick={() => { setDeleteAppointmentModal(false); setAppointmentToDelete(null); }}>Cancel</Button>
             <Button color="red" radius="md" fw={600} onClick={handleDeleteAppointment} loading={isDeletingAppointment}>Delete</Button>
+          </Group>
+        </Stack>
+      </Modal>
+      <Modal opened={reconnectModalOpened} onClose={() => { setReconnectModalOpened(false); setReconnectUrl(null); }} title={<Text fw={700} size="lg">Reconnect Google Calendar</Text>} centered radius="xl">
+        <Stack gap="md" align="center">
+          <Text size="sm">Your Google connection appears to be disconnected or expired. Reconnect to allow calendar write access.</Text>
+          <Box>
+            <Text size="sm" c="dimmed">{reconnectUrl ? 'Click Reconnect to open the consent page.' : 'No direct connect URL provided. You will be directed to the server to initiate the consent flow.'}</Text>
+          </Box>
+          <Group grow w="100%">
+            <Button variant="outline" color="gray" radius="md" fw={600} onClick={() => { setReconnectModalOpened(false); setReconnectUrl(null); }}>Cancel</Button>
+            <Button color={PRIMARY_BROWN} radius="md" fw={600} onClick={async () => {
+              try {
+                if (reconnectUrl) {
+                  window.open(reconnectUrl, '_blank');
+                } else {
+                  await handleConnectGoogle();
+                }
+              } catch (e) {
+                console.error('Failed to open reconnect flow', e);
+                notifications.show({ title: 'Error', message: 'Failed to start reconnect flow.', color: 'red' });
+              } finally {
+                setReconnectModalOpened(false);
+                setReconnectUrl(null);
+              }
+            }}>Reconnect Google</Button>
           </Group>
         </Stack>
       </Modal>

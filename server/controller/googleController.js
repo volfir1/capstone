@@ -7,11 +7,11 @@ import { getIO } from '../socket.js';
 
 export const getAuthUrl = async (req, res) => {
   try {
-    const { firebaseUid } = req.body;
+    const { firebaseUid, loginHint } = req.body;
     if (!firebaseUid) return res.status(400).json({ error: 'firebaseUid required in body' });
 
-    // Use firebaseUid as state so we can link in callback
-    const url = generateAuthUrl(firebaseUid);
+    // Use firebaseUid as state so we can link in callback; include loginHint to preselect account
+    const url = generateAuthUrl(firebaseUid, loginHint);
     res.json({ url });
   } catch (err) {
     console.error('getAuthUrl error', err);
@@ -25,6 +25,7 @@ export const oauthCallback = async (req, res) => {
     if (!code || !state) return res.status(400).send('Missing code or state');
 
     const tokens = await getTokensFromCode(code);
+    console.log('oauthCallback tokens:', tokens);
 
     const user = await User.findOne({ firebaseUid: state });
     if (!user) return res.status(404).send('User not found for provided state');
@@ -37,6 +38,7 @@ export const oauthCallback = async (req, res) => {
     user.google.primaryCalendarId = user.google.primaryCalendarId || 'primary';
 
     await user.save();
+    console.log('oauthCallback: saved google info for user', user.firebaseUid, { hasRefresh: !!user.google.refreshToken });
 
     // Redirect back to client appointments page with success — client should display connected status
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -87,6 +89,19 @@ export const createEvent = async (req, res) => {
     res.json({ success: true, event: created });
   } catch (err) {
     console.error('createEvent error', err);
+    // Detect invalid_grant from Google (refresh token revoked/invalid)
+    const respErr = err?.response?.data;
+    const respErrCode = respErr?.error || respErr?.error_description || '';
+    const causeMessage = (err?.cause?.message || err?.message || '').toLowerCase();
+    if (String(respErrCode).toLowerCase().includes('invalid_grant') || causeMessage.includes('invalid_grant') || causeMessage.includes('invalid grant')) {
+      try {
+        const connectUrl = generateAuthUrl(req.body.firebaseUid, undefined);
+        return res.status(401).json({ error: 'invalid_grant', message: 'Stored Google refresh token is invalid or revoked. Please reconnect Google Calendar.', connectUrl });
+      } catch (uErr) {
+        return res.status(401).json({ error: 'invalid_grant', message: 'Stored Google refresh token is invalid or revoked. Please reconnect Google Calendar.' });
+      }
+    }
+
     res.status(500).json({ error: err.message });
   }
 };
@@ -107,23 +122,89 @@ export const createEventAndRecord = async (req, res) => {
     // 1) Create event in user's Google Calendar
     let createdGoogleEvent;
     try {
-      if (accessToken) {
+      // Prefer server-stored refresh token (server project) if available
+      if (user?.google?.refreshToken) {
+        console.log('createEventAndRecord using stored server refresh token');
+        createdGoogleEvent = await createEventWithRefreshToken(user.google.refreshToken, user.google.primaryCalendarId || 'primary', event);
+      } else if (accessToken) {
         console.log('createEventAndRecord using provided accessToken');
+
+        // Validate the access token with Google's tokeninfo endpoint before attempting to use it.
+        try {
+          const tokenInfoRes = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(accessToken)}`);
+          const tokenInfo = await tokenInfoRes.json();
+          console.log('Google tokeninfo:', tokenInfo);
+
+          // tokeninfo returns an error_description or error when invalid
+          if (tokenInfo.error_description || tokenInfo.error) {
+            console.warn('tokeninfo indicates invalid token', tokenInfo);
+            return res.status(401).json({ error: 'invalid_access_token', message: 'Provided Google access token is invalid according to tokeninfo.', details: tokenInfo });
+          }
+
+          // Check scopes
+          const scopes = (tokenInfo.scope || '').split(' ');
+          const requiredScopes = ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events'];
+          const hasCalendarScope = requiredScopes.some(s => scopes.includes(s));
+          if (!hasCalendarScope) {
+            return res.status(403).json({ error: 'insufficient_scopes', message: 'Access token lacks required Google Calendar scopes.', details: { scopes } });
+          }
+
+          // Check audience — if token was issued by a different Google Cloud project, don't use it
+          if (tokenInfo.aud && process.env.GOOGLE_CLIENT_ID && tokenInfo.aud !== process.env.GOOGLE_CLIENT_ID) {
+            console.warn('tokeninfo aud mismatch', { aud: tokenInfo.aud, expected: process.env.GOOGLE_CLIENT_ID });
+            // Return a connect URL so the user can consent the server's Google project instead
+            try {
+              const connectUrl = generateAuthUrl(firebaseUid, tokenInfo.email);
+              return res.status(409).json({ error: 'token_project_mismatch', message: 'Access token was issued by a different Google Cloud project. Please connect Google Calendar for this account using the server consent flow.', connectUrl });
+            } catch (uErr) {
+              return res.status(409).json({ error: 'token_project_mismatch', message: 'Access token was issued by a different Google Cloud project. Please connect Google Calendar for this account using the server consent flow.' });
+            }
+          }
+        } catch (tErr) {
+          console.warn('Failed to validate access token via tokeninfo', tErr?.message || tErr);
+          // Continue — the subsequent createEvent call will surface the exact error from Google
+        }
+
         createdGoogleEvent = await createEventWithAccessToken(accessToken, user?.google?.primaryCalendarId || 'primary', event);
       } else {
-        createdGoogleEvent = await createEventWithRefreshToken(user.google.refreshToken, user.google.primaryCalendarId || 'primary', event);
+        return res.status(400).json({ error: 'User has not connected Google Calendar' });
       }
     } catch (gErr) {
       console.error('createEventAndRecord google api error', gErr?.message || gErr);
       // Map common Google API issues to actionable responses for the client
-      const causeMessage = gErr?.cause?.message || gErr?.message || '';
+      const causeMessage = (gErr?.cause?.message || gErr?.message || '').toLowerCase();
 
-      if (causeMessage.toLowerCase().includes('insufficient authentication scopes')) {
+      // Handle invalid_grant specifically (refresh token revoked/invalid)
+      const respErr = gErr?.response?.data;
+      const respErrCode = respErr?.error || respErr?.error_description || '';
+      if (String(respErrCode).toLowerCase().includes('invalid_grant') || causeMessage.includes('invalid_grant') || causeMessage.includes('invalid grant')) {
+        try {
+          const connectUrl = generateAuthUrl(firebaseUid, user?.email);
+          return res.status(401).json({ error: 'invalid_grant', message: 'Stored Google refresh token is invalid or revoked. Please reconnect Google Calendar.', connectUrl });
+        } catch (uErr) {
+          return res.status(401).json({ error: 'invalid_grant', message: 'Stored Google refresh token is invalid or revoked. Please reconnect Google Calendar.' });
+        }
+      }
+
+      if (causeMessage.includes('insufficient authentication scopes')) {
         return res.status(403).json({ error: 'insufficient_scopes', message: 'Google access token missing calendar scopes. Re-consent required.' });
       }
 
-      if (causeMessage.toLowerCase().includes('has not been used in project') || causeMessage.toLowerCase().includes('disabled')) {
-        return res.status(422).json({ error: 'api_not_enabled', message: 'Google Calendar API not enabled for the project that issued this token.' });
+      if (causeMessage.includes('has not been used in project') || causeMessage.includes('disabled')) {
+        // Provide a connect URL so the user can consent to the server's Google project
+        try {
+          const connectUrl = generateAuthUrl(firebaseUid, user?.email);
+          return res.status(422).json({ error: 'api_not_enabled', message: 'Google Calendar API not enabled for the project that issued this token.', connectUrl });
+        } catch (uErr) {
+          return res.status(422).json({ error: 'api_not_enabled', message: 'Google Calendar API not enabled for the project that issued this token.' });
+        }
+      }
+
+      if (causeMessage.includes('invalid authentication') || causeMessage.includes('invalid credentials') || causeMessage.includes('request had invalid authentication')) {
+        // Access token appears invalid for Google Calendar API. This likely means the token
+        // was not issued with calendar scopes, has expired/revoked, or belongs to a different
+        // Google Cloud project than the server's configured OAuth client.
+        return res.status(401).json({ error: 'invalid_access_token', message: 'Provided Google access token is invalid for Calendar API. Re-consent or ensure Calendar API is enabled for the token project.', details: gErr.response?.data || gErr.cause || gErr.message });
       }
 
       // Generic Google API error
@@ -280,8 +361,20 @@ export const rescheduleEvent = async (req, res) => {
         // Update the external Google ID on the local event
         localEvent.externalIds = { google: newGoogleEvent?.id || '' };
       } catch (gErr) {
-        console.error('Google Calendar reschedule error:', gErr.message);
-        // Continue even if Google Calendar update fails
+        console.error('Google Calendar reschedule error:', gErr.message || gErr);
+        // If refresh token invalid/revoked, surface a helpful response so client can reconnect
+        const respErr = gErr?.response?.data;
+        const respErrCode = respErr?.error || respErr?.error_description || '';
+        const causeMessage = (gErr?.cause?.message || gErr?.message || '').toLowerCase();
+        if (String(respErrCode).toLowerCase().includes('invalid_grant') || causeMessage.includes('invalid_grant') || causeMessage.includes('invalid grant')) {
+          try {
+            const connectUrl = generateAuthUrl(firebaseUid, user?.email);
+            return res.status(401).json({ error: 'invalid_grant', message: 'Stored Google refresh token is invalid or revoked. Please reconnect Google Calendar.', connectUrl });
+          } catch (uErr) {
+            return res.status(401).json({ error: 'invalid_grant', message: 'Stored Google refresh token is invalid or revoked. Please reconnect Google Calendar.' });
+          }
+        }
+        // Otherwise, continue silently (non-fatal)
       }
     }
 
