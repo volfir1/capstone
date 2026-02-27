@@ -11,7 +11,7 @@ import { authenticateFirebaseToken } from '../firebase/authMiddleware.js';
 
 const router = express.Router();
 
-// Apply Firebase authentication middleware to all routes
+// Apply Firebase authentication middleware to all routes.
 router.use(authenticateFirebaseToken);
 
 // Event routes
