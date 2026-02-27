@@ -19,16 +19,16 @@ export const showInfo = (title, message) =>
 
 // --- Auth notifications ---
 export const successNotif = () =>
-  showSuccess('Login Success', 'You have been logged in successfully.');
+  notifications.show({ title: 'Login Success', message: 'You have been logged in successfully.', color: 'green', autoClose: 4000 });
 
 export const failNotif = () =>
-  showError('Login Failed', 'Invalid credentials. Please try again.');
+  notifications.show({ title: 'Login Failed', message: 'Invalid credentials. Please try again.', color: 'red', autoClose: 4000 });
 
 export const verificationNotif = () =>
-  showWarning('Email Not Verified', 'Please verify your email first.');
+  notifications.show({ title: 'Email Not Verified', message: 'Please verify your email first.', color: 'yellow', autoClose: 4000 });
 
 export const welcomeNotif = (firstName) =>
-  showSuccess('Welcome Back', `Welcome back, ${firstName}!`);
+  notifications.show({ title: 'Welcome Back', message: `Welcome back, ${firstName}!`, color: 'green', autoClose: 4000 });
 
 // --- Review / Submit notifications ---
 export const reviewSavedNotif = () =>

@@ -19,12 +19,13 @@ import {
 } from "@utils/notification";
 
 export const useLogin = () => {
-  const { userLoggedIn, userData } = useAuth();
+  const { userLoggedIn, userData, loading } = useAuth();
   const navigate = useNavigate();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [hasNavigated, setHasNavigated] = useState(false);
   const notificationShown = useRef(false); // Add this ref
+  const verificationNotified = useRef(false);
   
   const {
     register,
@@ -40,14 +41,32 @@ export const useLogin = () => {
 
   // Handle navigation after successful login
   useEffect(() => {
-    console.log('useEffect triggered:', { userLoggedIn, hasUserData: !!userData, hasNavigated });
-    
+    console.log('useEffect triggered:', { userLoggedIn, hasUserData: !!userData, loading, hasNavigated });
+
+    // Handle the case where Firebase reports a logged-in user but backend user data
+    // is missing after loading finishes — treat as unverified and stop the loading state.
+    if (userLoggedIn && !loading && !userData && !hasNavigated) {
+      console.log('Detected logged-in but no backend userData after loading — treating as unverified');
+      if (!verificationNotified.current) {
+        verificationNotif();
+        verificationNotified.current = true;
+      }
+      doSignOut();
+      setIsSigningIn(false);
+      setHasNavigated(false);
+      notificationShown.current = false;
+      return;
+    }
+
     if (userLoggedIn && userData && !hasNavigated) {
       console.log('Inside navigation logic');
       
       if (!userData.isVerified) {
         console.log('User not verified');
-        verificationNotif();
+        if (!verificationNotified.current) {
+          verificationNotif();
+          verificationNotified.current = true;
+        }
         doSignOut();
         setIsSigningIn(false);
         setHasNavigated(false);
@@ -84,6 +103,7 @@ export const useLogin = () => {
         NProgress.done();
         setIsSigningIn(false);
         notificationShown.current = false; // Reset for next login
+        verificationNotified.current = false;
       }, 3000);
 
       return () => {
@@ -102,6 +122,7 @@ export const useLogin = () => {
     setErrorMessage("");
     setHasNavigated(false);
     notificationShown.current = false; // Reset on new login attempt
+    verificationNotified.current = false;
 
     try {
       let emailToUse = data.email;
@@ -152,9 +173,22 @@ export const useLogin = () => {
     setErrorMessage("");
     setHasNavigated(false);
     notificationShown.current = false; // Reset on new login attempt
+    verificationNotified.current = false; // allow verification notif again on a fresh attempt
 
     try {
-      const result = await doSignInWithGoogle();
+      const TIMEOUT_MS = 2000; // shorten waiting time for popup cancellation
+      const result = await Promise.race([
+        doSignInWithGoogle(),
+        new Promise((resolve) => setTimeout(() => resolve({ __timeout: true }), TIMEOUT_MS)),
+      ]);
+
+      if (result && result.__timeout) {
+        // Likely the user closed the popup or the flow is taking too long — reset loading state.
+        setErrorMessage("");
+        setIsSigningIn(false);
+        return;
+      }
+
       // Attempt to extract the OAuth access token from the popup result and cache it locally
       try {
         const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -168,7 +202,18 @@ export const useLogin = () => {
       }
     } catch (err) {
       console.error("Google sign-in error:", err);
-      setErrorMessage(err.message);
+      // If the user closed the popup or cancelled the OAuth flow, treat it as a cancellation
+      // and simply reset the loading state without showing an error notification.
+      const code = err?.code || "";
+      const isPopupCancelled = code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request";
+
+      if (isPopupCancelled) {
+        setErrorMessage("");
+        setIsSigningIn(false);
+        return;
+      }
+
+      setErrorMessage(err.message || "Google sign-in failed");
       setIsSigningIn(false);
       failNotif();
     }
