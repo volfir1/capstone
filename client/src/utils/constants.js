@@ -5,6 +5,7 @@ export const THEMED_LIGHT_BG = "#E8E3D5";
 export const CHARCOAL = "#2C2C2C";
 export const ACCENT_TAN = "#A68A64";
 export const BG = "#F7F8FA"
+
 // Form Options
 export const GENDER_OPTIONS = [
   'Male',
@@ -85,4 +86,14 @@ export const CATEGORY_COLORS = {
   'Cybercrime': 'dark',
   'Election Law': 'indigo',
   'Other': 'gray'
+};
+
+export const ROLE_COLORS = {
+  secretary: 'orange',
+  intern: 'blue',
+  director: 'violet',
+  supervising_lawyer: 'teal',
+  attorney: 'teal',
+  pao_lawyer: 'cyan',
+  legal_volunteer: 'green',
 };

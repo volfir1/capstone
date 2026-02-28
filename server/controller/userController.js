@@ -5,7 +5,11 @@ import { v2 as cloudinary } from 'cloudinary'
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import Signature from '../models/signature.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Configure Cloudinary via env (expects CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)
 cloudinary.config({
@@ -438,12 +442,20 @@ export const uploadSignature = async (req, res) => {
         // Load private key: either from env string or from file path
         let privateKeyPem = process.env.PRIVATE_KEY_PEM || null;
         if (!privateKeyPem) {
-            const pkPath = process.env.PRIVATE_KEY_PATH || path.join(process.cwd(), 'server', 'config', 'keys', 'privateKey.pem');
-            if (!fs.existsSync(pkPath)) {
-                console.error('Private key not found at', pkPath);
+            // Try multiple candidate paths for the private key to handle different cwd setups
+            const pkCandidates = [];
+            if (process.env.PRIVATE_KEY_PATH) pkCandidates.push(process.env.PRIVATE_KEY_PATH);
+            pkCandidates.push(path.join(process.cwd(), 'server', 'config', 'keys', 'privateKey.pem'));
+            pkCandidates.push(path.join(process.cwd(), 'config', 'keys', 'privateKey.pem'));
+            pkCandidates.push(path.join(__dirname, '..', 'config', 'keys', 'privateKey.pem'));
+            pkCandidates.push(path.join(__dirname, '..', '..', 'server', 'config', 'keys', 'privateKey.pem'));
+
+            const foundPk = pkCandidates.find((p) => p && fs.existsSync(p));
+            if (!foundPk) {
+                console.error('Private key not found in candidates:', pkCandidates);
                 return res.status(500).json({ success: false, message: 'Server private key not configured' });
             }
-            privateKeyPem = fs.readFileSync(pkPath, 'utf8');
+            privateKeyPem = fs.readFileSync(foundPk, 'utf8');
         }
 
         const signer = crypto.createSign('SHA256');
@@ -477,11 +489,19 @@ export const getPublicKey = async (req, res) => {
     try {
         let publicKeyPem = process.env.PUBLIC_KEY_PEM || null;
         if (!publicKeyPem) {
-            const pubPath = process.env.PUBLIC_KEY_PATH || path.join(process.cwd(), 'server', 'config', 'keys', 'publicKey.pem');
-            if (!fs.existsSync(pubPath)) {
+            // Try multiple candidate paths for the public key
+            const pubCandidates = [];
+            if (process.env.PUBLIC_KEY_PATH) pubCandidates.push(process.env.PUBLIC_KEY_PATH);
+            pubCandidates.push(path.join(process.cwd(), 'server', 'config', 'keys', 'publicKey.pem'));
+            pubCandidates.push(path.join(process.cwd(), 'config', 'keys', 'publicKey.pem'));
+            pubCandidates.push(path.join(__dirname, '..', 'config', 'keys', 'publicKey.pem'));
+            pubCandidates.push(path.join(__dirname, '..', '..', 'server', 'config', 'keys', 'publicKey.pem'));
+
+            const foundPub = pubCandidates.find((p) => p && fs.existsSync(p));
+            if (!foundPub) {
                 return res.status(500).json({ success: false, message: 'Public key not configured' });
             }
-            publicKeyPem = fs.readFileSync(pubPath, 'utf8');
+            publicKeyPem = fs.readFileSync(foundPub, 'utf8');
         }
         const keyVersion = parseInt(process.env.KEY_VERSION || '1', 10);
         res.json({ success: true, data: { publicKey: publicKeyPem, keyVersion } });
@@ -517,12 +537,19 @@ export const verifySignature = async (req, res) => {
         const canonical = JSON.stringify(Object.keys(doc).sort().reduce((acc, key) => { acc[key] = doc[key]; return acc }, {}));
         const documentHash = crypto.createHash('sha256').update(canonical).digest('hex');
 
-        // Load public key
+        // Load public key (try env or multiple candidate paths)
         let publicKeyPem = process.env.PUBLIC_KEY_PEM || null;
         if (!publicKeyPem) {
-            const pubPath = process.env.PUBLIC_KEY_PATH || path.join(process.cwd(), 'server', 'config', 'keys', 'publicKey.pem');
-            if (!fs.existsSync(pubPath)) return res.status(500).json({ success: false, message: 'Public key not configured' });
-            publicKeyPem = fs.readFileSync(pubPath, 'utf8');
+            const pubCandidates = [];
+            if (process.env.PUBLIC_KEY_PATH) pubCandidates.push(process.env.PUBLIC_KEY_PATH);
+            pubCandidates.push(path.join(process.cwd(), 'server', 'config', 'keys', 'publicKey.pem'));
+            pubCandidates.push(path.join(process.cwd(), 'config', 'keys', 'publicKey.pem'));
+            pubCandidates.push(path.join(__dirname, '..', 'config', 'keys', 'publicKey.pem'));
+            pubCandidates.push(path.join(__dirname, '..', '..', 'server', 'config', 'keys', 'publicKey.pem'));
+
+            const foundPub = pubCandidates.find((p) => p && fs.existsSync(p));
+            if (!foundPub) return res.status(500).json({ success: false, message: 'Public key not configured' });
+            publicKeyPem = fs.readFileSync(foundPub, 'utf8');
         }
 
         const verifier = crypto.createVerify('SHA256');
@@ -587,5 +614,112 @@ export const getUserById = async (req, res) => {
         res.json({ success: true, data: payload })
     } catch (error) {
         res.status(500).json({ success: false, message: error.message })
+    }
+}
+
+// Temporary test endpoint: upload and sign a signature without Firebase auth.
+// Enabled only when process.env.ALLOW_TEST_ENDPOINTS === 'true'.
+export const uploadSignatureTest = async (req, res) => {
+    try {
+        if (process.env.ALLOW_TEST_ENDPOINTS !== 'true') {
+            return res.status(403).json({ success: false, message: 'Test endpoints disabled' });
+        }
+
+        const { ownerUid, dataUrl } = req.body;
+        if (!ownerUid || typeof ownerUid !== 'string') return res.status(400).json({ success: false, message: 'ownerUid required' });
+        if (!dataUrl || typeof dataUrl !== 'string') return res.status(400).json({ success: false, message: 'dataUrl (base64) is required' });
+
+        // Upload to Cloudinary under a user-specific folder
+        const publicId = `signature`;
+        const folder = `signatures/${ownerUid}`;
+
+        const uploadResult = await cloudinary.uploader.upload(dataUrl, {
+            folder,
+            public_id: publicId,
+            overwrite: true,
+            resource_type: 'image',
+            format: 'png',
+        });
+
+        const signatureUrl = uploadResult.secure_url;
+
+        // Persist signatureUrl to User or Attorney record
+        let profile = await User.findOneAndUpdate(
+            { firebaseUid: ownerUid },
+            { signatureUrl },
+            { new: true }
+        );
+
+        if (!profile) {
+            profile = await Attorney.findOneAndUpdate(
+                { firebaseUid: ownerUid },
+                { signatureUrl },
+                { new: true }
+            );
+        }
+
+        if (!profile) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Build canonical document to sign
+        const doc = {
+            ownerUid,
+            username: profile.username || '',
+            firstName: profile.firstName || '',
+            lastName: profile.lastName || '',
+            signatureUrl,
+            purpose: 'profile_signature',
+        };
+
+        // Canonicalize by sorting keys
+        const canonical = JSON.stringify(Object.keys(doc).sort().reduce((acc, key) => {
+            acc[key] = doc[key];
+            return acc;
+        }, {}));
+
+        const documentHash = crypto.createHash('sha256').update(canonical).digest('hex');
+
+        // Load private key: either from env string or from multiple candidate file paths
+        let privateKeyPem = process.env.PRIVATE_KEY_PEM || null;
+        if (!privateKeyPem) {
+            const pkCandidates = [];
+            if (process.env.PRIVATE_KEY_PATH) pkCandidates.push(process.env.PRIVATE_KEY_PATH);
+            pkCandidates.push(path.join(process.cwd(), 'server', 'config', 'keys', 'privateKey.pem'));
+            pkCandidates.push(path.join(process.cwd(), 'config', 'keys', 'privateKey.pem'));
+            pkCandidates.push(path.join(__dirname, '..', 'config', 'keys', 'privateKey.pem'));
+            pkCandidates.push(path.join(__dirname, '..', '..', 'server', 'config', 'keys', 'privateKey.pem'));
+
+            const foundPk = pkCandidates.find((p) => p && fs.existsSync(p));
+            if (!foundPk) {
+                console.error('Private key not found in candidates:', pkCandidates);
+                return res.status(500).json({ success: false, message: 'Server private key not configured' });
+            }
+            privateKeyPem = fs.readFileSync(foundPk, 'utf8');
+        }
+
+        const signer = crypto.createSign('SHA256');
+        signer.update(documentHash);
+        signer.end();
+        const digitalSignature = signer.sign(privateKeyPem, 'base64');
+
+        // Persist signature record
+        const keyVersion = parseInt(process.env.KEY_VERSION || '1', 10);
+        const signatureRecord = new Signature({
+            ownerUid,
+            purpose: 'profile_signature',
+            documentHash,
+            digitalSignature,
+            signatureUrl,
+            signatureAlgorithm: 'RSA-SHA256',
+            keyVersion,
+            signedAt: new Date(),
+        });
+        await signatureRecord.save();
+
+        res.json({ success: true, data: { signatureUrl, documentHash, keyVersion, signedAt: signatureRecord.signedAt, signatureId: signatureRecord._id }, message: 'Test signature uploaded, saved and signed.' });
+    } catch (error) {
+        console.error('uploadSignatureTest error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 }
