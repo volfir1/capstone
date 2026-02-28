@@ -13,7 +13,7 @@ import {
 } from "@mantine/core";
 import {
   IconReport,
-  IconBrain,
+  IconClipboardCheck,
   IconMessageCircle,
   IconProgressCheck,
 } from "@tabler/icons-react";
@@ -28,16 +28,16 @@ export default function WorkflowSection() {
         "Start by documenting your legal concern through our barangay-level integrated blotter reporting system. The platform guides you through each required field.",
     },
     {
-      icon: IconBrain,
-      title: "Get AI Recommendations",
+      icon: IconClipboardCheck,
+      title: "Review Requirements & Next Steps",
       description:
-        "Our intelligent system analyzes your case and suggests applicable laws, identifies potential exemptions, and assesses the severity of your situation.",
+        "Review a clear checklist of requirements and recommended next steps based on your report details and standard legal aid procedures.",
     },
     {
       icon: IconMessageCircle,
       title: "Connect with a Lawyer",
       description:
-        "Based on your case details, you'll be matched with a qualified PAO volunteer lawyer. Schedule a consultation at your convenience via video or audio call.",
+        "Based on your case details, you'll be matched with a qualified legal aid volunteer lawyer. Schedule a consultation at your convenience via video or audio call.",
     },
     {
       icon: IconProgressCheck,

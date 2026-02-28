@@ -67,7 +67,7 @@ export const ROLE_DISPLAY = {
   client: 'Client',
   director: 'Director',
   supervising_lawyer: 'Supervising Lawyer',
-  pao_lawyer: 'PAO Lawyer',
+  pao_lawyer: 'Legal Aid Lawyer',
   legal_volunteer: 'Legal Volunteer',
 };
 

@@ -14,7 +14,6 @@ import {
 import {
   IconReport,
   IconProgressCheck,
-  IconBrain,
   IconFileUpload,
   IconUserCheck,
   IconCalendar,
@@ -23,6 +22,7 @@ import {
   IconLanguage,
   IconSearch,
   IconVideo,
+  IconClipboardCheck,
 } from "@tabler/icons-react";
 import { PRIMARY_GOLD, PRIMARY_BROWN, THEMED_LIGHT_BG } from "../../../../utils/constants"; // Adjust path as needed
 
@@ -87,12 +87,12 @@ export default function DetailedWorkflow() {
               </Timeline.Item>
 
               <Timeline.Item
-                bullet={<IconBrain size={16} />}
-                title="AI Analysis"
+                bullet={<IconClipboardCheck size={16} />}
+                title="Case Review"
               >
                 <Text c="dimmed" size="sm">
-                  System analyzes your case and provides instant legal recommendations 
-                  and severity assessment.
+                  Your report details are reviewed to surface requirements and 
+                  next steps aligned with standard legal aid procedures.
                 </Text>
               </Timeline.Item>
 
@@ -101,7 +101,7 @@ export default function DetailedWorkflow() {
                 title="Lawyer Matching"
               >
                 <Text c="dimmed" size="sm">
-                  You're matched with an appropriate PAO volunteer lawyer based on 
+                  You're matched with an appropriate legal aid volunteer lawyer based on 
                   case type and expertise.
                 </Text>
               </Timeline.Item>

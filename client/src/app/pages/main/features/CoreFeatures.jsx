@@ -12,12 +12,9 @@ import {
   rem,
 } from "@mantine/core";
 import {
-  IconLanguage,
   IconUsers,
-  IconBrain,
-  IconFileSearch,
-  IconFileDigit,
-  IconWifiOff,
+  IconCalendarEvent,
+  IconFileText,
   IconCheck,
 } from "@tabler/icons-react";
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE } from "../../../../utils/constants"; // Adjust path as needed
@@ -25,80 +22,41 @@ import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE } from "../../../../utils/cons
 export default function CoreFeatures() {
   const features = [
     {
-      icon: IconLanguage,
-      title: "Multilingual Support",
-      description:
-        "Access legal forms and guidance in English, Filipino, and major regional languages including Cebuano, Ilocano, and Hiligaynon.",
-      highlights: [
-        "Automatic language detection",
-        "Easy language switching",
-        "Culturally appropriate translations",
-        "Accessible to all education levels",
-      ],
-      color: PRIMARY_GOLD,
-    },
-    {
       icon: IconUsers,
-      title: "PAO Lawyer Consultations",
+      title: "Legal Aid Lawyer Consultations",
       description:
-        "Connect with verified volunteer lawyers from the Public Attorney's Office for professional legal advice and representation.",
+        "Connect with verified legal aid lawyers for professional legal advice and representation.",
       highlights: [
-        "Video and audio consultations",
-        "Optimized for low bandwidth",
+        "Free drafting of legal documents",
+        "Court representation",
         "Scheduled appointments",
         "Free legal assistance",
       ],
       color: PRIMARY_BROWN,
     },
     {
-      icon: IconBrain,
-      title: "AI-Powered Legal Assistance",
+      icon: IconCalendarEvent,
+      title: "Appointment Scheduling & Calendar Sync",
       description:
-        "Intelligent system that analyzes your case and provides relevant legal recommendations based on Philippine law.",
+        "Request, track, and manage your legal aid appointments, with Google Calendar integration to help keep schedules organized.",
       highlights: [
-        "Law applicability suggestions",
-        "Legal exemption identification",
-        "Case severity assessment",
-        "PAO-validated recommendations",
-      ],
-      color: MUTED_OLIVE,
-    },
-    {
-      icon: IconFileSearch,
-      title: "Real-Time Case Tracking",
-      description:
-        "Monitor your legal case progress with live updates and simplified case information through a secure platform.",
-      highlights: [
-        "Live status updates",
-        "Case timeline visualization",
-        "Document history",
-        "Notification alerts",
+        "Appointment request and scheduling",
+        "Status-based appointment tracking",
+        "Reschedule support",
+        "Google Calendar event link",
       ],
       color: PRIMARY_GOLD,
     },
     {
-      icon: IconFileDigit,
-      title: "Digital Document Processing",
+      icon: IconFileText,
+      title: "Document Upload & Case Records",
       description:
-        "Securely digitize, store, and submit legal documents with certified e-submission requiring professional validation.",
+        "Upload and review supporting documents for your request, with access to case record details and downloadable files when available.",
       highlights: [
-        "Document scanning and upload",
-        "Certified e-submission",
-        "License number validation",
-        "Digital signature support",
-      ],
-      color: PRIMARY_BROWN,
-    },
-    {
-      icon: IconWifiOff,
-      title: "Offline Functionality",
-      description:
-        "Access essential features even without internet connection, designed specifically for rural areas with limited connectivity.",
-      highlights: [
-        "Offline form access",
-        "Local data storage",
-        "Auto-sync when online",
-        "Reliable rural operation",
+        "Word/PDF document uploads",
+        "In-app PDF preview",
+        "Centralized case documents",
+        "Downloadable attachments",
       ],
       color: MUTED_OLIVE,
     },
@@ -123,9 +81,12 @@ export default function CoreFeatures() {
       </Stack>
 
       <SimpleGrid
-        cols={2}
+        cols={3}
         spacing={30}
-        breakpoints={[{ maxWidth: "md", cols: 1 }]}
+        breakpoints={[
+          { maxWidth: "lg", cols: 2 },
+          { maxWidth: "md", cols: 1 },
+        ]}
       >
         {features.map((feature) => (
           <Card

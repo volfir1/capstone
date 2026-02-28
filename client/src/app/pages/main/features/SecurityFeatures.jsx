@@ -30,7 +30,7 @@ export default function SecurityFeatures() {
       icon: IconShieldCheck,
       title: "Verified Lawyers",
       description:
-        "All PAO lawyers are verified and authenticated through official channels.",
+        "All legal aid lawyers are verified and authenticated through official channels.",
     },
     {
       icon: IconDatabase,

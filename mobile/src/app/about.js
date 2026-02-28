@@ -40,9 +40,16 @@ const CHALLENGES = [
 
 const SOLUTIONS = [
   'Multilingual legal forms and guidance',
-  'Remote consultations with PAO volunteer lawyers',
+  'Remote consultations with legal aid volunteer lawyers',
   'AI-powered legal recommendations',
   'Offline-capable technology for rural areas',
+];
+
+const SOLA_ABOUT = [
+  "The Sebastinian Office of Legal Aid (SOLA) was formally established on August 28, 1992, after securing the necessary permit from the Supreme Court. The office was founded in honor of Saint Augustine of Hippo and serves as the legal aid arm of San Sebastian College-Recoletos.",
+  "SOLA provides free, accessible, ethical, and quality legal representation, assistance, and advice to indigent individuals. The office handles selected criminal, civil, labor, and administrative cases, ensuring that those who cannot afford legal services still have access to justice.",
+  "The office operates through its Executive Director, supervising lawyers, and law interns who are authorized to practice under the Law Student Practice Rule (Rule 138-A of the Rules of Court). Through this program, law interns apply their legal knowledge by giving legal advice, preparing legal documents and pleadings, and representing clients in courts and quasi-judicial agencies under proper supervision.",
+  "Currently, SOLA is managed by Executive Director Atty. Edgardo Alexander O. Gayos, under the supervision of the Dean of the College of Law, Atty. Teodoro A. Pastrana, and Associate Dean Atty. Rolly Francis C. Peoro.",
 ];
 
 export default function About() {
@@ -70,6 +77,19 @@ export default function About() {
           regardless of location, income, or educational background. We're leveraging technology to create a more just
           and equitable society.
         </Text>
+      </View>
+
+      {/* About SOLA */}
+      <View style={s.section}>
+        <View style={s.card}>
+          <View style={s.cardIconRow}>
+            <Ionicons name="information-circle-outline" size={22} color={PRIMARY_BROWN} />
+            <Text style={s.cardTitle}>About the Sebastinian Office of Legal Aid (SOLA)</Text>
+          </View>
+          <Text style={s.cardText}>
+            {SOLA_ABOUT.join('\n\n')}
+          </Text>
+        </View>
       </View>
 
       {/* Mission & Vision */}

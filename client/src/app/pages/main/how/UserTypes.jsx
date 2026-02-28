@@ -25,9 +25,10 @@ export default function UserTypes() {
     {
       icon: IconClipboardCheck,
       title: "For Citizens",
-      description: "File reports, track cases, and connect with lawyers—all from your mobile device.",
+      description: "File reports and connect with legal aid lawyers—all from your mobile device.",
       benefits: [
         "Free legal consultations",
+        "Free drafting of legal documents",
         "Easy-to-understand guidance",
         "24/7 platform access"
       ]
@@ -44,12 +45,12 @@ export default function UserTypes() {
     },
     {
       icon: IconUserCheck,
-      title: "For PAO Lawyers",
-      description: "Streamline consultations and case management with organized digital tools.",
+      title: "For Legal Aid Lawyers",
+      description: "Support clients with structured intake, document drafting workflows, and representation preparation.",
       benefits: [
         "Client management dashboard",
-        "Remote consultation tools",
-        "Automated case assignments"
+        "Document drafting workflow",
+        "Representation preparation"
       ]
     },
   ];

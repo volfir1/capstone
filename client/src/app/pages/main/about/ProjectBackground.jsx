@@ -121,7 +121,7 @@ export default function ProjectBackground() {
                     }}
                   />
                   <Text size="sm" c="dimmed">
-                    Multilingual legal forms and guidance
+                    Free drafting of legal documents
                   </Text>
                 </Group>
                 <Group spacing="xs">
@@ -134,7 +134,7 @@ export default function ProjectBackground() {
                     }}
                   />
                   <Text size="sm" c="dimmed">
-                    Remote consultations with PAO volunteer lawyers
+                    Court representation
                   </Text>
                 </Group>
                 <Group spacing="xs">
@@ -147,7 +147,7 @@ export default function ProjectBackground() {
                     }}
                   />
                   <Text size="sm" c="dimmed">
-                    AI-powered legal recommendations
+                    Procedure-based legal recommendations
                   </Text>
                 </Group>
                 <Group spacing="xs">

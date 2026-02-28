@@ -67,3 +67,54 @@ export const isStatusCompleted = (currentStatus, checkStatus) => {
 export const isStatusCurrent = (currentStatus, checkStatus) => {
   return currentStatus === checkStatus;
 };
+
+export default function WorkflowSection() {
+  const steps = [
+    {
+      icon: IconReport,
+      title: "File Your Legal Report",
+      description:
+        "Document your concern through the guided, barangay-level blotter-style reporting flow and attach supporting files when available.",
+    },
+    {
+      icon: IconClipboardCheck,
+      title: "Requirements Review & Validation",
+      description:
+        "Your submission is checked for completeness and you receive a clear checklist of requirements and recommended next steps aligned with standard procedures.",
+    },
+    {
+      icon: IconMessageCircle,
+      title: "Lawyer Assignment & Consultation",
+      description:
+        "If qualified, you can be matched with a legal aid volunteer lawyer and schedule a consultation (video/audio) for case guidance and representation.",
+    },
+    {
+      icon: IconProgressCheck,
+      title: "Real-Time Tracking & Updates",
+      description:
+        "Track your case status transparently (Pending → Under Review → Attorney Assigned → In Progress → Completed) with notifications and secure document access.",
+    },
+  ];
+
+  return (
+    <>
+      <section>
+        <h2>Case Status</h2>
+        <p>
+          {getStatusLabel('pending')}
+        </p>
+      </section>
+      <section>
+        <h2>Workflow</h2>
+        <p>
+          {steps.map((step, index) => (
+            <div key={index}>
+              <h3>{step.title}</h3>
+              <p>{step.description}</p>
+            </div>
+          ))}
+        </p>
+      </section>
+    </>
+  );
+}

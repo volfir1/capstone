@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useMediaQuery } from "@mantine/hooks";
 import {
   Box,
@@ -34,7 +34,7 @@ import {
   IconArrowLeft
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { PRIMARY_BROWN, PRIMARY_GOLD, MUTED_OLIVE, CHARCOAL, BG } from "@/utils/constants";
 import apiClient from "@/config/api/apiClient";
 import lawImage from "@/assets/images/law.jpg"; // Assuming this path is correct based on Hero.jsx usage
@@ -102,6 +102,8 @@ export default function Appointment() {
   const [submitted, setSubmitted] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const navigate = useNavigate();
+  const location = useLocation();
+  const createAppointmentRef = useRef(null);
 
   const timeSlots = [
     { value: "09:00", label: "9:00 AM" }, { value: "09:30", label: "9:30 AM" },
@@ -189,6 +191,14 @@ export default function Appointment() {
     return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
   };
 
+  useEffect(() => {
+    if (location.hash === '#create-appointment') {
+      // In this page the form lives inside an overflow container;
+      // scrollIntoView will scroll the nearest scrollable ancestor.
+      createAppointmentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [location.hash]);
+
   return (
     <Box style={{ minHeight: "100vh", backgroundColor: "#fcfcfc" }}>
       <Button
@@ -239,6 +249,8 @@ export default function Appointment() {
             <Center style={{ flex: 1, padding: isMobile ? '0' : '3rem', marginTop: isMobile ? -20 : 0 }}>
               <Container size="sm" w="100%" px={isMobile ? 'md' : 0}>
                 <Paper 
+                  id="create-appointment"
+                  ref={createAppointmentRef}
                   radius="lg" 
                   shadow={isMobile ? "md" : "none"} 
                   p={isMobile ? "xl" : 0} 

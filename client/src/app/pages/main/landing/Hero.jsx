@@ -13,7 +13,7 @@ import {
   rem,
   Center,
 } from "@mantine/core";
-import { IconScale, IconCheck, IconRobot } from "@tabler/icons-react";
+import { IconScale, IconCheck } from "@tabler/icons-react";
 import { PRIMARY_GOLD, PRIMARY_BROWN } from "../../../../utils/constants"; // Adjust path if needed
 import { useNavigate } from "react-router";
 
@@ -83,7 +83,7 @@ export default function Hero() {
             <Text size="lg" lh={1.7} c="white" mb="xl" maw={550}>
               JUSTREACH brings legal services directly to underserved
               communities across the Philippines. Access multilingual legal
-              guidance, connect with PAO lawyers, and track your case
+              guidance, connect with legal aid lawyers, and track your case
               progress—all from your mobile device, even with limited internet
               connectivity.
             </Text>
@@ -99,33 +99,6 @@ export default function Hero() {
                 Get Legal Assistance
               </Button>
               
-            </Group>
-
-            <Group spacing={40} mt={40}>
-              <Box>
-                <Text size="xl" fw={700} c={PRIMARY_GOLD}>
-                  50K+
-                </Text>
-                <Text size="sm" c="white">
-                  Users Served
-                </Text>
-              </Box>
-              <Box>
-                <Text size="xl" fw={700} c={PRIMARY_GOLD}>
-                  24/7
-                </Text>
-                <Text size="sm" c="white">
-                  Platform Access
-                </Text>
-              </Box>
-              <Box>
-                <Text size="xl" fw={700} c={PRIMARY_GOLD}>
-                  3+
-                </Text>
-                <Text size="sm" c="white">
-                  Languages
-                </Text>
-              </Box>
             </Group>
           </Grid.Col>
 

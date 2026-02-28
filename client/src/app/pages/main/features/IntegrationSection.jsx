@@ -39,14 +39,15 @@ export default function IntegrationSection() {
               </Badge>
 
               <Title order={2} c="white">
-                Seamlessly Integrated with PAO
+                Seamlessly Integrated with Legal Aid Services
               </Title>
 
               <Text c="white" size="lg" lh={1.7}>
-                JUSTREACH works hand-in-hand with the Public Attorney's Office
-                (PAO) to provide legitimate, validated legal services. Our
-                platform integrates with existing PAO procedures while
-                introducing modern efficiency through technology.
+                JUSTREACH works hand-in-hand with legal aid offices and
+                verified legal professionals to provide legitimate, validated
+                legal services. Our platform integrates with existing legal aid
+                procedures while introducing modern efficiency through
+                technology.
               </Text>
 
               <List
@@ -66,7 +67,7 @@ export default function IntegrationSection() {
               >
                 <List.Item>Barangay-level blotter integration</List.Item>
                 <List.Item>
-                  PAO validation and jurisdiction compliance
+                  Legal aid validation and jurisdiction compliance
                 </List.Item>
                 <List.Item>Direct lawyer assignment system</List.Item>
                 <List.Item>Unified case management</List.Item>

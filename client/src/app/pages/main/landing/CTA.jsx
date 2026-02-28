@@ -41,7 +41,7 @@ export default function CallToAction() {
                 Secure & confidential
               </Badge>
               <Badge size="lg" radius="xl" color="white" variant="light">
-                PAO-verified lawyers
+                Verified legal aid lawyers
               </Badge>
             </Group>
           </Grid.Col>

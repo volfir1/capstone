@@ -45,8 +45,8 @@ export default function ImpactSection() {
               <Text c="dimmed" size="lg" lh={1.7}>
                 JUSTREACH addresses the critical justice gap in rural Philippines
                 by decentralizing legal services through mobile and web platforms.
-                Our system integrates with existing PAO procedures while
-                introducing AI-powered recommendations and offline capabilities.
+                Our system integrates with existing legal aid procedures while
+                introducing procedure-based recommendations and offline capabilities.
               </Text>
 
               <List

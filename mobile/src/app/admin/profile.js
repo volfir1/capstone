@@ -15,7 +15,7 @@ const ATTORNEY_ROLES = ['attorney', 'pao_lawyer', 'legal_volunteer'];
 const ROLE_LABELS = {
   secretary: 'Secretary', intern: 'Intern', director: 'Director',
   supervising_lawyer: 'Supervising Lawyer', attorney: 'Attorney',
-  pao_lawyer: 'PAO Lawyer', legal_volunteer: 'Legal Volunteer',
+  pao_lawyer: 'Legal Aid Lawyer', legal_volunteer: 'Legal Volunteer',
 };
 
 const SPECIALIZATIONS = [
@@ -203,7 +203,7 @@ export default function AdminProfile() {
             </View>
             {isAttorney && editedData.isPAOLawyer && (
               <View style={[s.badge, { backgroundColor: '#00BCD420' }]}>
-                <Text style={[s.badgeText, { color: '#00BCD4' }]}>PAO</Text>
+                <Text style={[s.badgeText, { color: '#00BCD4' }]}>Legal Aid</Text>
               </View>
             )}
             {editedData.memberSince && (
@@ -301,10 +301,10 @@ export default function AdminProfile() {
                     onPress={() => handleChange('isPAOLawyer', !editedData.isPAOLawyer)}
                   >
                     <Ionicons name={editedData.isPAOLawyer ? 'checkbox' : 'square-outline'} size={22} color={PRIMARY_BROWN} />
-                    <Text style={s.checkboxLabel}>PAO Lawyer</Text>
+                    <Text style={s.checkboxLabel}>Legal Aid Lawyer</Text>
                   </TouchableOpacity>
                 )}
-                {editedData.isPAOLawyer && renderField('PAO Office', 'paoOffice')}
+                {editedData.isPAOLawyer && renderField('Legal Aid Office', 'paoOffice')}
               </View>
             </View>
 

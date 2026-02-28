@@ -14,10 +14,10 @@ import { useWindowScroll } from "@mantine/hooks";
 import {
   IconLanguage,
   IconUsers,
-  IconBrain,
   IconFileSearch,
   IconFileDigit,
   IconWifiOff,
+  IconClipboardCheck,
 } from "@tabler/icons-react";
 import { PRIMARY_GOLD, PRIMARY_BROWN } from "../../../../utils/constants"; // Adjust path if needed
 
@@ -33,15 +33,15 @@ export default function Features() {
     },
     {
       icon: IconUsers,
-      title: "Connect with PAO Lawyers",
+      title: "Connect with Legal Aid Lawyers",
       description:
-        "Schedule remote consultations with Public Attorney's Office volunteer lawyers, optimized for low-bandwidth areas across rural Philippines.",
+        "Schedule remote consultations with verified legal aid volunteer lawyers, optimized for low-bandwidth areas across rural Philippines.",
     },
     {
-      icon: IconBrain,
-      title: "AI-Powered Legal Guidance",
+      icon: IconClipboardCheck,
+      title: "Guided Legal Requirements",
       description:
-        "Our intelligent system suggests applicable laws, identifies legal exemptions, and assesses case severity based on your report.",
+        "Get clear, structured guidance on requirements and next steps based on your report details and standard legal aid procedures.",
     },
     {
       icon: IconFileSearch,

@@ -7,6 +7,7 @@ import {
 
 import {
   Hero,
+  SOLASection,
   MissionVision,
   ProjectBackground,
   TeamSection,
@@ -23,6 +24,7 @@ export default function AboutPage() {
 
       <Box style={{ backgroundColor: "white" }}>
         <Hero />
+        <SOLASection />
         <MissionVision/>
         <ProjectBackground />
         <TeamSection />

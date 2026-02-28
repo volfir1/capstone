@@ -44,7 +44,7 @@ import Signature from '@/features/auth/signature/Signature';
 
 const ROLE_LABELS = {
   attorney: 'Attorney',
-  pao_lawyer: 'PAO Lawyer',
+  pao_lawyer: 'Legal Aid Lawyer',
   legal_volunteer: 'Legal Volunteer',
 };
 
@@ -335,7 +335,7 @@ export default function AttorneyProfile() {
                   </Badge>
                   {userData.isPAOLawyer && (
                     <Badge size="sm" variant="light" color="cyan" radius="sm">
-                      PAO
+                      Legal Aid
                     </Badge>
                   )}
                   {userData.memberSince && (

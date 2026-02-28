@@ -12,10 +12,10 @@ import {
   rem,
 } from "@mantine/core";
 import {
+  IconUserCheck,
   IconReport,
-  IconMessageCircle,
+  IconCalendarEvent,
   IconProgressCheck,
-  IconBrain,
   IconCheck,
 } from "@tabler/icons-react";
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE } from "../../../../utils/constants"; // Adjust path as needed
@@ -24,53 +24,57 @@ export default function MainStepsSection() {
   const mainSteps = [
     {
       number: "01",
-      icon: IconReport,
-      title: "File Your Legal Report",
-      description: "Begin your journey by documenting your legal concern through our integrated barangay-level blotter reporting system.",
+      icon: IconUserCheck,
+      title: "Create Account & Choose Language",
+      description:
+        "Start by signing up and setting your language preference so the platform can guide you clearly through forms and next steps.",
       details: [
-        "Choose your preferred language (English, Filipino, or regional)",
-        "Fill out guided forms with easy-to-understand questions",
-        "Attach supporting documents or photos if available",
-        "Submit directly to your local barangay for official recording"
+        "Register and verify your account",
+        "Choose English/Filipino/regional language (if available)",
+        "Access the guided reporting flow",
+        "Your profile info can speed up future submissions",
       ],
       color: PRIMARY_BROWN,
     },
     {
       number: "02",
-      icon: IconBrain,
-      title: "Receive AI-Powered Guidance",
-      description: "Our intelligent system analyzes your case and provides instant legal insights based on Philippine law.",
+      icon: IconReport,
+      title: "Submit Your Case Report",
+      description:
+        "Document your concern using the guided form and upload supporting evidence when available.",
       details: [
-        "Get suggestions for applicable laws relevant to your case",
-        "Identify potential legal exemptions you may qualify for",
-        "Understand case severity assessment",
-        "Review preliminary recommendations validated by PAO procedures"
+        "Answer structured, easy-to-follow questions",
+        "Provide incident/case description and parties involved (if applicable)",
+        "Attach documents/photos to support your report",
+        "Submit for initial review",
       ],
       color: PRIMARY_GOLD,
     },
     {
       number: "03",
-      icon: IconMessageCircle,
-      title: "Connect with a PAO Lawyer",
-      description: "Schedule a consultation with a verified volunteer lawyer from the Public Attorney's Office.",
+      icon: IconCalendarEvent,
+      title: "System Review, Assignment & Consultation",
+      description:
+        "Your submission is reviewed. If qualified, a legal aid volunteer lawyer can be assigned and you can schedule a consultation.",
       details: [
-        "Get matched with a lawyer specializing in your case type",
-        "Choose between video or audio consultation",
-        "Schedule at a time convenient for you",
-        "Access consultations optimized for low-bandwidth connections"
+        "Initial review and validation of required details",
+        "Surface a checklist of requirements and recommended next steps",
+        "Assignment/matching to an available legal aid volunteer lawyer",
+        "Schedule a consultation (video/audio) when needed",
       ],
       color: MUTED_OLIVE,
     },
     {
       number: "04",
       icon: IconProgressCheck,
-      title: "Track Your Case Progress",
-      description: "Monitor your legal case in real-time through our secure platform with regular updates and notifications.",
+      title: "Track Status Until Completion",
+      description:
+        "Monitor progress with transparent status updates and notifications while keeping documents and communication in one place.",
       details: [
-        "View case status and timeline at any time",
-        "Receive push notifications for important updates",
-        "Access all your documents in one secure location",
-        "Communicate directly with your assigned lawyer"
+        "See statuses like Pending Review, Under Review, Attorney Assigned, In Progress, Completed",
+        "Receive notifications for updates and requests",
+        "Access case documents securely",
+        "Follow through until resolution/closure",
       ],
       color: PRIMARY_BROWN,
     },
@@ -78,48 +82,15 @@ export default function MainStepsSection() {
 
   return (
     <Container size="xl" py={rem(100)}>
-      <Stack spacing="xl" mb={60}>
-        <Badge
-          size="lg"
-          radius="xl"
-          style={{ 
-            margin: '0 auto',
-            backgroundColor: `${PRIMARY_GOLD}20`, 
-            color: PRIMARY_BROWN 
-          }}
-        >
-          Main Process
-        </Badge>
-        
-        <Title order={2} ta="center">
-          Four Steps to Justice
-        </Title>
-        
-        <Text c="dimmed" ta="center" size="lg" maw={700} mx="auto">
-          Our streamlined process makes legal assistance accessible to everyone, 
-          regardless of location or technical expertise.
-        </Text>
-      </Stack>
-
       <Stack spacing={40}>
-        {mainSteps.map((step, index) => (
+        {mainSteps.map((step) => (
           <Card
             key={step.title}
             shadow="md"
             p="xl"
             radius="xl"
             withBorder
-            style={{
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateX(10px)";
-              e.currentTarget.style.boxShadow = `0 20px 40px ${step.color}20`;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateX(0)";
-              e.currentTarget.style.boxShadow = "";
-            }}
+            style={{ transition: "all 0.3s ease" }}
           >
             <Grid align="center" gutter="xl">
               <Grid.Col span={12} md={3}>
@@ -128,17 +99,29 @@ export default function MainStepsSection() {
                     size={rem(80)}
                     fw={900}
                     variant="gradient"
-                    gradient={{ from: step.color, to: step.color === PRIMARY_GOLD ? PRIMARY_BROWN : PRIMARY_GOLD }}
+                    gradient={{
+                      from: step.color,
+                      to:
+                        step.color === PRIMARY_GOLD
+                          ? PRIMARY_BROWN
+                          : PRIMARY_GOLD,
+                    }}
                     style={{ lineHeight: 1 }}
                   >
                     {step.number}
                   </Text>
-                  
+
                   <ThemeIcon
                     size={80}
                     radius="xl"
                     variant="gradient"
-                    gradient={{ from: step.color, to: step.color === PRIMARY_GOLD ? PRIMARY_BROWN : PRIMARY_GOLD }}
+                    gradient={{
+                      from: step.color,
+                      to:
+                        step.color === PRIMARY_GOLD
+                          ? PRIMARY_BROWN
+                          : PRIMARY_GOLD,
+                    }}
                   >
                     <step.icon size={45} stroke={1.5} />
                   </ThemeIcon>
@@ -148,7 +131,9 @@ export default function MainStepsSection() {
               <Grid.Col span={12} md={9}>
                 <Stack spacing="md">
                   <Box>
-                    <Title order={3} mb="sm">{step.title}</Title>
+                    <Title order={3} mb="sm">
+                      {step.title}
+                    </Title>
                     <Text c="dimmed" size="md" lh={1.7}>
                       {step.description}
                     </Text>
@@ -160,9 +145,9 @@ export default function MainStepsSection() {
                         <ThemeIcon
                           size={20}
                           radius="xl"
-                          style={{ 
-                            backgroundColor: `${PRIMARY_GOLD}20`, 
-                            color: PRIMARY_BROWN 
+                          style={{
+                            backgroundColor: `${PRIMARY_GOLD}20`,
+                            color: PRIMARY_BROWN,
                           }}
                           mt={4}
                         >

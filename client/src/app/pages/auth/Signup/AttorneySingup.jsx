@@ -414,7 +414,7 @@ export default function AttorneySignup() {
                 required
                 data={[
                   { value: 'attorney', label: 'Attorney' },
-                  { value: 'pao_lawyer', label: 'PAO Lawyer' },
+                  { value: 'pao_lawyer', label: 'Legal Aid Lawyer' },
                   { value: 'legal_volunteer', label: 'Legal Volunteer' },
                 ]}
                 error={errors.role?.message}

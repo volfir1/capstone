@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ImageBackground } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import styles from '@assets/styles/landingStyles';
 
@@ -56,8 +56,8 @@ export default function LandingPage() {
     },
     {
       icon: "people-outline",
-      title: "Connect with PAO Lawyers",
-      description: "Schedule remote consultations with Public Attorney's Office volunteer lawyers"
+      title: "Connect with Legal Aid Lawyers",
+      description: "Schedule remote consultations with verified legal aid volunteer lawyers"
     },
     {
       icon: "bulb-outline",
@@ -90,7 +90,7 @@ export default function LandingPage() {
     {
       icon: "people-outline",
       title: "Connect & Consult",
-      description: "Get matched with a verified PAO volunteer lawyer based on your case type"
+      description: "Get matched with a verified legal aid volunteer lawyer based on your case type"
     },
     {
       icon: "shield-checkmark-outline",
@@ -166,7 +166,7 @@ export default function LandingPage() {
             
             <Text style={styles.heroSubtitle}>
               JUSTREACH brings legal services directly to underserved communities across the Philippines. 
-              Access multilingual legal guidance, connect with PAO lawyers, and track your case progress—all 
+              Access multilingual legal guidance, connect with legal aid lawyers, and track your case progress—all 
               from your mobile device, even with limited internet connectivity.
             </Text>
             
@@ -176,29 +176,6 @@ export default function LandingPage() {
                   <Text style={styles.ctaButtonText}>Get Legal Assistance</Text>
                 </TouchableOpacity>
               </Link>
-              <TouchableOpacity 
-                style={styles.secondaryButton}
-                onPress={() => router.push('/ai-chatbot')}
-              >
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.secondaryButtonText}>Try AI Chatbot</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Stats Row */}
-            <View style={styles.heroStats}>
-              <View style={styles.heroStatItem}>
-                <Text style={styles.heroStatNumber}>50K+</Text>
-                <Text style={styles.heroStatLabel}>Users Served</Text>
-              </View>
-              <View style={styles.heroStatItem}>
-                <Text style={styles.heroStatNumber}>24/7</Text>
-                <Text style={styles.heroStatLabel}>Platform Access</Text>
-              </View>
-              <View style={styles.heroStatItem}>
-                <Text style={styles.heroStatNumber}>3+</Text>
-                <Text style={styles.heroStatLabel}>Languages</Text>
-              </View>
             </View>
           </View>
         </View>
@@ -320,16 +297,6 @@ export default function LandingPage() {
         
         <Text style={styles.footerCopyright}>© 2024 JustReach. All rights reserved.</Text>
       </View>
-
-      {/* Floating AI Chatbot Button */}
-      <TouchableOpacity 
-        style={styles.floatingChatButton}
-        onPress={() => router.push('/ai-chatbot')}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
-        <Text style={styles.floatingChatText}>Ask AI</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }

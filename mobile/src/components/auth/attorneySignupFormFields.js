@@ -278,7 +278,7 @@ export const AttorneySignupFormFields = ({
               >
                 <Picker.Item label="Select your role" value="" />
                 <Picker.Item label="Attorney" value="attorney" />
-                <Picker.Item label="PAO Lawyer" value="pao_lawyer" />
+                <Picker.Item label="Legal Aid Lawyer" value="pao_lawyer" />
                 <Picker.Item label="Legal Volunteer" value="legal_volunteer" />
               </Picker>
             )}

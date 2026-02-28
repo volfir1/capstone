@@ -33,7 +33,7 @@ export default function HowItWorks() {
       icon: IconUsers,
       title: "Connect & Consult",
       description:
-        "Get matched with a verified PAO volunteer lawyer based on your case type. Schedule a remote consultation at your convenience.",
+        "Get matched with a verified legal aid volunteer lawyer based on your case type. Schedule a remote consultation at your convenience.",
     },
     {
       icon: IconShieldCheck,
@@ -45,7 +45,7 @@ export default function HowItWorks() {
       icon: IconGavel,
       title: "Receive Resolution",
       description:
-        "Access AI-powered guidance suggesting applicable laws and resources while your lawyer works toward resolving your case.",
+        "Access clear guidance and resources while your lawyer works toward resolving your case.",
     },
   ];
 

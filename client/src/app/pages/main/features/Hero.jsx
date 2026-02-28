@@ -9,10 +9,12 @@ import {
   Badge,
   rem,
 } from "@mantine/core";
-import { Link } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { PRIMARY_GOLD, PRIMARY_BROWN } from "../../../../utils/constants"; // Adjust path as needed
 
 export default function HeroSection() {
+  const navigate = useNavigate();
+
   return (
     <Box
       style={{
@@ -63,6 +65,7 @@ export default function HeroSection() {
               radius="xl"
               variant="gradient"
               gradient={{ from: PRIMARY_GOLD, to: PRIMARY_BROWN }}
+              onClick={() => navigate('/appointment#create-appointment')}
             >
               Start Using JUSTREACH
             </Button>

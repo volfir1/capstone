@@ -52,7 +52,7 @@ const attorneySchema = new mongoose.Schema({
   // Professional Details
   lawFirm: { type: String },
   isPAOLawyer: { type: Boolean, default: false },
-  paoOffice: { type: String }, // If PAO lawyer, which office
+  paoOffice: { type: String }, // If legal aid lawyer, which office
   
   // Specializations (Philippine law context)
   specializations: [{

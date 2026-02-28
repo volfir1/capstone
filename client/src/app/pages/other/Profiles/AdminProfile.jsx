@@ -50,7 +50,7 @@ const ROLE_LABELS = {
   director: 'Director',
   supervising_lawyer: 'Supervising Lawyer',
   attorney: 'Attorney',
-  pao_lawyer: 'PAO Lawyer',
+  pao_lawyer: 'Legal Aid Lawyer',
   legal_volunteer: 'Legal Volunteer',
 };
 
@@ -413,7 +413,7 @@ export default function AdminProfile() {
                   </Badge>
                   {isAttorney && displayData.isPAOLawyer && (
                     <Badge size="sm" variant="light" color="cyan" radius="sm">
-                      PAO
+                      Legal Aid
                     </Badge>
                   )}
                   {displayData.memberSince && (
