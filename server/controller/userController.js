@@ -1,34 +1,42 @@
 import User from "../models/user.js";
 import Attorney from "../models/attorney.js";
 import admin from 'firebase-admin'
+import { v2 as cloudinary } from 'cloudinary'
 
-export const getProfile = async (req, res) =>{
-    try{
+// Configure Cloudinary via env (expects CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+export const getProfile = async (req, res) => {
+    try {
         const authHeader = req.headers.authorization
 
-        if(!authHeader || !authHeader.startsWith('Bearer ')){
-            return res.status(401).json({success: false, message: 'No token provided'})
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' })
         }
 
-        const idToken  = authHeader.split(' ')[1]
+        const idToken = authHeader.split(' ')[1]
         const decodedToken = await admin.auth().verifyIdToken(idToken)
 
         // Check both User and Attorney collections so attorneys can load their profile
-        let profile = await User.findOne({firebaseUid: decodedToken.uid})
+        let profile = await User.findOne({ firebaseUid: decodedToken.uid })
         let isAttorney = false
 
-        if(!profile){
-            profile = await Attorney.findOne({firebaseUid: decodedToken.uid})
+        if (!profile) {
+            profile = await Attorney.findOne({ firebaseUid: decodedToken.uid })
             isAttorney = !!profile
         }
 
-        if(!profile){
-            return res.status(404).json({ success: false, message: 'User not found'})
+        if (!profile) {
+            return res.status(404).json({ success: false, message: 'User not found' })
         }
 
         res.json({
             success: true,
-            data:{
+            data: {
                 id: profile._id,
                 email: profile.email,
                 firstName: profile.firstName,
@@ -39,51 +47,52 @@ export const getProfile = async (req, res) =>{
                 createdAt: profile.createdAt,
                 accountStatus: isAttorney ? profile.accountStatus : undefined,
                 profileImage: profile.profileImage || '',
+                signatureUrl: profile.signatureUrl || '',
             }
         })
 
-    }catch (error){
-        res.status(500).json({success: false, message: error.message})
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message })
     }
 }
 
-export const fetchUsers = async (req, res) =>{
-    try{
-         const authHeader = req.headers.authorization
+export const fetchUsers = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization
 
-        if(!authHeader || !authHeader.startsWith('Bearer ')){
-            return res.status(401).json({success: false, message: 'No token provided'})
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' })
         }
 
-        const idToken  = authHeader.split(' ')[1]
+        const idToken = authHeader.split(' ')[1]
         const decodedToken = await admin.auth().verifyIdToken(idToken)
 
         // Check both User and Attorney collections
-        let authenticatedUser = await User.findOne({firebaseUid: decodedToken.uid})
+        let authenticatedUser = await User.findOne({ firebaseUid: decodedToken.uid })
         if (!authenticatedUser) {
-            authenticatedUser = await Attorney.findOne({firebaseUid: decodedToken.uid})
+            authenticatedUser = await Attorney.findOne({ firebaseUid: decodedToken.uid })
         }
-        
-        if(!authenticatedUser){
-            return res.status(404).json({ success: false, message: 'User not found in User or Attorney collection'})
+
+        if (!authenticatedUser) {
+            return res.status(404).json({ success: false, message: 'User not found in User or Attorney collection' })
         }
 
         // Allow secretary and attorney roles to access user management
         const allowedRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
-        if(!allowedRoles.includes(authenticatedUser.role)){
+        if (!allowedRoles.includes(authenticatedUser.role)) {
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
 
         const users = await User.find({}, '-password')
-        
+
         res.json({
             success: true,
             count: users.length,
             data: users
         })
-    
-    }catch(error){
-        res.status(500).json({ success: false, message: error.message})
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message })
     }
 
 }
@@ -93,26 +102,26 @@ export const updateUserRole = async (req, res) => {
     try {
         const authHeader = req.headers.authorization
 
-        if(!authHeader || !authHeader.startsWith('Bearer ')){
-            return res.status(401).json({success: false, message: 'No token provided'})
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' })
         }
 
         const idToken = authHeader.split(' ')[1]
         const decodedToken = await admin.auth().verifyIdToken(idToken)
 
         // Check both User and Attorney collections
-        let adminUser = await User.findOne({firebaseUid: decodedToken.uid})
+        let adminUser = await User.findOne({ firebaseUid: decodedToken.uid })
         if (!adminUser) {
-            adminUser = await Attorney.findOne({firebaseUid: decodedToken.uid})
+            adminUser = await Attorney.findOne({ firebaseUid: decodedToken.uid })
         }
-        
-        if(!adminUser){
-            return res.status(404).json({ success: false, message: 'Admin user not found'})
+
+        if (!adminUser) {
+            return res.status(404).json({ success: false, message: 'Admin user not found' })
         }
 
         // Only allow admin roles to change user roles
         const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
-        if(!adminRoles.includes(adminUser.role)){
+        if (!adminRoles.includes(adminUser.role)) {
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
 
@@ -120,7 +129,7 @@ export const updateUserRole = async (req, res) => {
         const { role } = req.body
 
         // Only allow changing to valid roles
-        if(!['user', 'secretary', 'intern', 'director', 'supervising_lawyer'].includes(role)){
+        if (!['user', 'secretary', 'intern', 'director', 'supervising_lawyer'].includes(role)) {
             return res.status(400).json({ success: false, message: 'Invalid role. Allowed roles: user, secretary, intern, director, supervising_lawyer.' })
         }
 
@@ -130,7 +139,7 @@ export const updateUserRole = async (req, res) => {
             { new: true, select: '-password' }
         )
 
-        if(!updatedUser){
+        if (!updatedUser) {
             return res.status(404).json({ success: false, message: 'User not found' })
         }
 
@@ -140,8 +149,8 @@ export const updateUserRole = async (req, res) => {
             message: 'User role updated successfully'
         })
 
-    } catch(error){
-        res.status(500).json({ success: false, message: error.message})
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message })
     }
 }
 
@@ -150,25 +159,25 @@ export const toggleUserStatus = async (req, res) => {
     try {
         const authHeader = req.headers.authorization
 
-        if(!authHeader || !authHeader.startsWith('Bearer ')){
-            return res.status(401).json({success: false, message: 'No token provided'})
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' })
         }
 
         const idToken = authHeader.split(' ')[1]
         const decodedToken = await admin.auth().verifyIdToken(idToken)
 
         // Check both User and Attorney collections
-        let adminUser = await User.findOne({firebaseUid: decodedToken.uid})
+        let adminUser = await User.findOne({ firebaseUid: decodedToken.uid })
         if (!adminUser) {
-            adminUser = await Attorney.findOne({firebaseUid: decodedToken.uid})
+            adminUser = await Attorney.findOne({ firebaseUid: decodedToken.uid })
         }
-        
-        if(!adminUser){
-            return res.status(404).json({ success: false, message: 'Admin user not found'})
+
+        if (!adminUser) {
+            return res.status(404).json({ success: false, message: 'Admin user not found' })
         }
 
         const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
-        if(!adminRoles.includes(adminUser.role)){
+        if (!adminRoles.includes(adminUser.role)) {
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
 
@@ -181,7 +190,7 @@ export const toggleUserStatus = async (req, res) => {
             { new: true, select: '-password' }
         )
 
-        if(!updatedUser){
+        if (!updatedUser) {
             return res.status(404).json({ success: false, message: 'User not found' })
         }
 
@@ -200,8 +209,8 @@ export const toggleUserStatus = async (req, res) => {
             message: `User account ${disabled ? 'disabled' : 'enabled'} successfully`
         })
 
-    } catch(error){
-        res.status(500).json({ success: false, message: error.message})
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message })
     }
 }
 
@@ -210,31 +219,31 @@ export const sendPasswordResetEmail = async (req, res) => {
     try {
         const authHeader = req.headers.authorization
 
-        if(!authHeader || !authHeader.startsWith('Bearer ')){
-            return res.status(401).json({success: false, message: 'No token provided'})
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' })
         }
 
         const idToken = authHeader.split(' ')[1]
         const decodedToken = await admin.auth().verifyIdToken(idToken)
 
         // Check both User and Attorney collections
-        let adminUser = await User.findOne({firebaseUid: decodedToken.uid})
+        let adminUser = await User.findOne({ firebaseUid: decodedToken.uid })
         if (!adminUser) {
-            adminUser = await Attorney.findOne({firebaseUid: decodedToken.uid})
+            adminUser = await Attorney.findOne({ firebaseUid: decodedToken.uid })
         }
-        
-        if(!adminUser){
-            return res.status(404).json({ success: false, message: 'Admin user not found'})
+
+        if (!adminUser) {
+            return res.status(404).json({ success: false, message: 'Admin user not found' })
         }
 
         const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
-        if(!adminRoles.includes(adminUser.role)){
+        if (!adminRoles.includes(adminUser.role)) {
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
 
         const { email } = req.body
 
-        if(!email){
+        if (!email) {
             return res.status(400).json({ success: false, message: 'Email is required' })
         }
 
@@ -252,9 +261,9 @@ export const sendPasswordResetEmail = async (req, res) => {
             resetLink: process.env.NODE_ENV === 'development' ? resetLink : undefined
         })
 
-    } catch(error){
+    } catch (error) {
         console.error('Send password reset error:', error)
-        res.status(500).json({ success: false, message: error.message})
+        res.status(500).json({ success: false, message: error.message })
     }
 }
 
@@ -306,54 +315,161 @@ export const updateProfileImage = async (req, res) => {
     }
 };
 
-    // Get user by id (returns null data when not found to avoid noisy 404s)
-    export const getUserById = async (req, res) => {
+// Update signature URL (saves Cloudinary URL)
+export const updateSignature = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' });
+        }
+
+        const idToken = authHeader.split(' ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+        const { signatureUrl } = req.body;
+
+        if (!signatureUrl || typeof signatureUrl !== 'string') {
+            return res.status(400).json({ success: false, message: 'signatureUrl is required' });
+        }
+
+        // Try User collection first, then Attorney
+        let profile = await User.findOneAndUpdate(
+            { firebaseUid: decodedToken.uid },
+            { signatureUrl },
+            { new: true }
+        );
+
+        if (!profile) {
+            profile = await Attorney.findOneAndUpdate(
+                { firebaseUid: decodedToken.uid },
+                { signatureUrl },
+                { new: true }
+            );
+        }
+
+        if (!profile) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        res.json({
+            success: true,
+            data: { signatureUrl: profile.signatureUrl },
+            message: 'Signature updated successfully',
+        });
+    } catch (error) {
+        console.error('Update signature error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Server-side upload of signature (accepts a data URL in `dataUrl`)
+export const uploadSignature = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' });
+        }
+
+        const idToken = authHeader.split(' ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+        const { dataUrl } = req.body;
+        if (!dataUrl || typeof dataUrl !== 'string') {
+            return res.status(400).json({ success: false, message: 'dataUrl (base64) is required' });
+        }
+
+        // Upload to Cloudinary under a user-specific folder
+        // Use a stable public_id per user so uploads overwrite previous signature
+        const publicId = `signature`;
+        const folder = `signatures/${decodedToken.uid}`;
+
+        const uploadResult = await cloudinary.uploader.upload(dataUrl, {
+            folder,
+            public_id: publicId,
+            overwrite: true,
+            resource_type: 'image',
+            format: 'png',
+        });
+
+        const signatureUrl = uploadResult.secure_url;
+
+        // Persist signatureUrl to User or Attorney record
+        let profile = await User.findOneAndUpdate(
+            { firebaseUid: decodedToken.uid },
+            { signatureUrl },
+            { new: true }
+        );
+
+        if (!profile) {
+            profile = await Attorney.findOneAndUpdate(
+                { firebaseUid: decodedToken.uid },
+                { signatureUrl },
+                { new: true }
+            );
+        }
+
+        if (!profile) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        res.json({ success: true, data: { signatureUrl }, message: 'Signature uploaded and saved.' });
+    } catch (error) {
+        console.error('uploadSignature error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+// Get user by id (returns null data when not found to avoid noisy 404s)
+export const getUserById = async (req, res) => {
+    try {
+        const { userId } = req.params
+
+        // Validate ObjectId-ish string (best-effort)
+        if (!userId || typeof userId !== 'string') {
+            return res.status(400).json({ success: false, message: 'Invalid user id' })
+        }
+
+        let user = null
+
+        // Try User collection first
         try {
-            const { userId } = req.params
+            user = await User.findById(userId).select('-password')
+        } catch (e) {
+            // ignore cast errors
+            user = null
+        }
 
-            // Validate ObjectId-ish string (best-effort)
-            if (!userId || typeof userId !== 'string') {
-                return res.status(400).json({ success: false, message: 'Invalid user id' })
-            }
-
-            let user = null
-
-            // Try User collection first
+        // If not found in User, check Attorney
+        if (!user) {
             try {
-                user = await User.findById(userId).select('-password')
+                user = await Attorney.findById(userId).select('-password')
             } catch (e) {
-                // ignore cast errors
                 user = null
             }
-
-            // If not found in User, check Attorney
-            if (!user) {
-                try {
-                    user = await Attorney.findById(userId).select('-password')
-                } catch (e) {
-                    user = null
-                }
-            }
-
-            // Return success with null when missing to match frontend expectations and avoid 404 spam
-            if (!user) {
-                return res.json({ success: true, data: null })
-            }
-
-            // Normalize returned payload
-            const payload = {
-                id: user._id,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                username: user.username,
-                role: user.role,
-                profileImage: user.profileImage || '',
-                createdAt: user.createdAt,
-            }
-
-            res.json({ success: true, data: payload })
-        } catch (error) {
-            res.status(500).json({ success: false, message: error.message })
         }
+
+        // Return success with null when missing to match frontend expectations and avoid 404 spam
+        if (!user) {
+            return res.json({ success: true, data: null })
+        }
+
+        // Normalize returned payload
+        const payload = {
+            id: user._id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            username: user.username,
+            role: user.role,
+            profileImage: user.profileImage || '',
+            signatureUrl: user.signatureUrl || '',
+            createdAt: user.createdAt,
+        }
+
+        res.json({ success: true, data: payload })
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message })
     }
+}

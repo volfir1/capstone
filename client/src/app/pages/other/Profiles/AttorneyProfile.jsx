@@ -40,6 +40,7 @@ import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, ACCENT_TAN } fr
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@context/authContext';
 import { uploadToCloudinary } from '@utils/cloudinary';
+import Signature from '@/features/auth/signature/Signature';
 
 const ROLE_LABELS = {
   attorney: 'Attorney',
@@ -630,6 +631,38 @@ export default function AttorneyProfile() {
                     )}
                   </Box>
                 </Stack>
+              </Paper>
+
+              <Paper shadow="xs" p="xl" radius="lg" bg="white">
+                <Group mb="md" gap={8}>
+                  <IconEdit size={18} color={ACCENT_TAN} stroke={2} />
+                  <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">Signature</Text>
+                </Group>
+                <Signature onSave={async (dataUrl) => {
+                  const toFile = (dataUrl, filename = 'signature.png') => {
+                    const arr = dataUrl.split(',');
+                    const mime = arr[0].match(/:(.*?);/)[1];
+                    const bstr = atob(arr[1]);
+                    let n = bstr.length;
+                    const u8arr = new Uint8Array(n);
+                    while (n--) {
+                      u8arr[n] = bstr.charCodeAt(n);
+                    }
+                    return new File([u8arr], filename, { type: mime });
+                  };
+
+                  try {
+                    notifications.show({ id: 'signature-uploading', title: 'Uploading', message: 'Uploading signature...', autoClose: false });
+                    const file = toFile(dataUrl, `signature-${Date.now()}.png`);
+                    const url = await uploadToCloudinary(file, 'signatures');
+                    await apiClient.put('/users/profile/signature', { signatureUrl: url });
+                    notifications.update({ id: 'signature-uploading', title: 'Uploaded', message: 'Signature saved to your profile.', color: 'green', autoClose: 4000 });
+                    refreshUserData().catch(() => {});
+                  } catch (err) {
+                    console.error('Signature upload failed', err);
+                    notifications.update({ id: 'signature-uploading', title: 'Upload Failed', message: err.message || 'Failed to upload signature', color: 'red', autoClose: 4000 });
+                  }
+                }} />
               </Paper>
             </Stack>
           </Grid.Col>

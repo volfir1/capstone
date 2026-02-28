@@ -12,6 +12,7 @@ const attorneySchema = new mongoose.Schema({
   
   // Profile Image
   profileImage: { type: String, default: '' },
+  signatureUrl: { type: String, default: '' },
 
   // Professional Information
   role: { 

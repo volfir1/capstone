@@ -67,6 +67,8 @@ export default function StaffAppointmentManager() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [approveModalOpen, setApproveModalOpen] = useState(false);
+  const [appointmentToApprove, setAppointmentToApprove] = useState(null);
   const [activeTab, setActiveTab] = useState('pending');
   const navigate = useNavigate();
 
@@ -186,6 +188,16 @@ export default function StaffAppointmentManager() {
       console.error('Failed to load data:', err);
     } finally {
       if (!silent) setLoading(false);
+    }
+  };
+
+  const confirmApprove = async () => {
+    if (!appointmentToApprove) return;
+    try {
+      await handleRecordToCalendars(appointmentToApprove);
+    } finally {
+      setApproveModalOpen(false);
+      setAppointmentToApprove(null);
     }
   };
 
@@ -425,7 +437,7 @@ export default function StaffAppointmentManager() {
 
         <Group grow gap="xs" mt={4}>
           {!item.calendarRecorded ? (
-            <Button size="compact-xs" radius="md" fw={600} style={{ backgroundColor: PRIMARY_BROWN }} onClick={() => handleRecordToCalendars(item)} loading={isUpdating}>Approve</Button>
+            <Button size="compact-xs" radius="md" fw={600} style={{ backgroundColor: PRIMARY_BROWN }} onClick={() => { setAppointmentToApprove(item); setApproveModalOpen(true); }} loading={isUpdating}>Approve</Button>
           ) : (
             !['director', 'supervising_lawyer'].includes(userData?.role) && (
               <Button size="compact-xs" variant="outline" radius="md" fw={600} style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }} onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { showClientInfo: true } })}>Interview</Button>
@@ -596,6 +608,20 @@ export default function StaffAppointmentManager() {
       </Container>
 
       {/* Modals */}
+      <Modal opened={approveModalOpen} onClose={() => { setApproveModalOpen(false); setAppointmentToApprove(null); }} title={<Text fw={700} size="lg">Approve Appointment</Text>} centered radius="xl">
+        <Stack gap="md" align="center" ta="center">
+          <Box p="lg" bg={THEMED_LIGHT_BG + '40'} style={{ borderRadius: '50%' }}><IconCheck size={40} color={PRIMARY_BROWN} /></Box>
+          <Box>
+            <Text fw={700} size="lg">Approve this appointment?</Text>
+            {appointmentToApprove && <Text size="sm" c="dimmed" mt={4}>{appointmentToApprove.clientName} — {appointmentToApprove.scheduledDate}</Text>}
+            <Text size="sm" c="dimmed" mt={4}>This will schedule the appointment to Google Calendar and mark it for interview.</Text>
+          </Box>
+          <Group grow w="100%">
+            <Button variant="outline" color="gray" radius="md" fw={600} onClick={() => { setApproveModalOpen(false); setAppointmentToApprove(null); }}>Cancel</Button>
+            <Button color={PRIMARY_BROWN} radius="md" fw={600} onClick={confirmApprove} loading={isUpdating}>Approve</Button>
+          </Group>
+        </Stack>
+      </Modal>
       <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title={<Text fw={700} size="lg">Reschedule Appointment</Text>} size="md" radius="xl">
         <Stack gap="md">
           {selectedAppointment && (

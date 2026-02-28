@@ -109,13 +109,9 @@ export const useLogin = () => {
         NProgress.set(0.7);
         welcomeNotif(userData.firstName);
 
-        if (userData.role === "secretary" || userData.role === "intern" || userData.role === "attorney" || userData.role === "pao_lawyer" || userData.role === "legal_volunteer") {
-          console.log('Navigating to /admin');
-          navigate("/admin", { replace: true });
-        } else {
-          console.log('Navigating to /user/home');
-          navigate("/user/home", { replace: true });
-        }
+        // Redirect all authenticated users to /admin
+        console.log('Navigating to /admin (global redirect)');
+        navigate("/admin", { replace: true });
 
         NProgress.done();
         setIsSigningIn(false);

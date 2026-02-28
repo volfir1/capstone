@@ -127,7 +127,12 @@ export default function Appointment() {
         const numeric = value.replace(/\D/g, "");
         return /^09\d{9}$/.test(numeric) ? null : "Enter a valid 11-digit PH mobile number";
       },
-      appointmentDate: (value) => (value ? null : "Please select a date"),
+      appointmentDate: (value) => {
+        if (!value) return "Please select a date";
+        const d = value instanceof Date ? value : new Date(value);
+        const day = d.getDay();
+        return (day === 0 || day === 6) ? 'Weekends are not available' : null;
+      },
       appointmentTime: (value) => (value ? null : "Please select a time"),
     },
   });
@@ -175,6 +180,13 @@ export default function Appointment() {
       appointmentDate: null,
       appointmentTime: "",
     });
+  };
+
+  const sameDay = (a, b) => {
+    if (!a || !b) return false;
+    const da = a instanceof Date ? a : new Date(a);
+    const db = b instanceof Date ? b : new Date(b);
+    return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
   };
 
   return (
@@ -302,6 +314,37 @@ export default function Appointment() {
                                   leftSection={<IconCalendarEvent size={18} color={PRIMARY_BROWN} />}
                                   minDate={new Date()}
                                   styles={{ input: { border: '1px solid #eee', backgroundColor: '#f9f9f9' } }}
+                                  excludeDate={(date) => {
+                                    const d = date instanceof Date ? date : new Date(date);
+                                    const day = d.getDay();
+                                    return day === 0 || day === 6;
+                                  }}
+                                  value={form.values.appointmentDate}
+                                  onChange={(date) => {
+                                    if (!date) {
+                                      form.setFieldValue('appointmentDate', null);
+                                      return;
+                                    }
+                                    const d = date instanceof Date ? date : new Date(date);
+                                    const day = d.getDay();
+                                    if (day === 0 || day === 6) {
+                                      notifications.show({ title: 'Unavailable', message: 'Weekends are not available. Please pick a weekday.', color: 'red' });
+                                      return;
+                                    }
+                                    form.setFieldValue('appointmentDate', d);
+                                  }}
+                                  getDayProps={(date) => {
+                                    const d = date instanceof Date ? date : new Date(date);
+                                    const day = d.getDay();
+                                    const isWeekend = day === 0 || day === 6;
+                                    const isSelected = sameDay(d, form.values.appointmentDate);
+                                    const style = isSelected
+                                      ? { backgroundColor: PRIMARY_BROWN, color: 'white' }
+                                      : isWeekend
+                                        ? { color: '#b91c1c', backgroundColor: '#F3F4F6' }
+                                        : {};
+                                    return { style };
+                                  }}
                                   {...form.getInputProps("appointmentDate")}
                                 />
                               </Grid.Col>

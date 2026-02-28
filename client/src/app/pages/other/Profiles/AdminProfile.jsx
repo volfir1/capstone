@@ -41,6 +41,7 @@ import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, ACCENT_TAN } fr
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@context/authContext';
 import { uploadToCloudinary } from '@utils/cloudinary';
+import Signature from '@/features/auth/signature/Signature';
 
 // ── Role display helpers ──
 const ROLE_LABELS = {
@@ -116,6 +117,7 @@ export default function AdminProfile() {
     role: '',
     verified: false,
     memberSince: '',
+    signatureUrl: '',
   });
 
   // ── Extended state for attorney accounts ──
@@ -141,6 +143,7 @@ export default function AdminProfile() {
     biography: '',
     isAvailable: true,
     accountStatus: '',
+    signatureUrl: '',
   });
 
   const [editedData, setEditedData] = useState({});
@@ -180,6 +183,7 @@ export default function AdminProfile() {
         biography: authUserData.biography || '',
         isAvailable: authUserData.isAvailable ?? true,
         accountStatus: authUserData.accountStatus || '',
+        signatureUrl: authUserData.signatureUrl || '',
       };
       setAttorneyData(profile);
       setEditedData(profile);
@@ -194,6 +198,7 @@ export default function AdminProfile() {
         memberSince: authUserData.createdAt
           ? new Date(authUserData.createdAt).getFullYear().toString()
           : '',
+        signatureUrl: authUserData.signatureUrl || '',
       };
       setUserData(profile);
       setEditedData(profile);
@@ -630,6 +635,38 @@ export default function AdminProfile() {
               </Paper>
 
               {/* ── Attorney-only sections below ── */}
+              <Paper shadow="xs" p="xl" radius="lg" bg="white">
+                <Group mb="md" gap={8}>
+                  <IconEdit size={18} color={ACCENT_TAN} stroke={2} />
+                  <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">Signature</Text>
+                </Group>
+                <Signature initialUrl={displayData.signatureUrl} onSave={async (dataUrl) => {
+                  try {
+                    notifications.show({ id: 'signature-uploading', title: 'Uploading', message: 'Uploading signature...', autoClose: false });
+                    const res = await apiClient.post('/users/profile/signature/upload', { dataUrl });
+                    const signatureUrl = res?.data?.data?.signatureUrl;
+                    notifications.update({ id: 'signature-uploading', title: 'Uploaded', message: 'Signature saved to your profile.', color: 'green', autoClose: 4000 });
+                    refreshUserData().catch(() => {});
+                    return signatureUrl;
+                  } catch (err) {
+                    console.error('Signature upload failed', err);
+                    notifications.update({ id: 'signature-uploading', title: 'Upload Failed', message: err.message || 'Failed to upload signature', color: 'red', autoClose: 4000 });
+                  }
+                }} />
+
+                {displayData.signatureUrl && (
+                  <Box mt="md">
+                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>Saved Signature</Text>
+                    <Box mt="xs">
+                      <img
+                        src={displayData.signatureUrl}
+                        alt="Saved signature"
+                        style={{ maxWidth: 360, maxHeight: 180, border: '1px solid #eee', borderRadius: 6 }}
+                      />
+                    </Box>
+                  </Box>
+                )}
+              </Paper>
 
               {isAttorney && (
                 <>
@@ -643,6 +680,8 @@ export default function AdminProfile() {
                     </Group>
 
                     <Grid gutter="lg">
+
+              
                       <Grid.Col span={{ base: 12, sm: 6 }}>
                         <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
                           PRC License Number

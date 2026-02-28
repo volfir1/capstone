@@ -12,6 +12,7 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   firebaseUid: {type: String, required: true, unique: true},
   profileImage: { type: String, default: '' },
+  signatureUrl: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   // Google Calendar connection info (optional)

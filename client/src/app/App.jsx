@@ -11,8 +11,6 @@ import { Outlet, useLocation } from "react-router";
 import { Layout } from "../components/layout/Layout";
 import { lazy, Suspense } from "react";
 import { Loaders } from "../components/ui/Loader";
-import UserProfile from "./pages/other/Profiles/UserProfile";
-import AttorneyProfile from "./pages/other/Profiles/AttorneyProfile";
 import AdminProfile from "./pages/other/Profiles/AdminProfile";
 
 // Auth
@@ -20,7 +18,6 @@ const Signup = lazy(() => import("./pages/auth/Signup/Signup"));
 const Login = lazy(() => import("./pages/auth/Login/Login"));
 const AttorneySignup = lazy(() => import('./pages/auth/Signup/AttorneySingup.jsx'))
 const AttorneyLogin = lazy(() => import('./pages/auth/Login/AttorneyLogin.jsx'))
-const TrackAppointment = lazy(() => import('./pages/user/TrackAppointment'))
 
 const Home = lazy(() => import("./pages/user/Home"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
@@ -32,10 +29,7 @@ const LandingPage = lazy(() => import("./pages/LandingPage"))
 const AboutPage = lazy(() => import('./pages/About'))
 const FeaturesPage = lazy(() => import('./pages/Features'))
 const HowItWorks = lazy(() => import('./pages/How'))
-const UserForm = lazy(() => import('./pages/user/UserForm'))
-  const Appointment = lazy(() => import('./pages/Appointment'))
-  // const TrackCase = lazy(() => import('./pages/user/TrackCase'))
-  // const ProfilePage = lazy(() => import('./pages/other/Profile'))
+const Appointment = lazy(() => import('./pages/Appointment'))
 const ClientApplicationStatus = lazy(() => import('./pages/other/ClientFormStatus'))
 
 // Admin
