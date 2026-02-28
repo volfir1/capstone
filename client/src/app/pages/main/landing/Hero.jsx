@@ -98,16 +98,7 @@ export default function Hero() {
               >
                 Get Legal Assistance
               </Button>
-              <Button 
-                size="lg" 
-                radius="xl" 
-                variant="outline" 
-                style={{ color: 'white', borderColor: 'white' }}
-                leftSection={<IconRobot size={20} />}
-                onClick={() => navigate('/ai-chatbot')}
-              >
-                Try AI Chatbot
-              </Button>
+              
             </Group>
 
             <Group spacing={40} mt={40}>

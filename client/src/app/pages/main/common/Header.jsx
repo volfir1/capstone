@@ -17,7 +17,6 @@ import classes from './Header.module.css';
 
 const navLinks = [
   { label: 'Home', path: '/' },
-  { label: 'AI Chatbot', path: '/ai-chatbot' },
   { label: 'Features', path: '/features' },
   { label: 'How it works', path: '/how' },
   { label: 'About', path: '/about' },
