@@ -97,3 +97,11 @@ export const ROLE_COLORS = {
   pao_lawyer: 'cyan',
   legal_volunteer: 'green',
 };
+
+export const ROLE_LABELS = {
+  secretary: 'Secretary',
+  intern: 'Intern',
+  director: 'Director',
+  supervising_lawyer: 'Supervising Lawyer',
+  attorney: 'Attorney',
+};

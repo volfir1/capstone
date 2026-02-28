@@ -175,7 +175,6 @@ export default function Signature({ onSave, initialUrl = null }) {
 
     if (typeof onSave === 'function') {
       onSave(dataUrl);
-      notifications.show({ title: 'Saved', message: 'Signature captured', autoClose: 2000 });
     } else if (download) {
       const a = Object.assign(document.createElement('a'), { href: dataUrl, download: 'signature.png' });
       document.body.appendChild(a);
