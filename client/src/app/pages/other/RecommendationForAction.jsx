@@ -823,6 +823,7 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                             label={opt.charAt(0).toUpperCase() + opt.slice(1)}
                             checked={value.decision === opt}
                             onChange={() => handleDecisionChange(opt)}
+                            onClick={() => handleDecisionChange(opt)}
                             disabled={directorSectionDisabled}
                         />
                     ))}
