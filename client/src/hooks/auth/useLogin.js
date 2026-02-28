@@ -170,8 +170,45 @@ export const useLogin = () => {
       }
 
       console.log('Attempting Firebase sign in with email:', emailToUse);
-      await doSigninWithEmailAndPassword(emailToUse, data.password);
-      console.log('Firebase sign in successful');
+      const signInResult = await doSigninWithEmailAndPassword(emailToUse, data.password);
+      console.log('Firebase sign in successful', signInResult?.user?.email);
+
+      // Immediately check Firebase email verification status and short-circuit
+      // so the user doesn't wait for backend(userData) loading to complete.
+      try {
+        const signedUser = signInResult?.user;
+        if (signedUser && !signedUser.emailVerified) {
+          console.log('Email not verified (immediate check) - notifying and signing out');
+          if (!verificationNotified.current) {
+            verificationNotif();
+            verificationNotified.current = true;
+          }
+          await doSignOut();
+          setIsSigningIn(false);
+          return;
+        }
+      } catch (vErr) {
+        console.warn('Error checking emailVerified on sign in result', vErr);
+      }
+
+      // Try to fetch backend profile immediately to check role and account status
+      try {
+        const profileResp = await apiClient.get('/user/profile');
+        const profile = profileResp?.data?.data;
+        if (profile && profile.role === 'user') {
+          console.log('Backend role is `user` (pending) - notifying and signing out');
+          if (!pendingNotified.current) {
+            pendingRoleNotif();
+            pendingNotified.current = true;
+          }
+          await doSignOut();
+          setIsSigningIn(false);
+          return;
+        }
+      } catch (profileErr) {
+        // If profile fetch fails, fall back to existing behavior (useEffect will handle it)
+        console.warn('Immediate profile fetch failed; will wait for authContext to load userData', profileErr?.message || profileErr);
+      }
     } catch (error) {
       console.error('Sign in error:', error);
       setErrorMessage(error.message);
@@ -217,6 +254,41 @@ export const useLogin = () => {
       } catch (credErr) {
         // ignore if credential extraction fails
         console.warn('Failed to extract Google credential from result', credErr);
+      }
+
+      // Immediately check Firebase email verification status for Google sign-ins too
+      try {
+        const signedUser = result?.user;
+        if (signedUser && !signedUser.emailVerified) {
+          console.log('Google account email not verified (immediate check) - notifying and signing out');
+          if (!verificationNotified.current) {
+            verificationNotif();
+            verificationNotified.current = true;
+          }
+          await doSignOut();
+          setIsSigningIn(false);
+          return;
+        }
+      } catch (vErr) {
+        console.warn('Error checking emailVerified on Google sign in result', vErr);
+      }
+
+      // Immediately fetch profile for Google sign-ins to check role
+      try {
+        const profileResp = await apiClient.get('/user/profile');
+        const profile = profileResp?.data?.data;
+        if (profile && profile.role === 'user') {
+          console.log('Backend role is `user` (pending) after Google sign-in - notifying and signing out');
+          if (!pendingNotified.current) {
+            pendingRoleNotif();
+            pendingNotified.current = true;
+          }
+          await doSignOut();
+          setIsSigningIn(false);
+          return;
+        }
+      } catch (profileErr) {
+        console.warn('Immediate profile fetch failed after Google sign-in; will wait for authContext to load userData', profileErr?.message || profileErr);
       }
     } catch (err) {
       console.error("Google sign-in error:", err);

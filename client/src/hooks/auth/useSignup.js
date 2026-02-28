@@ -148,6 +148,10 @@ const handleEmailSignup = async (data) => {
     userLoggedIn,
 
     // Custom handlers
+    // provide aliases expected by the SignupForm consumer
+    onSubmit: handleEmailSignup,
+    onGoogleSignup: handleGoogleSignup,
+    // also keep original names for compatibility
     handleEmailSignup,
     handleGoogleSignup,
   };

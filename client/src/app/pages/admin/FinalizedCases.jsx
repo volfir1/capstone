@@ -91,7 +91,7 @@ const initialState = {
   // Data
   finalized: [],
   caseRecordsMap: {},
-  
+
   // UI
   activeTab: 'accepted',
   searchTerm: '',
@@ -99,20 +99,20 @@ const initialState = {
   loading: false,
   loadingFinalized: false,
   saving: false,
-  
+
   // Review Modal
   modalOpened: false,
   selectedCase: null,
   editMode: false,
   editedData: null,
   activeStep: 0,
-  
+
   // Case Record Modal
   caseRecordModalOpened: false,
   caseRecordData: {},
   selectedCaseId: null,
   caseRecordEditMode: false,
-  
+
   // Appointment Receipt Modal
   appointmentModalOpened: false,
   appointmentDetails: null,
@@ -163,25 +163,25 @@ const initialState = {
     adversePartyCounselPhone: '',
   },
   appointmentSaving: false,
-  
+
   // Chat Modal
   chatModalOpened: false,
   selectedCaseForChat: null,
   chatMessages: [],
   loadingMessages: false,
   sendingMessage: false,
-  
+
   // Version History Modal
   versionHistoryModalOpened: false,
   selectedCaseForVersions: null,
   documentVersions: [],
-  
+
   // Document Viewer Modal (for version history preview)
   documentViewerModalOpened: false,
   currentViewingDoc: null,
   wordDocHtml: null,
   wordDocLoading: false,
-  
+
 
   // Pagination
   currentPageAccepted: 1,
@@ -206,8 +206,8 @@ function stateReducer(state, action) {
     case 'SET_ACTIVE_TAB':
       return { ...state, activeTab: action.payload };
     case 'SET_SEARCH_TERM':
-      return { 
-        ...state, 
+      return {
+        ...state,
         searchTerm: action.payload,
         currentPageAccepted: 1,
         currentPageWithoutRecord: 1,
@@ -215,8 +215,8 @@ function stateReducer(state, action) {
         currentPageDocumentDrafting: 1,
       };
     case 'SET_CATEGORY_FILTER':
-      return { 
-        ...state, 
+      return {
+        ...state,
         categoryFilter: action.payload,
         currentPageAccepted: 1,
         currentPageWithoutRecord: 1,
@@ -230,7 +230,7 @@ function stateReducer(state, action) {
         rejectedCaseTypeFilter: action.payload,
         currentPageRejected: 1,
       };
-    
+
     // Review Modal actions
     case 'OPEN_REVIEW_MODAL':
       return {
@@ -249,7 +249,7 @@ function stateReducer(state, action) {
       return { ...state, editedData: action.payload };
     case 'SET_ACTIVE_STEP':
       return { ...state, activeStep: action.payload };
-    
+
     // Appointment Receipt Modal actions
     case 'OPEN_APPOINTMENT_MODAL':
       return { ...state, appointmentModalOpened: true, loadingAppointment: true, appointmentEditMode: false, appointmentSaving: false };
@@ -265,7 +265,7 @@ function stateReducer(state, action) {
       return { ...state, appointmentForm: action.payload };
     case 'SET_APPOINTMENT_SAVING':
       return { ...state, appointmentSaving: action.payload };
-    
+
     // Chat Modal actions
     case 'OPEN_CHAT_MODAL':
       return { ...state, chatModalOpened: true, selectedCaseForChat: action.payload, loadingMessages: true };
@@ -279,7 +279,7 @@ function stateReducer(state, action) {
       return { ...state, sendingMessage: action.payload };
     case 'ADD_CHAT_MESSAGE':
       return { ...state, chatMessages: [...state.chatMessages, action.payload] };
-    
+
     // Version History Modal actions
     case 'OPEN_VERSION_HISTORY_MODAL':
       return {
@@ -295,7 +295,7 @@ function stateReducer(state, action) {
         selectedCaseForVersions: null,
         documentVersions: [],
       };
-    
+
     // Document Viewer Modal actions (for version history preview)
     case 'OPEN_DOCUMENT_VIEWER_MODAL':
       return {
@@ -315,8 +315,8 @@ function stateReducer(state, action) {
       return { ...state, wordDocHtml: action.payload };
     case 'SET_WORD_DOC_LOADING':
       return { ...state, wordDocLoading: action.payload };
-    
-    
+
+
     // Case Record Modal actions
     case 'OPEN_CASE_RECORD_MODAL':
       return {
@@ -337,10 +337,10 @@ function stateReducer(state, action) {
       return { ...state, caseRecordEditMode: action.payload };
     case 'SET_CASE_RECORD_DATA':
       return { ...state, caseRecordData: action.payload };
-    
+
     case 'SET_CURRENT_PAGE':
       return { ...state, [action.payload.tab]: action.payload.page };
-    
+
     default:
       return state;
   }
@@ -829,291 +829,291 @@ export default function FinalizedCases() {
  * Draws a "Recommendation for Action" form + fills data.
  * Coordinates are in mm.
  */
-const drawRecommendationForActionTemplate = (doc, data = {}) => {
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 12;
+  const drawRecommendationForActionTemplate = (doc, data = {}) => {
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 12;
 
-  // Layout tuning (adjust these to fine-tune spacing)
-  const GAP_XS = 3;
-  const GAP_SM = 4;
-  const GAP_MD = 6;
+    // Layout tuning (adjust these to fine-tune spacing)
+    const GAP_XS = 3;
+    const GAP_SM = 4;
+    const GAP_MD = 6;
 
-  const ROW_H_BASE = 14; // height per evidence row in mm
-  const TABLE_HEADER_H = 8; // header height for evidence tables
-  const MIN_BOX_H = 18; // minimum box height for text sections
+    const ROW_H_BASE = 14; // height per evidence row in mm
+    const TABLE_HEADER_H = 8; // header height for evidence tables
+    const MIN_BOX_H = 18; // minimum box height for text sections
 
-  const setFont = (size, style = "normal") => {
-    doc.setFont("times", style);
-    doc.setFontSize(size);
-  };
+    const setFont = (size, style = "normal") => {
+      doc.setFont("times", style);
+      doc.setFontSize(size);
+    };
 
-  const mmPerPt = 0.3528;
-  const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
+    const mmPerPt = 0.3528;
+    const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
 
-  const safeText = (v) => (v == null ? "" : String(v));
+    const safeText = (v) => (v == null ? "" : String(v));
 
-  // Measure the height needed for text in a box
-  const measureTextHeight = (text, w, fontSize = 9, minH = MIN_BOX_H) => {
-    setFont(fontSize, "normal");
-    const padding = 2;
-    const maxW = Math.max(1, w - padding * 2);
-    const lh = lineHeightMm(fontSize);
-    const lines = doc.splitTextToSize(safeText(text), maxW);
-    const textH = lines.length * lh + padding * 2 + 2;
-    return Math.max(minH, textH);
-  };
+    // Measure the height needed for text in a box
+    const measureTextHeight = (text, w, fontSize = 9, minH = MIN_BOX_H) => {
+      setFont(fontSize, "normal");
+      const padding = 2;
+      const maxW = Math.max(1, w - padding * 2);
+      const lh = lineHeightMm(fontSize);
+      const lines = doc.splitTextToSize(safeText(text), maxW);
+      const textH = lines.length * lh + padding * 2 + 2;
+      return Math.max(minH, textH);
+    };
 
-  const drawMultilineInRect = (text, x, y, w, h, fontSize = 9) => {
-    setFont(fontSize, "normal");
-    const padding = 2;
-    const maxW = Math.max(1, w - padding * 2);
-    const maxH = Math.max(1, h - padding * 2);
+    const drawMultilineInRect = (text, x, y, w, h, fontSize = 9) => {
+      setFont(fontSize, "normal");
+      const padding = 2;
+      const maxW = Math.max(1, w - padding * 2);
+      const maxH = Math.max(1, h - padding * 2);
 
-    const lh = lineHeightMm(fontSize);
-    const maxLines = Math.max(1, Math.floor(maxH / lh));
+      const lh = lineHeightMm(fontSize);
+      const maxLines = Math.max(1, Math.floor(maxH / lh));
 
-    const lines = doc.splitTextToSize(safeText(text), maxW).slice(0, maxLines);
-    doc.text(lines, x + padding, y + padding + lh * 0.75); // baseline tweak
-  };
+      const lines = doc.splitTextToSize(safeText(text), maxW).slice(0, maxLines);
+      doc.text(lines, x + padding, y + padding + lh * 0.75); // baseline tweak
+    };
 
-  const normalizeEvidence = (arr, minRows, shape) => {
-    const rows = Array.isArray(arr) ? arr.filter(Boolean) : [];
-    const filled = rows.map((r) => ({
-      ...shape,
-      ...(r || {}),
-    }));
-    while (filled.length < minRows) filled.push({ ...shape });
-    return filled;
-  };
+    const normalizeEvidence = (arr, minRows, shape) => {
+      const rows = Array.isArray(arr) ? arr.filter(Boolean) : [];
+      const filled = rows.map((r) => ({
+        ...shape,
+        ...(r || {}),
+      }));
+      while (filled.length < minRows) filled.push({ ...shape });
+      return filled;
+    };
 
-  const drawTable = (x, y, w, h, headers, colRatios, rowData = [], bodyRows = 3) => {
-    doc.rect(x, y, w, h);
+    const drawTable = (x, y, w, h, headers, colRatios, rowData = [], bodyRows = 3) => {
+      doc.rect(x, y, w, h);
 
-    const headerH = 8;
-    doc.line(x, y + headerH, x + w, y + headerH);
+      const headerH = 8;
+      doc.line(x, y + headerH, x + w, y + headerH);
 
-    // verticals + header text
-    let xCursor = x;
-    setFont(9, "bold");
-    headers.forEach((header, i) => {
-      const cw = w * colRatios[i];
-      const cx = xCursor + cw / 2;
+      // verticals + header text
+      let xCursor = x;
+      setFont(9, "bold");
+      headers.forEach((header, i) => {
+        const cw = w * colRatios[i];
+        const cx = xCursor + cw / 2;
 
-      if (i !== 0) doc.line(xCursor, y, xCursor, y + h);
+        if (i !== 0) doc.line(xCursor, y, xCursor, y + h);
 
-      doc.text(header, cx, y + 5.5, { align: "center", maxWidth: cw - 2 });
-      xCursor += cw;
+        doc.text(header, cx, y + 5.5, { align: "center", maxWidth: cw - 2 });
+        xCursor += cw;
+      });
+
+      // body row lines
+      const bodyH = h - headerH;
+      const rowH = bodyH / bodyRows;
+      for (let r = 1; r < bodyRows; r++) {
+        doc.line(x, y + headerH + r * rowH, x + w, y + headerH + r * rowH);
+      }
+
+      // cell text
+      const fontSize = 8.5;
+      setFont(fontSize, "normal");
+      const lh = lineHeightMm(fontSize);
+
+      for (let r = 0; r < bodyRows; r++) {
+        const rowTop = y + headerH + r * rowH;
+        const maxLines = Math.max(1, Math.floor((rowH - 2) / lh));
+
+        let cellX = x;
+        for (let c = 0; c < headers.length; c++) {
+          const cw = w * colRatios[c];
+          const padding = 2;
+
+          const cellText = safeText(rowData?.[r]?.[c] ?? "");
+          const lines = doc.splitTextToSize(cellText, Math.max(1, cw - padding * 2)).slice(0, maxLines);
+
+          if (lines.length) {
+            doc.text(lines, cellX + padding, rowTop + 4.5); // inside row
+          }
+
+          cellX += cw;
+        }
+      }
+    };
+
+    let y = margin;
+
+    // Top-left small header
+    setFont(9, "normal");
+    doc.text("SOLA FORM", margin, y);
+    doc.text("Revised September 2020", margin, y + 4);
+    y += 10;
+
+    // Header boxes
+    const headerH = 18;
+    const rightBoxW = 62;
+    const leftBoxW = pageW - margin * 2 - rightBoxW;
+
+    doc.rect(margin, y, leftBoxW, headerH);
+    doc.rect(margin + leftBoxW, y, rightBoxW, headerH);
+
+    setFont(10, "normal");
+    doc.text(
+      [
+        "San Sebastian Office of Legal Aid (SOLA)",
+        "College of Law",
+        "San Sebastian College - Recoletos, Manila",
+      ],
+      margin + 2,
+      y + 6
+    );
+
+    setFont(10, "bold");
+    doc.text("RECOMMENDATION FOR ACTION", margin + leftBoxW + rightBoxW / 2, y + 10, {
+      align: "center",
+      maxWidth: rightBoxW - 4,
     });
 
-    // body row lines
-    const bodyH = h - headerH;
-    const rowH = bodyH / bodyRows;
-    for (let r = 1; r < bodyRows; r++) {
-      doc.line(x, y + headerH + r * rowH, x + w, y + headerH + r * rowH);
+    y += headerH + GAP_SM;
+
+    // Info box
+    const infoH = 22;
+    const infoW = pageW - margin * 2;
+    const infoX = margin;
+    const midX = infoX + infoW / 2;
+
+    doc.rect(infoX, y, infoW, infoH);
+    doc.line(midX, y, midX, y + infoH);
+
+    setFont(10, "normal");
+    doc.text("Date of Interview:", infoX + 2, y + 6);
+    doc.text("Client's Name:", infoX + 2, y + 14);
+
+    doc.text("Date Submitted:", midX + 2, y + 6);
+    doc.text("Interviewing Intern/s:", midX + 2, y + 14);
+    doc.text("Duty Day:", midX + 2, y + 20);
+
+    // Values
+    setFont(10, "normal");
+    if (data.dateOfInterview) doc.text(safeText(data.dateOfInterview), infoX + 38, y + 6);
+    if (data.clientName) doc.text(safeText(data.clientName), infoX + 32, y + 14);
+    if (data.dateSubmitted) doc.text(safeText(data.dateSubmitted), midX + 34, y + 6);
+    if (data.interviewingInterns) doc.text(safeText(data.interviewingInterns), midX + 44, y + 14);
+    if (data.dutyDay) doc.text(safeText(data.dutyDay), midX + 18, y + 20);
+
+    y += infoH + GAP_MD;
+
+    // Fast Facts
+    setFont(10, "bold");
+    doc.text("Fast Facts", margin, y);
+    y += GAP_XS;
+
+    const FAST_FACTS_H = measureTextHeight(data.fastFacts, pageW - margin * 2, 9, 20);
+    doc.rect(margin, y, pageW - margin * 2, FAST_FACTS_H);
+    drawMultilineInRect(data.fastFacts, margin, y, pageW - margin * 2, FAST_FACTS_H, 9);
+    y += FAST_FACTS_H + GAP_MD;
+
+    // Evidence (Client)
+    setFont(10, "bold");
+    doc.text("Evidence on Hand / Available for the Client(s)", margin, y);
+    y += GAP_XS;
+
+    const clientRows = normalizeEvidence(data.clientEvidence, 3, { type: "", author: "", purpose: "", issues: "" });
+    const clientRowData = clientRows.map((r) => [r.type, r.author, r.purpose, r.issues]);
+    const clientBodyRows = clientRowData.length;
+    const CLIENT_EVIDENCE_H = TABLE_HEADER_H + clientBodyRows * ROW_H_BASE;
+
+    drawTable(
+      margin,
+      y,
+      pageW - margin * 2,
+      CLIENT_EVIDENCE_H,
+      ["Type / Description", "Author / Custodian", "Purpose", "Admissibility Issues"],
+      [0.28, 0.22, 0.20, 0.30],
+      clientRowData,
+      clientBodyRows
+    );
+    y += CLIENT_EVIDENCE_H + GAP_MD;
+
+    // Evidence (Adverse)
+    const adverseRows = normalizeEvidence(data.adversePartyEvidence, 3, { type: "", author: "", issues: "" });
+    const adverseRowData = adverseRows.map((r) => [r.type, r.author, r.issues]);
+    const adverseBodyRows = adverseRowData.length;
+    const ADVERSE_EVIDENCE_H = TABLE_HEADER_H + adverseBodyRows * ROW_H_BASE;
+
+    // Check if adverse evidence table fits on current page
+    if (y + 5 + ADVERSE_EVIDENCE_H > pageH - margin) {
+      doc.addPage();
+      y = margin;
     }
 
-    // cell text
-    const fontSize = 8.5;
-    setFont(fontSize, "normal");
-    const lh = lineHeightMm(fontSize);
+    setFont(10, "bold");
+    doc.text("Evidence on Hand / Available for the Adverse Party(ies)", margin, y);
+    y += GAP_XS;
 
-    for (let r = 0; r < bodyRows; r++) {
-      const rowTop = y + headerH + r * rowH;
-      const maxLines = Math.max(1, Math.floor((rowH - 2) / lh));
+    drawTable(
+      margin,
+      y,
+      pageW - margin * 2,
+      ADVERSE_EVIDENCE_H,
+      ["Type / Description", "Author / Custodian", "Admissibility Issues"],
+      [0.35, 0.30, 0.35],
+      adverseRowData,
+      adverseBodyRows
+    );
+    y += ADVERSE_EVIDENCE_H + (GAP_MD + 2);
 
-      let cellX = x;
-      for (let c = 0; c < headers.length; c++) {
-        const cw = w * colRatios[c];
-        const padding = 2;
-
-        const cellText = safeText(rowData?.[r]?.[c] ?? "");
-        const lines = doc.splitTextToSize(cellText, Math.max(1, cw - padding * 2)).slice(0, maxLines);
-
-        if (lines.length) {
-          doc.text(lines, cellX + padding, rowTop + 4.5); // inside row
-        }
-
-        cellX += cw;
-      }
+    // Pre-compute advice and opinion heights for page break check
+    const adviceH = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
+    const opinionH = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
+    const remainingNeeded = GAP_XS + adviceH + (GAP_MD + 2) + 4 + opinionH + margin + 10;
+    if (y + remainingNeeded > pageH) {
+      doc.addPage();
+      y = margin;
     }
-  };
 
-  let y = margin;
+    // Advice + checkbox
+    setFont(10, "bold");
+    doc.text("Interviewing Intern's Initial Advice to the Client(s)", margin, y);
 
-  // Top-left small header
-  setFont(9, "normal");
-  doc.text("SOLA FORM", margin, y);
-  doc.text("Revised September 2020", margin, y + 4);
-  y += 10;
+    const cbSize = 3.5;
+    const cbLabel = "For legal advice only";
+    const cbX = pageW - margin - (cbSize + 2 + doc.getTextWidth(cbLabel));
+    const cbY = y - 3;
 
-  // Header boxes
-  const headerH = 18;
-  const rightBoxW = 62;
-  const leftBoxW = pageW - margin * 2 - rightBoxW;
+    doc.rect(cbX, cbY, cbSize, cbSize);
+    if (data.forLegalAdvice) {
+      doc.line(cbX + 0.6, cbY + 0.6, cbX + cbSize - 0.6, cbY + cbSize - 0.6);
+      doc.line(cbX + cbSize - 0.6, cbY + 0.6, cbX + 0.6, cbY + cbSize - 0.6);
+    }
 
-  doc.rect(margin, y, leftBoxW, headerH);
-  doc.rect(margin + leftBoxW, y, rightBoxW, headerH);
+    setFont(10, "normal");
+    doc.text(cbLabel, cbX + cbSize + 2, y);
 
-  setFont(10, "normal");
-  doc.text(
-    [
-      "San Sebastian Office of Legal Aid (SOLA)",
-      "College of Law",
-      "San Sebastian College - Recoletos, Manila",
-    ],
-    margin + 2,
-    y + 6
-  );
+    y += GAP_XS;
 
-  setFont(10, "bold");
-  doc.text("RECOMMENDATION FOR ACTION", margin + leftBoxW + rightBoxW / 2, y + 10, {
-    align: "center",
-    maxWidth: rightBoxW - 4,
-  });
+    const ADVICE_H = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
+    doc.rect(margin, y, pageW - margin * 2, ADVICE_H);
+    drawMultilineInRect(data.internAdvice, margin, y, pageW - margin * 2, ADVICE_H, 9);
+    y += ADVICE_H + (GAP_MD + 2);
 
-  y += headerH + GAP_SM;
-
-  // Info box
-  const infoH = 22;
-  const infoW = pageW - margin * 2;
-  const infoX = margin;
-  const midX = infoX + infoW / 2;
-
-  doc.rect(infoX, y, infoW, infoH);
-  doc.line(midX, y, midX, y + infoH);
-
-  setFont(10, "normal");
-  doc.text("Date of Interview:", infoX + 2, y + 6);
-  doc.text("Client's Name:", infoX + 2, y + 14);
-
-  doc.text("Date Submitted:", midX + 2, y + 6);
-  doc.text("Interviewing Intern/s:", midX + 2, y + 14);
-  doc.text("Duty Day:", midX + 2, y + 20);
-
-  // Values
-  setFont(10, "normal");
-  if (data.dateOfInterview) doc.text(safeText(data.dateOfInterview), infoX + 38, y + 6);
-  if (data.clientName) doc.text(safeText(data.clientName), infoX + 32, y + 14);
-  if (data.dateSubmitted) doc.text(safeText(data.dateSubmitted), midX + 34, y + 6);
-  if (data.interviewingInterns) doc.text(safeText(data.interviewingInterns), midX + 44, y + 14);
-  if (data.dutyDay) doc.text(safeText(data.dutyDay), midX + 18, y + 20);
-
-  y += infoH + GAP_MD;
-
-  // Fast Facts
-  setFont(10, "bold");
-  doc.text("Fast Facts", margin, y);
-  y += GAP_XS;
-
-  const FAST_FACTS_H = measureTextHeight(data.fastFacts, pageW - margin * 2, 9, 20);
-  doc.rect(margin, y, pageW - margin * 2, FAST_FACTS_H);
-  drawMultilineInRect(data.fastFacts, margin, y, pageW - margin * 2, FAST_FACTS_H, 9);
-  y += FAST_FACTS_H + GAP_MD;
-
-  // Evidence (Client)
-  setFont(10, "bold");
-  doc.text("Evidence on Hand / Available for the Client(s)", margin, y);
-  y += GAP_XS;
-
-  const clientRows = normalizeEvidence(data.clientEvidence, 3, { type: "", author: "", purpose: "", issues: "" });
-  const clientRowData = clientRows.map((r) => [r.type, r.author, r.purpose, r.issues]);
-  const clientBodyRows = clientRowData.length;
-  const CLIENT_EVIDENCE_H = TABLE_HEADER_H + clientBodyRows * ROW_H_BASE;
-
-  drawTable(
-    margin,
-    y,
-    pageW - margin * 2,
-    CLIENT_EVIDENCE_H,
-    ["Type / Description", "Author / Custodian", "Purpose", "Admissibility Issues"],
-    [0.28, 0.22, 0.20, 0.30],
-    clientRowData,
-    clientBodyRows
-  );
-  y += CLIENT_EVIDENCE_H + GAP_MD;
-
-  // Evidence (Adverse)
-  const adverseRows = normalizeEvidence(data.adversePartyEvidence, 3, { type: "", author: "", issues: "" });
-  const adverseRowData = adverseRows.map((r) => [r.type, r.author, r.issues]);
-  const adverseBodyRows = adverseRowData.length;
-  const ADVERSE_EVIDENCE_H = TABLE_HEADER_H + adverseBodyRows * ROW_H_BASE;
-
-  // Check if adverse evidence table fits on current page
-  if (y + 5 + ADVERSE_EVIDENCE_H > pageH - margin) {
-    doc.addPage();
-    y = margin;
-  }
-
-  setFont(10, "bold");
-  doc.text("Evidence on Hand / Available for the Adverse Party(ies)", margin, y);
-  y += GAP_XS;
-
-  drawTable(
-    margin,
-    y,
-    pageW - margin * 2,
-    ADVERSE_EVIDENCE_H,
-    ["Type / Description", "Author / Custodian", "Admissibility Issues"],
-    [0.35, 0.30, 0.35],
-    adverseRowData,
-    adverseBodyRows
-  );
-  y += ADVERSE_EVIDENCE_H + (GAP_MD + 2);
-
-  // Pre-compute advice and opinion heights for page break check
-  const adviceH = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
-  const opinionH = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
-  const remainingNeeded = GAP_XS + adviceH + (GAP_MD + 2) + 4 + opinionH + margin + 10;
-  if (y + remainingNeeded > pageH) {
-    doc.addPage();
-    y = margin;
-  }
-
-  // Advice + checkbox
-  setFont(10, "bold");
-  doc.text("Interviewing Intern's Initial Advice to the Client(s)", margin, y);
-
-  const cbSize = 3.5;
-  const cbLabel = "For legal advice only";
-  const cbX = pageW - margin - (cbSize + 2 + doc.getTextWidth(cbLabel));
-  const cbY = y - 3;
-
-  doc.rect(cbX, cbY, cbSize, cbSize);
-  if (data.forLegalAdvice) {
-    doc.line(cbX + 0.6, cbY + 0.6, cbX + cbSize - 0.6, cbY + cbSize - 0.6);
-    doc.line(cbX + cbSize - 0.6, cbY + 0.6, cbX + 0.6, cbY + cbSize - 0.6);
-  }
-
-  setFont(10, "normal");
-  doc.text(cbLabel, cbX + cbSize + 2, y);
-
-  y += GAP_XS;
-
-  const ADVICE_H = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
-  doc.rect(margin, y, pageW - margin * 2, ADVICE_H);
-  drawMultilineInRect(data.internAdvice, margin, y, pageW - margin * 2, ADVICE_H, 9);
-  y += ADVICE_H + (GAP_MD + 2);
-
-  // Legal Opinion
-  setFont(10, "bold");
-  doc.text("Legal Opinion", margin, y);
-  y += 4;
-
-  const OPINION_H = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
-  // Check if opinion fits; add page if needed
-  if (y + OPINION_H > pageH - margin) {
-    doc.addPage();
-    y = margin;
+    // Legal Opinion
     setFont(10, "bold");
     doc.text("Legal Opinion", margin, y);
     y += 4;
-  }
-  doc.rect(margin, y, pageW - margin * 2, OPINION_H);
-  drawMultilineInRect(data.legalOpinion, margin, y, pageW - margin * 2, OPINION_H, 9);
-  y += OPINION_H + GAP_MD;
-  return y;
-};
+
+    const OPINION_H = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
+    // Check if opinion fits; add page if needed
+    if (y + OPINION_H > pageH - margin) {
+      doc.addPage();
+      y = margin;
+      setFont(10, "bold");
+      doc.text("Legal Opinion", margin, y);
+      y += 4;
+    }
+    doc.rect(margin, y, pageW - margin * 2, OPINION_H);
+    drawMultilineInRect(data.legalOpinion, margin, y, pageW - margin * 2, OPINION_H, 9);
+    y += OPINION_H + GAP_MD;
+    return y;
+  };
 
   /**
    * Draws the continuation page (Supervising Lawyer's Comment + Director's Action + Assigned To)
@@ -1433,7 +1433,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   // Filter function
   const filterCases = (cases) => {
     let filtered = cases;
-    
+
     // Apply category filter
     if (state.categoryFilter !== 'all') {
       filtered = filtered.filter(f => {
@@ -1441,7 +1441,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
         return caseNature === state.categoryFilter;
       });
     }
-    
+
     // Apply search filter
     if (state.searchTerm.trim()) {
       const search = state.searchTerm.toLowerCase().trim();
@@ -1451,7 +1451,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
         return caseId.includes(search) || clientName.includes(search);
       });
     }
-    
+
     return filtered;
   };
 
@@ -1472,7 +1472,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
 
   // Group finalized records by decision and apply search filter
   const acceptedCases = filterCases(state.finalized.filter(f => f.decision === 'accepted'));
-  
+
   // Rejected cases — all types, with optional case type filter
   const rejectedCasesAll = state.finalized.filter(f => f.decision === 'rejected');
   const rejectedCasesFiltered = (() => {
@@ -1495,21 +1495,21 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     }
     return filtered;
   })();
-  
+
   // Separate by case type
   const legalAdviceCases = acceptedCases.filter(isLegalAdvice);
   const documentDraftingCases = acceptedCases.filter(isDocumentDrafting);
-  
+
   // Court representation cases (not legal advice or document drafting)
   const courtRepresentationCases = acceptedCases.filter(f => !isLegalAdvice(f) && !isDocumentDrafting(f));
-  
+
   // Split court representation cases by whether they have case records
   const acceptedWithRecord = courtRepresentationCases.filter(f => state.caseRecordsMap[f._id || f.id]);
   const acceptedWithoutRecord = courtRepresentationCases.filter(f => !state.caseRecordsMap[f._id || f.id]);
 
   // Pagination Logic
   const ITEMS_PER_PAGE = 10;
-  
+
   const paginate = (items, page) => {
     const start = (page - 1) * ITEMS_PER_PAGE;
     return items.slice(start, start + ITEMS_PER_PAGE);
@@ -1552,11 +1552,11 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       });
 
       dispatch({ type: 'SET_FINALIZED', payload: normalizedFinalized });
-      
+
       // Check which accepted cases have case records
       const accepted = normalizedFinalized.filter(f => f.decision === 'accepted');
       const recordsMap = {};
-      
+
       await Promise.all(
         accepted.map(async (caseData) => {
           try {
@@ -1570,7 +1570,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
           }
         })
       );
-      
+
       dispatch({ type: 'SET_CASE_RECORDS_MAP', payload: recordsMap });
     } catch (err) {
       console.error('Error fetching finalized records', err);
@@ -1603,7 +1603,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   const openCaseRecordModal = async (caseData) => {
     try {
       const caseId = caseData._id; // Use finalize _id instead of caseId
-      
+
       // Try to fetch existing case record first
       try {
         const resp = await apiClient.get(`/caserecords/finalize/${caseId}`);
@@ -1616,7 +1616,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
         // If not found, use data from finalize content
         console.log('No existing case record, using finalize content');
       }
-      
+
       dispatch({ type: 'OPEN_CASE_RECORD_MODAL', payload: { caseId, data: caseData.content?.caseInfo || {} } });
     } catch (err) {
       console.error('Error opening case record:', err);
@@ -1627,21 +1627,21 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
   // Function to fetch and display appointment details
   const openAppointmentModal = async (caseData) => {
     dispatch({ type: 'OPEN_APPOINTMENT_MODAL' });
-    
+
     try {
       // Get the clientsinfo ID - it's stored as caseId in the finalize document
       // This caseId is actually the _id of the clientsinfo document (the appointment form)
       const clientInfoId = caseData.caseId;
-      
+
       console.log('Fetching appointment details for clientInfoId:', clientInfoId);
       console.log('Case data:', caseData);
-      
+
       if (!clientInfoId) {
         console.error('No client info ID found in case data');
         dispatch({ type: 'SET_LOADING_APPOINTMENT', payload: false });
         return;
       }
-      
+
       const response = await apiClient.get(`/clientsinfo/${clientInfoId}`);
       const details = response.data;
       console.log('Appointment details:', details);
@@ -1736,12 +1736,12 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     // Reset Word doc state
     dispatch({ type: 'SET_WORD_DOC_HTML', payload: null });
     dispatch({ type: 'SET_WORD_DOC_LOADING', payload: false });
-    
+
     if (!documentData) {
       console.warn('No document to view');
       return;
     }
-    
+
     const docToView = {
       fileName: documentData.fileName,
       fileType: documentData.fileType,
@@ -1756,15 +1756,15 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     }
 
     dispatch({ type: 'OPEN_DOCUMENT_VIEWER_MODAL', payload: docToView });
-    
+
     // If it's a Word document, convert to HTML using mammoth
-    const isWordDoc = docToView.fileType?.includes('word') || 
-                     docToView.fileName?.endsWith('.docx') || 
-                     docToView.fileName?.endsWith('.doc');
-    
+    const isWordDoc = docToView.fileType?.includes('word') ||
+      docToView.fileName?.endsWith('.docx') ||
+      docToView.fileName?.endsWith('.doc');
+
     // If it's a PDF, the iframe will handle it
     // No extra processing needed for PDF
-    
+
     if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
       dispatch({ type: 'SET_WORD_DOC_LOADING', payload: true });
       try {
@@ -1781,9 +1781,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
         }
       } catch (error) {
         console.error('Error converting Word document:', error);
-        dispatch({ 
-          type: 'SET_WORD_DOC_HTML', 
-          payload: '<div style="padding: 20px; color: red;">Error loading document. Please try downloading instead.</div>' 
+        dispatch({
+          type: 'SET_WORD_DOC_HTML',
+          payload: '<div style="padding: 20px; color: red;">Error loading document. Please try downloading instead.</div>'
         });
       } finally {
         dispatch({ type: 'SET_WORD_DOC_LOADING', payload: false });
@@ -1897,7 +1897,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       // If no linked case exists, create a new one
       if (!caseDoc) {
         const clientInfoId = finalizedCase.caseId; // The MongoDB _id of clientsinfo
-        
+
         if (!clientInfoId) {
           notifications.show({
             title: 'Error',
@@ -1910,7 +1910,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
         // Get client info to find userId
         const clientResponse = await apiClient.get(`/clientsinfo/${clientInfoId}`);
         const clientData = clientResponse.data;
-        
+
         if (!clientData.userId) {
           notifications.show({
             title: 'Error',
@@ -1921,67 +1921,44 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
         }
 
         // Create a new case for this finalized case
-        const caseTitle = finalizedCase.caseTitle || 
-                         finalizedCase.content?.caseInfo?.title || 
-                         `Case for ${finalizedCase.clientName}`;
-        
-        // Map finalized case category to Case model enum
-        const categoryToTypeMap = {
-          'Civil Case': 'Civil Law',
-          'Criminal Case': 'Criminal Law',
-          'Family Law': 'Family Law',
-          'Labor and Employment': 'Labor Law',
-          'Land and Property Disputes': 'Land and Property Law',
-          'Contract Disputes': 'Commercial Law',
-          'Personal Injury': 'Civil Law',
-          'Debt Collection': 'Commercial Law',
-          'Inheritance and Estate': 'Family Law',
-          'Business and Commercial Law': 'Commercial Law',
-          'Consumer Protection': 'Commercial Law',
-          'Tax Law': 'Tax Law',
-          'Immigration': 'Immigration Law',
-          'Intellectual Property': 'Intellectual Property',
-          'Environmental Law': 'Environmental Law',
-          'Administrative Law': 'Administrative Law',
-          'Human Rights Violation': 'Human Rights',
-          'Cybercrime': 'Criminal Law',
-          'Election Law': 'Administrative Law',
-          'Other': 'Other'
-        };
-        
-        const rawCategory = finalizedCase.content?.caseInfo?.nature || 
-                           finalizedCase.category || 
-                           'Other';
-        
-        const caseType = categoryToTypeMap[rawCategory] || 'Other';
-        
+        const caseTitle = finalizedCase.caseTitle ||
+          finalizedCase.content?.caseInfo?.title ||
+          `Case for ${finalizedCase.clientName}`;
+
+        // Use the finalized record's raw category value directly as the caseType
+        const rawCategory = finalizedCase.content?.caseInfo?.nature ||
+          finalizedCase.category ||
+          'Other';
+
+        const caseType = rawCategory || 'Other';
+
         const newCasePayload = {
           userId: clientData.userId,
           caseTitle: caseTitle,
           caseType: caseType,
-          shortDescription: finalizedCase.content?.interviewInfo?.natureOfLegalMatter || 
-                           finalizedCase.content?.caseInfo?.nature || 
-                           'Finalized case',
-          detailedDescription: finalizedCase.content?.interviewInfo?.caseDescription || 
-                              finalizedCase.content?.caseInfo?.description ||
-                              'Case created from finalized case',
+          shortDescription: finalizedCase.content?.interviewInfo?.natureOfLegalMatter ||
+            finalizedCase.content?.caseInfo?.nature ||
+            'Finalized case',
+          detailedDescription: finalizedCase.content?.interviewInfo?.caseDescription ||
+            finalizedCase.content?.caseInfo?.description ||
+            'Case created from finalized case',
         };
 
         const createResponse = await apiClient.post('/cases/admin/create-case', newCasePayload);
-        
+
         if (createResponse.data.success) {
           const newCaseId = createResponse.data.data.id;
-          
+
           // Link this case to the finalized document
           await apiClient.put(`/finalize/${finalizedCase._id}`, {
             ...finalizedCase,
             linkedCaseId: newCaseId
           });
-          
+
           // Get the full case object with user populated
           const newCaseResponse = await apiClient.get(`/cases/${newCaseId}`);
           caseDoc = newCaseResponse.data.data;
-          
+
           // Update local state
           finalizedCase.linkedCaseId = newCaseId;
         } else {
@@ -1992,7 +1969,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       // Open chat modal with the case
       dispatch({ type: 'OPEN_CHAT_MODAL', payload: caseDoc });
       fetchChatMessages(caseDoc._id);
-      
+
     } catch (error) {
       console.error('Error handling chat navigation:', error);
       notifications.show({
@@ -2009,7 +1986,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       dispatch({ type: 'SET_LOADING_MESSAGES', payload: true });
       console.log('Admin fetching messages for caseId:', caseId);
       const response = await apiClient.get(`/chat/case/${caseId}`);
-      
+
       console.log('Admin fetched messages:', response.data);
       if (response.data.success) {
         dispatch({ type: 'SET_CHAT_MESSAGES', payload: response.data.data });
@@ -2026,7 +2003,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
 
     try {
       dispatch({ type: 'SET_SENDING_MESSAGE', payload: true });
-      
+
       const response = await apiClient.post('/chat/send', {
         caseId: state.selectedCaseForChat._id,
         message: messageText.trim(),
@@ -2053,18 +2030,18 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
       dispatch({ type: 'SET_SAVING', payload: true });
       console.log('Saving case record for finalizeId:', state.selectedCaseId);
       console.log('Data:', state.caseRecordData);
-      
+
       const resp = await apiClient.put(`/caserecords/finalize/${state.selectedCaseId}`, state.caseRecordData);
       console.log('Save response:', resp.data);
-      
+
       if (resp.data) {
         // Refetch finalized cases to update the caseRecordsMap
         await fetchFinalized();
-        
+
         // Close the modal and reset edit mode
         dispatch({ type: 'SET_CASE_RECORD_EDIT_MODE', payload: false });
         dispatch({ type: 'CLOSE_CASE_RECORD_MODAL' });
-        
+
         notifications.show({
           title: 'Success',
           message: 'Case record saved successfully! The case has been moved to "With Record" section.',
@@ -2121,7 +2098,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
     if (!newData.content) newData.content = {};
     if (!newData.content.interviewInfo) newData.content.interviewInfo = {};
     if (!newData.content.interviewInfo[type]) newData.content.interviewInfo[type] = [];
-    
+
     const evidence = [...newData.content.interviewInfo[type]];
     if (!evidence[index]) evidence[index] = {};
     evidence[index] = { ...evidence[index], [field]: value };
@@ -2131,9 +2108,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
 
   const renderEvidenceTable = (title, evidence = [], fieldName) => {
     if (!state.editMode && (!evidence || evidence.length === 0)) return null;
-    
+
     const rows = evidence && evidence.length >= 3 ? evidence : [...(evidence || []), ...Array(3 - (evidence?.length || 0)).fill({ type: '', author: '', purpose: '', issues: '' })];
-    
+
     return (
       <Box mb="lg">
         <Title order={5} c={PRIMARY_BROWN} mb="sm">{title}</Title>
@@ -2300,14 +2277,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               </Group>
               <Group gap={4} mt={2} wrap="nowrap">
                 <Text size="xs" c="dimmed">{dateStr}</Text>
-                {caseNature && (
-                  <>
-                    <Text size="xs" c="dimmed">·</Text>
-                    <Text size="xs" fw={600} style={{ color: categoryTextColor, flexShrink: 0 }}>
-                      {caseNature}
-                    </Text>
-                  </>
-                )}
+                {/* caseNature (category/case type) label removed per request */}
                 <Text size="xs" c="dimmed">·</Text>
                 <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
                   {capitalizedRole}
@@ -2476,8 +2446,8 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
             body: { maxHeight: '80vh', overflowY: 'auto' },
           }}
         >
-          <CaseInformationSection 
-            value={state.caseRecordData} 
+          <CaseInformationSection
+            value={state.caseRecordData}
             onChange={(data) => dispatch({ type: 'SET_CASE_RECORD_DATA', payload: data })}
             readOnly={!state.caseRecordEditMode}
           />
@@ -2708,7 +2678,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                   </Button>
                 </Group>
               </Paper>
-              
+
               <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
                 {state.currentViewingDoc.fileType?.includes('pdf') || state.currentViewingDoc.fileName?.endsWith('.pdf') ? (
                   // PDF - embed directly (works for both server URLs and base64)
@@ -2729,9 +2699,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                       </Box>
                     ) : state.wordDocHtml ? (
                       <ScrollArea style={{ flex: 1, height: '100%' }}>
-                        <Box 
-                          p="xl" 
-                          style={{ 
+                        <Box
+                          p="xl"
+                          style={{
                             backgroundColor: 'white',
                             maxWidth: '800px',
                             margin: '0 auto',
@@ -3274,14 +3244,14 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               <Group gap="sm">
                 {!state.editMode ? (
                   ['director', 'supervising_lawyer', 'secretary'].includes(userData?.role) && (
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    color={PRIMARY_BROWN}
-                    onClick={() => dispatch({ type: 'SET_EDIT_MODE', payload: true })}
-                  >
-                    Edit
-                  </Button>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      color={PRIMARY_BROWN}
+                      onClick={() => dispatch({ type: 'SET_EDIT_MODE', payload: true })}
+                    >
+                      Edit
+                    </Button>
                   )
                 ) : (
                   <>
@@ -3325,8 +3295,8 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
           {state.editedData && (
             <Stack gap="lg">
               {/* Stepper Navigation */}
-              <Stepper 
-                active={state.activeStep} 
+              <Stepper
+                active={state.activeStep}
                 color={PRIMARY_BROWN}
                 completedIcon={<IconCircleCheck size={20} />}
                 styles={{
@@ -3342,153 +3312,153 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
 
               {/* Step 1: Interview Information */}
               {state.activeStep === 0 && (
-              <Paper p="md" withBorder>
-                <Title order={4} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
-                <SimpleGrid cols={2} spacing="sm" mb="md">
-                  <Box>
-                    <Text size="xs" c="dimmed">Date of Interview</Text>
-                    <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
+                <Paper p="md" withBorder>
+                  <Title order={4} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
+                  <SimpleGrid cols={2} spacing="sm" mb="md">
+                    <Box>
+                      <Text size="xs" c="dimmed">Date of Interview</Text>
+                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="xs" c="dimmed">Date Submitted</Text>
+                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="xs" c="dimmed">Client's Name</Text>
+                      <Text fw={500}>{state.editedData.content?.interviewInfo?.clientName || '-'}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
+                      <Text fw={500}>{state.editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
+                    </Box>
+                  </SimpleGrid>
+                  <Divider my="md" />
+                  <Box mb="md">
+                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Fast Facts</Text>
+                    {state.editMode ? (
+                      <Textarea
+                        autosize
+                        minRows={4}
+                        value={state.editedData.content?.interviewInfo?.fastFacts || ''}
+                        onChange={(e) => updateEditedData('content.interviewInfo.fastFacts', e.target.value)}
+                      />
+                    ) : (
+                      <Text size="sm">{state.editedData.content?.interviewInfo?.fastFacts || '-'}</Text>
+                    )}
                   </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Date Submitted</Text>
-                    <Text fw={500}>{state.editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Client's Name</Text>
-                    <Text fw={500}>{state.editedData.content?.interviewInfo?.clientName || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
-                    <Text fw={500}>{state.editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
-                  </Box>
-                </SimpleGrid>
-                <Divider my="md" />
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Fast Facts</Text>
-                  {state.editMode ? (
-                    <Textarea
-                      autosize
-                      minRows={4}
-                      value={state.editedData.content?.interviewInfo?.fastFacts || ''}
-                      onChange={(e) => updateEditedData('content.interviewInfo.fastFacts', e.target.value)}
-                    />
-                  ) : (
-                    <Text size="sm">{state.editedData.content?.interviewInfo?.fastFacts || '-'}</Text>
+                  <Divider my="md" />
+                  {renderEvidenceTable(
+                    "Evidence on Hand / Available for the Client(s)",
+                    state.editedData.content?.interviewInfo?.clientEvidence,
+                    'clientEvidence'
                   )}
-                </Box>
-                <Divider my="md" />
-                {renderEvidenceTable(
-                  "Evidence on Hand / Available for the Client(s)",
-                  state.editedData.content?.interviewInfo?.clientEvidence,
-                  'clientEvidence'
-                )}
-                {renderEvidenceTable(
-                  "Evidence on Hand / Available for the Adverse Party(ies)",
-                  state.editedData.content?.interviewInfo?.adversePartyEvidence,
-                  'adversePartyEvidence'
-                )}
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
-                  {state.editMode ? (
-                    <Textarea
-                      autosize
-                      minRows={3}
-                      value={state.editedData.content?.interviewInfo?.internAdvice || ''}
-                      onChange={(e) => updateEditedData('content.interviewInfo.internAdvice', e.target.value)}
-                    />
-                  ) : (
-                    <Text size="sm">{state.editedData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                  {renderEvidenceTable(
+                    "Evidence on Hand / Available for the Adverse Party(ies)",
+                    state.editedData.content?.interviewInfo?.adversePartyEvidence,
+                    'adversePartyEvidence'
                   )}
-                </Box>
-                <Box>
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
-                  {state.editMode ? (
-                    <Textarea
-                      autosize
-                      minRows={5}
-                      value={state.editedData.content?.interviewInfo?.legalOpinion || ''}
-                      onChange={(e) => updateEditedData('content.interviewInfo.legalOpinion', e.target.value)}
-                    />
-                  ) : (
-                    <Text size="sm">{state.editedData.content?.interviewInfo?.legalOpinion || '-'}</Text>
-                  )}
-                </Box>
-              </Paper>
+                  <Box mb="md">
+                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
+                    {state.editMode ? (
+                      <Textarea
+                        autosize
+                        minRows={3}
+                        value={state.editedData.content?.interviewInfo?.internAdvice || ''}
+                        onChange={(e) => updateEditedData('content.interviewInfo.internAdvice', e.target.value)}
+                      />
+                    ) : (
+                      <Text size="sm">{state.editedData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                    )}
+                  </Box>
+                  <Box>
+                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
+                    {state.editMode ? (
+                      <Textarea
+                        autosize
+                        minRows={5}
+                        value={state.editedData.content?.interviewInfo?.legalOpinion || ''}
+                        onChange={(e) => updateEditedData('content.interviewInfo.legalOpinion', e.target.value)}
+                      />
+                    ) : (
+                      <Text size="sm">{state.editedData.content?.interviewInfo?.legalOpinion || '-'}</Text>
+                    )}
+                  </Box>
+                </Paper>
               )}
-              
+
               {/* Step 2: Action Information */}
               {state.activeStep === 1 && (
-              <Paper p="md" withBorder>
-                <Title order={4} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
-                
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
-                  {state.editMode ? (
-                    <Textarea
-                      autosize
-                      minRows={4}
-                      value={state.editedData.content?.actionInfo?.supervisingComment || ''}
-                      onChange={(e) => updateEditedData('content.actionInfo.supervisingComment', e.target.value)}
-                    />
-                  ) : (
-                    <Text size="sm">{state.editedData.content?.actionInfo?.supervisingComment || '-'}</Text>
-                  )}
-                </Box>
-                <Divider my="md" />
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
-                  <Badge 
-                    size="lg" 
-                    color={
-                      state.editedData.decision === 'accepted' ? 'green' : 
-                      state.editedData.decision === 'rejected' ? 'red' : 
-                      'yellow'
-                    }
-                  >
-                    {(state.editedData.decision || 'pending').toUpperCase()}
-                  </Badge>
-                </Box>
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
-                  {state.editMode ? (
-                    <Textarea
-                      autosize
-                      minRows={4}
-                      value={state.editedData.content?.actionInfo?.decisionNote || ''}
-                      onChange={(e) => updateEditedData('content.actionInfo.decisionNote', e.target.value)}
-                    />
-                  ) : (
-                    <Text size="sm">{state.editedData.content?.actionInfo?.decisionNote || '-'}</Text>
-                  )}
-                </Box>
-                <Divider my="md" />
-                <SimpleGrid cols={2} spacing="sm">
-                  <Box>
-                    <Text size="xs" c="dimmed">Assigned To</Text>
-                    <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
+                <Paper p="md" withBorder>
+                  <Title order={4} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
+
+                  <Box mb="md">
+                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
+                    {state.editMode ? (
+                      <Textarea
+                        autosize
+                        minRows={4}
+                        value={state.editedData.content?.actionInfo?.supervisingComment || ''}
+                        onChange={(e) => updateEditedData('content.actionInfo.supervisingComment', e.target.value)}
+                      />
+                    ) : (
+                      <Text size="sm">{state.editedData.content?.actionInfo?.supervisingComment || '-'}</Text>
+                    )}
                   </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Supervising Lawyer</Text>
-                    <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
+                  <Divider my="md" />
+                  <Box mb="md">
+                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
+                    <Badge
+                      size="lg"
+                      color={
+                        state.editedData.decision === 'accepted' ? 'green' :
+                          state.editedData.decision === 'rejected' ? 'red' :
+                            'yellow'
+                      }
+                    >
+                      {(state.editedData.decision || 'pending').toUpperCase()}
+                    </Badge>
                   </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Director's Signature</Text>
-                    <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
+                  <Box mb="md">
+                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
+                    {state.editMode ? (
+                      <Textarea
+                        autosize
+                        minRows={4}
+                        value={state.editedData.content?.actionInfo?.decisionNote || ''}
+                        onChange={(e) => updateEditedData('content.actionInfo.decisionNote', e.target.value)}
+                      />
+                    ) : (
+                      <Text size="sm">{state.editedData.content?.actionInfo?.decisionNote || '-'}</Text>
+                    )}
                   </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Signature Date</Text>
-                    <Text fw={500}>{state.editedData.content?.actionInfo?.signatureDate || '-'}</Text>
-                  </Box>
-                </SimpleGrid>
-              </Paper>
+                  <Divider my="md" />
+                  <SimpleGrid cols={2} spacing="sm">
+                    <Box>
+                      <Text size="xs" c="dimmed">Assigned To</Text>
+                      <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="xs" c="dimmed">Supervising Lawyer</Text>
+                      <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="xs" c="dimmed">Director's Signature</Text>
+                      <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="xs" c="dimmed">Signature Date</Text>
+                      <Text fw={500}>{state.editedData.content?.actionInfo?.signatureDate || '-'}</Text>
+                    </Box>
+                  </SimpleGrid>
+                </Paper>
               )}
 
               {/* Navigation Buttons */}
               <Divider />
               <Group justify="space-between">
                 {state.activeStep > 0 ? (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     leftSection={<IconChevronLeft size={20} />}
                     onClick={() => dispatch({ type: 'SET_ACTIVE_STEP', payload: state.activeStep - 1 })}
                     size="sm"
@@ -3501,9 +3471,9 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 ) : (
                   <Box />
                 )}
-                
+
                 {state.activeStep < 1 && (
-                  <Button 
+                  <Button
                     rightSection={<IconChevronRight size={20} />}
                     onClick={() => dispatch({ type: 'SET_ACTIVE_STEP', payload: state.activeStep + 1 })}
                     size="sm"
@@ -3562,7 +3532,7 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
               radius="md"
             />
           </Group>
-          
+
           <Tabs value={state.activeTab} onChange={(val) => dispatch({ type: 'SET_ACTIVE_TAB', payload: val })}
             styles={{ tab: { '&[data-active]': { backgroundColor: '#F9FAFB', fontWeight: 600 } } }}
           >
@@ -3610,10 +3580,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 )}
               </Stack>
               <Group justify="center" mt="xl">
-                <Pagination 
-                  total={Math.max(1, totalPagesAccepted)} 
-                  value={state.currentPageAccepted} 
-                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageAccepted', page } })} 
+                <Pagination
+                  total={Math.max(1, totalPagesAccepted)}
+                  value={state.currentPageAccepted}
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageAccepted', page } })}
                   color={PRIMARY_BROWN}
                   radius="md"
                 />
@@ -3631,10 +3601,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 )}
               </Stack>
               <Group justify="center" mt="xl">
-                <Pagination 
-                  total={Math.max(1, totalPagesWithoutRecord)} 
-                  value={state.currentPageWithoutRecord} 
-                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageWithoutRecord', page } })} 
+                <Pagination
+                  total={Math.max(1, totalPagesWithoutRecord)}
+                  value={state.currentPageWithoutRecord}
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageWithoutRecord', page } })}
                   color={PRIMARY_BROWN}
                   radius="md"
                 />
@@ -3652,10 +3622,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 )}
               </Stack>
               <Group justify="center" mt="xl">
-                <Pagination 
-                  total={Math.max(1, totalPagesLegalAdvice)} 
-                  value={state.currentPageLegalAdvice} 
-                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageLegalAdvice', page } })} 
+                <Pagination
+                  total={Math.max(1, totalPagesLegalAdvice)}
+                  value={state.currentPageLegalAdvice}
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageLegalAdvice', page } })}
                   color={PRIMARY_BROWN}
                   radius="md"
                 />
@@ -3673,10 +3643,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 )}
               </Stack>
               <Group justify="center" mt="xl">
-                <Pagination 
-                  total={Math.max(1, totalPagesDocumentDrafting)} 
-                  value={state.currentPageDocumentDrafting} 
-                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageDocumentDrafting', page } })} 
+                <Pagination
+                  total={Math.max(1, totalPagesDocumentDrafting)}
+                  value={state.currentPageDocumentDrafting}
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageDocumentDrafting', page } })}
                   color={PRIMARY_BROWN}
                   radius="md"
                 />
@@ -3710,10 +3680,10 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 )}
               </Stack>
               <Group justify="center" mt="xl">
-                <Pagination 
-                  total={Math.max(1, totalPagesRejected)} 
-                  value={state.currentPageRejected} 
-                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageRejected', page } })} 
+                <Pagination
+                  total={Math.max(1, totalPagesRejected)}
+                  value={state.currentPageRejected}
+                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageRejected', page } })}
                   color={PRIMARY_BROWN}
                   radius="md"
                 />
@@ -3757,12 +3727,11 @@ const drawRecommendationForActionTemplate = (doc, data = {}) => {
                 .filter(u => u._id !== (userData?._id || userData?.id))
                 .map(u => ({
                   value: u._id,
-                  label: `${u.firstName} ${u.lastName} (${
-                    u.role === 'supervising_lawyer' ? 'Supervising Lawyer' :
-                    u.role === 'director' ? 'Director' :
-                    u.role === 'secretary' ? 'Secretary' :
-                    u.role === 'intern' ? 'Legal Intern' : u.role
-                  })`,
+                  label: `${u.firstName} ${u.lastName} (${u.role === 'supervising_lawyer' ? 'Supervising Lawyer' :
+                      u.role === 'director' ? 'Director' :
+                        u.role === 'secretary' ? 'Secretary' :
+                          u.role === 'intern' ? 'Legal Intern' : u.role
+                    })`,
                 }))}
               searchable
               styles={{ input: { borderColor: '#E0E0E0' } }}
@@ -4046,9 +4015,11 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const finFullEndX = pageW - margin;
   const finSplitX = leftX + (fullW * 0.58); // split point for two-field rows
 
-  { const h1 = field({ labelText: "Current Source of Income:", value: currentSourceOfIncome, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
+  {
+    const h1 = field({ labelText: "Current Source of Income:", value: currentSourceOfIncome, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
     const h2 = field({ labelText: "Income / Month:", value: monthlyIncome, x: finSplitX, y, labelW: 24, lineToX: finFullEndX });
-    y += Math.max(h1, h2); }
+    y += Math.max(h1, h2);
+  }
 
   y += field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 48, lineToX: finFullEndX });
 
@@ -4056,13 +4027,17 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 
   y += field({ labelText: "Employer / Business Address:", value: employerAddress, x: leftX, y, labelW: 52, lineToX: finFullEndX });
 
-  { const h1 = field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
+  {
+    const h1 = field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
     const h2 = field({ labelText: "Telephone:", value: employerTelephone, x: finSplitX, y, labelW: 18, lineToX: finFullEndX });
-    y += Math.max(h1, h2); }
+    y += Math.max(h1, h2);
+  }
 
-  { const h1 = field({ labelText: "Spouse's Source of Income:", value: spouseSourceOfIncome, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
+  {
+    const h1 = field({ labelText: "Spouse's Source of Income:", value: spouseSourceOfIncome, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
     const h2 = field({ labelText: "Income / Month:", value: spouseMonthlyIncome, x: finSplitX, y, labelW: 24, lineToX: finFullEndX });
-    y += Math.max(h1, h2); }
+    y += Math.max(h1, h2);
+  }
 
   y += field({ labelText: "Spouse's Employer / Business Address:", value: spouseEmployerAddress, x: leftX, y, labelW: 60, lineToX: finFullEndX });
 
@@ -4092,14 +4067,18 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   y += 6;
 
   checkPageBreak();
-  { const h1 = field({ labelText: "Party Represented:", value: partyRepresented, x: leftX, y, labelW: 34, lineW: leftW - 36 - 10 });
+  {
+    const h1 = field({ labelText: "Party Represented:", value: partyRepresented, x: leftX, y, labelW: 34, lineW: leftW - 36 - 10 });
     const h2 = field({ labelText: "Venue / City:", value: venue, x: rightX, y, labelW: 26, lineW: rightW - 28 });
-    y += Math.max(h1, h2); }
+    y += Math.max(h1, h2);
+  }
 
   checkPageBreak();
-  { const h1 = field({ labelText: "Present Stage of the Case:", value: presentStage, x: leftX, y, labelW: 50, lineW: leftW - 52 });
+  {
+    const h1 = field({ labelText: "Present Stage of the Case:", value: presentStage, x: leftX, y, labelW: 50, lineW: leftW - 52 });
     const h2 = field({ labelText: "Case / Docket Number:", value: caseNumber, x: rightX, y, labelW: 40, lineW: rightW - 42 });
-    y += Math.max(h1, h2); }
+    y += Math.max(h1, h2);
+  }
 
   checkPageBreak();
   y += field({ labelText: "Nature:", value: caseNature, x: leftX, y, labelW: 14, lineW: pageW - margin * 2 - 16 });
@@ -4111,9 +4090,11 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   y += field({ labelText: "Court / Agency / Tribunal Address:", value: courtAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
 
   checkPageBreak();
-  { const h1 = field({ labelText: "Presiding Officer:", value: presidingOfficer, x: leftX, y, labelW: 34, lineToX: rightX - 2 });
+  {
+    const h1 = field({ labelText: "Presiding Officer:", value: presidingOfficer, x: leftX, y, labelW: 34, lineToX: rightX - 2 });
     const h2 = field({ labelText: "Phone Number:", value: presidingOfficerPhone, x: rightX + 6, y, labelW: 28, lineW: rightW - 34 });
-    y += Math.max(h1, h2); }
+    y += Math.max(h1, h2);
+  }
 
   checkPageBreak();
   y += field({ labelText: "Adverse Party(ies):", value: adverseParties, x: leftX, y, labelW: 36, lineW: pageW - margin * 2 - 38 });
@@ -4162,15 +4143,15 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
         u.hostname = '127.0.0.1';
         candidates.push(u.href);
       }
-    } catch (e) {}
+    } catch (e) { }
     try {
       const decoded = decodeURIComponent(rawUrl);
       if (decoded !== rawUrl) candidates.push(decoded);
-    } catch (e) {}
+    } catch (e) { }
     try {
       const encoded = encodeURI(rawUrl);
       if (encoded !== rawUrl) candidates.push(encoded);
-    } catch (e) {}
+    } catch (e) { }
     // Try filename-based candidates
     try {
       const last = rawUrl.split('/').pop();
@@ -4179,7 +4160,7 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
         candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(decodedLast)}`));
         candidates.push(getServerFileUrl(`/uploads/documents/${decodedLast}`));
       }
-    } catch (e) {}
+    } catch (e) { }
     candidates.push(getServerFileUrl(rawUrl));
   }
 

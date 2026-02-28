@@ -1,5 +1,4 @@
 import './config/env.js'; // MUST BE VERY FIRST - loads environment variables
-
 import express from "express"
 import http from 'http'
 import { Server as SocketIOServer } from 'socket.io'
@@ -18,9 +17,6 @@ import notificationRoutes from './routes/notificationRoutes.js'
 import activityLogRoutes from './routes/activityLogRoutes.js'
 import googleRoutes from './routes/googleRoutes.js'
 import caseAssignmentRoutes from './routes/caseAssignmentRoutes.js'
-import User from './models/user.js'
-import Case from './models/case.js'
-import Notification from './models/notification.js'
 import cors from "cors"
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
@@ -109,16 +105,16 @@ app.use((req, res, next) => {
   // Set timeout for all requests (30 seconds)
   req.setTimeout(30000);
   res.setTimeout(30000);
-  
+
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
       res.status(408).json({ error: 'Request timeout' });
     }
   }, 30000);
-  
+
   res.on('finish', () => clearTimeout(timeout));
   res.on('close', () => clearTimeout(timeout));
-  
+
   next();
 });
 
@@ -145,7 +141,7 @@ app.post('/api/upload/document', upload.single('document'), (req, res) => {
 
     // Return file information with relative path (will be proxied by Vite in dev)
     const fileUrl = `/uploads/documents/${req.file.filename}`;
-    
+
     res.json({
       success: true,
       file: {
@@ -168,7 +164,7 @@ app.delete('/api/upload/document/:filename', (req, res) => {
   try {
     const filename = req.params.filename;
     const filePath = path.join(__dirname, 'uploads/documents', filename);
-    
+
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
       res.json({ success: true, message: 'File deleted successfully' });
@@ -276,23 +272,23 @@ mongoose.connection.on('reconnected', () => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
-  
+
   // Handle specific error types
   if (err.name === 'MongoTimeoutError' || err.name === 'MongoNetworkError') {
-    return res.status(503).json({ 
+    return res.status(503).json({
       error: 'Database temporarily unavailable',
       message: 'Please try again in a moment'
     });
   }
-  
+
   if (err.name === 'ValidationError') {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Validation error',
       message: err.message
     });
   }
-  
-  res.status(err.status || 500).json({ 
+
+  res.status(err.status || 500).json({
     error: 'Something went wrong!',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
   });
@@ -315,10 +311,10 @@ const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST // This is just for display, not required
 
 httpServer.listen(PORT, '0.0.0.0', () => { // 0.0.0.0 means accept from any IP
-    console.log(`Server running at port ${PORT}`)
-    console.log(`Local: http://localhost:${PORT}`)
-    console.log(`Network: Access from your current WiFi IP`)
-    if (HOST) {
-        console.log(`Configured Host: http://${HOST}:${PORT}`)
-    }
+  console.log(`Server running at port ${PORT}`)
+  console.log(`Local: http://localhost:${PORT}`)
+  console.log(`Network: Access from your current WiFi IP`)
+  if (HOST) {
+    console.log(`Configured Host: http://${HOST}:${PORT}`)
+  }
 })

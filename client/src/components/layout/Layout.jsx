@@ -14,7 +14,7 @@ import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL, ACCENT_TAN } fr
 import { getNavigationByRole, ROLE_DISPLAY } from "@/utils/navigation";
 
 const SECTION_LABELS = { main: 'Main', insights: 'Insights', account: 'Account' };
-const KNOWN_ROLES = new Set(['secretary', 'attorney', 'intern', 'pao_lawyer', 'legal_volunteer', 'supervising_lawyer', 'director']);
+const KNOWN_ROLES = new Set(['secretary', 'supervising_lawyer', 'director', 'intern']);
 const MENU_ITEM_STYLES = { item: { borderRadius: '6px', fontSize: '13px', padding: '8px 10px' } };
 
 const UserAvatar = ({ src, firstName, size = 36, border = `2px solid ${PRIMARY_GOLD}`, bg = PRIMARY_BROWN }) => (
@@ -54,7 +54,7 @@ const Layout = ({ children, headerHeight = 60, navbarWidth = 260 }) => {
         console.error('Logout activity log error:', err);
       }
       await doSignOut();
-      navigate('/auth/login');
+      navigate('/auth/admin');
     } catch (error) {
       console.error('Logout error:', error);
     }

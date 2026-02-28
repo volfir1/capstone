@@ -55,7 +55,8 @@ export const doSignOut = () =>{
 // for email verification
 export const doSendEmailVerification = () => {
     return sendEmailVerification(auth.currentUser, {
-        url: `${window.location.origin}/login`
+        // Redirect to landing page after email verification
+        url: `${window.location.origin}/`
     })
 }
 

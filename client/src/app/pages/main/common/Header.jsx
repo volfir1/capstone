@@ -80,19 +80,7 @@ export default function HomepageHeader({ activePage }) {
             })}
           </Group>
 
-          {/* Desktop Button */}
-          <Group visibleFrom="sm">
-            <Link to="/auth/login" style={{ textDecoration: 'none' }}>
-              <Button
-                variant="gradient"
-                gradient={{ from: PRIMARY_GOLD, to: PRIMARY_BROWN }}
-                radius="xl"
-                size="sm"
-              >
-                Get Started
-              </Button>
-            </Link>
-          </Group>
+          
 
           {/* Mobile Burger */}
           <Burger opened={drawerOpened} onClick={toggleDrawer} hiddenFrom="sm" color={PRIMARY_BROWN} />

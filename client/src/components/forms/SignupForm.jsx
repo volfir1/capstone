@@ -1,17 +1,14 @@
 import {
-  Paper,
   Title,
   Text,
   Button,
   Box,
   TextInput,
   PasswordInput,
-  Anchor,
   Stack,
   Divider,
-  Center,
   Group,
-  Progress,
+  Anchor,
 } from "@mantine/core";
 import {
   IconMail,
@@ -20,15 +17,24 @@ import {
   IconUserPlus,
   IconArrowRight,
   IconArrowLeft,
+  IconScale,
+  IconShieldCheck,
 } from "@tabler/icons-react";
 import { useState } from "react";
+import { useNavigate } from 'react-router-dom';
 import { SocialLoginButton } from "../buttons/SocialLoginButton";
 import { signupValidationRules } from "@/utils/validation";
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN } from "@utils/constants";
 import { Loaders } from "../ui/Loader";
 import { checkEmailExists } from "@/features/auth/auth";
-import toast from "react-hot-toast";
+import { verificationNotif, pendingRoleNotif, showError } from "@utils/notification";
 
+const STEPS = [
+  { title: "Create Account",     subtitle: "Let's start with your name" },
+  { title: "Your Email",         subtitle: "Enter your email address" },
+  { title: "Choose Username",    subtitle: "Pick a unique username (optional)" },
+  { title: "Secure Your Account", subtitle: "Create a strong password" },
+];
 
 export const SignupForm = ({
   register,
@@ -44,577 +50,410 @@ export const SignupForm = ({
 }) => {
   const [step, setStep] = useState(1);
   const [isValidating, setIsValidating] = useState(false);
+  const navigate = useNavigate();
 
   const handleNext = async (e) => {
     e.preventDefault();
-    
-    if (!trigger) {
-      console.warn("Trigger function not provided");
-      return;
-    }
-
+    if (!trigger) return;
     setIsValidating(true);
-
     try {
       let isValid = false;
-
       if (step === 1) {
-        // Validate both first and last name
         isValid = await trigger(["firstName", "lastName"]);
-        console.log("Step 1 validation result:", isValid);
       } else if (step === 2) {
-        // Validate email format first
         isValid = await trigger("email");
-        console.log("Step 2 validation result:", isValid);
-        
-        // If email format is valid, check if it exists in database
         if (isValid) {
-          const email = getValues("email");
           try {
-            const response = await checkEmailExists(email);
-            
+            const response = await checkEmailExists(getValues("email"));
             if (response.exists) {
-              toast.error("This email is already registered. Please use a different email or login.");
+              showError('Email Taken', 'This email is already registered. Please use a different email or log in.');
               isValid = false;
-            } else {
-              toast.success("Email is available!");
             }
-          } catch (error) {
-            console.error("Error checking email:", error);
-            toast.error("Unable to verify email. Please try again.");
+          } catch {
+            showError('Verification Failed', 'Unable to verify email. Please try again.');
             isValid = false;
           }
         }
       } else if (step === 3) {
-        // Username is optional, so always allow next
-        // But if user entered something, validate it
         const username = getValues("username");
-        if (username && username.trim() !== "") {
-          isValid = await trigger("username");
-          console.log("Step 3 validation result (with username):", isValid);
-        } else {
-          isValid = true; // Username is optional
-          console.log("Step 3 validation result (no username):", isValid);
-        }
+        isValid = username?.trim() ? await trigger("username") : true;
       }
-
-      // Only proceed if validation passed
-      if (isValid) {
-        console.log("Validation passed, moving to step", step + 1);
-        setStep(step + 1);
-      } else {
-        console.log("Validation failed, staying on step", step);
-      }
-    } catch (error) {
-      console.error("Validation error:", error);
+      if (isValid) setStep(s => s + 1);
+    } catch (err) {
+      console.error("Validation error:", err);
     } finally {
       setIsValidating(false);
     }
   };
 
-  const handleBack = () => {
-    setStep(step - 1);
+  const handleBack = () => setStep(s => s - 1);
+
+  const handleEmailSubmit = handleSubmit(async (values) => {
+    try {
+      const res = await onSubmit(values);
+      if (res !== false) { verificationNotif(); navigate('/'); }
+    } catch (err) {
+      console.error('Signup submit error:', err);
+    }
+  });
+
+  const handleGoogleSignupClick = async (e) => {
+    try {
+      await onGoogleSignup(e);
+      pendingRoleNotif();
+      navigate('/');
+    } catch (err) {
+      console.error('Google signup error:', err);
+    }
   };
 
-  const progressValue = (step / 4) * 100;
+  const currentStep = STEPS[step - 1];
 
   return (
-    <Box 
-      w={450} 
-      p={40}
-      style={{
-        backgroundColor: "white",
-        borderRadius: 12,
-      }}
-    >
-      {/* Logo/Brand */}
-      <Box mb={20} style={{ textAlign: "right" }}>
-        <Text size="24px" fw={700} style={{ lineHeight: 1 }}>
-          <Text span style={{ color: PRIMARY_GOLD }}>Just</Text>
-          <Text span style={{ color: PRIMARY_BROWN }}>Reach</Text>
-        </Text>
-        <Text size="xs" style={{ color: MUTED_OLIVE, marginTop: 2, lineHeight: 1.2 }}>
-          Accessible Legal Services Network
-        </Text>
-      </Box>
+    <Box style={{ minHeight: '100vh', display: 'flex', overflow: 'hidden' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap');
 
-      {/* Progress Bar */}
-      <Progress 
-        value={progressValue} 
-        size="sm" 
-        radius="xl"
-        mb={24}
-        styles={{
-          bar: {
-            backgroundColor: PRIMARY_GOLD,
-          },
-          root: {
-            backgroundColor: THEMED_LIGHT_BG,
-          },
+        .signup-form * { font-family: 'DM Sans', sans-serif; }
+
+        .field-label {
+          font-size: 13px;
+          font-weight: 500;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: ${MUTED_OLIVE};
+          margin-bottom: 8px;
+          display: block;
+        }
+
+        .form-input .mantine-TextInput-input,
+        .form-input .mantine-PasswordInput-input {
+          border: 1px solid #DDD5C8 !important;
+          border-radius: 4px !important;
+          height: 54px !important;
+          font-size: 15px !important;
+          color: ${CHARCOAL} !important;
+          background: #FDFBF8 !important;
+          transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+        }
+        .form-input .mantine-TextInput-input:focus,
+        .form-input .mantine-PasswordInput-input:focus {
+          border-color: ${PRIMARY_BROWN} !important;
+          box-shadow: 0 0 0 3px rgba(139,69,19,0.09) !important;
+          background: #fff !important;
+        }
+        .form-input .mantine-PasswordInput-innerInput { height: 100% !important; font-size: 15px !important; }
+        .form-input .mantine-InputWrapper-description { font-size: 11px !important; color: ${MUTED_OLIVE} !important; }
+
+        .next-btn {
+          background: ${PRIMARY_BROWN} !important;
+          height: 54px !important;
+          font-size: 13px !important;
+          font-weight: 500 !important;
+          letter-spacing: 1.4px !important;
+          text-transform: uppercase !important;
+          border-radius: 4px !important;
+          border: none !important;
+          transition: opacity 0.18s !important;
+        }
+        .next-btn:hover:not(:disabled) { opacity: 0.86 !important; }
+
+        .back-btn {
+          height: 54px !important;
+          font-size: 13px !important;
+          font-weight: 500 !important;
+          letter-spacing: 1.4px !important;
+          text-transform: uppercase !important;
+          border-radius: 4px !important;
+          border: 1.5px solid #DDD5C8 !important;
+          color: ${MUTED_OLIVE} !important;
+          background: transparent !important;
+          transition: border-color 0.18s, background 0.18s !important;
+        }
+        .back-btn:hover { border-color: ${PRIMARY_BROWN} !important; color: ${PRIMARY_BROWN} !important; }
+
+        /* Progress dots */
+        .step-dots { display: flex; gap: 8px; align-items: center; }
+        .step-dot {
+          width: 8px; height: 8px; border-radius: 50%;
+          background: #E0D8CE;
+          transition: all 0.25s ease;
+        }
+        .step-dot.active { background: ${PRIMARY_BROWN}; width: 24px; border-radius: 4px; }
+        .step-dot.done { background: ${PRIMARY_GOLD}; }
+
+        .left-panel-fade { animation: panelIn 0.6s ease both; }
+        .form-fade { animation: formIn 0.5s 0.1s ease both; }
+        .step-fade { animation: stepIn 0.3s ease both; }
+
+        @keyframes panelIn {
+          from { opacity: 0; transform: translateX(-20px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes formIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes stepIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* ── Left Panel ── */}
+      <Box
+        className="left-panel-fade"
+        style={{
+          width: '42%',
+          background: `linear-gradient(160deg, ${PRIMARY_BROWN} 0%, #5C2D0A 100%)`,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          padding: '48px 52px',
+          position: 'relative',
+          overflow: 'hidden',
         }}
-      />
+      >
+        {/* Decorative rings */}
+        <Box style={{ position: 'absolute', top: -80, right: -80, width: 280, height: 280, borderRadius: '50%', border: `1px solid rgba(196,171,125,0.15)`, pointerEvents: 'none' }} />
+        <Box style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', border: `1px solid rgba(196,171,125,0.1)`, pointerEvents: 'none' }} />
+        <Box style={{ position: 'absolute', bottom: -60, left: -60, width: 240, height: 240, borderRadius: '50%', border: `1px solid rgba(196,171,125,0.12)`, pointerEvents: 'none' }} />
 
-      {/* Register Title */}
-      <Box mb={32}>
-        <Title order={2} size="24px" fw={600} style={{ color: CHARCOAL, marginBottom: 6 }}>
-          {step === 1 && "Create Account"}
-          {step === 2 && "Your Email"}
-          {step === 3 && "Choose Username"}
-          {step === 4 && "Secure Your Account"}
-        </Title>
-        <Text style={{ color: MUTED_OLIVE, fontSize: 13 }}>
-          {step === 1 && "Let's start with your name"}
-          {step === 2 && "Enter your email address"}
-          {step === 3 && "Pick a unique username (optional)"}
-          {step === 4 && "Create a strong password"}
+        {/* Brand */}
+        <Box style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Box style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(196,171,125,0.2)', border: `1px solid ${PRIMARY_GOLD}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconScale size={20} color={PRIMARY_GOLD} stroke={1.5} />
+          </Box>
+          <Box>
+            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>JustReach</Text>
+            <Text style={{ fontSize: 9, color: 'rgba(196,171,125,0.8)', letterSpacing: 2.5, textTransform: 'uppercase' }}>Legal Services</Text>
+          </Box>
+        </Box>
+
+        {/* Center content */}
+        <Box>
+          <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 36, fontWeight: 500, color: '#fff', lineHeight: 1.25, marginBottom: 16 }}>
+            Join<br />JustReach
+          </Text>
+          <Text style={{ fontSize: 14, fontWeight: 300, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, maxWidth: 260 }}>
+            Create your account to access accessible legal services in the Philippines.
+          </Text>
+
+          {/* Step indicators */}
+          <Box style={{ marginTop: 40 }}>
+            {STEPS.map((s, i) => (
+              <Box key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, opacity: step === i + 1 ? 1 : 0.4, transition: 'opacity 0.25s' }}>
+                <Box style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: step > i + 1 ? PRIMARY_GOLD : step === i + 1 ? 'rgba(196,171,125,0.3)' : 'rgba(255,255,255,0.1)',
+                  border: `1px solid ${step >= i + 1 ? PRIMARY_GOLD : 'rgba(196,171,125,0.25)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  {step > i + 1
+                    ? <IconShieldCheck size={14} color="#fff" stroke={2} />
+                    : <Text style={{ fontSize: 11, color: step === i + 1 ? PRIMARY_GOLD : 'rgba(255,255,255,0.4)', fontWeight: 600 }}>{i + 1}</Text>
+                  }
+                </Box>
+                <Text style={{ fontSize: 12, color: step === i + 1 ? '#fff' : 'rgba(255,255,255,0.45)', fontWeight: step === i + 1 ? 500 : 300 }}>
+                  {s.title}
+                </Text>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+
+        <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+          © {new Date().getFullYear()} JustReach Legal Services
         </Text>
       </Box>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <Stack spacing={20}>
-          {/* Step 1: Name and Social Login */}
-          {step === 1 && (
-            <>
-              <Box>
-                <Text size="sm" fw={500} mb={8} style={{ color: CHARCOAL, fontSize: 13 }}>
-                  First Name
-                </Text>
-                <TextInput
-                  leftSection={<IconUser size={16} stroke={1.5} style={{ color: ACCENT_TAN }} />}
-                  placeholder="First name"
-                  size="md"
-                  radius="md"
-                  autoFocus
-                  styles={{
-                    input: {
-                      borderColor: THEMED_LIGHT_BG,
-                      backgroundColor: "#FAFAF8",
-                      fontSize: 14,
-                      height: 48,
-                      '&:focus': {
-                        borderColor: PRIMARY_GOLD,
-                        backgroundColor: "white",
-                      },
-                    },
-                  }}
-                  error={errors.firstName?.message}
-                  {...register("firstName", signupValidationRules.firstName)}
-                />
-              </Box>
+      {/* ── Right Panel ── */}
+      <Box
+        className="signup-form"
+        style={{ flex: 1, backgroundColor: '#FAF8F5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative' }}
+      >
+        <Box className="form-fade" style={{ width: '100%', maxWidth: 420 }}>
 
-              <Box>
-                <Text size="sm" fw={500} mb={8} style={{ color: CHARCOAL, fontSize: 13 }}>
-                  Last Name
-                </Text>
-                <TextInput
-                  leftSection={<IconUser size={16} stroke={1.5} style={{ color: ACCENT_TAN }} />}
-                  placeholder="Last name"
-                  size="md"
-                  radius="md"
-                  styles={{
-                    input: {
-                      borderColor: THEMED_LIGHT_BG,
-                      backgroundColor: "#FAFAF8",
-                      fontSize: 14,
-                      height: 48,
-                      '&:focus': {
-                        borderColor: PRIMARY_GOLD,
-                        backgroundColor: "white",
-                      },
-                    },
-                  }}
-                  error={errors.lastName?.message}
-                  {...register("lastName", signupValidationRules.lastName)}
-                />
-              </Box>
+          {/* Step header */}
+          <Box mb={32} className="step-fade" key={step}>
+            {/* Step dots */}
+            <Box className="step-dots" style={{ marginBottom: 20 }}>
+              {STEPS.map((_, i) => (
+                <Box key={i} className={`step-dot${step === i + 1 ? ' active' : step > i + 1 ? ' done' : ''}`} />
+              ))}
+            </Box>
+            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 500, color: CHARCOAL, marginBottom: 6, lineHeight: 1.2 }}>
+              {currentStep.title}
+            </Text>
+            <Text style={{ fontSize: 14, color: MUTED_OLIVE, fontWeight: 300 }}>
+              {currentStep.subtitle}
+            </Text>
+          </Box>
 
-              {isValidating ? (
-                <Loaders size="45" speed="1.75" color={PRIMARY_BROWN} height={48} />
-              ) : (
-                <Button
-                  rightSection={<IconArrowRight size={18} />}
-                  size="md"
-                  radius="md"
-                  fullWidth
-                  onClick={handleNext}
-                  type="button"
-                  styles={{
-                    root: {
-                      backgroundColor: PRIMARY_BROWN,
-                      color: 'white',
-                      fontWeight: 600,
-                      fontSize: 14,
-                      height: 48,
-                      marginTop: 8,
-                      border: 'none',
-                      '&:hover': {
-                        backgroundColor: PRIMARY_GOLD,
-                      },
-                    },
-                  }}
-                >
-                  Next
-                </Button>
-              )}
+          <form onSubmit={handleEmailSubmit}>
+            <Stack gap={18}>
 
-              <Divider
-                label={
-                  <Text size="xs" fw={500} style={{ color: MUTED_OLIVE, fontSize: 10 }}>
-                    OR CONTINUE WITH
-                  </Text>
-                }
-                labelPosition="center"
-                my={8}
-                color={THEMED_LIGHT_BG}
-              />
+              {/* Step 1: Name + Google */}
+              {step === 1 && (
+                <Box className="step-fade" key="step1">
+                  <Stack gap={16}>
+                    <Box className="form-input">
+                      <label className="field-label">First Name</label>
+                      <TextInput
+                        leftSection={<IconUser size={16} color={ACCENT_TAN} />}
+                        placeholder="First name"
+                        autoFocus
+                        error={errors.firstName?.message}
+                        {...register("firstName", signupValidationRules.firstName)}
+                      />
+                    </Box>
+                    <Box className="form-input">
+                      <label className="field-label">Last Name</label>
+                      <TextInput
+                        leftSection={<IconUser size={16} color={ACCENT_TAN} />}
+                        placeholder="Last name"
+                        error={errors.lastName?.message}
+                        {...register("lastName", signupValidationRules.lastName)}
+                      />
+                    </Box>
 
-              <SocialLoginButton
-                onClick={onGoogleSignup}
-                loading={isRegistering}
-                variant="signup"
-              />
+                    {isValidating
+                      ? <Loaders size="45" speed="1.75" color={PRIMARY_BROWN} height={54} />
+                      : (
+                        <Button rightSection={<IconArrowRight size={16} />} fullWidth onClick={handleNext} type="button" className="next-btn" mt={4}>
+                          Continue
+                        </Button>
+                      )
+                    }
 
-              <Center mt={16}>
-                <Text size="sm" style={{ color: MUTED_OLIVE, fontSize: 13 }}>
-                  Already have an account?{" "}
-                  <Anchor 
-                    href="/auth/login" 
-                    fw={600}
-                    style={{ 
-                      color: PRIMARY_BROWN,
-                      textDecoration: "none",
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = PRIMARY_GOLD}
-                    onMouseLeave={(e) => e.currentTarget.style.color = PRIMARY_BROWN}
-                  >
-                    Sign in
-                  </Anchor>
-                </Text>
-              </Center>
+                    <Divider
+                      label={<Text style={{ fontSize: 11, color: MUTED_OLIVE, letterSpacing: 1, textTransform: 'uppercase' }}>or sign up with</Text>}
+                      labelPosition="center"
+                      color="#DDD5C8"
+                    />
 
-              <Center mt={12}>
-                <Text size="sm" style={{ color: MUTED_OLIVE, fontSize: 13 }}>
-                  Attorney?{" "}
-                  <Anchor 
-                    href="/auth/attorneysignup" 
-                    fw={600}
-                    style={{ 
-                      color: PRIMARY_BROWN,
-                      textDecoration: "none",
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = PRIMARY_GOLD}
-                    onMouseLeave={(e) => e.currentTarget.style.color = PRIMARY_BROWN}
-                  >
-                    Register as attorney
-                  </Anchor>
-                </Text>
-              </Center>
-            </>
-          )}
-
-          {/* Step 2: Email */}
-          {step === 2 && (
-            <>
-              <Box>
-                <Text size="sm" fw={500} mb={8} style={{ color: CHARCOAL, fontSize: 13 }}>
-                  Email Address
-                </Text>
-                <TextInput
-                  leftSection={<IconMail size={16} stroke={1.5} style={{ color: ACCENT_TAN }} />}
-                  placeholder="your.email@example.com"
-                  size="md"
-                  radius="md"
-                  autoFocus
-                  styles={{
-                    input: {
-                      borderColor: THEMED_LIGHT_BG,
-                      backgroundColor: "#FAFAF8",
-                      fontSize: 14,
-                      height: 48,
-                      '&:focus': {
-                        borderColor: PRIMARY_GOLD,
-                        backgroundColor: "white",
-                      },
-                    },
-                  }}
-                  error={errors.email?.message}
-                  {...register("email", signupValidationRules.email)}
-                />
-              </Box>
-
-              {isValidating ? (
-                <Loaders size="45" speed="1.75" color={PRIMARY_BROWN} height={48} />
-              ) : (
-                <Group grow>
-                  <Button
-                    leftSection={<IconArrowLeft size={18} />}
-                    size="md"
-                    radius="md"
-                    onClick={handleBack}
-                    type="button"
-                    variant="outline"
-                    styles={{
-                      root: {
-                        borderColor: PRIMARY_BROWN,
-                        color: PRIMARY_BROWN,
-                        fontWeight: 600,
-                        fontSize: 14,
-                        height: 48,
-                        '&:hover': {
-                          backgroundColor: THEMED_LIGHT_BG,
-                        },
-                      },
-                    }}
-                  >
-                    Back
-                  </Button>
-
-                  <Button
-                    rightSection={<IconArrowRight size={18} />}
-                    size="md"
-                    radius="md"
-                    onClick={handleNext}
-                    type="button"
-                    styles={{
-                      root: {
-                        backgroundColor: PRIMARY_BROWN,
-                        color: 'white',
-                        fontWeight: 600,
-                        fontSize: 14,
-                        height: 48,
-                        border: 'none',
-                        '&:hover': {
-                          backgroundColor: PRIMARY_GOLD,
-                        },
-                      },
-                    }}
-                  >
-                    Next
-                  </Button>
-                </Group>
-              )}
-            </>
-          )}
-
-          {/* Step 3: Username */}
-          {step === 3 && (
-            <>
-              <Box>
-                <Text size="sm" fw={500} mb={8} style={{ color: CHARCOAL, fontSize: 13 }}>
-                  Username (Optional)
-                </Text>
-                <TextInput
-                  leftSection={<IconUser size={16} stroke={1.5} style={{ color: ACCENT_TAN }} />}
-                  placeholder="Choose a username"
-                  size="md"
-                  radius="md"
-                  autoFocus
-                  description="Optional - your email will be used if not provided"
-                  styles={{
-                    input: {
-                      borderColor: THEMED_LIGHT_BG,
-                      backgroundColor: "#FAFAF8",
-                      fontSize: 14,
-                      height: 48,
-                      '&:focus': {
-                        borderColor: PRIMARY_GOLD,
-                        backgroundColor: "white",
-                      },
-                    },
-                  }}
-                  error={errors.username?.message}
-                  {...register("username", signupValidationRules.username)}
-                />
-              </Box>
-
-              {isValidating ? (
-                <Loaders size="45" speed="1.75" color={PRIMARY_BROWN} height={48} />
-              ) : (
-                <Group grow>
-                  <Button
-                    leftSection={<IconArrowLeft size={18} />}
-                    size="md"
-                    radius="md"
-                    onClick={handleBack}
-                    type="button"
-                    variant="outline"
-                    styles={{
-                      root: {
-                        borderColor: PRIMARY_BROWN,
-                        color: PRIMARY_BROWN,
-                        fontWeight: 600,
-                        fontSize: 14,
-                        height: 48,
-                        '&:hover': {
-                          backgroundColor: THEMED_LIGHT_BG,
-                        },
-                      },
-                    }}
-                  >
-                    Back
-                  </Button>
-
-                  <Button
-                    rightSection={<IconArrowRight size={18} />}
-                    size="md"
-                    radius="md"
-                    onClick={handleNext}
-                    type="button"
-                    styles={{
-                      root: {
-                        backgroundColor: PRIMARY_BROWN,
-                        color: 'white',
-                        fontWeight: 600,
-                        fontSize: 14,
-                        height: 48,
-                        border: 'none',
-                        '&:hover': {
-                          backgroundColor: PRIMARY_GOLD,
-                        },
-                      },
-                    }}
-                  >
-                    Next
-                  </Button>
-                </Group>
-              )}
-            </>
-          )}
-
-          {/* Step 4: Password */}
-          {step === 4 && (
-            <>
-              <Box>
-                <Text size="sm" fw={500} mb={8} style={{ color: CHARCOAL, fontSize: 13 }}>
-                  Password
-                </Text>
-                <PasswordInput
-                  leftSection={<IconLock size={16} stroke={1.5} style={{ color: ACCENT_TAN }} />}
-                  placeholder="Create password"
-                  size="md"
-                  radius="md"
-                  autoFocus
-                  description="Min 6 chars with uppercase, lowercase & number"
-                  styles={{
-                    input: {
-                      borderColor: THEMED_LIGHT_BG,
-                      backgroundColor: "#FAFAF8",
-                      fontSize: 14,
-                      height: 48,
-                      '&:focus': {
-                        borderColor: PRIMARY_GOLD,
-                        backgroundColor: "white",
-                      },
-                    },
-                    innerInput: {
-                      fontSize: 14,
-                    },
-                  }}
-                  error={errors.password?.message}
-                  {...register("password", signupValidationRules.password)}
-                />
-              </Box>
-
-              <Box>
-                <Text size="sm" fw={500} mb={8} style={{ color: CHARCOAL, fontSize: 13 }}>
-                  Confirm Password
-                </Text>
-                <PasswordInput
-                  leftSection={<IconLock size={16} stroke={1.5} style={{ color: ACCENT_TAN }} />}
-                  placeholder="Confirm password"
-                  size="md"
-                  radius="md"
-                  styles={{
-                    input: {
-                      borderColor: THEMED_LIGHT_BG,
-                      backgroundColor: "#FAFAF8",
-                      fontSize: 14,
-                      height: 48,
-                      '&:focus': {
-                        borderColor: PRIMARY_GOLD,
-                        backgroundColor: "white",
-                      },
-                    },
-                    innerInput: {
-                      fontSize: 14,
-                    },
-                  }}
-                  error={errors.confirmPassword?.message}
-                  {...register(
-                    "confirmPassword",
-                    signupValidationRules.confirmPassword(password)
-                  )}
-                />
-              </Box>
-
-              {errorMessage && (
-                <Box 
-                  p={12}
-                  style={{ 
-                    backgroundColor: '#FEE2E2', 
-                    borderRadius: 8,
-                    border: '1px solid #FCA5A5',
-                  }}
-                >
-                  <Text size="sm" fw={500} style={{ color: '#DC2626' }}>
-                    {errorMessage}
-                  </Text>
+                    <SocialLoginButton onClick={handleGoogleSignupClick} loading={isRegistering} variant="signup" />
+                  </Stack>
                 </Box>
               )}
 
-              <Group grow>
-                <Button
-                  leftSection={<IconArrowLeft size={18} />}
-                  size="md"
-                  radius="md"
-                  onClick={handleBack}
-                  type="button"
-                  variant="outline"
-                  disabled={isRegistering}
-                  styles={{
-                    root: {
-                      borderColor: PRIMARY_BROWN,
-                      color: PRIMARY_BROWN,
-                      fontWeight: 600,
-                      fontSize: 14,
-                      height: 48,
-                      '&:hover': {
-                        backgroundColor: THEMED_LIGHT_BG,
-                      },
-                    },
-                  }}
-                >
-                  Back
-                </Button>
+              {/* Step 2: Email */}
+              {step === 2 && (
+                <Box className="step-fade" key="step2">
+                  <Stack gap={16}>
+                    <Box className="form-input">
+                      <label className="field-label">Email Address</label>
+                      <TextInput
+                        leftSection={<IconMail size={16} color={ACCENT_TAN} />}
+                        placeholder="you@example.com"
+                        autoFocus
+                        error={errors.email?.message}
+                        {...register("email", signupValidationRules.email)}
+                      />
+                    </Box>
+                    {isValidating
+                      ? <Loaders size="45" speed="1.75" color={PRIMARY_BROWN} height={54} />
+                      : (
+                        <Group grow>
+                          <Button leftSection={<IconArrowLeft size={16} />} onClick={handleBack} type="button" className="back-btn">Back</Button>
+                          <Button rightSection={<IconArrowRight size={16} />} onClick={handleNext} type="button" className="next-btn">Continue</Button>
+                        </Group>
+                      )
+                    }
+                  </Stack>
+                </Box>
+              )}
 
-                <Button
-                  leftSection={<IconUserPlus size={18} />}
-                  size="md"
-                  radius="md"
-                  type="submit"
-                  loading={isRegistering}
-                  styles={{
-                    root: {
-                      backgroundColor: PRIMARY_BROWN,
-                      color: 'white',
-                      fontWeight: 600,
-                      fontSize: 14,
-                      height: 48,
-                      border: 'none',
-                      '&:hover': {
-                        backgroundColor: PRIMARY_GOLD,
-                      },
-                    },
-                  }}
-                >
-                  Create Account
-                </Button>
-              </Group>
-            </>
-          )}
-        </Stack>
-      </form>
+              {/* Step 3: Username */}
+              {step === 3 && (
+                <Box className="step-fade" key="step3">
+                  <Stack gap={16}>
+                    <Box className="form-input">
+                      <label className="field-label">Username <Text span style={{ color: MUTED_OLIVE, fontSize: 11, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</Text></label>
+                      <TextInput
+                        leftSection={<IconUser size={16} color={ACCENT_TAN} />}
+                        placeholder="Choose a username"
+                        autoFocus
+                        description="Your email will be used as login if left empty"
+                        error={errors.username?.message}
+                        {...register("username", signupValidationRules.username)}
+                      />
+                    </Box>
+                    {isValidating
+                      ? <Loaders size="45" speed="1.75" color={PRIMARY_BROWN} height={54} />
+                      : (
+                        <Group grow>
+                          <Button leftSection={<IconArrowLeft size={16} />} onClick={handleBack} type="button" className="back-btn">Back</Button>
+                          <Button rightSection={<IconArrowRight size={16} />} onClick={handleNext} type="button" className="next-btn">Continue</Button>
+                        </Group>
+                      )
+                    }
+                  </Stack>
+                </Box>
+              )}
+
+              {/* Step 4: Password */}
+              {step === 4 && (
+                <Box className="step-fade" key="step4">
+                  <Stack gap={16}>
+                    <Box className="form-input">
+                      <label className="field-label">Password</label>
+                      <PasswordInput
+                        leftSection={<IconLock size={16} color={ACCENT_TAN} />}
+                        placeholder="Create a password"
+                        autoFocus
+                        description="Min 6 characters with uppercase, lowercase & number"
+                        error={errors.password?.message}
+                        {...register("password", signupValidationRules.password)}
+                      />
+                    </Box>
+                    <Box className="form-input">
+                      <label className="field-label">Confirm Password</label>
+                      <PasswordInput
+                        leftSection={<IconLock size={16} color={ACCENT_TAN} />}
+                        placeholder="Confirm your password"
+                        error={errors.confirmPassword?.message}
+                        {...register("confirmPassword", signupValidationRules.confirmPassword(password))}
+                      />
+                    </Box>
+
+                    {errorMessage && (
+                      <Box style={{ padding: '10px 14px', borderRadius: 4, background: '#FFF0F0', border: '1px solid #FFCDD2' }}>
+                        <Text style={{ fontSize: 13, color: '#C62828' }}>{errorMessage}</Text>
+                      </Box>
+                    )}
+
+                    <Group grow mt={4}>
+                      <Button leftSection={<IconArrowLeft size={16} />} onClick={handleBack} type="button" className="back-btn" disabled={isRegistering}>
+                        Back
+                      </Button>
+                      <Button leftSection={<IconUserPlus size={16} />} type="submit" loading={isRegistering} className="next-btn">
+                        Create Account
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Box>
+              )}
+
+            </Stack>
+          </form>
+
+          {/* Footer */}
+          <Text style={{ fontSize: 13, color: MUTED_OLIVE, textAlign: 'center', marginTop: 28 }}>
+            Already have an account?{' '}
+            <Anchor
+              component="button"
+              type="button"
+              onClick={() => navigate('/auth/admin')}
+              style={{ color: PRIMARY_BROWN, fontWeight: 500, textDecoration: 'none' }}
+            >
+              Sign in
+            </Anchor>
+          </Text>
+
+        </Box>
+      </Box>
     </Box>
   );
 };

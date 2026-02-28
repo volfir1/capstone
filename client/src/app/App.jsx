@@ -1,198 +1,118 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from "react-router";
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
 import "@mantine/charts/styles.css";
+import "@mantine/notifications/styles.css";
 import { createTheme, MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
-import "@mantine/notifications/styles.css";
 import { DatesProvider } from "@mantine/dates";
-import AuthProvider, { useAuth } from "../context/authContext";
-import { Outlet, useLocation } from "react-router";
-import { Layout } from "../components/layout/Layout";
 import { lazy, Suspense } from "react";
+import AuthProvider, { useAuth } from "../context/authContext";
+import { Layout } from "../components/layout/Layout";
 import { Loaders } from "../components/ui/Loader";
-import AdminProfile from "./pages/other/Profiles/AdminProfile";
 
 // Auth
-const Signup = lazy(() => import("./pages/auth/Signup/Signup"));
-const Login = lazy(() => import("./pages/auth/Login/Login"));
-const AttorneySignup = lazy(() => import('./pages/auth/Signup/AttorneySingup.jsx'))
-const AttorneyLogin = lazy(() => import('./pages/auth/Login/AttorneyLogin.jsx'))
-
-const Home = lazy(() => import("./pages/user/Home"));
-const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const Login          = lazy(() => import("./pages/auth/Login/Login"));
+const Signup         = lazy(() => import("./pages/auth/Signup/Signup"));
 const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
+const AdminLogin     = lazy(() => import("./pages/auth/Login/AdminLogin"));
+// Public pages
+const LandingPage  = lazy(() => import("./pages/LandingPage"));
+const AboutPage    = lazy(() => import("./pages/About"));
+const FeaturesPage = lazy(() => import("./pages/Features"));
+const HowItWorks   = lazy(() => import("./pages/How"));
+const Appointment  = lazy(() => import("./pages/Appointment"));
+const Privacy      = lazy(() => import("./pages/admin/Privacy"));
+const Terms        = lazy(() => import("./pages/admin/Terms"));
 const PageNotFound = lazy(() => import("./pages/other/PageNotFound"));
-const AIChatbot = lazy(() => import("./pages/other/AIChatbot"));
 
-const LandingPage = lazy(() => import("./pages/LandingPage"))
-const AboutPage = lazy(() => import('./pages/About'))
-const FeaturesPage = lazy(() => import('./pages/Features'))
-const HowItWorks = lazy(() => import('./pages/How'))
-const Appointment = lazy(() => import('./pages/Appointment'))
-const ClientApplicationStatus = lazy(() => import('./pages/other/ClientFormStatus'))
+// Admin pages
+const AdminDashboard          = lazy(() => import("./pages/admin/Dashboard"));
+const UserManagement          = lazy(() => import("./pages/admin/userManagement"));
+const FinalizedCases          = lazy(() => import("./pages/admin/FinalizedCases"));
+const AssignedCases           = lazy(() => import("./pages/admin/AssignedCases"));
+const Analytics               = lazy(() => import("./pages/admin/Analytics"));
+const RecommendationForAction = lazy(() => import("./pages/other/RecommendationForAction"));
+const ClientApplicationStatus = lazy(() => import("./pages/other/ClientFormStatus"));
+const ClientInfoView          = lazy(() => import("./pages/other/ClientInfoView"));
+const AdminProfile            = lazy(() => import("./pages/other/Profiles/AdminProfile"));
 
-// Admin
-const UserManagement = lazy(() => import('./pages/admin/userManagement'))
-const RecommendationForAction = lazy(() => import('./pages/other/RecommendationForAction'))
-const FinalizedCases = lazy(() => import('./pages/admin/FinalizedCases'))
-const AssignedCases = lazy(() => import('./pages/admin/AssignedCases'))
-const ClientInfoView = lazy(() => import('./pages/other/ClientInfoView'))
-const Analytics = lazy(() => import('./pages/admin/Analytics'))
+// Roles:
+//   'user'              — pending/holding, no routes, redirected to login until promoted
+//   'secretary'         — admin access
+//   'supervising_lawyer'— admin access
+//   'director'          — admin access
+//   'intern'            — admin access
+const ADMIN_ROLES = new Set(['secretary', 'supervising_lawyer', 'director', 'intern']);
 
-// Public
-const Privacy = lazy(() => import('./pages/admin/Privacy'))
-const Terms = lazy(() => import('./pages/admin/Terms'))
+const theme = createTheme({ fontFamily: "Montserrat, sans-serif" });
 
-const theme = createTheme({
-  fontFamily: "Montserrat, sans-serif",
-});
-
-function ProtectedRoute({ children, adminOnly = false, attorneyOnly = false, internOnly = false }) {
+function ProtectedRoute({ children }) {
   const { userLoggedIn, userData, loading } = useAuth();
 
-  console.log('ProtectedRoute render:', { loading, userLoggedIn, hasUserData: !!userData, adminOnly, attorneyOnly, internOnly });
+  if (loading || (userLoggedIn && !userData)) return <Loaders height={window.innerHeight} />;
+  if (!userLoggedIn)         return <Navigate to="/auth/login" replace />;
+  if (!userData?.isVerified) return <Navigate to="/auth/login" replace />;
 
-  if (loading) {
-    console.log('ProtectedRoute: Showing loader - loading is true');
-    return <Loaders height={window.innerHeight} />;
-  }
+  // 'user' role = pending — hold at login until an admin promotes them
+  if (!ADMIN_ROLES.has(userData?.role)) return <Navigate to="/auth/login" replace />;
 
-  if (!userLoggedIn) {
-    console.log('ProtectedRoute: Redirecting to login - not logged in');
-    return <Navigate to="/auth/login" replace />;
-  }
-
-  if (!userData) {
-    console.log('ProtectedRoute: Showing loader - userData is null');
-    return <Loaders height={window.innerHeight} />;
-  }
-
-  if (!userData?.isVerified) {
-    console.log('ProtectedRoute: Redirecting to login - not verified');
-    return <Navigate to="/auth/login" replace />;
-  }
-
-  // Block default `user` role (pending state) from accessing any routes.
-  if (userData?.role === 'user') {
-    console.log('ProtectedRoute: Blocking default `user` role - redirecting to login');
-    return <Navigate to="/auth/login" replace />;
-  }
-
-  if (adminOnly && userData?.role !== "secretary" && userData?.role !== "attorney" && userData?.role !== "pao_lawyer" && userData?.role !== "legal_volunteer" && userData?.role !== "intern" && userData?.role !== "supervising_lawyer" && userData?.role !== "director") {
-    /*
-    console.log('ProtectedRoute: Redirecting to /user/home - not secretary or attorney');
-    return <Navigate to="/user/home" replace />;
-    */
-  }
-
-  if (attorneyOnly && userData?.role !== "attorney" && userData?.role !== "pao_lawyer" && userData?.role !== "legal_volunteer") {
-    console.log('ProtectedRoute: Redirecting - not attorney');
-    return <Navigate to="/auth/login" replace />;
-  }
-
-  if (internOnly && userData?.role !== "intern") {
-    console.log('ProtectedRoute: Redirecting - not intern');
-    return <Navigate to="/auth/login" replace />;
-  }
-
-  if (!adminOnly && !attorneyOnly && !internOnly && (userData?.role === "secretary" || userData?.role === "attorney" || userData?.role === "pao_lawyer" || userData?.role === "legal_volunteer" || userData?.role === "intern" || userData?.role === "supervising_lawyer" || userData?.role === "director")) {
-    console.log('ProtectedRoute: Redirecting to /admin - is admin role');
-    return <Navigate to="/admin" replace />;
-  }
-
-  console.log('ProtectedRoute: Rendering children');
   return children;
 }
 
 function AppRoutes() {
-  const { userLoggedIn, userData, loading } = useAuth();
+  const { loading } = useAuth();
   const location = useLocation();
 
-  console.log('AppRoutes render:', { loading, userLoggedIn, hasUserData: !!userData, pathname: window.location.pathname });
-
-  if (loading) {
-    // If we're on auth pages, don't show the global loader overlay — keep the login UI visible
-    if (location.pathname && location.pathname.startsWith('/auth')) {
-      console.log('AppRoutes: Loading but on auth page — skipping global loader');
-    } else {
-      console.log('AppRoutes: Showing loader');
-      return <Loaders height={window.innerHeight} />;
-    }
+  if (loading && !location.pathname.startsWith('/auth')) {
+    return <Loaders height={window.innerHeight} />;
   }
-
-  console.log('AppRoutes: Rendering routes');
 
   return (
     <Suspense fallback={<Loaders height={window.innerHeight} />}>
       <Routes>
-        {/* Public routes */}
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="/terms" element={<Terms />} />
+        {/* Public */}
+        <Route path="/"                element={<LandingPage />} />
+        <Route path="/about"           element={<AboutPage />} />
+        <Route path="/features"        element={<FeaturesPage />} />
+        <Route path="/how"             element={<HowItWorks />} />
+        <Route path="/appointment"     element={<Appointment />} />
+        <Route path="/privacy"         element={<Privacy />} />
+        <Route path="/terms"           element={<Terms />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
+        {/* Auth */}
         <Route path="auth">
-          <Route path="login" element={<Login />} />
+          <Route path="login"  element={<Login />} />
           <Route path="signup" element={<Signup />} />
-          <Route path="attorneylogin" element={<AttorneyLogin />} />
-          <Route path="attorneysignup" element={<AttorneySignup />} />
+          <Route path="admin" element={<AdminLogin />} />
         </Route>
 
+        {/* Convenience redirects */}
+        <Route path="/login"  element={<Navigate to="/auth/login"  replace />} />
+        <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
 
-       {/* User Routes */}
-        {/* <Route
-          path="/user"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <Outlet />
-              </Layout>
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Navigate to="home" replace />} />
-          <Route path="home" element={<Home />} />
-           Chat route disabled per checklist. Commented out to preserve code for future use.
-  const UserChat = lazy(() => import('./pages/user/Chat'))
-  <Route path="chat/:caseId?" element={<UserChat/>}/>
-
-          <Route path="profile" element={<UserProfile />} />
-          <Route path="appointment" element={<UserForm />} />
-          <Route path="track" element={<TrackAppointment />} />
-        </Route> */}
-
-        {/* Admin - Unified for Secretary, Attorney, and Intern */}
+        {/* Admin — secretary | supervising_lawyer | director | intern */}
         <Route
           path="/admin"
           element={
-            <ProtectedRoute adminOnly>
-              <Layout>
-                <Outlet />
-              </Layout>
+            <ProtectedRoute>
+              <Layout><Outlet /></Layout>
             </ProtectedRoute>
           }
         >
-          <Route index element={<AdminDashboard />} />
-          <Route path="users" element={<UserManagement />} />
+          <Route index                          element={<AdminDashboard />} />
+          <Route path="users"                   element={<UserManagement />} />
           <Route path="recommendation/:caseId?" element={<RecommendationForAction />} />
-          <Route path="assigned-cases" element={<AssignedCases />} />
-          <Route path="finalized" element={<FinalizedCases />} />
-          <Route path="clientformstatus" element={<ClientApplicationStatus />} />
-          <Route path="clientinfo/:id" element={<ClientInfoView />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="profile" element={<AdminProfile />} />
+          <Route path="assigned-cases"          element={<AssignedCases />} />
+          <Route path="finalized"               element={<FinalizedCases />} />
+          <Route path="clientformstatus"        element={<ClientApplicationStatus />} />
+          <Route path="clientinfo/:id"          element={<ClientInfoView />} />
+          <Route path="analytics"               element={<Analytics />} />
+          <Route path="profile"                 element={<AdminProfile />} />
         </Route>
 
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Navigate to="/auth/login" replace />} />
-        <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
-        <Route path="/appointment" element={<Appointment />} />
-        <Route path="/ai-chatbot" element={<AIChatbot />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/features" element={<FeaturesPage />} />
-        <Route path="/how" element={<HowItWorks />} />
         <Route path="*" element={<PageNotFound />} />
-
       </Routes>
     </Suspense>
   );
