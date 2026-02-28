@@ -1,5 +1,5 @@
 import express from 'express'
-import { getProfile, fetchUsers, updateUserRole, toggleUserStatus, sendPasswordResetEmail, updateProfileImage, getUserById, updateSignature, uploadSignature } from '../controller/userController.js'
+import { getProfile, fetchUsers, updateUserRole, toggleUserStatus, sendPasswordResetEmail, updateProfileImage, getUserById, updateSignature, uploadSignature, getPublicKey, verifySignature } from '../controller/userController.js'
 
 const router = express.Router()
 
@@ -16,6 +16,8 @@ router.get('/profile', getProfile)
 router.put('/profile/image', updateProfileImage)
 router.put('/profile/signature', updateSignature)
 router.post('/profile/signature/upload', uploadSignature)
+router.get('/signature/publicKey', getPublicKey)
+router.get('/signature/:signatureId/verify', verifySignature)
 router.get('/fetchusers', fetchUsers)
 router.get('/:userId', getUserById)
 
