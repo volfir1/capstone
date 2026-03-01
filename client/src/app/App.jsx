@@ -83,13 +83,13 @@ function AppRoutes() {
 
         {/* Auth */}
         <Route path="auth">
-          <Route path="login"  element={<Login />} />
+          {/* <Route path="login"  element={<Login />} /> */}
           <Route path="signup" element={<Signup />} />
           <Route path="admin" element={<AdminLogin />} />
         </Route>
 
         {/* Convenience redirects */}
-        <Route path="/login"  element={<Navigate to="/auth/login"  replace />} />
+        {/* <Route path="/login"  element={<Navigate to="/auth/login"  replace />} /> */}
         <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
 
         {/* Admin — secretary | supervising_lawyer | director | intern */}
