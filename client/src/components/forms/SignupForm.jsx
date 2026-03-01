@@ -17,7 +17,6 @@ import {
   IconUserPlus,
   IconArrowRight,
   IconArrowLeft,
-  IconScale,
   IconShieldCheck,
 } from "@tabler/icons-react";
 import { useState } from "react";
@@ -221,22 +220,20 @@ export const SignupForm = ({
 
         {/* Brand */}
         <Box style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Box style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(196,171,125,0.2)', border: `1px solid ${PRIMARY_GOLD}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <IconScale size={20} color={PRIMARY_GOLD} stroke={1.5} />
-          </Box>
+          <img src="/sola_logo.png" alt="SOLA Logo" style={{ width: 40, height: 40, objectFit: 'contain' }} />
           <Box>
-            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>JustReach</Text>
-            <Text style={{ fontSize: 9, color: 'rgba(196,171,125,0.8)', letterSpacing: 2.5, textTransform: 'uppercase' }}>Legal Services</Text>
+            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>SOLA</Text>
+            <Text style={{ fontSize: 9, color: 'rgba(196,171,125,0.8)', letterSpacing: 2.5, textTransform: 'uppercase' }}>Sebastinian Office of Legal Aid</Text>
           </Box>
         </Box>
 
         {/* Center content */}
         <Box>
           <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 36, fontWeight: 500, color: '#fff', lineHeight: 1.25, marginBottom: 16 }}>
-            Join<br />JustReach
+            Join<br />SOLA
           </Text>
           <Text style={{ fontSize: 14, fontWeight: 300, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, maxWidth: 260 }}>
-            Create your account to access accessible legal services in the Philippines.
+            Create your account to access free legal aid services from the Sebastinian Office of Legal Aid.
           </Text>
 
           {/* Step indicators */}
@@ -264,7 +261,7 @@ export const SignupForm = ({
         </Box>
 
         <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
-          © {new Date().getFullYear()} JustReach Legal Services
+          © {new Date().getFullYear()} SOLA — Sebastinian Office of Legal Aid
         </Text>
       </Box>
 
@@ -273,6 +270,16 @@ export const SignupForm = ({
         className="signup-form"
         style={{ flex: 1, backgroundColor: '#FAF8F5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative' }}
       >
+        <Button
+          variant="subtle"
+          size="xs"
+          leftSection={<IconArrowLeft size={14} />}
+          onClick={() => navigate('/')}
+          style={{ position: 'absolute', top: 24, left: 24, color: MUTED_OLIVE, fontSize: 12 }}
+        >
+          Back to Home
+        </Button>
+
         <Box className="form-fade" style={{ width: '100%', maxWidth: 420 }}>
 
           {/* Step header */}

@@ -18,9 +18,6 @@ const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
 const AdminLogin     = lazy(() => import("./pages/auth/Login/AdminLogin"));
 // Public pages
 const LandingPage  = lazy(() => import("./pages/LandingPage"));
-const AboutPage    = lazy(() => import("./pages/About"));
-const FeaturesPage = lazy(() => import("./pages/Features"));
-const HowItWorks   = lazy(() => import("./pages/How"));
 const Appointment  = lazy(() => import("./pages/Appointment"));
 const Privacy      = lazy(() => import("./pages/admin/Privacy"));
 const Terms        = lazy(() => import("./pages/admin/Terms"));
@@ -73,9 +70,6 @@ function AppRoutes() {
       <Routes>
         {/* Public */}
         <Route path="/"                element={<LandingPage />} />
-        <Route path="/about"           element={<AboutPage />} />
-        <Route path="/features"        element={<FeaturesPage />} />
-        <Route path="/how"             element={<HowItWorks />} />
         <Route path="/appointment"     element={<Appointment />} />
         <Route path="/privacy"         element={<Privacy />} />
         <Route path="/terms"           element={<Terms />} />

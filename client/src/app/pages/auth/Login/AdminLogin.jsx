@@ -9,7 +9,7 @@ import {
   Stack,
   Divider,
 } from '@mantine/core';
-import { IconMail, IconLock, IconScale, IconArrowLeft } from '@tabler/icons-react';
+import { IconMail, IconLock, IconArrowLeft } from '@tabler/icons-react';
 import {
   PRIMARY_GOLD,
   PRIMARY_BROWN,
@@ -135,22 +135,20 @@ export default function AdminLogin() {
 
         {/* Brand */}
         <Box style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Box style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(196,171,125,0.2)', border: `1px solid ${PRIMARY_GOLD}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <IconScale size={20} color={PRIMARY_GOLD} stroke={1.5} />
-          </Box>
+          <img src="/sola_logo.png" alt="SOLA Logo" style={{ width: 40, height: 40, objectFit: 'contain' }} />
           <Box>
-            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>JustReach</Text>
-            <Text style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 9, color: 'rgba(196,171,125,0.8)', letterSpacing: 2.5, textTransform: 'uppercase' }}>Legal Services</Text>
+            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>SOLA</Text>
+            <Text style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 9, color: 'rgba(196,171,125,0.8)', letterSpacing: 2.5, textTransform: 'uppercase' }}>Sebastinian Office of Legal Aid</Text>
           </Box>
         </Box>
 
         {/* Center content */}
         <Box>
           <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 36, fontWeight: 500, color: '#fff', lineHeight: 1.25, marginBottom: 16 }}>
-            Office<br />Staff Portal
+            SOLA<br />Staff Portal
           </Text>
           <Text style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 300, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, maxWidth: 260 }}>
-            Secure access for secretaries, interns, supervising lawyers, and directors.
+            Secure access for SOLA office staff — secretaries, interns, supervising lawyers, and the director.
           </Text>
           <Box style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 32 }}>
             {Object.values(ROLE_LABELS).map((label) => (
@@ -162,7 +160,7 @@ export default function AdminLogin() {
         </Box>
 
         <Text style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
-          © {new Date().getFullYear()} JustReach Legal Services
+          © {new Date().getFullYear()} SOLA — Sebastinian Office of Legal Aid
         </Text>
       </Box>
 
