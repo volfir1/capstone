@@ -270,6 +270,8 @@ export default function ClientInfoView() {
   const [activeStep, setActiveStep] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
+  const editDataRef = useRef({});
+  editDataRef.current = editData;
   const [sameAsPresent, setSameAsPresent] = useState(false);
 
   // Dropdown state
@@ -293,7 +295,7 @@ export default function ClientInfoView() {
       const mapped = {
         name: data?.fullName || data?.name || '',
         age: data?.age !== undefined && data?.age !== null ? String(data.age) : '',
-        birthday: data?.birthday || '',
+        birthday: data?.birthday ? data.birthday.split('T')[0] : '',
         sex: data?.sex || '',
         civilStatus: data?.civilStatus || '',
         citizenship: data?.citizenship || 'Filipino',
@@ -334,7 +336,7 @@ export default function ClientInfoView() {
         adversePartyCounselAddress: data?.adversePartyCounselAddress || '',
         adversePartyCounselPhone: data?.adversePartyCounselPhone || '',
         // Review / Appointment
-        appointedDate: data?.appointedDate || '',
+        appointedDate: data?.appointedDate ? data.appointedDate.split('T')[0] : '',
         appointmentTime: data?.appointmentTime || '',
       };
 
@@ -414,7 +416,7 @@ export default function ClientInfoView() {
       setSaving(true);
       await updateClientInfo(id, buildPayload(editData));
       Alert.alert('Saved', 'Client information saved. Proceeding to interview...');
-      router.push({ pathname: '/admin/recommendation', params: { id, showClientInfo: 'true' } });
+      router.push({ pathname: '/admin/recommendation', params: { caseId: id, showClientInfo: 'true' } });
     } catch (error) {
       console.error('Error saving before interview:', error);
       Alert.alert('Error', 'Failed to save client information.');
@@ -449,11 +451,13 @@ export default function ClientInfoView() {
   }, [sameAsPresent, updateField]);
 
   // Shorthand components using the extracted ones
+  // IMPORTANT: editDataRef used instead of editData to keep stable function identity
+  // (prevents TextInput remount/keyboard dismissal on every keystroke)
   const InfoRow = useCallback(({ label, value, field, keyboardType, multiline, editable = true, formatter }) => (
     <InfoRowComponent
       label={label}
       value={value}
-      fieldValue={editData[field]}
+      fieldValue={editDataRef.current[field]}
       field={field}
       keyboardType={keyboardType}
       multiline={multiline}
@@ -462,13 +466,13 @@ export default function ClientInfoView() {
       isEditing={isEditing}
       onChangeField={field === 'presentAddress' ? updateFieldWithAddress : updateField}
     />
-  ), [editData, isEditing, updateField, updateFieldWithAddress]);
+  ), [isEditing, updateField, updateFieldWithAddress]);
 
   const SelectRow = useCallback(({ label, value, field, options, showPicker, setShowPicker }) => (
     <SelectRowComponent
       label={label}
       value={value}
-      fieldValue={editData[field]}
+      fieldValue={editDataRef.current[field]}
       field={field}
       options={options}
       showPicker={showPicker}
@@ -476,7 +480,7 @@ export default function ClientInfoView() {
       isEditing={isEditing}
       onChangeField={updateField}
     />
-  ), [editData, isEditing, updateField]);
+  ), [isEditing, updateField]);
 
   const ReviewField = useCallback(({ label, value }) => (
     <ReviewFieldComponent label={label} value={value} />
@@ -752,6 +756,8 @@ export default function ClientInfoView() {
           <ReviewField label="NAME" value={d.name} />
           <ReviewField label="AGE" value={d.age || calculateAge(d.birthday)} />
           <ReviewField label="BIRTHDAY" value={d.birthday ? new Date(d.birthday).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : ''} />
+          <ReviewField label="CITIZENSHIP" value={d.citizenship} />
+          <ReviewField label="SPOUSE NAME" value={d.spouse} />
           <ReviewField label="SEX" value={d.sex} />
           <ReviewField label="CIVIL STATUS" value={d.civilStatus} />
           <ReviewField label="CONTACT NUMBER" value={d.contactNumber} />
@@ -802,11 +808,8 @@ export default function ClientInfoView() {
             </View>
             <Text style={s.sectionTitle}>PREFERRED APPOINTMENT</Text>
           </View>
-          <Text style={s.appointmentHint}>Select your preferred date and time. The office will confirm availability and contact you.</Text>
-
-          <InfoRow label="Date" value={appointmentDateStr} field="appointedDate" />
-          <SelectRow label="Time" value={d.appointmentTime} field="appointmentTime"
-            options={TIME_OPTIONS} showPicker={showTimePicker} setShowPicker={setShowTimePicker} />
+          <ReviewFieldComponent label="DATE" value={appointmentDateStr || 'N/A'} />
+          <ReviewFieldComponent label="TIME" value={timeLabel || 'N/A'} />
 
           {appointmentDateStr && timeLabel ? (
             <View style={s.appointmentConfirm}>
@@ -827,8 +830,8 @@ export default function ClientInfoView() {
           </Text>
         </View>
 
-        {/* Interview button — matching website logic: show on review step for non-director/non-supervising_lawyer */}
-        {!['director', 'supervising_lawyer'].includes(userData?.role) && (
+        {/* Interview button — only intern and secretary can conduct interviews */}
+        {['intern', 'secretary'].includes(userData?.role?.toLowerCase?.()) && (
           <TouchableOpacity style={s.interviewBtn} onPress={handleInterview} disabled={saving}>
             {saving ? (
               <ActivityIndicator color="#fff" />
