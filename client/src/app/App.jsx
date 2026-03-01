@@ -51,11 +51,11 @@ function ProtectedRoute({ children }) {
   const { userLoggedIn, userData, loading } = useAuth();
 
   if (loading || (userLoggedIn && !userData)) return <Loaders height={window.innerHeight} />;
-  if (!userLoggedIn)         return <Navigate to="/auth/login" replace />;
-  if (!userData?.isVerified) return <Navigate to="/auth/login" replace />;
+  if (!userLoggedIn)         return <Navigate to="/auth/admin" replace />;
+  if (!userData?.isVerified) return <Navigate to="/auth/admin" replace />;
 
   // 'user' role = pending — hold at login until an admin promotes them
-  if (!ADMIN_ROLES.has(userData?.role)) return <Navigate to="/auth/login" replace />;
+  if (!ADMIN_ROLES.has(userData?.role)) return <Navigate to="/auth/admin" replace />;
 
   return children;
 }
