@@ -18,9 +18,6 @@ const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
 const AdminLogin     = lazy(() => import("./pages/auth/Login/AdminLogin"));
 // Public pages
 const LandingPage  = lazy(() => import("./pages/LandingPage"));
-const AboutPage    = lazy(() => import("./pages/About"));
-const FeaturesPage = lazy(() => import("./pages/Features"));
-const HowItWorks   = lazy(() => import("./pages/How"));
 const Appointment  = lazy(() => import("./pages/Appointment"));
 const Privacy      = lazy(() => import("./pages/admin/Privacy"));
 const Terms        = lazy(() => import("./pages/admin/Terms"));
@@ -51,11 +48,11 @@ function ProtectedRoute({ children }) {
   const { userLoggedIn, userData, loading } = useAuth();
 
   if (loading || (userLoggedIn && !userData)) return <Loaders height={window.innerHeight} />;
-  if (!userLoggedIn)         return <Navigate to="/auth/login" replace />;
-  if (!userData?.isVerified) return <Navigate to="/auth/login" replace />;
+  if (!userLoggedIn)         return <Navigate to="/auth/admin" replace />;
+  if (!userData?.isVerified) return <Navigate to="/auth/admin" replace />;
 
   // 'user' role = pending — hold at login until an admin promotes them
-  if (!ADMIN_ROLES.has(userData?.role)) return <Navigate to="/auth/login" replace />;
+  if (!ADMIN_ROLES.has(userData?.role)) return <Navigate to="/auth/admin" replace />;
 
   return children;
 }
@@ -73,9 +70,6 @@ function AppRoutes() {
       <Routes>
         {/* Public */}
         <Route path="/"                element={<LandingPage />} />
-        <Route path="/about"           element={<AboutPage />} />
-        <Route path="/features"        element={<FeaturesPage />} />
-        <Route path="/how"             element={<HowItWorks />} />
         <Route path="/appointment"     element={<Appointment />} />
         <Route path="/privacy"         element={<Privacy />} />
         <Route path="/terms"           element={<Terms />} />
@@ -83,13 +77,13 @@ function AppRoutes() {
 
         {/* Auth */}
         <Route path="auth">
-          <Route path="login"  element={<Login />} />
+          {/* <Route path="login"  element={<Login />} /> */}
           <Route path="signup" element={<Signup />} />
           <Route path="admin" element={<AdminLogin />} />
         </Route>
 
         {/* Convenience redirects */}
-        <Route path="/login"  element={<Navigate to="/auth/login"  replace />} />
+        {/* <Route path="/login"  element={<Navigate to="/auth/login"  replace />} /> */}
         <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
 
         {/* Admin — secretary | supervising_lawyer | director | intern */}

@@ -29,7 +29,6 @@ import {
   IconCheck, 
   IconInfoCircle,
   IconGavel,
-  IconScale,
   IconCalendarEvent,
   IconArrowLeft
 } from "@tabler/icons-react";
@@ -58,7 +57,13 @@ const AppointmentHero = () => {
           border: 'none'
         }}
       >
-        <Box style={{ position: "absolute", top: 40, left: 40, width: 60, height: 4, backgroundColor: PRIMARY_GOLD, borderRadius: 2 }} />
+        <Box style={{ position: "absolute", top: 40, left: 40, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img src="/sola_logo.png" alt="SOLA Logo" style={{ width: 40, height: 40, objectFit: 'contain' }} />
+          <Box>
+            <Text style={{ fontSize: 16, fontWeight: 700, color: '#fff', lineHeight: 1.1 }}>SOLA</Text>
+            <Text style={{ fontSize: 9, color: 'rgba(196,171,125,0.8)', letterSpacing: 2.5, textTransform: 'uppercase' }}>Sebastinian Office of Legal Aid</Text>
+          </Box>
+        </Box>
 
         <Stack spacing="xl" style={{ position: 'relative', zIndex: 1 }}>
           <Box>
@@ -70,14 +75,14 @@ const AppointmentHero = () => {
               <Text span c={PRIMARY_GOLD} inherit>Legal Assistance</Text>
             </Title>
             <Text c="gray.3" size="lg" maw={480} lh={1.6}>
-              Book a consultation with our experienced legal professionals. We are here to listen, advise, and guide you through your legal journey.
+              Book a consultation with SOLA's experienced legal professionals. We are here to listen, advise, and guide you through your legal journey.
             </Text>
           </Box>
 
           <Stack spacing="lg" mt={30}>
             {[
               { icon: IconCalendarEvent, title: "Flexible Scheduling", desc: "Choose a time that works for you" },
-              { icon: IconScale, title: "Expert Guidance", desc: "Professional legal advice for your case" },
+              { icon: IconGavel, title: "Expert Guidance", desc: "Professional legal advice for your case" },
               { icon: IconGavel, title: "Confidential Service", desc: "Your privacy is our utmost priority" }
             ].map((item, index) => (
               <Group key={index} spacing="md">
@@ -199,7 +204,7 @@ export default function Appointment() {
         style={{ 
           position: 'fixed', 
           top: 20, 
-          left: 20, 
+          right: 20, 
           zIndex: 1000,
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
           border: 'none',
@@ -230,7 +235,7 @@ export default function Appointment() {
             {/* Mobile Header (Only visible on small screens) */}
             {isMobile && (
               <Box bg={PRIMARY_BROWN} p="xl" pb={40}>
-                <Text size="xs" fw={700} c={PRIMARY_GOLD} tt="uppercase" mb={8}>JustReach Legal</Text>
+                <Text size="xs" fw={700} c={PRIMARY_GOLD} tt="uppercase" mb={8}>SOLA Legal Aid</Text>
                 <Title order={2} c="white" lh={1.2}>Schedule Consultation</Title>
                 <Text c="white" size="sm" mt={8} opacity={0.9}>Book your appointment in less than 2 minutes.</Text>
               </Box>
@@ -426,7 +431,7 @@ export default function Appointment() {
             
             {/* Footer / Copyright */}
             <Box p="md" ta="center">
-              <Text size="xs" c="dimmed">© {new Date().getFullYear()} JustReach Legal Services. All rights reserved.</Text>
+              <Text size="xs" c="dimmed">© {new Date().getFullYear()} SOLA — Sebastinian Office of Legal Aid. All rights reserved.</Text>
             </Box>
 
           </Box>

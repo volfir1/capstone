@@ -4,7 +4,7 @@ import {
   Group, ActionIcon, Text, Badge, Box,
   Flex, Menu, Tooltip, Stack, Divider, Avatar,
 } from "@mantine/core";
-import { IconLogout, IconUserCircle, IconScale } from "@tabler/icons-react";
+import { IconLogout, IconUserCircle } from "@tabler/icons-react";
 import { useAuth } from "../../context/authContext";
 import { useNavigate } from "react-router";
 import { doSignOut } from "@/firebase/auth";
@@ -132,12 +132,10 @@ const Layout = ({ children, headerHeight = 60, navbarWidth = 260 }) => {
           <Group gap="md">
             <Burger opened={opened} onClick={() => setOpened(o => !o)} hiddenFrom="sm" size="sm" color={PRIMARY_BROWN} />
             <Group gap={10}>
-              <Box style={{ width: 34, height: 34, background: PRIMARY_BROWN, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <IconScale size={18} color="white" stroke={2} />
-              </Box>
+              <img src="/sola_logo.png" alt="SOLA Logo" style={{ width: 34, height: 34, objectFit: 'contain' }} />
               <Box>
-                <Text size="md" fw={700} c={PRIMARY_BROWN} lh={1.2}>JustReach</Text>
-                <Text size="10px" c={MUTED_OLIVE} fw={500} lh={1} tt="uppercase" lts={0.5}>Legal Services</Text>
+                <Text size="md" fw={700} c={PRIMARY_BROWN} lh={1.2}>SOLA</Text>
+                <Text size="10px" c={MUTED_OLIVE} fw={500} lh={1} tt="uppercase" lts={0.5}>Sebastinian Office of Legal Aid</Text>
               </Box>
             </Group>
           </Group>
