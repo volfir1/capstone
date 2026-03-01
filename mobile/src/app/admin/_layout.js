@@ -48,20 +48,20 @@ export default function AdminLayout() {
         }}
       />
       <Tabs.Screen
+        name="assigned-cases"
+        options={{
+          title: 'Assigned',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="git-branch-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="clientformstatus"
         options={{
           title: 'Appointments',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="messenger"
-        options={{
-          title: 'Messages',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles-outline" size={size} color={color} />
           ),
         }}
       />
@@ -92,19 +92,13 @@ export default function AdminLayout() {
         }}
       />
       <Tabs.Screen
-        name="manageAttorneys"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="assignCases"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
         name="recommendation"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="clientinfo"
         options={{
           href: null,
         }}

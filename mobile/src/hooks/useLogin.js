@@ -36,11 +36,22 @@ export const useNativeLogin = () => {
   }, [userLoggedIn, userData]);
 
   const navigateByRole = (role) => {
-    const adminLikeRoles = ["admin", "attorney", "secretary", "pao_lawyer", "legal_volunteer", "intern"];
+    const adminLikeRoles = ["admin", "attorney", "secretary", "pao_lawyer", "legal_volunteer", "intern", "supervising_lawyer", "director"];
     if (adminLikeRoles.includes(role)) {
       router.replace("/admin");
     } else {
-      router.replace("/user");
+      // Regular users see pending approval message (matches website behavior)
+      Alert.alert(
+        "Account Pending",
+        "Your account is pending approval. An administrator will review and assign your role. Please check back later.",
+        [{ text: "OK", onPress: async () => {
+          try {
+            await doSignOut();
+          } catch (e) {
+            console.log("Sign out error:", e);
+          }
+        }}]
+      );
     }
   };
 

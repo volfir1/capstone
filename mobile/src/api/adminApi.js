@@ -59,6 +59,17 @@ export const activateAttorney = async (attorneyId) => {
   return response.data;
 };
 
+// ============== CASE ASSIGNMENTS ==============
+export const fetchCaseAssignments = async () => {
+  const response = await apiClient.get('/case-assignments');
+  return response.data;
+};
+
+export const completeCaseAssignment = async (assignmentId) => {
+  const response = await apiClient.put(`/case-assignments/${assignmentId}/complete`);
+  return response.data;
+};
+
 // ============== REVIEWS ==============
 export const fetchReviews = async (reviewerId) => {
   const url = reviewerId ? `/reviews?reviewerId=${reviewerId}` : '/reviews';

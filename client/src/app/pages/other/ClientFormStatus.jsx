@@ -17,7 +17,7 @@ import {
   IconPlus, IconChevronRight, IconAddressBook, IconInfoCircle, IconFileText,
   IconTrash, IconArrowRight, IconRotateClockwise
 } from '@tabler/icons-react';
-import { IconRefresh } from '@tabler/icons-react';
+import { IconRefresh, IconBrandGoogle } from '@tabler/icons-react';
 import {
   PRIMARY_GOLD,
   PRIMARY_BROWN,
@@ -30,7 +30,7 @@ import {
 import { generateGoogleCalendarUrl } from '@utils/googleCalendar';
 
 export default function StaffAppointmentManager() {
-  const { userData, currentUser } = useAuth();
+  const { userData, currentUser, refreshUserData } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarFilter, setCalendarFilter] = useState('All');
   const [selectedFilterDate, setSelectedFilterDate] = useState(null);
@@ -70,7 +70,56 @@ export default function StaffAppointmentManager() {
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [appointmentToApprove, setAppointmentToApprove] = useState(null);
   const [activeTab, setActiveTab] = useState('pending');
+  const [isGoogleConnected, setIsGoogleConnected] = useState(userData?.google?.connected || false);
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const navigate = useNavigate();
+
+  // ─── Google Calendar connection helpers ───
+  const isGoogleReconnectError = (err) => {
+    const errData = err?.response?.data;
+    return errData?.error === 'google_reconnect_required' ||
+           errData?.error === 'User has not connected Google Calendar';
+  };
+
+  const handleConnectGoogleCalendar = async () => {
+    try {
+      setIsConnectingGoogle(true);
+      const { default: apiClient } = await import('@config/api/apiClient');
+      const { data } = await apiClient.post('/google/connect', { firebaseUid: currentUser.uid });
+      if (data?.url) {
+        window.open(data.url, '_blank', 'width=600,height=700');
+        notifications.show({ title: 'Google Calendar', message: 'Complete authorization in the new window. Come back here when done.', color: 'blue', autoClose: 8000 });
+        // Poll to check if connection succeeded using refreshUserData
+        const pollInterval = setInterval(async () => {
+          try {
+            const freshData = await refreshUserData();
+            if (freshData?.google?.connected) {
+              clearInterval(pollInterval);
+              setIsGoogleConnected(true);
+              notifications.show({ title: 'Connected!', message: 'Google Calendar is now connected.', color: 'green', icon: <IconCheck size={18} /> });
+            }
+          } catch (_) { /* ignore polling errors */ }
+        }, 3000);
+        // Stop polling after 2 minutes
+        setTimeout(() => clearInterval(pollInterval), 120000);
+      }
+    } catch (err) {
+      console.error('handleConnectGoogleCalendar error:', err);
+      notifications.show({ title: 'Error', message: 'Failed to start Google Calendar connection.', color: 'red' });
+    } finally {
+      setIsConnectingGoogle(false);
+    }
+  };
+
+  const promptGoogleReconnect = () => {
+    notifications.show({
+      title: 'Google Calendar Not Connected',
+      message: 'Click "Connect Google Calendar" in the header to authorize access, then try again.',
+      color: 'orange',
+      autoClose: 8000,
+    });
+    setIsGoogleConnected(false);
+  };
 
   // Filtered lists logic
   const filteredPending = useMemo(() => {
@@ -284,7 +333,11 @@ export default function StaffAppointmentManager() {
       setRescheduleModal(false);
       await loadAllData();
     } catch (error) {
-      notifications.show({ title: 'Error', message: 'Failed to update appointment.', color: 'red' });
+      if (isGoogleReconnectError(error)) {
+        promptGoogleReconnect();
+      } else {
+        notifications.show({ title: 'Error', message: 'Failed to update appointment.', color: 'red' });
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -360,7 +413,11 @@ export default function StaffAppointmentManager() {
       notifications.show({ title: 'Success', message: 'Synced to calendar successfully.', color: 'green' });
       await loadAllData();
     } catch (err) {
-      notifications.show({ title: 'Error', message: 'Failed to sync to calendar.', color: 'red' });
+      if (isGoogleReconnectError(err)) {
+        promptGoogleReconnect();
+      } else {
+        notifications.show({ title: 'Error', message: 'Failed to sync to calendar.', color: 'red' });
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -483,6 +540,29 @@ export default function StaffAppointmentManager() {
                 </Stack>
               </Group>
             </Paper>
+            {!isGoogleConnected && (
+              <Tooltip label="Connect your Google Calendar to sync appointments">
+                <Button
+                  variant="light"
+                  color="blue"
+                  radius="md"
+                  size="compact-sm"
+                  leftSection={<IconBrandGoogle size={16} />}
+                  onClick={handleConnectGoogleCalendar}
+                  loading={isConnectingGoogle}
+                  fw={600}
+                >
+                  Connect Google Calendar
+                </Button>
+              </Tooltip>
+            )}
+            {isGoogleConnected && (
+              <Tooltip label="Google Calendar connected">
+                <Badge variant="light" color="green" radius="md" size="lg" leftSection={<IconBrandGoogle size={14} />}>
+                  Calendar Connected
+                </Badge>
+              </Tooltip>
+            )}
             <Tooltip label="Refresh data">
               <ActionIcon variant="light" onClick={() => loadAllData()} radius="md">
                 <IconRefresh size={18} />

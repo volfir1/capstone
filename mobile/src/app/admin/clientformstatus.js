@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
   Modal,
   TextInput,
   Platform,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,1128 +23,1135 @@ const PRIMARY_BROWN = '#7D5A3B';
 const PRIMARY_GOLD = '#C4AB7D';
 const CHARCOAL = '#2C2C2C';
 const THEMED_LIGHT_BG = '#FAF8F3';
+const MUTED_OLIVE = '#8B8B6F';
+
+const TIME_SLOTS = [
+  '09:00 AM', '10:00 AM', '11:00 AM',
+  '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM',
+];
 
 export default function ClientFormStatus() {
   const router = useRouter();
-  const { userData } = useAuth();
-  const userRole = (userData?.role || '').toLowerCase().trim();
-  const canInterview = userRole === 'secretary' || userRole === 'intern';
+  const { currentUser, userData } = useAuth();
+
+  // Data
   const [appointments, setAppointments] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('auto-scheduled'); // auto-scheduled, confirmed, legal-advice, court-case, rejected, documents
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [rescheduleModalVisible, setRescheduleModalVisible] = useState(false);
-  const [newDate, setNewDate] = useState(new Date());
-  const [newTime, setNewTime] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [createEventModalVisible, setCreateEventModalVisible] = useState(false);
+
+  // Tabs & Filters
+  const [activeTab, setActiveTab] = useState('pending');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilterDate, setSelectedFilterDate] = useState(null);
+
+  // Calendar
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // Approve modal
+  const [approveModal, setApproveModal] = useState(false);
+  const [appointmentToApprove, setAppointmentToApprove] = useState(null);
+
+  // Reschedule modal
+  const [rescheduleModal, setRescheduleModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [newDate, setNewDate] = useState(new Date());
+  const [newTime, setNewTime] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Delete modal
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Create event modal
+  const [createEventModal, setCreateEventModal] = useState(false);
   const [eventForm, setEventForm] = useState({
-    title: '',
-    description: '',
-    eventDate: '',
-    eventTime: '',
-    eventType: 'appointment',
-    location: 'SOLA Office',
-    clientName: '',
-    assignedTo: '',
-    priority: 'Medium',
+    title: '', description: '', eventDate: '',
+    eventType: 'appointment', location: '', clientName: '',
   });
   const [creatingEvent, setCreatingEvent] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [dateDetailsModalVisible, setDateDetailsModalVisible] = useState(false);
-  const [fullReceiptModalVisible, setFullReceiptModalVisible] = useState(false);
-  const [fullReceiptData, setFullReceiptData] = useState(null);
+  const [showEventDatePicker, setShowEventDatePicker] = useState(false);
+
+  // Context menu
+  const [contextMenuId, setContextMenuId] = useState(null);
+
+  // Date details modal (when clicking a calendar date)
+  const [dateDetailsModal, setDateDetailsModal] = useState(false);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
+
+  // ─── Google Calendar reconnect helper ───
+  const isGoogleReconnectError = (err) => {
+    const errData = err?.response?.data;
+    return errData?.error === 'google_reconnect_required' ||
+           errData?.error === 'User has not connected Google Calendar';
+  };
+
+  const promptGoogleReconnect = () => {
+    Alert.alert(
+      'Google Calendar Not Connected',
+      'Google Calendar must be connected from the website.\n\nPlease go to the website → Staff Appointment Manager, click the "Connect Google Calendar" option, authorize access, then come back to the app and try again.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  // ─── Filtered lists (matching website logic exactly) ───
+  const filteredPending = useMemo(() => {
+    return appointments
+      .filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded)
+      .filter(a => !selectedFilterDate ||
+        (a.rawAppointedDate && new Date(a.rawAppointedDate).toDateString() === selectedFilterDate.toDateString()))
+      .filter(a => !searchQuery || a.clientName.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [appointments, selectedFilterDate, searchQuery]);
+
+  const filteredInterview = useMemo(() => {
+    return appointments
+      .filter(a => a.calendarRecorded && a.status === 'auto-scheduled')
+      .filter(a => !selectedFilterDate ||
+        (a.rawAppointedDate && new Date(a.rawAppointedDate).toDateString() === selectedFilterDate.toDateString()))
+      .filter(a => !searchQuery || a.clientName.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [appointments, selectedFilterDate, searchQuery]);
+
+  // Calendar items (appointments + custom events, deduped)
+  const calendarItems = useMemo(() => {
+    const linkedEventIds = new Set(
+      appointments
+        .filter(apt => apt.calendarRecorded && apt.fullData?.calendarEventId)
+        .map(apt => apt.fullData.calendarEventId)
+    );
+    return [
+      ...appointments.map(apt => ({
+        ...apt,
+        uniqueId: `apt-${apt.id}`,
+        date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
+        isEvent: false,
+      })),
+      ...events
+        .filter(evt => !linkedEventIds.has(evt.id))
+        .map(evt => ({
+          ...evt,
+          uniqueId: `evt-${evt.id}`,
+          date: evt.rawAppointedDate ? new Date(evt.rawAppointedDate) : null,
+          isEvent: true,
+        })),
+    ];
+  }, [appointments, events]);
+
+  // ─── Data loading (matching website's loadAllData) ───
+  const loadAllData = async (opts = {}) => {
+    const silent = opts.silent === true;
+    if (!silent) setLoading(true);
+    try {
+      const pendingResp = await apiClient.get('/clientsinfo');
+      const docs = pendingResp?.data || [];
+      const mapped = (Array.isArray(docs) ? docs : [])
+        .map((d, idx) => ({
+          id: d._id || idx,
+          clientName: d.fullName || d.personal?.fullName ||
+            `${d.personal?.firstName || ''} ${d.personal?.lastName || ''}`.trim() || '',
+          type: 'Initial Interview',
+          submittedDate: d.createdAt
+            ? new Date(d.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : '',
+          scheduledDate: d.appointedDate
+            ? new Date(d.appointedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'TBD',
+          rawAppointedDate: d.appointedDate || null,
+          appointmentTime: d.appointmentTime ? (() => {
+            const [hours, minutes] = d.appointmentTime.split(':');
+            const h = parseInt(hours);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const displayH = h % 12 || 12;
+            return `${displayH}:${minutes} ${ampm}`;
+          })() : '',
+          status: d.status || 'auto-scheduled',
+          calendarRecorded: Boolean(d.calendarRecorded),
+          contactNumber: d.personal?.contactNumber || d.contactNumber || '',
+          email: d.personal?.email || d.email || '',
+          assignedTo: d.assignedTo || '',
+          location: d.caseDetails?.location || d.location || 'SOLA Office',
+          purpose: d.caseDetails?.purpose || d.caseDescription || 'Client interview',
+          priority: d.priority || 'Medium',
+          fullData: d,
+        }))
+        .sort((a, b) => {
+          if (!a.rawAppointedDate) return 1;
+          if (!b.rawAppointedDate) return -1;
+          return new Date(a.rawAppointedDate) - new Date(b.rawAppointedDate);
+        });
+      setAppointments(mapped);
+
+      const eventsResp = await apiClient.get('/events');
+      const eventsData = eventsResp?.data || [];
+      const mappedEvents = (Array.isArray(eventsData) ? eventsData : []).map((e, idx) => ({
+        id: e._id || idx,
+        clientName: e.clientName || 'Event',
+        type: e.eventType || 'other',
+        rawAppointedDate: e.eventDate,
+        scheduledDate: e.eventDate
+          ? new Date(e.eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : 'TBD',
+        appointmentTime: e.eventDate ? (() => {
+          const d = new Date(e.eventDate);
+          const h = d.getHours();
+          const m = d.getMinutes();
+          if (h === 0 && m === 0) return '';
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          const displayH = h % 12 || 12;
+          return `${displayH}:${String(m).padStart(2, '0')} ${ampm}`;
+        })() : '',
+        location: e.location || 'TBD',
+        priority: e.priority || 'Medium',
+        status: e.status || 'scheduled',
+        description: e.description || '',
+        assignedTo: e.assignedTo || '',
+        purpose: e.title || '',
+      }));
+      setEvents(mappedEvents);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      if (!silent) Alert.alert('Error', 'Failed to load data');
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchAppointments();
+    loadAllData();
+    const interval = setInterval(() => loadAllData({ silent: true }), 10000);
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchAppointments = async () => {
-    try {
-      setLoading(true);
-      const resp = await apiClient.get('/clientsinfo');
-      const docs = resp?.data || [];
-      const mapped = (Array.isArray(docs) ? docs : []).map((d, idx) => ({
-        id: d._id || idx,
-        clientName: d.fullName || d.personal?.fullName || 
-          `${d.personal?.firstName || ''} ${d.personal?.lastName || ''}`.trim() || '',
-        type: 'Initial Interview',
-        submittedDate: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { 
-          year: 'numeric', month: 'short', day: 'numeric' 
-        }) : '',
-        scheduledDate: d.appointedDate ? new Date(d.appointedDate).toLocaleDateString('en-US', { 
-          year: 'numeric', month: 'short', day: 'numeric' 
-        }) : 'TBD',
-        rawAppointedDate: d.appointedDate || null,
-        appointmentTime: d.appointmentTime || '',
-        status: d.status || 'auto-scheduled',
-        calendarRecorded: Boolean(d.calendarRecorded),
-        contactNumber: d.personal?.contactNumber || 'N/A',
-        email: d.personal?.email || 'N/A',
-        assignedTo: d.assignedTo || 'Staff',
-        location: d.caseDetails?.location || 'SOLA Office',
-        purpose: d.caseDetails?.purpose || `Initial interview for ${d.fullName}`,
-        priority: d.priority || 'High',
-      }));
-      setAppointments(mapped);
-    } catch (err) {
-      console.error('Failed to load appointments:', err);
-      Alert.alert('Error', 'Failed to load appointments');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    fetchAppointments();
+    await loadAllData();
+    setRefreshing(false);
   };
 
-  const handleReschedule = (appointment) => {
-    setSelectedAppointment(appointment);
-    // Set initial date and time from appointment or use current date/time
-    if (appointment.rawAppointedDate) {
-      setNewDate(new Date(appointment.rawAppointedDate));
-    } else {
-      setNewDate(new Date());
-    }
-    
-    if (appointment.appointmentTime) {
-      // Parse time string (e.g., "14:30") and set it on today's date
-      const [hours, minutes] = appointment.appointmentTime.split(':');
-      const timeDate = new Date();
-      timeDate.setHours(parseInt(hours), parseInt(minutes));
-      setNewTime(timeDate);
-    } else {
-      setNewTime(new Date());
-    }
-    
-    setModalVisible(false);
-    setRescheduleModalVisible(true);
-  };
-
-  const onDateChange = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selectedDate) {
-      setNewDate(selectedDate);
-    }
-  };
-
-  const onTimeChange = (event, selectedTime) => {
-    setShowTimePicker(Platform.OS === 'ios');
-    if (selectedTime) {
-      setNewTime(selectedTime);
-    }
-  };
-
-  const closeRescheduleModal = () => {
-    setRescheduleModalVisible(false);
-    setShowDatePicker(false);
-    setShowTimePicker(false);
-    setNewDate(new Date());
-    setNewTime(new Date());
-    setSelectedAppointment(null);
-  };
-
-  const handleRecommend = async (appointment) => {
+  // ─── Approve handler → Google Calendar sync (matching website) ───
+  const handleApprove = async () => {
+    const appointment = appointmentToApprove;
+    if (!appointment?.id) return;
+    setUpdating(true);
     try {
-      if (appointment.status === 'auto-scheduled') {
-        // Update status to confirmed first
-        await apiClient.put(`/clientsinfo/${appointment.id}`, { status: 'confirmed' });
-        Alert.alert('Success', 'Status updated to Confirmed');
-        await fetchAppointments();
+      const title = appointment.clientName
+        ? `${appointment.clientName} - Interview`
+        : 'Client Interview';
+      const description = appointment.purpose || `Case ID: ${appointment.id}`;
+
+      const dateObj = new Date(appointment.rawAppointedDate);
+      const rawTime = appointment.fullData?.appointmentTime || '';
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+
+      let startHour = 9, startMin = 0;
+      if (rawTime) {
+        const parts = rawTime.split(':');
+        startHour = parseInt(parts[0]) || 9;
+        startMin = parseInt(parts[1]) || 0;
       }
-      // Navigate to recommendation page with caseId parameter
-      router.push({
-        pathname: '/admin/recommendation',
-        params: { caseId: appointment.id }
-      });
-    } catch (error) {
-      console.error('Failed to update status:', error);
-      Alert.alert('Error', 'Failed to update status');
-    }
-  };
 
-  const handleViewFullReceipt = async (appointmentId) => {
-    try {
-      const response = await apiClient.get(`/clientsinfo/${appointmentId}`);
-      setFullReceiptData(response.data);
-      setFullReceiptModalVisible(true);
-    } catch (error) {
-      console.error('Failed to load full details:', error);
-      Alert.alert('Error', 'Failed to load appointment details');
-    }
-  };
+      const startDateTime = `${year}-${month}-${day}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
+      const endHour = startHour + 1;
+      const endDateTime = `${year}-${month}-${day}T${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
 
-  const handleUpdateAppointment = async () => {
-    if (!newDate || !selectedAppointment?.id) {
-      Alert.alert('Error', 'Please provide a valid date');
-      return;
-    }
-
-    try {
-      setUpdating(true);
-      const iso = newDate.toISOString();
-      
-      // Format time as HH:MM
-      const hours = newTime.getHours().toString().padStart(2, '0');
-      const minutes = newTime.getMinutes().toString().padStart(2, '0');
-      const formattedTime = `${hours}:${minutes}`;
-      
-      const payload = { 
-        appointedDate: iso,
-        appointmentTime: formattedTime
+      const googleEvent = {
+        summary: title,
+        description,
+        start: { dateTime: startDateTime, timeZone: 'Asia/Manila' },
+        end: { dateTime: endDateTime, timeZone: 'Asia/Manila' },
       };
 
-      await apiClient.put(`/clientsinfo/${selectedAppointment.id}`, payload);
-      
-      Alert.alert('Success', 'Appointment updated successfully');
-      closeRescheduleModal();
-      fetchAppointments();
-    } catch (error) {
-      console.error('Error updating appointment:', error);
-      Alert.alert('Error', 'Failed to update appointment');
+      await apiClient.post('/google/events/atomic', {
+        firebaseUid: currentUser.uid,
+        event: googleEvent,
+        meta: {
+          appointmentId: appointment.id,
+          title,
+          description,
+          eventDate: appointment.rawAppointedDate,
+          eventType: 'appointment',
+          location: appointment.location,
+          clientName: appointment.clientName,
+          status: 'scheduled',
+        },
+      });
+
+      Alert.alert('Success', 'Appointment approved and synced to Google Calendar.');
+      setApproveModal(false);
+      setAppointmentToApprove(null);
+      await loadAllData();
+    } catch (err) {
+      console.error('Failed to approve:', err);
+      if (isGoogleReconnectError(err)) {
+        setApproveModal(false);
+        setAppointmentToApprove(null);
+        promptGoogleReconnect();
+      } else {
+        Alert.alert('Error', err?.response?.data?.message || 'Failed to approve appointment.');
+      }
     } finally {
       setUpdating(false);
     }
   };
 
-  const handleCreateEvent = async () => {
-    if (!eventForm.title || !eventForm.eventDate) {
-      Alert.alert('Error', 'Please provide at least a title and date');
+  // ─── Reschedule handler (matching website logic) ───
+  const handleRescheduleSubmit = async () => {
+    if (!newDate || !selectedAppointment?.id) {
+      Alert.alert('Error', 'Please select a valid date and time.');
       return;
     }
-
+    setUpdating(true);
     try {
-      setCreatingEvent(true);
-      await apiClient.post('/events', {
-        title: eventForm.title,
+      if (selectedAppointment.calendarRecorded) {
+        const eventId = selectedAppointment.fullData?.calendarEventId || '';
+        const dateWithTime = new Date(newDate);
+        if (newTime) {
+          const timeMatch = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(newTime);
+          if (timeMatch) {
+            let h = parseInt(timeMatch[1]);
+            const ampm = timeMatch[3].toUpperCase();
+            if (ampm === 'PM' && h !== 12) h += 12;
+            if (ampm === 'AM' && h === 12) h = 0;
+            dateWithTime.setHours(h, parseInt(timeMatch[2]), 0, 0);
+          }
+        }
+        await apiClient.post('/google/events/reschedule', {
+          firebaseUid: currentUser.uid,
+          eventId,
+          appointmentId: selectedAppointment.id,
+          newDate: dateWithTime.toISOString(),
+          newTime: newTime || '',
+        });
+        Alert.alert('Success', 'Appointment rescheduled and Google Calendar updated.');
+      } else {
+        const iso = newDate.toISOString();
+        await apiClient.put(`/clientsinfo/${selectedAppointment.id}`, {
+          appointedDate: iso,
+          appointmentTime: newTime || '',
+        });
+        Alert.alert('Success', 'Appointment updated successfully.');
+      }
+      setRescheduleModal(false);
+      await loadAllData();
+    } catch (err) {
+      console.error('Failed to reschedule:', err);
+      if (isGoogleReconnectError(err)) {
+        setRescheduleModal(false);
+        promptGoogleReconnect();
+      } else {
+        Alert.alert('Error', err?.response?.data?.message || 'Failed to update appointment.');
+      }
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // ─── Delete handler (matching website logic with firebaseUid) ───
+  const handleDelete = async () => {
+    if (!appointmentToDelete) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/clientsinfo/${appointmentToDelete.id}`, {
+        data: { firebaseUid: currentUser?.uid },
+      });
+      Alert.alert('Deleted', 'Appointment removed successfully.');
+      setDeleteModal(false);
+      setAppointmentToDelete(null);
+      await loadAllData();
+    } catch (err) {
+      console.error('Failed to delete:', err);
+      Alert.alert('Error', 'Failed to delete appointment.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // ─── Create event with Google Calendar sync ───
+  const handleCreateEvent = async () => {
+    if (!eventForm.title || !eventForm.eventDate) {
+      Alert.alert('Error', 'Title and date are required.');
+      return;
+    }
+    setCreatingEvent(true);
+    try {
+      const eventDate = new Date(eventForm.eventDate);
+      const year = eventDate.getFullYear();
+      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+      const day = String(eventDate.getDate()).padStart(2, '0');
+      const hours = String(eventDate.getHours()).padStart(2, '0');
+      const mins = String(eventDate.getMinutes()).padStart(2, '0');
+
+      const startDateTime = `${year}-${month}-${day}T${hours}:${mins}:00`;
+      const endHour = eventDate.getHours() + 1;
+      const endDateTime = `${year}-${month}-${day}T${String(endHour).padStart(2, '0')}:${mins}:00`;
+
+      const googleEvent = {
+        summary: eventForm.title,
         description: eventForm.description,
-        eventDate: eventForm.eventDate,
-        eventTime: eventForm.eventTime,
-        eventType: eventForm.eventType,
-        location: eventForm.location,
-        clientName: eventForm.clientName,
-        assignedTo: eventForm.assignedTo,
-        priority: eventForm.priority,
+        start: { dateTime: startDateTime, timeZone: 'Asia/Manila' },
+        end: { dateTime: endDateTime, timeZone: 'Asia/Manila' },
+      };
+
+      await apiClient.post('/google/events/atomic', {
+        firebaseUid: currentUser.uid,
+        event: googleEvent,
+        meta: {
+          title: eventForm.title,
+          description: eventForm.description,
+          eventDate: eventForm.eventDate,
+          eventType: eventForm.eventType,
+          location: eventForm.location,
+          clientName: eventForm.clientName,
+          status: 'scheduled',
+        },
       });
 
-      Alert.alert('Success', 'Event created successfully');
-      setCreateEventModalVisible(false);
-      setEventForm({
-        title: '',
-        description: '',
-        eventDate: '',
-        eventTime: '',
-        eventType: 'appointment',
-        location: 'SOLA Office',
-        clientName: '',
-        assignedTo: '',
-        priority: 'Medium',
-      });
-      fetchAppointments(); // Refresh data
+      Alert.alert('Success', 'Event created and synced to Google Calendar.');
+      setCreateEventModal(false);
+      setEventForm({ title: '', description: '', eventDate: '', eventType: 'appointment', location: '', clientName: '' });
+      await loadAllData();
     } catch (err) {
       console.error('Failed to create event:', err);
-      Alert.alert('Error', 'Failed to create event');
+      if (isGoogleReconnectError(err)) {
+        setCreateEventModal(false);
+        promptGoogleReconnect();
+      } else {
+        Alert.alert('Error', err?.response?.data?.message || 'Failed to create event.');
+      }
     } finally {
       setCreatingEvent(false);
     }
   };
 
-  const autoScheduledAppointments = appointments.filter(a => (a.status === 'auto-scheduled' || !a.status) && !a.calendarRecorded);
-  const forInterviewAppointments = appointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled');
-  const confirmedAppointments = appointments.filter(a => a.status === 'confirmed');
-  const legalAdviceAppointments = appointments.filter(a => a.status === 'legal-advice');
-  const courtCaseAppointments = appointments.filter(a => a.status === 'court-case');
-  const rejectedAppointments = appointments.filter(a => a.status === 'rejected');
-  const documentRequests = appointments.filter(a => a.type === 'document-request' || a.status === 'documents');
-
-  // Calendar helper functions
-  const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-    
-    return { daysInMonth, startingDayOfWeek };
+  // ─── Helper: open reschedule modal ───
+  const openRescheduleModal = (appointment) => {
+    setSelectedAppointment(appointment);
+    if (appointment?.rawAppointedDate) {
+      try { setNewDate(new Date(appointment.rawAppointedDate)); }
+      catch { setNewDate(new Date()); }
+    } else {
+      setNewDate(new Date());
+    }
+    setNewTime(appointment?.appointmentTime || '');
+    setRescheduleModal(true);
+    setContextMenuId(null);
   };
 
-  const getAppointmentsForDate = (date) => {
-    return appointments.filter(apt => {
-      if (!apt.rawAppointedDate) return false;
-      const aptDate = new Date(apt.rawAppointedDate);
-      return aptDate.toDateString() === date.toDateString();
+  // ─── Calendar helpers ───
+  const getItemsForDate = (date) => {
+    return calendarItems.filter(item => {
+      if (!item.date) return false;
+      return item.date.toDateString() === date.toDateString();
     });
   };
 
-  const handleDatePress = (day) => {
+  const generateCalendarDays = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
-    const date = new Date(year, month, day);
-    const dayAppointments = getAppointmentsForDate(date);
-    
-    if (dayAppointments.length > 0) {
-      setSelectedDate(date);
-      setDateDetailsModalVisible(true);
-    }
-  };
-
-  const changeMonth = (direction) => {
-    const newMonth = new Date(currentMonth);
-    newMonth.setMonth(currentMonth.getMonth() + direction);
-    setCurrentMonth(newMonth);
-  };
-
-  const renderCalendar = () => {
-    const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentMonth);
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
     const weeks = [];
-    let days = [];
-    
-    // Add empty cells for days before the first day of month
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
-    }
-    
-    // Add days of the month
+    let week = new Array(firstDay).fill(null);
+
     for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-      const dayAppointments = getAppointmentsForDate(date);
-      const isToday = new Date().toDateString() === date.toDateString();
-      
-      days.push(
-        <TouchableOpacity
-          key={day}
-          style={[styles.calendarDay, isToday && styles.calendarDayToday]}
-          onPress={() => handleDatePress(day)}
-        >
-          <Text style={[styles.calendarDayText, isToday && styles.calendarDayTextToday]}>
-            {day}
-          </Text>
-          {dayAppointments.length > 0 && (
-            <View style={styles.appointmentDot}>
-              <Text style={styles.appointmentDotText}>{dayAppointments.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      );
-      
-      // Start a new week
-      if (days.length === 7) {
-        weeks.push(
-          <View key={`week-${weeks.length}`} style={styles.calendarWeek}>
-            {days}
-          </View>
-        );
-        days = [];
+      week.push(day);
+      if (week.length === 7) {
+        weeks.push(week);
+        week = [];
       }
     }
-    
-    // Add remaining days if any
-    if (days.length > 0) {
-      while (days.length < 7) {
-        days.push(<View key={`empty-end-${days.length}`} style={styles.calendarDay} />);
-      }
-      weeks.push(
-        <View key={`week-${weeks.length}`} style={styles.calendarWeek}>
-          {days}
-        </View>
-      );
+    if (week.length > 0) {
+      while (week.length < 7) week.push(null);
+      weeks.push(week);
     }
-    
     return weeks;
   };
 
-  const renderAppointmentCard = (appointment) => {
-    const isPending = !appointment.rawAppointedDate || appointment.status === 'auto-scheduled';
-
-    return (
-      <TouchableOpacity
-        key={appointment.id}
-        style={styles.appointmentCard}
-        onPress={() => {
-          setSelectedAppointment(appointment);
-          setModalVisible(true);
-        }}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderLeft}>
-            <Ionicons 
-              name={isPending ? 'time-outline' : 'calendar'} 
-              size={24} 
-              color={isPending ? '#FF9800' : '#4CAF50'} 
-            />
-            <View style={styles.appointmentInfo}>
-              <Text style={styles.clientName}>{appointment.clientName}</Text>
-              <Text style={styles.appointmentType}>{appointment.type}</Text>
-            </View>
-          </View>
-          <View style={[styles.priorityBadge, 
-            appointment.priority === 'High' ? styles.highPriority :
-            appointment.priority === 'Medium' ? styles.mediumPriority :
-            styles.lowPriority
-          ]}>
-            <Text style={styles.priorityText}>{appointment.priority}</Text>
-          </View>
-        </View>
-
-        <View style={styles.cardDetails}>
-          <View style={styles.detailRow}>
-            <Ionicons name="calendar-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>
-              {appointment.scheduledDate} {appointment.appointmentTime && `at ${appointment.appointmentTime}`}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Ionicons name="location-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>{appointment.location}</Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Ionicons name="person-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>Assigned to: {appointment.assignedTo}</Text>
-          </View>
-        </View>
-
-        <View style={styles.cardFooter}>
-          <View style={[styles.statusBadge, isPending ? styles.pendingBadge : styles.scheduledBadge]}>
-            <Text style={styles.statusText}>{isPending ? 'Pending' : 'Scheduled'}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={PRIMARY_BROWN} />
-        </View>
-      </TouchableOpacity>
-    );
+  const prevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
 
-  const renderTabContent = () => {
-    let data = [];
-    let emptyMessage = '';
-    
-    switch(activeTab) {
-      case 'auto-scheduled':
-        data = autoScheduledAppointments;
-        emptyMessage = 'No auto-scheduled appointments';
-        break;
-      case 'forInterview':
-        data = forInterviewAppointments;
-        emptyMessage = 'No appointments for interview';
-        break;
-      case 'confirmed':
-        data = confirmedAppointments;
-        emptyMessage = 'No confirmed appointments';
-        break;
-      case 'legal-advice':
-        data = legalAdviceAppointments;
-        emptyMessage = 'No legal advice cases';
-        break;
-      case 'court-case':
-        data = courtCaseAppointments;
-        emptyMessage = 'No court cases';
-        break;
-      case 'rejected':
-        data = rejectedAppointments;
-        emptyMessage = 'No rejected cases';
-        break;
-      case 'documents':
-        data = documentRequests;
-        emptyMessage = 'No document requests';
-        break;
-      default:
-        data = autoScheduledAppointments;
-        emptyMessage = 'No appointments';
-    }
-
-    if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_BROWN} />
-        </View>
-      );
-    }
-
-    if (data.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="calendar-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyText}>
-            {emptyMessage}
-          </Text>
-        </View>
-      );
-    }
-
-    return (
-      <ScrollView
-        style={styles.appointmentList}
-        contentContainerStyle={styles.appointmentListContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_BROWN]} />
-        }
-      >
-        {data.map(renderAppointmentCard)}
-      </ScrollView>
-    );
+  const nextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Client Appointment Status</Text>
-        <TouchableOpacity onPress={fetchAppointments} style={styles.refreshButton}>
-          <Ionicons name="refresh" size={20} color={CHARCOAL} />
-        </TouchableOpacity>
-      </View>
+  // ─── Render: Calendar ───
+  const renderCalendar = () => {
+    const weeks = generateCalendarDays();
+    const today = new Date();
+    const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-      {/* Calendar Section */}
+    return (
       <View style={styles.calendarSection}>
         <View style={styles.calendarHeader}>
           <View>
-            <Text style={styles.calendarTitle}>Appointment Calendar</Text>
-            <Text style={styles.calendarSubtitle}>Tap dates to view appointments</Text>
+            <Text style={styles.calendarTitle}>Calendar</Text>
+            <Text style={styles.calendarSubtitle}>
+              {appointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length} pending ·{' '}
+              {appointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled').length} for interview
+            </Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.addEventButton}
-            onPress={() => setCreateEventModalVisible(true)}
+            onPress={() => {
+              setEventForm({ title: '', description: '', eventDate: '', eventType: 'appointment', location: '', clientName: '' });
+              setCreateEventModal(true);
+            }}
           >
             <Ionicons name="add" size={24} color="white" />
           </TouchableOpacity>
         </View>
 
-        {/* Month Navigation */}
         <View style={styles.monthNavigation}>
-          <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthButton}>
-            <Ionicons name="chevron-back" size={24} color={PRIMARY_BROWN} />
+          <TouchableOpacity onPress={prevMonth} style={styles.monthButton}>
+            <Ionicons name="chevron-back" size={22} color={CHARCOAL} />
           </TouchableOpacity>
           <Text style={styles.monthText}>
             {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </Text>
-          <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthButton}>
-            <Ionicons name="chevron-forward" size={24} color={PRIMARY_BROWN} />
+          <TouchableOpacity onPress={nextMonth} style={styles.monthButton}>
+            <Ionicons name="chevron-forward" size={22} color={CHARCOAL} />
           </TouchableOpacity>
         </View>
 
-        {/* Day Headers */}
         <View style={styles.calendarWeek}>
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <View key={day} style={styles.calendarDay}>
-              <Text style={styles.dayHeader}>{day}</Text>
+          {dayHeaders.map(d => (
+            <View key={d} style={styles.calendarDay}>
+              <Text style={styles.dayHeader}>{d}</Text>
             </View>
           ))}
         </View>
 
-        {/* Calendar Grid */}
-        {renderCalendar()}
-      </View>
+        {weeks.map((week, wi) => (
+          <View key={wi} style={styles.calendarWeek}>
+            {week.map((day, di) => {
+              if (!day) return <View key={di} style={styles.calendarDay} />;
+              const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+              const isToday = date.toDateString() === today.toDateString();
+              const isSelected = selectedFilterDate && date.toDateString() === selectedFilterDate.toDateString();
+              const itemsOnDate = getItemsForDate(date);
+              const count = itemsOnDate.length;
 
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabsContainer}
-        contentContainerStyle={styles.tabsContent}
-      >
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'auto-scheduled' && styles.activeTab]}
-          onPress={() => setActiveTab('auto-scheduled')}
-        >
-          <Text style={[styles.tabText, activeTab === 'auto-scheduled' && styles.activeTabText]}>
-            Auto-Scheduled ({autoScheduledAppointments.length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'forInterview' && styles.activeTab]}
-          onPress={() => setActiveTab('forInterview')}
-        >
-          <Text style={[styles.tabText, activeTab === 'forInterview' && styles.activeTabText]}>
-            For Interview ({forInterviewAppointments.length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'confirmed' && styles.activeTab]}
-          onPress={() => setActiveTab('confirmed')}
-        >
-          <Text style={[styles.tabText, activeTab === 'confirmed' && styles.activeTabText]}>
-            Confirmed ({confirmedAppointments.length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'legal-advice' && styles.activeTab]}
-          onPress={() => setActiveTab('legal-advice')}
-        >
-          <Text style={[styles.tabText, activeTab === 'legal-advice' && styles.activeTabText]}>
-            Legal Advice ({legalAdviceAppointments.length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'court-case' && styles.activeTab]}
-          onPress={() => setActiveTab('court-case')}
-        >
-          <Text style={[styles.tabText, activeTab === 'court-case' && styles.activeTabText]}>
-            Court Cases ({courtCaseAppointments.length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'rejected' && styles.activeTab]}
-          onPress={() => setActiveTab('rejected')}
-        >
-          <Text style={[styles.tabText, activeTab === 'rejected' && styles.activeTabText]}>
-            Rejected ({rejectedAppointments.length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'documents' && styles.activeTab]}
-          onPress={() => setActiveTab('documents')}
-        >
-          <Text style={[styles.tabText, activeTab === 'documents' && styles.activeTabText]}>
-            Documents ({documentRequests.length})
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {renderTabContent()}
-
-      {/* Details Modal */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Appointment Details</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={CHARCOAL} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedAppointment && (
-              <ScrollView style={styles.modalBody}>
-                <Text style={styles.modalLabel}>Client Name</Text>
-                <Text style={styles.modalValue}>{selectedAppointment.clientName}</Text>
-
-                <Text style={styles.modalLabel}>Contact</Text>
-                <Text style={styles.modalValue}>{selectedAppointment.contactNumber}</Text>
-
-                <Text style={styles.modalLabel}>Scheduled Date</Text>
-                <Text style={styles.modalValue}>
-                  {selectedAppointment.scheduledDate}
-                  {selectedAppointment.appointmentTime && ` at ${selectedAppointment.appointmentTime}`}
-                </Text>
-
-                <Text style={styles.modalLabel}>Location</Text>
-                <Text style={styles.modalValue}>{selectedAppointment.location}</Text>
-
-                <Text style={styles.modalLabel}>Purpose</Text>
-                <Text style={styles.modalValue}>{selectedAppointment.purpose}</Text>
-
-                <Text style={styles.modalLabel}>Assigned To</Text>
-                <Text style={styles.modalValue}>{selectedAppointment.assignedTo}</Text>
-
-                {selectedAppointment.status === 'auto-scheduled' ? (
-                  canInterview ? (
-                  <View style={styles.buttonGroup}>
-                    <TouchableOpacity 
-                      style={[styles.actionButton, styles.recommendButton]}
-                      onPress={() => {
-                        setModalVisible(false);
-                        handleRecommend(selectedAppointment);
-                      }}
-                    >
-                      <Ionicons name="document-text" size={20} color={PRIMARY_BROWN} />
-                      <Text style={styles.recommendButtonText}>Approve</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={[styles.actionButton, styles.editButton]}
-                      onPress={() => handleReschedule(selectedAppointment)}
-                    >
-                      <Ionicons name="create-outline" size={20} color={PRIMARY_BROWN} />
-                      <Text style={styles.editButtonText}>Edit</Text>
-                    </TouchableOpacity>
-                  </View>
-                  ) : null
-                ) : (
-                  <TouchableOpacity 
-                    style={styles.viewRecommendationButton}
-                    onPress={() => {
-                      setModalVisible(false);
-                      router.push({
-                        pathname: '/admin/recommendation',
-                        params: { caseId: selectedAppointment.id }
-                      });
-                    }}
-                  >
-                    <Ionicons name="document-text-outline" size={20} color={PRIMARY_BROWN} />
-                    <Text style={styles.viewRecommendationButtonText}>View Recommendation</Text>
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity 
-                  style={styles.fullReceiptButton}
+              return (
+                <TouchableOpacity
+                  key={di}
+                  style={[
+                    styles.calendarDay,
+                    isToday && styles.calendarDayToday,
+                    isSelected && styles.calendarDaySelected,
+                  ]}
                   onPress={() => {
-                    setModalVisible(false);
-                    handleViewFullReceipt(selectedAppointment.id);
+                    if (count > 0) {
+                      setSelectedCalendarDate(date);
+                      setDateDetailsModal(true);
+                    }
+                    setSelectedFilterDate(date);
                   }}
                 >
-                  <Ionicons name="eye-outline" size={20} color="white" />
-                  <Text style={styles.fullReceiptButtonText}>View Full Receipt</Text>
+                  <Text style={[
+                    styles.calendarDayText,
+                    isToday && styles.calendarDayTextToday,
+                    isSelected && styles.calendarDayTextSelected,
+                  ]}>
+                    {day}
+                  </Text>
+                  {count > 0 && (
+                    <View style={styles.appointmentDot}>
+                      <Text style={styles.appointmentDotText}>{count}</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
-              </ScrollView>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  // ─── Render: Appointment Card (matching website's SideAppointmentCard) ───
+  const renderAppointmentCard = (item) => (
+    <View key={item.id} style={[styles.card, { borderLeftColor: item.calendarRecorded ? 'green' : PRIMARY_GOLD }]}>
+      <View style={styles.cardTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardName} numberOfLines={1}>{item.clientName}</Text>
+          <Text style={styles.cardType}>{item.type}</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => setContextMenuId(contextMenuId === item.id ? null : item.id)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="ellipsis-horizontal" size={18} color="#999" />
+        </TouchableOpacity>
+      </View>
+
+      {contextMenuId === item.id && (
+        <View style={styles.contextMenu}>
+          <TouchableOpacity
+            style={styles.contextMenuItem}
+            onPress={() => openRescheduleModal(item)}
+          >
+            <Ionicons name="create-outline" size={16} color={CHARCOAL} />
+            <Text style={styles.contextMenuText}>Edit Schedule</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.contextMenuItem}
+            onPress={() => {
+              setContextMenuId(null);
+              router.push({ pathname: '/admin/clientinfo', params: { id: item.id } });
+            }}
+          >
+            <Ionicons name="eye-outline" size={16} color={CHARCOAL} />
+            <Text style={styles.contextMenuText}>View Details</Text>
+          </TouchableOpacity>
+          <View style={styles.contextMenuDivider} />
+          <TouchableOpacity
+            style={styles.contextMenuItem}
+            onPress={() => {
+              setContextMenuId(null);
+              setAppointmentToDelete(item);
+              setDeleteModal(true);
+            }}
+          >
+            <Ionicons name="trash-outline" size={16} color="red" />
+            <Text style={[styles.contextMenuText, { color: 'red' }]}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <View style={styles.cardDetails}>
+        <View style={styles.cardDetailRow}>
+          <Ionicons name="time-outline" size={14} color={PRIMARY_BROWN} />
+          <Text style={styles.cardDetailText}>{item.appointmentTime || 'TBD'}</Text>
+        </View>
+        <View style={styles.cardDetailRow}>
+          <Ionicons name="calendar-outline" size={14} color={MUTED_OLIVE} />
+          <Text style={[styles.cardDetailText, { color: MUTED_OLIVE }]}>{item.scheduledDate}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardActions}>
+        {!item.calendarRecorded ? (
+          <TouchableOpacity
+            style={styles.approveButton}
+            onPress={() => {
+              setContextMenuId(null);
+              setAppointmentToApprove(item);
+              setApproveModal(true);
+            }}
+            disabled={updating}
+          >
+            {updating && appointmentToApprove?.id === item.id ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Text style={styles.approveButtonText}>Approve</Text>
             )}
+          </TouchableOpacity>
+        ) : (
+          <>
+            {!['director', 'supervising_lawyer'].includes(userData?.role) && (
+              <TouchableOpacity
+                style={styles.interviewButton}
+                onPress={() => {
+                  setContextMenuId(null);
+                  router.push({
+                    pathname: '/admin/recommendation',
+                    params: { caseId: item.id },
+                  });
+                }}
+              >
+                <Text style={styles.interviewButtonText}>Interview</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.detailsButton}
+              onPress={() => {
+                setContextMenuId(null);
+                router.push({ pathname: '/admin/clientinfo', params: { id: item.id } });
+              }}
+            >
+              <Text style={styles.detailsButtonText}>Details</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </View>
+  );
+
+  // ─── Render: Tab content ───
+  const renderTabContent = () => {
+    const items = activeTab === 'pending' ? filteredPending : filteredInterview;
+
+    if (items.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="information-circle-outline" size={32} color="#D1D5DB" />
+          <Text style={styles.emptyText}>No matches found.</Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView style={styles.cardList} nestedScrollEnabled>
+        {items.map(renderAppointmentCard)}
+      </ScrollView>
+    );
+  };
+
+  // ─── Loading state ───
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={PRIMARY_BROWN} />
+          <Text style={{ marginTop: 12, color: '#999' }}>Loading appointments...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ─── Main render ───
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={CHARCOAL} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Staff Appointment Manager</Text>
+        <TouchableOpacity onPress={() => loadAllData()} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={22} color={PRIMARY_BROWN} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Stats Bar */}
+      <View style={styles.statsBar}>
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>PENDING</Text>
+          <Text style={[styles.statValue, { color: 'orange' }]}>
+            {appointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length}
+          </Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>FOR INTERVIEW</Text>
+          <Text style={[styles.statValue, { color: 'green' }]}>
+            {appointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled').length}
+          </Text>
+        </View>
+      </View>
+
+      <ScrollView
+        style={{ flex: 1 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY_BROWN} />}
+      >
+        {/* Calendar */}
+        {renderCalendar()}
+
+        {/* Appointment Records Section */}
+        <View style={styles.recordsSection}>
+          <View style={styles.recordsHeader}>
+            <View style={styles.recordsHeaderLeft}>
+              <Ionicons name="people-outline" size={18} color={PRIMARY_BROWN} />
+              <Text style={styles.recordsTitle}>Appointment Records</Text>
+            </View>
+            {selectedFilterDate && (
+              <TouchableOpacity onPress={() => setSelectedFilterDate(null)}>
+                <Ionicons name="close-circle" size={22} color="red" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Search */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={16} color="#999" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by client name..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+
+          {selectedFilterDate && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>
+                Date: {selectedFilterDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </Text>
+            </View>
+          )}
+
+          {/* Tabs: Pending & Interview only (matching website) */}
+          <View style={styles.tabsRow}>
+            <TouchableOpacity
+              style={[styles.pillTab, activeTab === 'pending' && styles.pillTabActive]}
+              onPress={() => setActiveTab('pending')}
+            >
+              <Ionicons name="time-outline" size={14} color={activeTab === 'pending' ? 'white' : '#666'} />
+              <Text style={[styles.pillTabText, activeTab === 'pending' && styles.pillTabTextActive]}>
+                Pending
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.pillTab, activeTab === 'forInterview' && styles.pillTabActive]}
+              onPress={() => setActiveTab('forInterview')}
+            >
+              <Ionicons name="document-text-outline" size={14} color={activeTab === 'forInterview' ? 'white' : '#666'} />
+              <Text style={[styles.pillTabText, activeTab === 'forInterview' && styles.pillTabTextActive]}>
+                Interview
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Tab Content */}
+          {renderTabContent()}
+        </View>
+      </ScrollView>
+
+      {/* ═══ MODALS ═══ */}
+
+      {/* Approve Modal */}
+      <Modal visible={approveModal} animationType="fade" transparent onRequestClose={() => { setApproveModal(false); setAppointmentToApprove(null); }}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalCenterContent}>
+              <View style={styles.modalIconCircle}>
+                <Ionicons name="checkmark" size={40} color={PRIMARY_BROWN} />
+              </View>
+              <Text style={styles.modalCenterTitle}>Approve this appointment?</Text>
+              {appointmentToApprove && (
+                <Text style={styles.modalCenterSubtext}>
+                  {appointmentToApprove.clientName} — {appointmentToApprove.scheduledDate}
+                </Text>
+              )}
+              <Text style={styles.modalCenterSubtext}>
+                This will schedule the appointment to Google Calendar and mark it for interview.
+              </Text>
+              <View style={styles.modalButtonRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => { setApproveModal(false); setAppointmentToApprove(null); }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalConfirmButton}
+                  onPress={handleApprove}
+                  disabled={updating}
+                >
+                  {updating ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Text style={styles.modalConfirmText}>Approve</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </Modal>
 
       {/* Reschedule Modal */}
-      <Modal
-        visible={rescheduleModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={closeRescheduleModal}
-      >
+      <Modal visible={rescheduleModal} animationType="slide" transparent onRequestClose={() => setRescheduleModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reschedule Appointment</Text>
-              <TouchableOpacity onPress={closeRescheduleModal}>
+              <TouchableOpacity onPress={() => setRescheduleModal(false)}>
                 <Ionicons name="close" size={24} color={CHARCOAL} />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.modalLabel}>Date</Text>
+            <ScrollView style={styles.modalBody}>
+              {selectedAppointment && (
+                <View style={styles.rescheduleInfo}>
+                  <View style={styles.rescheduleAvatar}>
+                    <Text style={styles.rescheduleAvatarText}>
+                      {selectedAppointment.clientName?.[0] || '?'}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={styles.rescheduleClientName}>{selectedAppointment.clientName}</Text>
+                    <Text style={styles.rescheduleCurrentDate}>Current: {selectedAppointment.scheduledDate}</Text>
+                  </View>
+                </View>
+              )}
+
+              <Text style={styles.inputLabel}>New Date</Text>
               <TouchableOpacity
                 style={styles.datePickerButton}
                 onPress={() => setShowDatePicker(true)}
               >
                 <Ionicons name="calendar-outline" size={20} color={PRIMARY_BROWN} />
                 <Text style={styles.datePickerText}>
-                  {newDate && newDate instanceof Date ? newDate.toLocaleDateString('en-US', { 
-                    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
-                  }) : 'Select Date'}
+                  {newDate instanceof Date
+                    ? newDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'Select Date'}
                 </Text>
               </TouchableOpacity>
-              
-              {showDatePicker && newDate instanceof Date && (
+
+              {showDatePicker && (
                 <DateTimePicker
-                  value={newDate}
+                  value={newDate instanceof Date ? newDate : new Date()}
                   mode="date"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onDateChange}
+                  onChange={(event, date) => {
+                    setShowDatePicker(Platform.OS === 'ios');
+                    if (date) setNewDate(date);
+                  }}
                 />
               )}
 
-              <Text style={styles.modalLabel}>Time</Text>
-              <TouchableOpacity
-                style={styles.datePickerButton}
-                onPress={() => setShowTimePicker(true)}
-              >
-                <Ionicons name="time-outline" size={20} color={PRIMARY_BROWN} />
-                <Text style={styles.datePickerText}>
-                  {newTime && newTime instanceof Date ? newTime.toLocaleTimeString('en-US', { 
-                    hour: '2-digit', minute: '2-digit' 
-                  }) : 'Select Time'}
-                </Text>
-              </TouchableOpacity>
-              
-              {showTimePicker && newTime instanceof Date && (
-                <DateTimePicker
-                  value={newTime}
-                  mode="time"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onTimeChange}
-                />
-              )}
-
-              <TouchableOpacity 
-                style={[styles.saveButton, updating && styles.saveButtonDisabled]}
-                onPress={handleUpdateAppointment}
-                disabled={updating}
-              >
-                {updating ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Text style={styles.saveButtonText}>Update Appointment</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Date Details Modal */}
-      <Modal
-        visible={dateDetailsModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setDateDetailsModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {selectedDate && selectedDate.toLocaleDateString('en-US', { 
-                  weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
-                })}
-              </Text>
-              <TouchableOpacity onPress={() => setDateDetailsModalVisible(false)}>
-                <Ionicons name="close" size={24} color={CHARCOAL} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody}>
-              {selectedDate && getAppointmentsForDate(selectedDate).map((apt) => (
-                <View key={apt.id} style={styles.dateAppointmentCard}>
-                  <View style={styles.dateAppointmentHeader}>
-                    <Text style={styles.dateAppointmentClient}>{apt.clientName}</Text>
-                    <View style={styles.dateAppointmentBadge}>
-                      <Text style={styles.dateAppointmentBadgeText}>{apt.type}</Text>
-                    </View>
-                  </View>
-                  {apt.appointmentTime && (
-                    <View style={styles.dateAppointmentDetail}>
-                      <Ionicons name="time" size={14} color="#666" />
-                      <Text style={styles.dateAppointmentDetailText}>{apt.appointmentTime}</Text>
-                    </View>
-                  )}
-                  <View style={styles.dateAppointmentDetail}>
-                    <Ionicons name="location" size={14} color="#666" />
-                    <Text style={styles.dateAppointmentDetailText}>{apt.location}</Text>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.viewDetailsButton}
-                    onPress={() => {
-                      setDateDetailsModalVisible(false);
-                      setSelectedAppointment(apt);
-                      setModalVisible(true);
-                    }}
-                  >
-                    <Text style={styles.viewDetailsButtonText}>View Details</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Full Receipt Modal */}
-      <Modal
-        visible={fullReceiptModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setFullReceiptModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Full Receipt Details</Text>
-              <TouchableOpacity onPress={() => setFullReceiptModalVisible(false)}>
-                <Ionicons name="close" size={24} color={CHARCOAL} />
-              </TouchableOpacity>
-            </View>
-
-            {fullReceiptData && (
-              <ScrollView style={styles.modalBody}>
-                {/* Header Badge */}
-                <View style={styles.receiptHeader}>
-                  <Text style={styles.receiptTitle}>
-                    {fullReceiptData.caseDetails?.appointmentType || fullReceiptData.personal?.legalMatter || 'Appointment'}
-                  </Text>
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusBadgeText}>{fullReceiptData.status || 'For Appointment'}</Text>
-                  </View>
-                  <Text style={styles.caseNumber}>Case #{fullReceiptData.caseNumber || 'N/A'}</Text>
-                </View>
-
-                {/* Personal Details */}
-                <View style={styles.receiptSection}>
-                  <Text style={styles.sectionTitle}>Personal Details</Text>
-                  <View style={styles.sectionDivider} />
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>NAME</Text>
-                    <Text style={styles.detailValue}>{fullReceiptData.fullName || fullReceiptData.name || 'N/A'}</Text>
-                  </View>
-                  
-                  <View style={styles.detailGrid}>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>AGE</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.age || 'N/A'}</Text>
-                    </View>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>SEX</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.sex || 'N/A'}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>BIRTHDAY</Text>
-                    <Text style={styles.detailValue}>{fullReceiptData.birthday || 'N/A'}</Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>CIVIL STATUS</Text>
-                    <Text style={styles.detailValue}>{fullReceiptData.civilStatus || 'N/A'}</Text>
-                  </View>
-                  
-                  <View style={styles.detailGrid}>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>CONTACT NUMBER</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.contactNumber || 'N/A'}</Text>
-                    </View>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>EMAIL</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.email || 'N/A'}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>PRESENT ADDRESS</Text>
-                    <Text style={styles.detailValue}>{fullReceiptData.presentAddress || 'N/A'}</Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>PERMANENT ADDRESS</Text>
-                    <Text style={styles.detailValue}>{fullReceiptData.permanentAddress || 'N/A'}</Text>
-                  </View>
-                </View>
-
-                {/* Schedule Details */}
-                <View style={styles.receiptSection}>
-                  <Text style={styles.sectionTitle}>Schedule Details</Text>
-                  <View style={styles.sectionDivider} />
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>APPOINTMENT DATE</Text>
-                    <Text style={styles.detailValue}>
-                      {fullReceiptData.appointedDate 
-                        ? new Date(fullReceiptData.appointedDate).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })
-                        : 'N/A'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Financial Details */}
-                <View style={styles.receiptSection}>
-                  <Text style={styles.sectionTitle}>Financial Details</Text>
-                  <View style={styles.sectionDivider} />
-                  
-                  <View style={styles.detailGrid}>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>INCOME SOURCE</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.currentSourceOfIncome || 'N/A'}</Text>
-                    </View>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>MONTHLY INCOME</Text>
-                      <Text style={styles.detailValue}>
-                        {fullReceiptData.monthlyIncome ? `₱${Number(fullReceiptData.monthlyIncome).toLocaleString()}` : 'N/A'}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.detailGrid}>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>NATURE OF WORK</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.natureOfWork || 'N/A'}</Text>
-                    </View>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>EMPLOYER</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.employerName || 'N/A'}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>EMPLOYER ADDRESS</Text>
-                    <Text style={styles.detailValue}>{fullReceiptData.employerAddress || 'N/A'}</Text>
-                  </View>
-                </View>
-
-                {/* Case Details */}
-                <View style={styles.receiptSection}>
-                  <Text style={styles.sectionTitle}>Case Details</Text>
-                  <View style={styles.sectionDivider} />
-                  
-                  <View style={styles.detailGrid}>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>PARTY REPRESENTED</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.partyRepresented || 'N/A'}</Text>
-                    </View>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>CASE NUMBER</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.caseNumber || 'N/A'}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.detailGrid}>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>VENUE</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.venue || 'N/A'}</Text>
-                    </View>
-                    <View style={styles.detailGridItem}>
-                      <Text style={styles.detailLabel}>PRESENT STAGE</Text>
-                      <Text style={styles.detailValue}>{fullReceiptData.presentStage || 'N/A'}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>COURT DIVISION</Text>
-                    <Text style={styles.detailValue}>{fullReceiptData.courtDivision || 'N/A'}</Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>COURT ADDRESS</Text>
-                    <Text style={styles.detailValue}>{fullReceiptData.courtAddress || 'N/A'}</Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>PRESIDING OFFICER</Text>
-                    <Text style={styles.detailValue}>{fullReceiptData.presidingOfficer || 'N/A'}</Text>
-                  </View>
-                </View>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Create Event Modal */}
-      <Modal
-        visible={createEventModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setCreateEventModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create New Event</Text>
-              <TouchableOpacity onPress={() => setCreateEventModalVisible(false)}>
-                <Ionicons name="close" size={24} color={CHARCOAL} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody}>
-              <Text style={styles.modalLabel}>Event Title *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., Client Meeting, Court Hearing"
-                placeholderTextColor="#999"
-                value={eventForm.title}
-                onChangeText={(text) => setEventForm({ ...eventForm, title: text })}
-              />
-
-              <Text style={styles.modalLabel}>Description</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Event details..."
-                placeholderTextColor="#999"
-                value={eventForm.description}
-                onChangeText={(text) => setEventForm({ ...eventForm, description: text })}
-                multiline
-                numberOfLines={3}
-              />
-
-              <Text style={styles.modalLabel}>Event Date (YYYY-MM-DD) *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="2024-12-31"
-                placeholderTextColor="#999"
-                value={eventForm.eventDate}
-                onChangeText={(text) => setEventForm({ ...eventForm, eventDate: text })}
-              />
-
-              <Text style={styles.modalLabel}>Time (Optional)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="10:00 AM"
-                placeholderTextColor="#999"
-                value={eventForm.eventTime}
-                onChangeText={(text) => setEventForm({ ...eventForm, eventTime: text })}
-              />
-
-              <Text style={styles.modalLabel}>Client Name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Client name"
-                placeholderTextColor="#999"
-                value={eventForm.clientName}
-                onChangeText={(text) => setEventForm({ ...eventForm, clientName: text })}
-              />
-
-              <Text style={styles.modalLabel}>Location</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="SOLA Office"
-                placeholderTextColor="#999"
-                value={eventForm.location}
-                onChangeText={(text) => setEventForm({ ...eventForm, location: text })}
-              />
-
-              <Text style={styles.modalLabel}>Assigned To</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Attorney name"
-                placeholderTextColor="#999"
-                value={eventForm.assignedTo}
-                onChangeText={(text) => setEventForm({ ...eventForm, assignedTo: text })}
-              />
-
-              <Text style={styles.modalLabel}>Priority</Text>
-              <View style={styles.priorityButtons}>
-                {['High', 'Medium', 'Low'].map((priority) => (
+              <Text style={styles.inputLabel}>New Time</Text>
+              <View style={styles.timeSlots}>
+                {TIME_SLOTS.map(slot => (
                   <TouchableOpacity
-                    key={priority}
-                    style={[
-                      styles.priorityButton,
-                      eventForm.priority === priority && styles.priorityButtonActive
-                    ]}
-                    onPress={() => setEventForm({ ...eventForm, priority })}
+                    key={slot}
+                    style={[styles.timeSlot, newTime === slot && styles.timeSlotActive]}
+                    onPress={() => setNewTime(slot)}
                   >
-                    <Text style={[
-                      styles.priorityButtonText,
-                      eventForm.priority === priority && styles.priorityButtonTextActive
-                    ]}>
-                      {priority}
+                    <Text style={[styles.timeSlotText, newTime === slot && styles.timeSlotTextActive]}>
+                      {slot}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <TouchableOpacity 
-                style={[styles.saveButton, creatingEvent && styles.saveButtonDisabled]}
-                onPress={handleCreateEvent}
-                disabled={creatingEvent}
-              >
-                {creatingEvent ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <>
-                    <Ionicons name="add-circle" size={20} color="white" />
-                    <Text style={styles.saveButtonText}>Create Event</Text>
-                  </>
-                )}
+              <View style={styles.rescheduleActions}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setRescheduleModal(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalConfirmButton}
+                  onPress={handleRescheduleSubmit}
+                  disabled={updating}
+                >
+                  {updating ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Text style={styles.modalConfirmText}>Save Schedule</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Modal */}
+      <Modal visible={deleteModal} animationType="fade" transparent onRequestClose={() => { setDeleteModal(false); setAppointmentToDelete(null); }}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalCenterContent}>
+              <View style={[styles.modalIconCircle, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="trash" size={40} color="red" />
+              </View>
+              <Text style={styles.modalCenterTitle}>Delete this appointment?</Text>
+              {appointmentToDelete && (
+                <Text style={styles.modalCenterSubtext}>
+                  {appointmentToDelete.clientName} — {appointmentToDelete.scheduledDate}
+                </Text>
+              )}
+              <Text style={styles.modalCenterSubtext}>
+                This will permanently remove the appointment{appointmentToDelete?.calendarRecorded ? ' and its linked calendar event' : ''}.
+              </Text>
+              <View style={styles.modalButtonRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => { setDeleteModal(false); setAppointmentToDelete(null); }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalConfirmButton, { backgroundColor: 'red' }]}
+                  onPress={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Text style={styles.modalConfirmText}>Delete</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Create Event Modal */}
+      <Modal visible={createEventModal} animationType="slide" transparent onRequestClose={() => setCreateEventModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Event</Text>
+              <TouchableOpacity onPress={() => setCreateEventModal(false)}>
+                <Ionicons name="close" size={24} color={CHARCOAL} />
               </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Title *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Event title"
+                placeholderTextColor="#999"
+                value={eventForm.title}
+                onChangeText={text => setEventForm({ ...eventForm, title: text })}
+              />
+
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Notes..."
+                placeholderTextColor="#999"
+                value={eventForm.description}
+                onChangeText={text => setEventForm({ ...eventForm, description: text })}
+                multiline
+                numberOfLines={3}
+              />
+
+              <Text style={styles.inputLabel}>Date *</Text>
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setShowEventDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={20} color={PRIMARY_BROWN} />
+                <Text style={styles.datePickerText}>
+                  {eventForm.eventDate
+                    ? new Date(eventForm.eventDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'Select Date'}
+                </Text>
+              </TouchableOpacity>
+
+              {showEventDatePicker && (
+                <DateTimePicker
+                  value={eventForm.eventDate ? new Date(eventForm.eventDate) : new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, date) => {
+                    setShowEventDatePicker(Platform.OS === 'ios');
+                    if (date) setEventForm({ ...eventForm, eventDate: date.toISOString() });
+                  }}
+                />
+              )}
+
+              <Text style={styles.inputLabel}>Type</Text>
+              <View style={styles.typeButtons}>
+                {['appointment', 'hearing', 'consultation', 'deadline', 'other'].map(type => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[styles.typeButton, eventForm.eventType === type && styles.typeButtonActive]}
+                    onPress={() => setEventForm({ ...eventForm, eventType: type })}
+                  >
+                    <Text style={[styles.typeButtonText, eventForm.eventType === type && styles.typeButtonTextActive]}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.inputLabel}>Location</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Location"
+                placeholderTextColor="#999"
+                value={eventForm.location}
+                onChangeText={text => setEventForm({ ...eventForm, location: text })}
+              />
+
+              <Text style={styles.inputLabel}>Client Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Client name"
+                placeholderTextColor="#999"
+                value={eventForm.clientName}
+                onChangeText={text => setEventForm({ ...eventForm, clientName: text })}
+              />
+
+              <View style={styles.rescheduleActions}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setCreateEventModal(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalConfirmButton}
+                  onPress={handleCreateEvent}
+                  disabled={creatingEvent}
+                >
+                  {creatingEvent ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Text style={styles.modalConfirmText}>Create Event</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Date Details Modal (calendar date tap) */}
+      <Modal visible={dateDetailsModal} animationType="slide" transparent onRequestClose={() => setDateDetailsModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {selectedCalendarDate
+                  ? selectedCalendarDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+                  : ''}
+              </Text>
+              <TouchableOpacity onPress={() => setDateDetailsModal(false)}>
+                <Ionicons name="close" size={24} color={CHARCOAL} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {selectedCalendarDate && getItemsForDate(selectedCalendarDate).map(item => (
+                <View key={item.uniqueId} style={styles.dateDetailCard}>
+                  <View style={styles.dateDetailHeader}>
+                    <Text style={styles.dateDetailClient}>{item.clientName}</Text>
+                    <View style={styles.dateDetailBadge}>
+                      <Text style={styles.dateDetailBadgeText}>{item.type}</Text>
+                    </View>
+                  </View>
+                  {item.appointmentTime ? (
+                    <View style={styles.dateDetailRow}>
+                      <Ionicons name="time" size={14} color="#666" />
+                      <Text style={styles.dateDetailText}>{item.appointmentTime}</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.dateDetailRow}>
+                    <Ionicons name="location" size={14} color="#666" />
+                    <Text style={styles.dateDetailText}>{item.location || 'TBD'}</Text>
+                  </View>
+                  {!item.isEvent && (
+                    <TouchableOpacity
+                      style={styles.dateDetailViewButton}
+                      onPress={() => {
+                        setDateDetailsModal(false);
+                        router.push({ pathname: '/admin/clientinfo', params: { id: item.id } });
+                      }}
+                    >
+                      <Text style={styles.dateDetailViewText}>View Details</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+              {selectedCalendarDate && getItemsForDate(selectedCalendarDate).length === 0 && (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No appointments on this date.</Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -1159,6 +1165,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'white',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1168,18 +1181,32 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
-  refreshButton: {
-    padding: 8,
-  },
-  backButton: {
-    marginRight: 12,
-  },
+  backButton: { marginRight: 12 },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: CHARCOAL,
     flex: 1,
   },
+  refreshButton: { padding: 8 },
+
+  // Stats Bar
+  statsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  statItem: { alignItems: 'center', flex: 1 },
+  statLabel: { fontSize: 11, fontWeight: '600', color: MUTED_OLIVE },
+  statValue: { fontSize: 20, fontWeight: '700' },
+  statDivider: { width: 1, height: 36, backgroundColor: '#E5E7EB' },
+
+  // Calendar
   calendarSection: {
     backgroundColor: 'white',
     padding: 16,
@@ -1192,16 +1219,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 16,
   },
-  calendarTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: CHARCOAL,
-    marginBottom: 4,
-  },
-  calendarSubtitle: {
-    fontSize: 13,
-    color: '#666',
-  },
+  calendarTitle: { fontSize: 16, fontWeight: '700', color: CHARCOAL, marginBottom: 4 },
+  calendarSubtitle: { fontSize: 13, color: '#666' },
   addEventButton: {
     width: 44,
     height: 44,
@@ -1215,22 +1234,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  calendarPlaceholder: {
-    backgroundColor: THEMED_LIGHT_BG,
-    padding: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: PRIMARY_GOLD,
-    borderStyle: 'dashed',
-  },
-  calendarPlaceholderText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: PRIMARY_BROWN,
-    fontWeight: '600',
-  },
   monthNavigation: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1238,18 +1241,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 8,
   },
-  monthButton: {
-    padding: 8,
-  },
-  monthText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: CHARCOAL,
-  },
-  calendarWeek: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
+  monthButton: { padding: 8 },
+  monthText: { fontSize: 16, fontWeight: '700', color: CHARCOAL },
+  calendarWeek: { flexDirection: 'row', justifyContent: 'space-around' },
   calendarDay: {
     width: '14.28%',
     aspectRatio: 1,
@@ -1257,24 +1251,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
-  calendarDayToday: {
-    backgroundColor: PRIMARY_GOLD,
-    borderRadius: 8,
-  },
-  calendarDayText: {
-    fontSize: 14,
-    color: CHARCOAL,
-    fontWeight: '500',
-  },
-  calendarDayTextToday: {
-    color: 'white',
-    fontWeight: '700',
-  },
-  dayHeader: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
-  },
+  calendarDayToday: { backgroundColor: PRIMARY_GOLD, borderRadius: 8 },
+  calendarDaySelected: { backgroundColor: `${PRIMARY_BROWN}20`, borderRadius: 8 },
+  calendarDayText: { fontSize: 14, color: CHARCOAL, fontWeight: '500' },
+  calendarDayTextToday: { color: 'white', fontWeight: '700' },
+  calendarDayTextSelected: { color: PRIMARY_BROWN, fontWeight: '700' },
+  dayHeader: { fontSize: 12, fontWeight: '600', color: '#666' },
   appointmentDot: {
     position: 'absolute',
     bottom: 4,
@@ -1286,218 +1268,177 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
   },
-  appointmentDotText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  dateAppointmentCard: {
-    backgroundColor: THEMED_LIGHT_BG,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: PRIMARY_GOLD,
-  },
-  dateAppointmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  dateAppointmentClient: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: CHARCOAL,
-    flex: 1,
-  },
-  dateAppointmentBadge: {
-    backgroundColor: PRIMARY_BROWN,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  dateAppointmentBadgeText: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  dateAppointmentDetail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-    gap: 6,
-  },
-  dateAppointmentDetailText: {
-    fontSize: 13,
-    color: '#666',
-  },
-  viewDetailsButton: {
-    marginTop: 8,
-    backgroundColor: PRIMARY_BROWN,
-    paddingVertical: 8,
+  appointmentDotText: { color: 'white', fontSize: 10, fontWeight: '700' },
+
+  // Records Section
+  recordsSection: {
     paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  recordsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
-  viewDetailsButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  tabsContainer: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    backgroundColor: 'white',
-    maxHeight: 50,
-  },
-  tabsContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+  recordsHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  recordsTitle: { fontSize: 17, fontWeight: '700', color: CHARCOAL },
+
+  // Search
+  searchContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  tab: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginHorizontal: 4,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    height: 44,
-    justifyContent: 'center',
-  },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: PRIMARY_BROWN,
-  },
-  tabText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-  activeTabText: {
-    color: PRIMARY_BROWN,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 64,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 16,
-  },
-  appointmentList: {
-    flex: 1,
-    paddingHorizontal: 0,
-  },
-  appointmentListContent: {
-    paddingBottom: 20,
-  },
-  appointmentCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 16,
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    backgroundColor: '#FAFAFA',
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  appointmentInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  clientName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: CHARCOAL,
-  },
-  appointmentType: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  highPriority: {
-    backgroundColor: '#FFEBEE',
-  },
-  mediumPriority: {
-    backgroundColor: '#FFF3E0',
-  },
-  lowPriority: {
-    backgroundColor: '#E8F5E9',
-  },
-  priorityText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  cardDetails: {
-    marginBottom: 12,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-    gap: 8,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#666',
-    flex: 1,
-    lineHeight: 20,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  statusBadge: {
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: CHARCOAL },
+
+  // Filter badge
+  filterBadge: {
+    backgroundColor: `${PRIMARY_BROWN}15`,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
   },
-  pendingBadge: {
-    backgroundColor: '#FFF3E0',
+  filterBadgeText: { fontSize: 12, fontWeight: '600', color: PRIMARY_BROWN },
+
+  // Pill Tabs (matching website's pill variant)
+  tabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
   },
-  scheduledBadge: {
-    backgroundColor: '#E8F5E9',
+  pillTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
   },
-  statusText: {
-    fontSize: 12,
+  pillTabActive: {
+    backgroundColor: PRIMARY_BROWN,
+  },
+  pillTabText: {
+    fontSize: 13,
     fontWeight: '600',
+    color: '#666',
   },
+  pillTabTextActive: {
+    color: 'white',
+  },
+
+  // Card List
+  cardList: { maxHeight: 500 },
+
+  // Appointment Card (matching website's SideAppointmentCard)
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderLeftWidth: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  cardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  cardName: { fontSize: 14, fontWeight: '600', color: CHARCOAL },
+  cardType: { fontSize: 12, fontWeight: '500', color: MUTED_OLIVE, marginTop: 2 },
+  cardDetails: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 10,
+  },
+  cardDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardDetailText: { fontSize: 12, fontWeight: '600', color: CHARCOAL },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  // Context Menu
+  contextMenu: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 4,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  contextMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  contextMenuText: { fontSize: 14, color: CHARCOAL },
+  contextMenuDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 2 },
+
+  // Action Buttons
+  approveButton: {
+    flex: 1,
+    backgroundColor: PRIMARY_BROWN,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  approveButtonText: { color: 'white', fontSize: 13, fontWeight: '600' },
+  interviewButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: PRIMARY_BROWN,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  interviewButtonText: { color: PRIMARY_BROWN, fontSize: 13, fontWeight: '600' },
+  detailsButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  detailsButtonText: { color: '#666', fontSize: 13, fontWeight: '600' },
+
+  // Empty
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+  },
+  emptyText: { fontSize: 13, color: '#999', fontWeight: '500', marginTop: 8 },
+
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1517,294 +1458,180 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: CHARCOAL,
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: CHARCOAL, flex: 1 },
+  modalBody: { padding: 20 },
+  modalCenterContent: {
+    alignItems: 'center',
+    padding: 24,
+    gap: 12,
   },
-  modalBody: {
-    padding: 20,
+  modalIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: THEMED_LIGHT_BG,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  modalLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 16,
-    marginBottom: 4,
-    fontWeight: '600',
+  modalCenterTitle: { fontSize: 18, fontWeight: '700', color: CHARCOAL, textAlign: 'center' },
+  modalCenterSubtext: { fontSize: 14, color: '#666', textAlign: 'center' },
+  modalButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+    width: '100%',
   },
-  modalValue: {
-    fontSize: 16,
-    color: CHARCOAL,
-  },
-  input: {
+  modalCancelButton: {
+    flex: 1,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: CHARCOAL,
-    marginBottom: 16,
+    borderColor: '#D1D5DB',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
   },
+  modalCancelText: { fontSize: 15, fontWeight: '600', color: '#666' },
+  modalConfirmButton: {
+    flex: 1,
+    backgroundColor: PRIMARY_BROWN,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalConfirmText: { color: 'white', fontSize: 15, fontWeight: '600' },
+
+  // Reschedule Info
+  rescheduleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: THEMED_LIGHT_BG,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  rescheduleAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: PRIMARY_BROWN,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rescheduleAvatarText: { color: 'white', fontSize: 18, fontWeight: '700' },
+  rescheduleClientName: { fontSize: 14, fontWeight: '600', color: CHARCOAL },
+  rescheduleCurrentDate: { fontSize: 12, color: '#666' },
+  rescheduleActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+
+  // Date & Time Pickers
+  inputLabel: { fontSize: 13, fontWeight: '600', color: '#666', marginBottom: 6, marginTop: 12 },
   datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 12,
-    marginBottom: 16,
     backgroundColor: '#F9F9F9',
   },
-  datePickerText: {
-    fontSize: 16,
-    color: CHARCOAL,
-    marginLeft: 8,
-  },
-  buttonGroup: {
+  datePickerText: { fontSize: 15, color: CHARCOAL, marginLeft: 8 },
+  timeSlots: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-    marginBottom: 12,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
   },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 14,
-    borderRadius: 8,
-    gap: 6,
-  },
-  recommendButton: {
-    backgroundColor: PRIMARY_GOLD,
-  },
-  recommendButtonText: {
-    color: PRIMARY_BROWN,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  editButton: {
-    backgroundColor: THEMED_LIGHT_BG,
+  timeSlot: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: 'white',
+  },
+  timeSlotActive: {
+    backgroundColor: PRIMARY_BROWN,
     borderColor: PRIMARY_BROWN,
   },
-  editButtonText: {
-    color: PRIMARY_BROWN,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  viewRecommendationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'white',
-    borderWidth: 1.5,
-    borderColor: PRIMARY_GOLD,
-    padding: 14,
-    borderRadius: 8,
-    marginTop: 20,
-    marginBottom: 12,
-    gap: 8,
-  },
-  viewRecommendationButtonText: {
-    color: PRIMARY_BROWN,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  fullReceiptButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: PRIMARY_BROWN,
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 12,
-    gap: 8,
-  },
-  fullReceiptButtonText: {
-    color: 'white',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: PRIMARY_BROWN,
-    marginTop: 20,
-    marginBottom: 12,
-  },
-  sectionDivider: {
-    height: 1,
-    backgroundColor: '#E0E0E0',
-    marginBottom: 16,
-  },
-  receiptHeader: {
-    backgroundColor: `${PRIMARY_GOLD}26`,
+  timeSlotText: { fontSize: 13, fontWeight: '600', color: '#666' },
+  timeSlotTextActive: { color: 'white' },
+
+  // Input
+  input: {
     borderWidth: 1,
-    borderColor: PRIMARY_GOLD,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 15,
+    color: CHARCOAL,
   },
-  receiptTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: PRIMARY_BROWN,
-    marginBottom: 8,
+  textArea: { height: 80, textAlignVertical: 'top' },
+
+  // Type Buttons
+  typeButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
   },
-  statusBadge: {
-    backgroundColor: PRIMARY_GOLD,
-    alignSelf: 'flex-start',
+  typeButton: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  statusBadgeText: {
-    color: CHARCOAL,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  caseNumber: {
-    fontSize: 13,
-    color: '#666',
-  },
-  receiptSection: {
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  detailRow: {
-    marginBottom: 16,
-  },
-  detailGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  detailGridItem: {
-    flex: 1,
-  },
-  detailLabel: {
-    fontSize: 10,
-    color: '#999',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  detailValue: {
-    fontSize: 14,
-    color: CHARCOAL,
-    fontWeight: '500',
-  },
-  rescheduleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: PRIMARY_BROWN,
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 24,
-  },
-  rescheduleButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  saveButton: {
-    backgroundColor: PRIMARY_BROWN,
-    padding: 16,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  saveButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-    paddingTop: 12,
-  },
-  priorityButtons: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  priorityButton: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E0E0E0',
     backgroundColor: 'white',
-    alignItems: 'center',
   },
-  priorityButtonActive: {
+  typeButtonActive: {
     backgroundColor: PRIMARY_BROWN,
     borderColor: PRIMARY_BROWN,
   },
-  priorityButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
+  typeButtonText: { fontSize: 12, fontWeight: '600', color: '#666' },
+  typeButtonTextActive: { color: 'white' },
+
+  // Date Detail Modal
+  dateDetailCard: {
+    backgroundColor: THEMED_LIGHT_BG,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: PRIMARY_GOLD,
   },
-  priorityButtonTextActive: {
-    color: 'white',
+  dateDetailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  googleCalendarButton: {
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#4285F4',
+  dateDetailClient: { fontSize: 16, fontWeight: '700', color: CHARCOAL, flex: 1 },
+  dateDetailBadge: {
+    backgroundColor: PRIMARY_BROWN,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
+  dateDetailBadgeText: { color: 'white', fontSize: 11, fontWeight: '600' },
+  dateDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  dateDetailText: { fontSize: 13, color: '#666' },
+  dateDetailViewButton: {
+    marginTop: 8,
+    backgroundColor: PRIMARY_BROWN,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  dateDetailViewText: { color: 'white', fontSize: 14, fontWeight: '600' },
 });
-
-export const generateGoogleCalendarUrl = (event) => {
-  const baseUrl = 'https://calendar.google.com/calendar/render';
-  
-  const formatDateTime = (date, time) => {
-    const eventDate = new Date(date);
-    if (time) {
-      const [hours, minutes] = time.split(':');
-      eventDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    }
-    return eventDate.toISOString().replace(/-|:|\.\d+/g, '');
-  };
-
-  const startDateTime = formatDateTime(event.appointmentDate || event.eventDate, event.appointmentTime || event.time);
-  
-  const endDate = new Date(event.appointmentDate || event.eventDate);
-  if (event.appointmentTime || event.time) {
-    const [hours, minutes] = (event.appointmentTime || event.time).split(':');
-    endDate.setHours(parseInt(hours) + 1, parseInt(minutes), 0, 0);
-  } else {
-    endDate.setHours(endDate.getHours() + 1);
-  }
-  const endDateTime = endDate.toISOString().replace(/-|:|\.\d+/g, '');
-
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: event.title || event.purpose || event.clientName || 'Appointment',
-    dates: `${startDateTime}/${endDateTime}`,
-    details: event.description || event.purpose || '',
-    location: event.location || '',
-    trp: 'false'
-  });
-
-  return `${baseUrl}?${params.toString()}`;
-};

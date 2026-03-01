@@ -4,10 +4,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
-  Text,
 } from "react-native";
-import { Link } from "expo-router";
 import { LoginHero } from "components/hero/loginHero";
 import { LoginFormFields } from "components/forms/loginFormFields";
 import { SocialLoginButtons } from "components/buttons/loginButton";
@@ -53,16 +50,6 @@ export default function Login() {
             onGoogleSignIn={handleGoogleSignIn}
             loading={loading}
           />
-
-          {/* Attorney Login Link */}
-          <View style={loginStyles.attorneyLinkContainer}>
-            <Text style={loginStyles.attorneyLinkText}>Are you an attorney?</Text>
-            <Link href="/auth/attorneyLogin" asChild>
-              <TouchableOpacity>
-                <Text style={loginStyles.attorneyLinkButton}>Login as Attorney</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

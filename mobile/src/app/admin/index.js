@@ -333,8 +333,7 @@ export default function AdminDashboard() {
             <Text style={s.sectionTitle}>Quick Actions</Text>
             <View style={s.actionsGrid}>
               {[
-                { label: 'Assign Cases', icon: 'person-add-outline', route: '/admin/assignCases' },
-                { label: 'Manage Attorneys', icon: 'briefcase-outline', route: '/admin/manageAttorneys' },
+                { label: 'Assigned Cases', icon: 'git-branch-outline', route: '/admin/assigned-cases' },
                 { label: 'Analytics', icon: 'bar-chart-outline', route: '/admin/analytics' },
                 { label: 'Recommendations', icon: 'star-outline', route: '/admin/recommendation' },
               ].map(action => (

@@ -139,11 +139,7 @@ export default function LandingPage() {
               Just<Text style={styles.logoAccent}>Reach</Text>
             </Text>
           </View>
-          <Link href="/auth" asChild>
-            <TouchableOpacity style={styles.headerButton}>
-              <Text style={styles.headerButtonText}>Sign In</Text>
-            </TouchableOpacity>
-          </Link>
+          <View style={{ width: 24 }} />
         </View>
       </View>
 
@@ -171,18 +167,11 @@ export default function LandingPage() {
             </Text>
             
             <View style={styles.heroButtons}>
-              <Link href="/auth/signup" asChild>
+              <Link href="/appointment" asChild>
                 <TouchableOpacity style={styles.ctaButton}>
                   <Text style={styles.ctaButtonText}>Get Legal Assistance</Text>
                 </TouchableOpacity>
               </Link>
-              <TouchableOpacity 
-                style={styles.secondaryButton}
-                onPress={() => router.push('/ai-chatbot')}
-              >
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.secondaryButtonText}>Try AI Chatbot</Text>
-              </TouchableOpacity>
             </View>
 
             {/* Stats Row */}
@@ -276,16 +265,16 @@ export default function LandingPage() {
         <Text style={styles.ctaDescription}>
           Join thousands of Filipinos who have accessed legal services through JUSTREACH
         </Text>
-        <Link href="/auth/signup" asChild>
+        <Link href="/appointment" asChild>
           <TouchableOpacity style={styles.ctaButtonLarge}>
-            <Text style={styles.ctaButtonLargeText}>Get Started Now</Text>
+            <Text style={styles.ctaButtonLargeText}>Book Appointment</Text>
             <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </Link>
-        <Link href="/auth/attorneyLogin" asChild>
+        <Link href="/auth" asChild>
           <TouchableOpacity style={styles.ctaButtonSecondary}>
-            <Ionicons name="briefcase-outline" size={18} color="#C4AB7D" />
-            <Text style={styles.ctaButtonSecondaryText}>Attorney Login</Text>
+            <Ionicons name="log-in-outline" size={18} color="#C4AB7D" />
+            <Text style={styles.ctaButtonSecondaryText}>Staff Login</Text>
           </TouchableOpacity>
         </Link>
       </View>
@@ -306,30 +295,29 @@ export default function LandingPage() {
         <View style={styles.footerLinks}>
           <View style={styles.footerColumn}>
             <Text style={styles.footerTitle}>Quick Links</Text>
-            <Text style={styles.footerLink}>About Us</Text>
-            <Text style={styles.footerLink}>How It Works</Text>
-            <Text style={styles.footerLink}>Impact</Text>
+            <TouchableOpacity onPress={() => router.push('/about')}>
+              <Text style={styles.footerLink}>About Us</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/features')}>
+              <Text style={styles.footerLink}>Features</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/how')}>
+              <Text style={styles.footerLink}>How It Works</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.footerColumn}>
             <Text style={styles.footerTitle}>Legal</Text>
-            <Text style={styles.footerLink}>Privacy Policy</Text>
-            <Text style={styles.footerLink}>Terms of Service</Text>
-            <Text style={styles.footerLink}>Disclaimer</Text>
+            <TouchableOpacity onPress={() => router.push('/privacy')}>
+              <Text style={styles.footerLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/terms')}>
+              <Text style={styles.footerLink}>Terms of Service</Text>
+            </TouchableOpacity>
           </View>
         </View>
         
-        <Text style={styles.footerCopyright}>© 2024 JustReach. All rights reserved.</Text>
+        <Text style={styles.footerCopyright}>© 2026 JustReach. All rights reserved.</Text>
       </View>
-
-      {/* Floating AI Chatbot Button */}
-      <TouchableOpacity 
-        style={styles.floatingChatButton}
-        onPress={() => router.push('/ai-chatbot')}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
-        <Text style={styles.floatingChatText}>Ask AI</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }

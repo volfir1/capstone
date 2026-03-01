@@ -1,25 +1,13 @@
 import apiClient from './apiClient';
 
-// ============== USER CASES ==============
-export const fetchUserCases = async () => {
-  const response = await apiClient.get('/cases/user-cases');
-  return response.data;
-};
-
 // ============== CLIENT INFO / APPOINTMENTS ==============
-export const submitClientInfo = async (data) => {
-  const response = await apiClient.post('/clientsinfo', data);
+export const submitPublicAppointment = async (data) => {
+  const response = await apiClient.post('/clientsinfo/public-appointment', data);
   return response.data;
 };
 
 export const fetchUserAppointments = async () => {
   const response = await apiClient.get('/clientsinfo');
-  return response.data;
-};
-
-// ============== FINALIZED CASES (user side) ==============
-export const fetchUserFinalizedCases = async (userId) => {
-  const response = await apiClient.get(`/finalize/user/${userId}`);
   return response.data;
 };
 
@@ -49,27 +37,6 @@ export const updateAttorneyProfile = async (data) => {
   return response.data;
 };
 
-// ============== CHAT ==============
-export const fetchChatList = async () => {
-  const response = await apiClient.get('/chat/list');
-  return response.data;
-};
-
-export const fetchChatMessages = async (caseId) => {
-  const response = await apiClient.get(`/chat/case/${caseId}`);
-  return response.data;
-};
-
-export const sendChatMessage = async (caseId, message) => {
-  const response = await apiClient.post('/chat/send', { caseId, message });
-  return response.data;
-};
-
-export const markChatAsRead = async (caseId) => {
-  const response = await apiClient.put(`/chat/read/${caseId}`);
-  return response.data;
-};
-
 // ============== NOTIFICATIONS ==============
 export const fetchNotifications = async (page = 1, limit = 20) => {
   const response = await apiClient.get(`/notifications?page=${page}&limit=${limit}`);
@@ -91,9 +58,8 @@ export const deleteNotification = async (id) => {
   return response.data;
 };
 
-// ============== AI CHATBOT ==============
-export const sendAIMessage = async (message) => {
-  const response = await apiClient.post('/ai-assistant/message', { message });
+export const clearAllNotifications = async () => {
+  const response = await apiClient.delete('/notifications/clear-all');
   return response.data;
 };
 

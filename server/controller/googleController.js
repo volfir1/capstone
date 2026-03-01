@@ -38,13 +38,33 @@ export const oauthCallback = async (req, res) => {
 
     await user.save();
 
-    // Redirect back to client appointments page with success — client should display connected status
+    // Show a success page that works for both website and mobile browsers.
+    // Website users are auto-redirected; mobile users see the success message and can close the tab.
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-    // Appointments page route in the client is /admin/clientformstatus
-    return res.redirect(`${clientUrl}/admin/clientformstatus?google=connected`);
+    return res.send(`<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Google Calendar Connected</title>
+<meta http-equiv="refresh" content="3;url=${clientUrl}/admin/clientformstatus?google=connected">
+<style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#FAF8F3;text-align:center;padding:20px}div{max-width:400px}.icon{font-size:64px;margin-bottom:16px}h2{color:#2C2C2C;margin:0 0 8px}p{color:#666;margin:4px 0;font-size:14px}</style>
+</head><body><div>
+<div class="icon">&#9989;</div>
+<h2>Google Calendar Connected!</h2>
+<p>You can now close this window and return to the app.</p>
+<p style="margin-top:16px;font-size:12px;color:#999">Website users will be redirected automatically&hellip;</p>
+</div></body></html>`);
   } catch (err) {
     console.error('oauthCallback error', err);
-    res.status(500).send('Google OAuth callback failed');
+    return res.send(`<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connection Failed</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#FAF8F3;text-align:center;padding:20px}div{max-width:400px}.icon{font-size:64px;margin-bottom:16px}h2{color:#2C2C2C;margin:0 0 8px}p{color:#666;margin:4px 0;font-size:14px}</style>
+</head><body><div>
+<div class="icon">&#10060;</div>
+<h2>Connection Failed</h2>
+<p>Google Calendar connection failed. Please go back to the app and try again.</p>
+</div></body></html>`);
   }
 };
 
@@ -117,12 +137,26 @@ export const createEventAndRecord = async (req, res) => {
       console.error('createEventAndRecord google api error', gErr?.message || gErr);
       // Map common Google API issues to actionable responses for the client
       const causeMessage = gErr?.cause?.message || gErr?.message || '';
+      const errStr = (causeMessage + ' ' + (gErr?.message || '')).toLowerCase();
 
-      if (causeMessage.toLowerCase().includes('insufficient authentication scopes')) {
+      if (errStr.includes('invalid_grant') || errStr.includes('token has been expired or revoked')) {
+        // Clear stale tokens so the user can reconnect cleanly
+        try {
+          await User.findOneAndUpdate({ firebaseUid }, {
+            'google.connected': false,
+            'google.refreshToken': null,
+            'google.accessToken': null,
+            'google.tokenExpiry': null,
+          });
+        } catch (_) { /* best-effort */ }
+        return res.status(401).json({ error: 'google_reconnect_required', message: 'Google Calendar connection expired. Please reconnect your Google account.' });
+      }
+
+      if (errStr.includes('insufficient authentication scopes')) {
         return res.status(403).json({ error: 'insufficient_scopes', message: 'Google access token missing calendar scopes. Re-consent required.' });
       }
 
-      if (causeMessage.toLowerCase().includes('has not been used in project') || causeMessage.toLowerCase().includes('disabled')) {
+      if (errStr.includes('has not been used in project') || errStr.includes('disabled')) {
         return res.status(422).json({ error: 'api_not_enabled', message: 'Google Calendar API not enabled for the project that issued this token.' });
       }
 
@@ -281,7 +315,19 @@ export const rescheduleEvent = async (req, res) => {
         localEvent.externalIds = { google: newGoogleEvent?.id || '' };
       } catch (gErr) {
         console.error('Google Calendar reschedule error:', gErr.message);
-        // Continue even if Google Calendar update fails
+        const errStr = (gErr?.cause?.message || gErr?.message || '').toLowerCase();
+        if (errStr.includes('invalid_grant') || errStr.includes('token has been expired or revoked')) {
+          try {
+            await User.findOneAndUpdate({ firebaseUid }, {
+              'google.connected': false,
+              'google.refreshToken': null,
+              'google.accessToken': null,
+              'google.tokenExpiry': null,
+            });
+          } catch (_) { /* best-effort */ }
+          return res.status(401).json({ error: 'google_reconnect_required', message: 'Google Calendar connection expired. Please reconnect your Google account.' });
+        }
+        // Continue even if Google Calendar update fails for other errors
       }
     }
 

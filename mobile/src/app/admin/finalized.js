@@ -10,7 +10,6 @@ import {
   RefreshControl,
   Alert,
   Modal,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -46,26 +45,10 @@ export default function FinalizedCases() {
   const [appointmentModalVisible, setAppointmentModalVisible] = useState(false);
   const [appointmentDetails, setAppointmentDetails] = useState(null);
   const [appointmentLoading, setAppointmentLoading] = useState(false);
-  const [chatModalVisible, setChatModalVisible] = useState(false);
-  const [currentChatCase, setCurrentChatCase] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [messageText, setMessageText] = useState('');
-  const [sendingMessage, setSendingMessage] = useState(false);
 
   useEffect(() => {
     fetchFinalized();
   }, []);
-
-  // Auto-refresh messages when chat is open
-  useEffect(() => {
-    if (chatModalVisible && currentChatCase) {
-      const interval = setInterval(() => {
-        fetchChatMessages(currentChatCase._id);
-      }, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [chatModalVisible, currentChatCase]);
 
   const fetchFinalized = async () => {
     try {
@@ -268,87 +251,6 @@ export default function FinalizedCases() {
       Alert.alert('Error', 'Failed to load full receipt');
     } finally {
       setAppointmentLoading(false);
-    }
-  };
-
-  const handleOpenChat = async (finalizedCase) => {
-    try {
-      let caseDoc = null;
-
-      // Check if this finalized case already has a linked Case document
-      if (finalizedCase.linkedCaseId) {
-        try {
-          const caseResponse = await apiClient.get(`/cases/${finalizedCase.linkedCaseId}`);
-          caseDoc = caseResponse.data.data;
-        } catch (err) {
-          console.log('Linked case not found, will create new one');
-        }
-      }
-
-      // If no linked case exists, create a new one
-      if (!caseDoc) {
-        const caseData = {
-          caseNumber: finalizedCase.caseId,
-          caseType: finalizedCase.content?.caseInfo?.nature || finalizedCase.category || 'General',
-          caseTitle: finalizedCase.content?.caseInfo?.caseTitle || 'Case for ' + (finalizedCase.clientName || finalizedCase.content?.interviewInfo?.clientName),
-          userId: finalizedCase.userId || finalizedCase.content?.userId,
-          linkedCaseId: finalizedCase.caseId,
-        };
-
-        const createResponse = await apiClient.post('/cases', caseData);
-        caseDoc = createResponse.data.data;
-
-        // Update finalize document with the new linkedCaseId
-        await apiClient.put(`/finalize/${finalizedCase._id}`, {
-          ...finalizedCase,
-          linkedCaseId: caseDoc._id
-        });
-      }
-
-      setModalVisible(false);
-      setCurrentChatCase(caseDoc);
-      setChatModalVisible(true);
-      await fetchChatMessages(caseDoc._id);
-    } catch (error) {
-      console.error('Error opening chat:', error);
-      Alert.alert('Error', 'Failed to open chat');
-    }
-  };
-
-  const fetchChatMessages = async (caseId) => {
-    try {
-      setLoadingMessages(true);
-      const response = await apiClient.get(`/chat/case/${caseId}`);
-      if (response.data.success) {
-        setChatMessages(response.data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-      setChatMessages([]);
-    } finally {
-      setLoadingMessages(false);
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!messageText.trim() || !currentChatCase) return;
-
-    try {
-      setSendingMessage(true);
-      const response = await apiClient.post('/chat/send', {
-        caseId: currentChatCase._id,
-        message: messageText.trim()
-      });
-
-      if (response.data.success) {
-        setMessageText('');
-        await fetchChatMessages(currentChatCase._id);
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      Alert.alert('Error', 'Failed to send message');
-    } finally {
-      setSendingMessage(false);
     }
   };
 
@@ -616,114 +518,11 @@ export default function FinalizedCases() {
                     </TouchableOpacity>
                   )}
 
-                  {selectedCase.decision === 'accepted' && (
-                    <TouchableOpacity 
-                      style={[styles.actionButton, styles.actionOutline]}
-                      onPress={() => handleOpenChat(selectedCase)}
-                    >
-                      <Ionicons name="chatbubbles" size={18} color={PRIMARY_BROWN} />
-                      <Text style={styles.actionButtonTextAlt}>Chat</Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
               </ScrollView>
             )}
           </View>
         </View>
-      </Modal>
-
-      {/* Chat Modal */}
-      <Modal
-        visible={chatModalVisible}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setChatModalVisible(false)}
-      >
-        <SafeAreaView style={styles.chatContainer}>
-          <View style={styles.chatHeader}>
-            <TouchableOpacity onPress={() => setChatModalVisible(false)} style={styles.chatBackButton}>
-              <Ionicons name="arrow-back" size={24} color={CHARCOAL} />
-            </TouchableOpacity>
-            <View style={styles.chatHeaderInfo}>
-              <Text style={styles.chatHeaderTitle}>
-                {currentChatCase?.caseNumber || 'Chat'}
-              </Text>
-              <Text style={styles.chatHeaderSubtitle}>
-                {currentChatCase?.caseType || ''}
-              </Text>
-            </View>
-          </View>
-
-          {loadingMessages ? (
-            <View style={styles.chatLoadingContainer}>
-              <ActivityIndicator size="large" color={PRIMARY_BROWN} />
-            </View>
-          ) : (
-            <FlatList
-              data={chatMessages}
-              keyExtractor={(item, index) => item._id || index.toString()}
-              renderItem={({ item }) => {
-                const isCurrentUser = item.senderRole && ['attorney', 'intern', 'secretary'].includes(item.senderRole);
-                const senderName = item.senderId?.firstName && item.senderId?.lastName 
-                  ? `${item.senderId.firstName} ${item.senderId.lastName}`
-                  : item.senderId?.email || 'Unknown';
-
-                return (
-                  <View style={[
-                    styles.messageContainer,
-                    isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage
-                  ]}>
-                    {!isCurrentUser && (
-                      <Text style={styles.senderName}>{senderName}</Text>
-                    )}
-                    <Text style={[
-                      styles.messageText,
-                      isCurrentUser ? styles.currentUserText : styles.otherUserText
-                    ]}>
-                      {item.message}
-                    </Text>
-                    <Text style={styles.messageTime}>
-                      {new Date(item.createdAt).toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </Text>
-                  </View>
-                );
-              }}
-              contentContainerStyle={styles.chatMessages}
-              ListEmptyComponent={
-                <View style={styles.emptyChat}>
-                  <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
-                  <Text style={styles.emptyChatText}>No messages yet</Text>
-                </View>
-              }
-            />
-          )}
-
-          <View style={styles.chatInputContainer}>
-            <TextInput
-              style={styles.chatInput}
-              placeholder="Type a message..."
-              placeholderTextColor="#999"
-              value={messageText}
-              onChangeText={setMessageText}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity 
-              style={[styles.sendButton, (!messageText.trim() || sendingMessage) && styles.sendButtonDisabled]}
-              onPress={handleSendMessage}
-              disabled={!messageText.trim() || sendingMessage}
-            >
-              {sendingMessage ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Ionicons name="send" size={20} color="white" />
-              )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
       </Modal>
 
       {/* Case Record Modal */}
@@ -1297,136 +1096,5 @@ const styles = StyleSheet.create({
     color: PRIMARY_BROWN,
     fontWeight: '600',
     marginLeft: 8,
-  },
-  chatButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: PRIMARY_BROWN,
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 24,
-  },
-  chatButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  // Chat Modal Styles
-  chatContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  chatHeader: {
-    flexDirection: 'row',
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    backgroundColor: 'white',
-  },
-  chatBackButton: {
-    marginRight: 12,
-  },
-  chatHeaderInfo: {
-    flex: 1,
-  },
-  chatHeaderTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: CHARCOAL,
-  },
-  chatHeaderSubtitle: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  chatLoadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chatMessages: {
-    padding: 16,
-    flexGrow: 1,
-  },
-  messageContainer: {
-    maxWidth: '75%',
-    marginBottom: 12,
-    padding: 12,
-    borderRadius: 16,
-  },
-  currentUserMessage: {
-    alignSelf: 'flex-end',
-    backgroundColor: PRIMARY_BROWN,
-  },
-  otherUserMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: THEMED_LIGHT_BG,
-  },
-  senderName: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: CHARCOAL,
-    marginBottom: 4,
-  },
-  messageText: {
-    fontSize: 14,
-  },
-  currentUserText: {
-    color: 'white',
-  },
-  otherUserText: {
-    color: CHARCOAL,
-  },
-  messageTime: {
-    fontSize: 10,
-    color: '#999',
-    marginTop: 4,
-    textAlign: 'right',
-  },
-  emptyChat: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 64,
-  },
-  emptyChatText: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 16,
-  },
-  chatInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: 'white',
-  },
-  chatInput: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginRight: 8,
-    maxHeight: 100,
-    fontSize: 14,
-    color: CHARCOAL,
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: PRIMARY_BROWN,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#CCC',
   },
 });
