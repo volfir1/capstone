@@ -3,10 +3,10 @@ import { useDisclosure } from "@mantine/hooks";
 import { useNavigate, Link } from "react-router";
 import { useState, useCallback } from "react";
 import {
-  IconScale, IconShieldCheck, IconUsers, IconClipboardCheck, IconFileSearch, IconFileDigit,
+  IconScale, IconShieldCheck, IconUsers, IconClipboardCheck,
   IconGavel, IconTarget, IconHeart, IconCalendarEvent, IconFileText,
   IconArrowRight, IconCheck, IconBrandLinkedin, IconBrandGithub, IconMail,
-  IconBuildingArch,
+  IconBuildingArch, IconHandStop, IconUserCheck,
 } from "@tabler/icons-react";
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, CHARCOAL } from "@/utils/constants";
 
@@ -25,26 +25,24 @@ const NAV = [
 ];
 
 const FEATURES = [
-  { icon: IconCalendarEvent, title: "Appointment Scheduling", desc: "Request, track, and manage legal aid appointments with Google Calendar integration to stay organized." },
-  { icon: IconUsers, title: "Legal Aid Consultations", desc: "Connect with verified legal aid lawyers for free professional advice, document drafting, and court representation." },
-  { icon: IconClipboardCheck, title: "Guided Legal Requirements", desc: "Get clear, structured guidance on requirements and next steps based on your case details and standard legal aid procedures." },
-  { icon: IconFileSearch, title: "Secure Case Tracking", desc: "Monitor your case status in real-time with role-based dashboards and regular notifications on any updates." },
-  { icon: IconFileDigit, title: "Document Management", desc: "Upload Word/PDF documents, preview them in-app, and keep all case files centralized and downloadable." },
-  { icon: IconFileText, title: "Case Record System", desc: "Comprehensive case records with tribunal details, parties, history, and administrative information in one place." },
+  { icon: IconCalendarEvent, title: "Easy Appointment Booking", desc: "Submit a legal aid appointment request anytime — no account or login required. Just fill out the form and you're set." },
+  { icon: IconUsers, title: "Free Legal Consultations", desc: "Get connected with verified legal aid lawyers for free professional advice, document drafting, and court representation." },
+  { icon: IconClipboardCheck, title: "Guided Appointment Form", desc: "Our step-by-step form walks you through providing the right details so the legal office can assess your concern quickly." },
+  { icon: IconHandStop, title: "No Account Needed", desc: "You don't need to create an account or remember a password. Simply submit your appointment and the office takes it from there." },
 ];
 
 const STEPS = [
-  { num: "01", icon: IconClipboardCheck, title: "Submit Your Request", desc: "Fill out our guided appointment form with your personal details and legal concern." },
-  { num: "02", icon: IconUsers, title: "Review & Assignment", desc: "Your submission is reviewed by the legal office staff. A qualified legal aid volunteer lawyer is assigned." },
-  { num: "03", icon: IconCalendarEvent, title: "Schedule Consultation", desc: "Book your consultation at a convenient time. Events sync directly to Google Calendar." },
-  { num: "04", icon: IconGavel, title: "Track Until Resolution", desc: "Monitor progress with real-time status updates and notifications until your case is resolved." },
+  { num: "01", icon: IconClipboardCheck, title: "Submit Appointment", desc: "Fill out the guided appointment form with your personal details and legal concern — no account needed." },
+  { num: "02", icon: IconUserCheck, title: "Office Reviews", desc: "The SOLA legal office staff reviews your submission and evaluates your legal concern." },
+  { num: "03", icon: IconCalendarEvent, title: "Get Scheduled", desc: "The office confirms your appointment and schedules a consultation date at the legal aid office." },
+  { num: "04", icon: IconGavel, title: "Meet at the Office", desc: "Visit the SOLA office for your consultation. All case discussions, updates, and decisions happen in person." },
 ];
 
 const STATS = [
   { value: "100%", label: "Free legal assistance for qualified individuals" },
-  { value: "24/7", label: "Platform available anytime, anywhere" },
-  { value: "4-Step", label: "Simple process from request to resolution" },
-  { value: "Real-time", label: "Case tracking & notification system" },
+  { value: "24/7", label: "Appointment form available anytime" },
+  { value: "4-Step", label: "Simple process from request to consultation" },
+  { value: "No Login", label: "Book an appointment without an account" },
 ];
 
 const TEAM = [
@@ -156,11 +154,11 @@ export default function LandingPage() {
                 Supporting SDG 16: Peace, Justice &amp; Strong Institutions
               </Badge>
               <Title order={1} c="white" fz={{ base: 32, md: 42 }} lh={1.2}>
-                Bridging the Justice Gap for{" "}
+                Free Legal Aid for{" "}
                 <Text span inherit c={PRIMARY_GOLD}>Filipino Communities</Text>
               </Title>
               <Text c="gray.3" size="lg" maw={520}>
-                JUSTREACH connects underserved communities with free legal aid services — schedule appointments, track your case, and communicate with qualified lawyers through one platform.
+                Book a free legal aid appointment with SOLA — no account needed. Just submit the form and the office handles the rest, from review to consultation.
               </Text>
               <Group mt="sm">
                 <Button size="lg" radius="xl" variant="gradient" gradient={{ from: PRIMARY_GOLD, to: PRIMARY_BROWN }}
@@ -177,7 +175,7 @@ export default function LandingPage() {
                 </ThemeIcon>
                 <Text c="white" fw={600} size="lg" mb="sm">Making Justice Accessible</Text>
                 <Stack gap={8}>
-                  {["Free Legal Consultations", "Appointment Scheduling", "Real-time Case Tracking"].map((t) => (
+                  {["Free Legal Consultations", "Easy Appointment Booking", "No Account Required"].map((t) => (
                     <Group key={t} gap={8} wrap="nowrap">
                       <IconCheck size={16} color="white" />
                       <Text c="white" size="sm">{t}</Text>
@@ -194,12 +192,12 @@ export default function LandingPage() {
       <Section id="features" py={90}>
         <Stack align="center" mb={rem(50)}>
           <SectionBadge>Platform Features</SectionBadge>
-          <Title order={2} ta="center" c={CHARCOAL}>What JustReach Offers</Title>
+          <Title order={2} ta="center" c={CHARCOAL}>Why Choose SOLA</Title>
           <Text c="dimmed" ta="center" maw={600} size="md">
-            A comprehensive suite of tools designed to break down barriers and make legal services accessible to every Filipino community.
+            We make it simple to access free legal aid — just book an appointment and the office takes care of everything else.
           </Text>
         </Stack>
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xl">
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 2 }} spacing="xl">
           {FEATURES.map((f) => (
             <Card key={f.title} radius="md" padding="xl" withBorder style={{ borderColor: "#f0ede8", transition: "box-shadow .2s", cursor: "default" }}
               onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 8px 24px rgba(139,69,19,.08)")}
@@ -247,9 +245,9 @@ export default function LandingPage() {
       <Section id="demo" py={90}>
         <Stack align="center" mb={rem(40)}>
           <SectionBadge>Video Demo</SectionBadge>
-          <Title order={2} ta="center" c={CHARCOAL}>See JustReach in Action</Title>
+          <Title order={2} ta="center" c={CHARCOAL}>See SOLA JustReach in Action</Title>
           <Text c="dimmed" ta="center" maw={560} size="md">
-            Watch a quick walkthrough of how the platform works — from scheduling an appointment to tracking your case.
+            Watch a quick walkthrough of how to book an appointment and what to expect from the legal aid process.
           </Text>
         </Stack>
         <Box mx="auto" maw={800} style={{ borderRadius: 12, overflow: "hidden", boxShadow: "0 8px 32px rgba(44,44,44,.12)", aspectRatio: "16/9" }}>
@@ -348,11 +346,11 @@ export default function LandingPage() {
           <Stack align="center" gap="lg">
             <Title order={2} ta="center" c="white">Ready to Access Justice?</Title>
             <Text c="gray.4" ta="center" maw={520} size="md">
-              Take the first step toward resolving your legal concern. Schedule a free appointment with SOLA's legal aid team today.
+              Take the first step toward resolving your legal concern. Book a free appointment — no account or login needed.
             </Text>
             <Group gap="sm">
               <Badge variant="outline" color={PRIMARY_GOLD} size="lg" style={{ color: "white", borderColor: `${PRIMARY_GOLD}80` }}>No hidden fees</Badge>
-              <Badge variant="outline" color={PRIMARY_GOLD} size="lg" style={{ color: "white", borderColor: `${PRIMARY_GOLD}80` }}>Secure &amp; confidential</Badge>
+              <Badge variant="outline" color={PRIMARY_GOLD} size="lg" style={{ color: "white", borderColor: `${PRIMARY_GOLD}80` }}>No account needed</Badge>
               <Badge variant="outline" color={PRIMARY_GOLD} size="lg" style={{ color: "white", borderColor: `${PRIMARY_GOLD}80` }}>Verified legal aid lawyers</Badge>
             </Group>
             <Button size="lg" radius="xl" variant="white" color={PRIMARY_BROWN}
@@ -375,7 +373,7 @@ export default function LandingPage() {
                   <Text span fw={700} c={PRIMARY_BROWN}>Reach</Text>
                 </Title>
               </Group>
-              <Text c="dimmed" size="sm" mb={4}>Accessible Legal Services Network</Text>
+              <Text c="dimmed" size="sm" mb={4}>Sebastinian Office of Legal Aid</Text>
               <Text c="dimmed" size="xs">Supporting SDG 16: Peace, Justice, and Strong Institutions</Text>
             </Box>
             <Box>
