@@ -281,8 +281,8 @@ export default function LandingPage() {
           <SectionBadge>About</SectionBadge>
           <Title order={2} ta="center" c={CHARCOAL}>The Sebastinian Office of Legal Aid</Title>
           <Text c="dimmed" ta="center" maw={680} size="md">
-            SOLA was established on August 28, 1992, under the Supreme Court's permit. As the legal aid arm of San Sebastian College–Recoletos, 
-            it provides free, accessible, ethical, and quality legal representation to indigent individuals — handling criminal, civil, labor, 
+            SOLA was established on August 28, 1992, under the Supreme Court's permit. As the legal aid arm of San Sebastian College–Recoletos,
+            it provides free, accessible, ethical, and quality legal representation to indigent individuals — handling criminal, civil, labor,
             and administrative cases through its Executive Director, supervising lawyers, and law interns.
           </Text>
         </Stack>
@@ -294,7 +294,7 @@ export default function LandingPage() {
             </ThemeIcon>
             <Text fw={600} size="lg" mb="xs" c={CHARCOAL}>Our Mission</Text>
             <Text size="sm" c="dimmed" lh={1.7}>
-              To democratize access to legal services in the Philippines by creating a technology-driven platform that connects 
+              To democratize access to legal services in the Philippines by creating a technology-driven platform that connects
               underserved communities with qualified legal professionals, breaking down barriers of cost, distance, and complexity.
             </Text>
           </Card>
@@ -304,7 +304,7 @@ export default function LandingPage() {
             </ThemeIcon>
             <Text fw={600} size="lg" mb="xs" c={CHARCOAL}>Our Vision</Text>
             <Text size="sm" c="dimmed" lh={1.7}>
-              A Philippines where every citizen, regardless of socioeconomic status or geographic location, can exercise their 
+              A Philippines where every citizen, regardless of socioeconomic status or geographic location, can exercise their
               legal rights and access justice through an inclusive, transparent, and efficient digital platform.
             </Text>
           </Card>

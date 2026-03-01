@@ -13,6 +13,15 @@ const attorneySchema = new mongoose.Schema({
   // Profile Image
   profileImage: { type: String, default: '' },
   signatureUrl: { type: String, default: '' },
+  // Cryptographic signature fields
+  signatureCrypto: {
+    encrypted: { type: String, default: '' },   // AES-256-GCM ciphertext (base64)
+    iv: { type: String, default: '' },           // AES initialization vector (base64)
+    authTag: { type: String, default: '' },      // GCM authentication tag (base64)
+    hash: { type: String, default: '' },         // SHA-256 hash of original image
+    proof: { type: String, default: '' },        // RSA digital signature of hash
+    encryptedAt: { type: Date },                 // when the signature was last encrypted
+  },
 
   // Professional Information
   role: { 

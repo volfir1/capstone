@@ -118,6 +118,7 @@ export default function AdminProfile() {
     verified: false,
     memberSince: '',
     signatureUrl: '',
+    hasSignature: false,
   });
 
   // ── Extended state for attorney accounts ──
@@ -144,6 +145,7 @@ export default function AdminProfile() {
     isAvailable: true,
     accountStatus: '',
     signatureUrl: '',
+    hasSignature: false,
   });
 
   const [editedData, setEditedData] = useState({});
@@ -184,6 +186,7 @@ export default function AdminProfile() {
         isAvailable: authUserData.isAvailable ?? true,
         accountStatus: authUserData.accountStatus || '',
         signatureUrl: authUserData.signatureUrl || '',
+        hasSignature: authUserData.hasSignature || false,
       };
       setAttorneyData(profile);
       setEditedData(profile);
@@ -199,6 +202,7 @@ export default function AdminProfile() {
           ? new Date(authUserData.createdAt).getFullYear().toString()
           : '',
         signatureUrl: authUserData.signatureUrl || '',
+        hasSignature: authUserData.hasSignature || false,
       };
       setUserData(profile);
       setEditedData(profile);
@@ -634,39 +638,10 @@ export default function AdminProfile() {
                 </Grid>
               </Paper>
 
-              {/* ── Attorney-only sections below ── */}
-              {/* <Paper shadow="xs" p="xl" radius="lg" bg="white">
-                <Group mb="md" gap={8}>
-                  <IconEdit size={18} color={ACCENT_TAN} stroke={2} />
-                  <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">Signature</Text>
-                </Group>
-                <Signature initialUrl={displayData.signatureUrl} onSave={async (dataUrl) => {
-                  try {
-                    notifications.show({ id: 'signature-uploading', title: 'Uploading', message: 'Uploading signature...', autoClose: false });
-                    const res = await apiClient.post('/users/profile/signature/upload', { dataUrl });
-                    const signatureUrl = res?.data?.data?.signatureUrl;
-                    notifications.update({ id: 'signature-uploading', title: 'Uploaded', message: 'Signature saved to your profile.', color: 'green', autoClose: 4000 });
-                    refreshUserData().catch(() => {});
-                    return signatureUrl;
-                  } catch (err) {
-                    console.error('Signature upload failed', err);
-                    notifications.update({ id: 'signature-uploading', title: 'Upload Failed', message: err.message || 'Failed to upload signature', color: 'red', autoClose: 4000 });
-                  }
-                }} />
-
-                {displayData.signatureUrl && (
-                  <Box mt="md">
-                    <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>Saved Signature</Text>
-                    <Box mt="xs">
-                      <img
-                        src={displayData.signatureUrl}
-                        alt="Saved signature"
-                        style={{ maxWidth: 360, maxHeight: 180, border: '1px solid #eee', borderRadius: 6 }}
-                      />
-                    </Box>
-                  </Box>
-                )}
-              </Paper> */}
+              {/* ── Signature section for lawyers / directors ── */}
+              {(authUserData?.role === 'supervising_lawyer' || authUserData?.role === 'director' || isAttorney) && (
+              <SignatureSection authUserData={authUserData} displayData={displayData} apiClient={apiClient} refreshUserData={refreshUserData} />
+              )}
 
               {isAttorney && (
                 <>
@@ -869,5 +844,57 @@ export default function AdminProfile() {
         </Grid>
       </Container>
     </Box>
+  );
+}
+
+// Separate component so the decrypted-sig fetch doesn't re-render the whole profile
+function SignatureSection({ authUserData, displayData, apiClient, refreshUserData }) {
+  const [decryptedSigUrl, setDecryptedSigUrl] = useState(null);
+  const [sigFetching, setSigFetching] = useState(false);
+
+  // On mount (or when hasSignature changes), fetch the decrypted preview
+  useEffect(() => {
+    if (!displayData.hasSignature) { setDecryptedSigUrl(null); return; }
+    const userId = authUserData?.id || authUserData?._id;
+    if (!userId) return;
+
+    let cancelled = false;
+    setSigFetching(true);
+    apiClient.get(`/users/signature/decrypt/${userId}`)
+      .then(res => { if (!cancelled && res?.data?.data?.dataUrl) setDecryptedSigUrl(res.data.data.dataUrl); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setSigFetching(false); });
+    return () => { cancelled = true; };
+  }, [displayData.hasSignature, authUserData, apiClient]);
+
+  return (
+    <Paper shadow="xs" p="xl" radius="lg" bg="white">
+      <Group mb="md" gap={8}>
+        <IconEdit size={18} color={ACCENT_TAN} stroke={2} />
+        <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">Signature</Text>
+        {displayData.hasSignature && (
+          <Badge size="xs" variant="light" color="green" ml="auto">Encrypted & Verified</Badge>
+        )}
+      </Group>
+      {sigFetching && <Text size="xs" c="dimmed">Decrypting signature preview...</Text>}
+      <Signature initialUrl={decryptedSigUrl} onSave={async (dataUrl) => {
+        try {
+          notifications.show({ id: 'signature-uploading', title: 'Encrypting & Uploading', message: 'Your signature is being encrypted and uploaded securely...', autoClose: false });
+          const res = await apiClient.post('/users/profile/signature/upload', { dataUrl });
+          notifications.update({ id: 'signature-uploading', title: 'Secured', message: 'Signature encrypted (AES-256-GCM) and digitally signed (RSA).', color: 'green', autoClose: 4000 });
+          setDecryptedSigUrl(dataUrl); // Immediately show the new signature
+          refreshUserData().catch(() => {});
+          return res?.data?.data?.signatureUrl;
+        } catch (err) {
+          console.error('Signature upload failed', err);
+          notifications.update({ id: 'signature-uploading', title: 'Upload Failed', message: err?.response?.data?.message || err.message || 'Failed to upload signature', color: 'red', autoClose: 4000 });
+        }
+      }} />
+      {displayData.hasSignature && (
+        <Box mt="md">
+          <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>Your signature is stored with AES-256-GCM encryption and RSA digital proof.</Text>
+        </Box>
+      )}
+    </Paper>
   );
 }

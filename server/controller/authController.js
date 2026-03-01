@@ -30,8 +30,6 @@ export const register = async (req, res) => {
     const { idToken, firstName, lastName, username, email, isVerified, role } =
       req.body;
 
-    console.log("Server received:", { firstName, lastName, username, email });
-
     let userEmail, firebaseUid;
     let userVerified = false;
     let isGoogleSignIn = false;

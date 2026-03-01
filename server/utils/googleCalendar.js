@@ -14,14 +14,19 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirect);
 }
 
-export function generateAuthUrl(state) {
+export function generateAuthUrl(state, loginHint) {
   const oauth2Client = getOAuth2Client();
-  const url = oauth2Client.generateAuthUrl({
+  const params = {
     access_type: 'offline',
     prompt: 'consent',
     scope: SCOPES,
     state,
-  });
+  };
+  // Force the user to authenticate with their login email only
+  if (loginHint) {
+    params.login_hint = loginHint;
+  }
+  const url = oauth2Client.generateAuthUrl(params);
   return url;
 }
 

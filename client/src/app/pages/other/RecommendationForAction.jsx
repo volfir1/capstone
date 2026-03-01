@@ -736,6 +736,8 @@ ClientInterviewSection.displayName = 'ClientInterviewSection';
 // 3. Supervising Lawyer's Comment & Director's Action (Based on image_588e92.png)
 // ====================================================================================
 export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange = () => {}, forLegalAdvice = false, userRole = '', userData = null, currentReviewStage = '' }) => {
+    const [sigLoading, setSigLoading] = React.useState(false);
+
     // Auto-populate fields based on role
     React.useEffect(() => {
         const currentUserName = userData?.firstName && userData?.lastName 
@@ -768,6 +770,34 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
             }
         }
     }, [userRole, userData]);
+
+    // Fetch decrypted signature images for supervising lawyer / director when auto-populated
+    React.useEffect(() => {
+        const fetchSignatureImage = async (userId, field) => {
+            if (!userId) return;
+            try {
+                setSigLoading(true);
+                const { default: apiClient } = await import('@config/api/apiClient');
+                const res = await apiClient.get(`/users/signature/decrypt/${userId}`);
+                if (res?.data?.data?.dataUrl) {
+                    onChange(prev => ({ ...prev, [field]: res.data.data.dataUrl }));
+                }
+            } catch (err) {
+                // Signature not uploaded yet — that's fine, field stays empty
+                console.debug(`No signature found for ${field}:`, err?.response?.status);
+            } finally {
+                setSigLoading(false);
+            }
+        };
+
+        if (userRole === 'supervising_lawyer' && value.supervisingLawyerId && !value.supervisingLawyerSignatureImage) {
+            fetchSignatureImage(value.supervisingLawyerId, 'supervisingLawyerSignatureImage');
+        }
+        if (userRole === 'director' && value.directorId && !value.directorSignatureImage) {
+            fetchSignatureImage(value.directorId, 'directorSignatureImage');
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userRole, value.supervisingLawyerId, value.directorId]);
 
     // Determine if supervising lawyer section should be disabled
     const supervisingLawyerDisabled = userRole === 'intern' || userRole === 'secretary' || userRole === 'director' || currentReviewStage === 'director';
@@ -887,6 +917,17 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                                 },
                             }}
                         />
+                        {value.supervisingLawyerSignatureImage && (
+                            <Box>
+                                <Text size="xs" c="dimmed" mb={4}>Cryptographic Signature (verified)</Text>
+                                <Box style={{ border: '1px solid #e0e0e0', borderRadius: 6, padding: 4, background: '#fafafa' }}>
+                                    <img src={value.supervisingLawyerSignatureImage} alt="Supervising Lawyer Signature" style={{ maxWidth: '100%', maxHeight: 80 }} />
+                                </Box>
+                            </Box>
+                        )}
+                        {sigLoading && userRole === 'supervising_lawyer' && !value.supervisingLawyerSignatureImage && (
+                            <Text size="xs" c="dimmed">Loading signature...</Text>
+                        )}
                         <TextInput 
                             label="Director's Signature" 
                             placeholder="Signature/Name of Director" 
@@ -901,6 +942,17 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                                 },
                             }}
                         />
+                        {value.directorSignatureImage && (
+                            <Box>
+                                <Text size="xs" c="dimmed" mb={4}>Cryptographic Signature (verified)</Text>
+                                <Box style={{ border: '1px solid #e0e0e0', borderRadius: 6, padding: 4, background: '#fafafa' }}>
+                                    <img src={value.directorSignatureImage} alt="Director Signature" style={{ maxWidth: '100%', maxHeight: 80 }} />
+                                </Box>
+                            </Box>
+                        )}
+                        {sigLoading && userRole === 'director' && !value.directorSignatureImage && (
+                            <Text size="xs" c="dimmed">Loading signature...</Text>
+                        )}
                         <TextInput 
                             label="Date" 
                             type="date" 

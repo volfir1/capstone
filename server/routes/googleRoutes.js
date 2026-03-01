@@ -1,13 +1,20 @@
 import express from 'express';
-import { getAuthUrl, oauthCallback, createEvent, createEventAndRecord, rescheduleEvent } from '../controller/googleController.js';
+import { getAuthUrl, oauthCallback, createEvent, createEventAndRecord, rescheduleEvent, checkGoogleStatus } from '../controller/googleController.js';
+import { authenticateFirebaseToken } from '../firebase/authMiddleware.js';
 
 const router = express.Router();
 
+// Google OAuth2 callback must be public (Google redirects here)
+router.get('/callback', oauthCallback);
+
+// All other Google routes require authentication
+router.use(authenticateFirebaseToken);
+
+// Live-check Google Calendar connection status
+router.get('/status', checkGoogleStatus);
+
 // Request an auth URL for the current user (body: { firebaseUid })
 router.post('/connect', getAuthUrl);
-
-// Google OAuth2 callback (GET)
-router.get('/callback', oauthCallback);
 
 // Create event for user (body: { firebaseUid, event })
 // Create event for user (body: { firebaseUid, event })

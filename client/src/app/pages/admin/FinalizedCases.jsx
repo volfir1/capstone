@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useReducer, useRef } from 'react';
+import React, { useState, useEffect, useReducer, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -360,6 +360,51 @@ export default function FinalizedCases() {
 
   const canAssignCases = ['director', 'secretary'].includes(userData?.role);
 
+  // ── PDF Preview state ──
+  const [pdfPreview, setPdfPreview] = useState({ opened: false, blobUrl: null, doc: null, filename: '' });
+
+  const openPdfPreview = useCallback((doc, filename) => {
+    const blobUrl = doc.output('bloburl');
+    setPdfPreview({ opened: true, blobUrl, doc, filename });
+  }, []);
+
+  const closePdfPreview = useCallback(() => {
+    if (pdfPreview.blobUrl) URL.revokeObjectURL(pdfPreview.blobUrl);
+    setPdfPreview({ opened: false, blobUrl: null, doc: null, filename: '' });
+  }, [pdfPreview.blobUrl]);
+
+  const confirmPdfDownload = useCallback(() => {
+    if (pdfPreview.doc) pdfPreview.doc.save(pdfPreview.filename);
+    closePdfPreview();
+  }, [pdfPreview.doc, pdfPreview.filename, closePdfPreview]);
+
+  // ── Dynamically fetched signature images for on-screen view ──
+  const [modalSignatures, setModalSignatures] = useState({ supervisingLawyer: null, director: null });
+
+  useEffect(() => {
+    if (!state.modalOpened || !state.editedData) { setModalSignatures({ supervisingLawyer: null, director: null }); return; }
+    const action = state.editedData.content?.actionInfo || {};
+    let cancelled = false;
+
+    const fetchSig = async (userId) => {
+      try {
+        const res = await apiClient.get(`/users/signature/decrypt/${userId}`);
+        return res?.data?.data?.dataUrl || null;
+      } catch { return null; }
+    };
+
+    (async () => {
+      const [sl, dir] = await Promise.all([
+        action.supervisingLawyerId ? fetchSig(action.supervisingLawyerId) : Promise.resolve(null),
+        action.directorId ? fetchSig(action.directorId) : Promise.resolve(null),
+      ]);
+      if (!cancelled) setModalSignatures({ supervisingLawyer: sl, director: dir });
+    })();
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.modalOpened, state.editedData?._id]);
+
   // Fetch admin staff for the assign dropdown
   useEffect(() => {
     if (canAssignCases) {
@@ -679,7 +724,7 @@ export default function FinalizedCases() {
     });
 
     addDateTimeHeaderToAllPages(doc);
-    doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
+    openPdfPreview(doc, `${title.replace(/\s+/g, '_')}.pdf`);
   };
 
   const exportCaseRecordPdf = () => {
@@ -710,7 +755,7 @@ export default function FinalizedCases() {
     });
 
     addDateTimeHeaderToAllPages(doc);
-    doc.save('Case_Record.pdf');
+    openPdfPreview(doc, 'Case_Record.pdf');
   };
 
   const exportAppointmentPdf = () => {
@@ -727,7 +772,7 @@ export default function FinalizedCases() {
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     drawClientsInformationSheetPage(doc, exportData);
     addDateTimeHeaderToAllPages(doc);
-    doc.save('Appointment_Receipt.pdf');
+    openPdfPreview(doc, 'Appointment_Receipt.pdf');
   };
 
   const exportRecommendationPdf = async () => {
@@ -741,6 +786,26 @@ export default function FinalizedCases() {
       const interview = d.content?.interviewInfo || {};
       const action = d.content?.actionInfo || {};
       const finalizeId = d._id || d.id;
+
+      // Dynamically fetch the decrypted signature images using the stored approver IDs
+      // This works for ALL cases (old + new) as long as the users have uploaded signatures
+      let supervisingLawyerSigImg = action.supervisingLawyerSignatureImage || null;
+      let directorSigImg = action.directorSignatureImage || null;
+
+      const fetchSig = async (userId) => {
+        try {
+          const res = await apiClient.get(`/users/signature/decrypt/${userId}`);
+          return res?.data?.data?.dataUrl || null;
+        } catch { return null; }
+      };
+
+      // Fetch in parallel — only if we don't already have the image embedded
+      const [fetchedLawyerSig, fetchedDirectorSig] = await Promise.all([
+        (!supervisingLawyerSigImg && action.supervisingLawyerId) ? fetchSig(action.supervisingLawyerId) : Promise.resolve(null),
+        (!directorSigImg && action.directorId) ? fetchSig(action.directorId) : Promise.resolve(null),
+      ]);
+      if (fetchedLawyerSig) supervisingLawyerSigImg = fetchedLawyerSig;
+      if (fetchedDirectorSig) directorSigImg = fetchedDirectorSig;
 
       const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
 
@@ -770,6 +835,8 @@ export default function FinalizedCases() {
         supervisingLawyer: formatText(action.supervisingLawyer),
         directorSignature: formatText(action.directorSignature),
         signatureDate: formatDate(action.signatureDate),
+        supervisingLawyerSignatureImage: supervisingLawyerSigImg,
+        directorSignatureImage: directorSigImg,
       }, endY);
 
       // Page 3 (landscape Case Record form layout) - only for court representation cases
@@ -814,7 +881,7 @@ export default function FinalizedCases() {
       }
 
       addDateTimeHeaderToAllPages(doc);
-      doc.save('Recommendation_For_Action.pdf');
+      openPdfPreview(doc, 'Recommendation_For_Action.pdf');
     } catch (err) {
       console.error('exportRecommendationPdf failed:', err);
       notifications.show({
@@ -1259,12 +1326,36 @@ export default function FinalizedCases() {
     drawMultilineInRect(data.assignedTo, leftX, y + 1, colW, 18, 10);
 
     // Right: Supervising Lawyer / Director's Signature / Date
-    drawLabelLine('Supervising Lawyer:', rightX, y, colW);
-    drawMultilineInRect(data.supervisingLawyer, rightX + 40, y - 4, colW - 40, 10, 10);
+    // -- Supervising Lawyer: signature over printed name --
+    setFont(10, 'normal');
+    doc.text('Supervising Lawyer:', rightX, y);
+    const slLabelW = 40;
+    const slLineX = rightX + slLabelW;
+    const slLineW = colW - slLabelW;
+    if (data.supervisingLawyerSignatureImage) {
+      try { doc.addImage(data.supervisingLawyerSignatureImage, 'PNG', slLineX + 2, y - 10, 28, 11); } catch (_) {}
+    }
+    doc.line(slLineX, y + 1, slLineX + slLineW, y + 1);
+    if (data.supervisingLawyer) {
+      setFont(9, 'normal');
+      doc.text(data.supervisingLawyer, slLineX + slLineW / 2, y + 5, { align: 'center' });
+    }
 
-    y += 12;
-    drawLabelLine("Director's Signature:", rightX, y, colW);
-    drawMultilineInRect(data.directorSignature, rightX + 42, y - 4, colW - 42, 10, 10);
+    y += 14;
+    // -- Director: signature over printed name --
+    setFont(10, 'normal');
+    doc.text("Director's Signature:", rightX, y);
+    const dirLabelW = 42;
+    const dirLineX = rightX + dirLabelW;
+    const dirLineW = colW - dirLabelW;
+    if (data.directorSignatureImage) {
+      try { doc.addImage(data.directorSignatureImage, 'PNG', dirLineX + 2, y - 10, 28, 11); } catch (_) {}
+    }
+    doc.line(dirLineX, y + 1, dirLineX + dirLineW, y + 1);
+    if (data.directorSignature) {
+      setFont(9, 'normal');
+      doc.text(data.directorSignature, dirLineX + dirLineW / 2, y + 5, { align: 'center' });
+    }
 
     y += 12;
     drawLabelLine('Date:', rightX, y, colW);
@@ -3438,12 +3529,32 @@ export default function FinalizedCases() {
                       <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
                     </Box>
                     <Box>
-                      <Text size="xs" c="dimmed">Supervising Lawyer</Text>
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
+                      <Text size="xs" c="dimmed" mb={4}>Supervising Lawyer</Text>
+                      <Stack gap={0} align="center" style={{ maxWidth: 220 }}>
+                        {(modalSignatures.supervisingLawyer || state.editedData.content?.actionInfo?.supervisingLawyerSignatureImage) && (
+                          <Box mb={0} style={{ border: '1px solid #e0e0e0', borderRadius: 6, padding: 4, background: '#fafafa' }}>
+                            <img src={modalSignatures.supervisingLawyer || state.editedData.content.actionInfo.supervisingLawyerSignatureImage} alt="Supervising Lawyer Signature" style={{ maxWidth: 180, maxHeight: 60, display: 'block' }} />
+                          </Box>
+                        )}
+                        <Box style={{ borderTop: '1.5px solid #444', width: '100%', marginTop: 2, paddingTop: 4 }}>
+                          <Text fw={600} ta="center" size="sm">{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
+                          <Text size="xs" c="dimmed" ta="center">Signature over Printed Name</Text>
+                        </Box>
+                      </Stack>
                     </Box>
                     <Box>
-                      <Text size="xs" c="dimmed">Director's Signature</Text>
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
+                      <Text size="xs" c="dimmed" mb={4}>Director's Signature</Text>
+                      <Stack gap={0} align="center" style={{ maxWidth: 220 }}>
+                        {(modalSignatures.director || state.editedData.content?.actionInfo?.directorSignatureImage) && (
+                          <Box mb={0} style={{ border: '1px solid #e0e0e0', borderRadius: 6, padding: 4, background: '#fafafa' }}>
+                            <img src={modalSignatures.director || state.editedData.content.actionInfo.directorSignatureImage} alt="Director Signature" style={{ maxWidth: 180, maxHeight: 60, display: 'block' }} />
+                          </Box>
+                        )}
+                        <Box style={{ borderTop: '1.5px solid #444', width: '100%', marginTop: 2, paddingTop: 4 }}>
+                          <Text fw={600} ta="center" size="sm">{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
+                          <Text size="xs" c="dimmed" ta="center">Signature over Printed Name</Text>
+                        </Box>
+                      </Stack>
                     </Box>
                     <Box>
                       <Text size="xs" c="dimmed">Signature Date</Text>
@@ -3771,6 +3882,49 @@ export default function FinalizedCases() {
             </Button>
           </Stack>
         )}
+      </Modal>
+
+      {/* ── PDF Preview Modal ── */}
+      <Modal
+        opened={pdfPreview.opened}
+        onClose={closePdfPreview}
+        title={
+          <Group gap="xs">
+            <IconFileText size={20} color={PRIMARY_BROWN} />
+            <Text fw={700} size="lg">PDF Preview</Text>
+            <Badge variant="light" color="gray" size="sm">{pdfPreview.filename}</Badge>
+          </Group>
+        }
+        size="calc(90vw)"
+        centered
+        styles={{
+          title: { width: '100%' },
+          body: { padding: 0 },
+        }}
+      >
+        <Box style={{ height: '80vh', display: 'flex', flexDirection: 'column' }}>
+          <Box style={{ flex: 1, minHeight: 0 }}>
+            {pdfPreview.blobUrl && (
+              <iframe
+                src={pdfPreview.blobUrl}
+                title="PDF Preview"
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
+            )}
+          </Box>
+          <Group justify="flex-end" p="md" style={{ borderTop: '1px solid #e0e0e0' }}>
+            <Button variant="subtle" color="gray" onClick={closePdfPreview}>
+              Cancel
+            </Button>
+            <Button
+              leftSection={<IconDownload size={16} />}
+              style={{ backgroundColor: PRIMARY_BROWN }}
+              onClick={confirmPdfDownload}
+            >
+              Download PDF
+            </Button>
+          </Group>
+        </Box>
       </Modal>
     </Box>
   );

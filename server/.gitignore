@@ -10,6 +10,10 @@ firebase-admin-sdk*.json
 serviceAccountKey.json
 config/firebase-admin-sdk.json
 
+# RSA / crypto keys - NEVER commit!
+config/keys/
+*.pem
+
 # Node modules
 node_modules/
 

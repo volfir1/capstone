@@ -10,8 +10,12 @@ import {
   getAttorneyCases,
   createCaseForUser
 } from "../controller/caseController.js";
+import { authenticateFirebaseToken } from '../firebase/authMiddleware.js';
 
 const router = express.Router();
+
+// All case routes require authentication
+router.use(authenticateFirebaseToken);
 
 // Submit a new case
 router.post("/submit", submitCase);

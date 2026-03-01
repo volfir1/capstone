@@ -10,12 +10,48 @@ export const getAuthUrl = async (req, res) => {
     const { firebaseUid } = req.body;
     if (!firebaseUid) return res.status(400).json({ error: 'firebaseUid required in body' });
 
+    // Look up the user's email so we can lock the Google OAuth to the same account
+    const user = await User.findOne({ firebaseUid });
+    const loginHint = user?.email || undefined;
+
     // Use firebaseUid as state so we can link in callback
-    const url = generateAuthUrl(firebaseUid);
+    const url = generateAuthUrl(firebaseUid, loginHint);
     res.json({ url });
   } catch (err) {
     console.error('getAuthUrl error', err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+// Live check — tries a lightweight Google Calendar API call to confirm the token is actually valid
+export const checkGoogleStatus = async (req, res) => {
+  try {
+    const firebaseUid = req.user?.uid;
+    if (!firebaseUid) return res.status(401).json({ connected: false, reason: 'unauthenticated' });
+
+    const user = await User.findOne({ firebaseUid });
+    if (!user || !user.google?.connected || !user.google?.refreshToken) {
+      return res.json({ connected: false, reason: 'not_connected' });
+    }
+
+    // Try a minimal Calendar API call to verify the token actually works
+    const { google: googleapis } = await import('googleapis');
+    const oauth2Client = new googleapis.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    oauth2Client.setCredentials({ refresh_token: user.google.refreshToken });
+
+    const calendar = googleapis.calendar({ version: 'v3', auth: oauth2Client });
+    // calendarList.get('primary') is very lightweight
+    await calendar.calendarList.get({ calendarId: 'primary' });
+
+    return res.json({ connected: true });
+  } catch (err) {
+    // Token revoked / expired / invalid → mark as disconnected
+    console.error('checkGoogleStatus live check failed:', err?.message || err);
+    return res.json({ connected: false, reason: 'token_invalid' });
   }
 };
 

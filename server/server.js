@@ -26,6 +26,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { setIO } from './socket.js'
+import { authenticateFirebaseToken } from './firebase/authMiddleware.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -133,7 +134,7 @@ app.get("/api/test", (req, res) => {
 });
 
 // File upload route for Word documents (PDF stays as base64)
-app.post('/api/upload/document', upload.single('document'), (req, res) => {
+app.post('/api/upload/document', authenticateFirebaseToken, upload.single('document'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -160,7 +161,7 @@ app.post('/api/upload/document', upload.single('document'), (req, res) => {
 });
 
 // File delete route for Word documents
-app.delete('/api/upload/document/:filename', (req, res) => {
+app.delete('/api/upload/document/:filename', authenticateFirebaseToken, (req, res) => {
   try {
     const filename = req.params.filename;
     const filePath = path.join(__dirname, 'uploads/documents', filename);

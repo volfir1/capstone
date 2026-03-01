@@ -2,6 +2,7 @@ import User from "../models/user.js";
 import Attorney from "../models/attorney.js";
 import admin from 'firebase-admin'
 import { v2 as cloudinary } from 'cloudinary'
+import { encryptAndSign, decryptAndVerify, rsaVerify, hashSignature } from '../utils/signatureCrypto.js'
 
 // Configure Cloudinary via env (expects CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)
 cloudinary.config({
@@ -48,6 +49,10 @@ export const getProfile = async (req, res) => {
                 accountStatus: isAttorney ? profile.accountStatus : undefined,
                 profileImage: profile.profileImage || '',
                 signatureUrl: profile.signatureUrl || '',
+                hasSignature: !!(profile.signatureCrypto?.hash),
+                signatureHash: profile.signatureCrypto?.hash || null,
+                signatureEncryptedAt: profile.signatureCrypto?.encryptedAt || null,
+                googleCalendarConnected: !!(profile.google?.connected),
             }
         })
 
@@ -83,7 +88,7 @@ export const fetchUsers = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
 
-        const users = await User.find({}, '-password')
+        const users = await User.find({}, '-password -signatureCrypto -google -firebaseUid')
 
         res.json({
             success: true,
@@ -364,6 +369,7 @@ export const updateSignature = async (req, res) => {
 };
 
 // Server-side upload of signature (accepts a data URL in `dataUrl`)
+// Pipeline: raw PNG → SHA-256 hash → RSA-sign hash → AES-256-GCM encrypt → upload encrypted blob to Cloudinary
 export const uploadSignature = async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
@@ -380,32 +386,52 @@ export const uploadSignature = async (req, res) => {
             return res.status(400).json({ success: false, message: 'dataUrl (base64) is required' });
         }
 
-        // Upload to Cloudinary under a user-specific folder
-        // Use a stable public_id per user so uploads overwrite previous signature
+        // 1. Extract raw image buffer from data URL
+        const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+
+        // 2. Encrypt + hash + RSA-sign
+        const { encrypted, iv, authTag, hash, proof } = encryptAndSign(imageBuffer);
+
+        // 3. Upload the ENCRYPTED blob to Cloudinary (not the raw image)
+        //    Convert encrypted base64 to a data URL so Cloudinary accepts it
+        const encryptedDataUrl = `data:application/octet-stream;base64,${encrypted}`;
         const publicId = `signature`;
         const folder = `signatures/${decodedToken.uid}`;
 
-        const uploadResult = await cloudinary.uploader.upload(dataUrl, {
+        const uploadResult = await cloudinary.uploader.upload(encryptedDataUrl, {
             folder,
             public_id: publicId,
             overwrite: true,
-            resource_type: 'image',
-            format: 'png',
+            resource_type: 'raw', // raw file, not image — it's encrypted
+            format: 'enc',        // custom extension to signal encryption
         });
 
         const signatureUrl = uploadResult.secure_url;
 
-        // Persist signatureUrl to User or Attorney record
+        // 4. Persist signatureUrl + crypto metadata to User or Attorney record
+        const cryptoUpdate = {
+            signatureUrl,
+            signatureCrypto: {
+                encrypted, // base64 ciphertext (also in Cloudinary as backup)
+                iv,
+                authTag,
+                hash,
+                proof,
+                encryptedAt: new Date(),
+            },
+        };
+
         let profile = await User.findOneAndUpdate(
             { firebaseUid: decodedToken.uid },
-            { signatureUrl },
+            cryptoUpdate,
             { new: true }
         );
 
         if (!profile) {
             profile = await Attorney.findOneAndUpdate(
                 { firebaseUid: decodedToken.uid },
-                { signatureUrl },
+                cryptoUpdate,
                 { new: true }
             );
         }
@@ -414,9 +440,97 @@ export const uploadSignature = async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        res.json({ success: true, data: { signatureUrl }, message: 'Signature uploaded and saved.' });
+        res.json({
+            success: true,
+            data: {
+                signatureUrl,
+                signatureHash: hash,
+                signatureVerified: true,
+                encryptedAt: cryptoUpdate.signatureCrypto.encryptedAt,
+            },
+            message: 'Signature encrypted, signed, and uploaded securely.',
+        });
     } catch (error) {
         console.error('uploadSignature error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+// Decrypt & serve the signature image (authenticated endpoint)
+export const getDecryptedSignature = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' });
+        }
+        const idToken = authHeader.split(' ')[1];
+        await admin.auth().verifyIdToken(idToken);
+
+        const { userId } = req.params;
+
+        // Find the user's crypto record
+        let profile = await User.findById(userId);
+        if (!profile) profile = await Attorney.findById(userId);
+        if (!profile || !profile.signatureCrypto?.encrypted) {
+            return res.status(404).json({ success: false, message: 'No signature found' });
+        }
+
+        const { encrypted, iv, authTag, hash, proof } = profile.signatureCrypto;
+
+        // Decrypt + verify
+        const result = decryptAndVerify({ encrypted, iv, authTag, hash, proof });
+        if (!result.verified) {
+            return res.status(403).json({
+                success: false,
+                message: `Signature integrity check failed: ${result.reason}`,
+                verified: false,
+            });
+        }
+
+        // Return as data URL
+        const dataUrl = `data:image/png;base64,${result.imageBuffer.toString('base64')}`;
+        res.json({
+            success: true,
+            data: { dataUrl, verified: true, hash },
+        });
+    } catch (error) {
+        console.error('getDecryptedSignature error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+// Verify signature integrity without decrypting (lightweight check)
+export const verifySignatureIntegrity = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' });
+        }
+        const idToken = authHeader.split(' ')[1];
+        await admin.auth().verifyIdToken(idToken);
+
+        const { userId } = req.params;
+
+        let profile = await User.findById(userId);
+        if (!profile) profile = await Attorney.findById(userId);
+        if (!profile || !profile.signatureCrypto?.hash) {
+            return res.status(404).json({ success: false, message: 'No signature found' });
+        }
+
+        const { hash, proof, encryptedAt } = profile.signatureCrypto;
+        const verified = rsaVerify(hash, proof);
+
+        res.json({
+            success: true,
+            data: {
+                verified,
+                hash,
+                encryptedAt,
+                algorithm: 'RSA-SHA256 + AES-256-GCM',
+            },
+        });
+    } catch (error) {
+        console.error('verifySignatureIntegrity error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 }
@@ -465,6 +579,8 @@ export const getUserById = async (req, res) => {
             role: user.role,
             profileImage: user.profileImage || '',
             signatureUrl: user.signatureUrl || '',
+            hasSignature: !!(user.signatureCrypto?.hash),
+            signatureHash: user.signatureCrypto?.hash || null,
             createdAt: user.createdAt,
         }
 

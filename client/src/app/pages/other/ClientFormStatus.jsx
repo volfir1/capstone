@@ -15,9 +15,10 @@ import {
   IconMapPin, IconDots, IconScale,
   IconEdit, IconX, IconSearch, IconEye, IconCalendar,
   IconPlus, IconChevronRight, IconAddressBook, IconInfoCircle, IconFileText,
-  IconTrash, IconArrowRight, IconRotateClockwise
+  IconTrash, IconArrowRight, IconRotateClockwise,
+  IconBrandGoogle, IconPlugConnected, IconPlugConnectedX, IconLoader2,
+  IconRefresh
 } from '@tabler/icons-react';
-import { IconRefresh } from '@tabler/icons-react';
 import {
   PRIMARY_GOLD,
   PRIMARY_BROWN,
@@ -70,6 +71,7 @@ export default function StaffAppointmentManager() {
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [appointmentToApprove, setAppointmentToApprove] = useState(null);
   const [activeTab, setActiveTab] = useState('pending');
+  const [gcalStatus, setGcalStatus] = useState('checking'); // 'connected' | 'disconnected' | 'checking' | 'connecting'
   const navigate = useNavigate();
 
   // Filtered lists logic
@@ -198,6 +200,53 @@ export default function StaffAppointmentManager() {
     } finally {
       setApproveModalOpen(false);
       setAppointmentToApprove(null);
+    }
+  };
+
+  // Live-check Google Calendar connection status from the server
+  useEffect(() => {
+    if (!currentUser) {
+      setGcalStatus('checking');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { default: apiClient } = await import('@config/api/apiClient');
+        const resp = await apiClient.get('/google/status');
+        if (!cancelled) {
+          setGcalStatus(resp.data?.connected ? 'connected' : 'disconnected');
+        }
+      } catch {
+        if (!cancelled) setGcalStatus('disconnected');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser]);
+
+  // Check URL params for returning from Google OAuth
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google') === 'connected') {
+      setGcalStatus('connected');
+      notifications.show({ title: 'Google Calendar', message: 'Successfully connected!', color: 'green', icon: <IconCheck size={18} /> });
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const handleConnectGoogle = async () => {
+    setGcalStatus('connecting');
+    try {
+      const { default: apiClient } = await import('@config/api/apiClient');
+      const resp = await apiClient.post('/google/connect', { firebaseUid: currentUser.uid });
+      if (resp.data?.url) {
+        window.location.href = resp.data.url;
+      }
+    } catch (err) {
+      console.error('Google connect error:', err);
+      setGcalStatus('disconnected');
+      notifications.show({ title: 'Error', message: 'Failed to start Google Calendar connection.', color: 'red' });
     }
   };
 
@@ -470,7 +519,68 @@ export default function StaffAppointmentManager() {
                             </Group>
                           </Group>
                 
-                          <Group gap="xs" align="center">            <Paper shadow="xs" p="xs" radius="lg" withBorder bg="white">
+                          <Group gap="xs" align="center">
+            {/* Google Calendar Status Badge */}
+            <Tooltip label={
+              gcalStatus === 'connected' ? 'Google Calendar is synced' :
+              gcalStatus === 'connecting' ? 'Connecting to Google Calendar…' :
+              gcalStatus === 'checking' ? 'Checking connection…' :
+              'Click to connect Google Calendar'
+            }>
+              <Paper
+                shadow="xs"
+                px="sm"
+                py={6}
+                radius="lg"
+                withBorder
+                bg="white"
+                style={{
+                  cursor: gcalStatus === 'disconnected' ? 'pointer' : 'default',
+                  borderColor: gcalStatus === 'connected' ? '#22c55e40' : gcalStatus === 'connecting' ? '#f59e0b40' : '#e5e7eb',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={gcalStatus === 'disconnected' ? handleConnectGoogle : undefined}
+              >
+                <Group gap={8} wrap="nowrap">
+                  <Box
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '8px',
+                      backgroundColor:
+                        gcalStatus === 'connected' ? '#22c55e15' :
+                        gcalStatus === 'connecting' || gcalStatus === 'checking' ? '#f59e0b15' :
+                        '#ef444415',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {gcalStatus === 'connecting' || gcalStatus === 'checking' ? (
+                      <IconLoader2 size={14} color="#f59e0b" className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+                    ) : gcalStatus === 'connected' ? (
+                      <IconBrandGoogle size={14} color="#22c55e" />
+                    ) : (
+                      <IconBrandGoogle size={14} color="#ef4444" />
+                    )}
+                  </Box>
+                  <Stack gap={0}>
+                    <Text size="10px" fw={600} c={MUTED_OLIVE} lh={1.2}>Google Calendar</Text>
+                    <Text size="11px" fw={700} lh={1.2} c={
+                      gcalStatus === 'connected' ? '#22c55e' :
+                      gcalStatus === 'connecting' || gcalStatus === 'checking' ? '#f59e0b' :
+                      '#ef4444'
+                    }>
+                      {gcalStatus === 'connected' ? 'Connected' :
+                       gcalStatus === 'connecting' ? 'Connecting…' :
+                       gcalStatus === 'checking' ? 'Checking…' :
+                       'Connect'}
+                    </Text>
+                  </Stack>
+                </Group>
+              </Paper>
+            </Tooltip>
+            <Paper shadow="xs" p="xs" radius="lg" withBorder bg="white">
               <Group gap="xl" px="sm">
                 <Stack gap={0} ta="center">
                   <Text size="xs" c={MUTED_OLIVE} fw={600}>PENDING</Text>

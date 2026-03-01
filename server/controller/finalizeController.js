@@ -189,19 +189,20 @@ export const completeFinalize = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Determine the user performing this action via Firebase token
+    // Require authentication for completing a finalized case
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
     let completedBy = null;
-    try {
-      const authHeader = req.headers.authorization || '';
-      if (authHeader.startsWith('Bearer ')) {
-        const idToken = authHeader.split('Bearer ')[1];
-        const decoded = await admin.auth().verifyIdToken(idToken);
-        const user = await User.findOne({ firebaseUid: decoded.uid }).lean();
-        if (user) completedBy = { id: user._id.toString(), name: `${user.firstName || ''} ${user.lastName || ''}`.trim(), email: user.email, role: user.role };
-        else completedBy = { id: decoded.uid, name: decoded.name || decoded.email, email: decoded.email };
-      }
-    } catch (err) {
-      // ignore token verification errors for now
+    const idToken = authHeader.split('Bearer ')[1];
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const user = await User.findOne({ firebaseUid: decoded.uid }).lean();
+    if (user) {
+      completedBy = { id: user._id.toString(), name: `${user.firstName || ''} ${user.lastName || ''}`.trim(), email: user.email, role: user.role };
+    } else {
+      completedBy = { id: decoded.uid, name: decoded.name || decoded.email, email: decoded.email };
     }
 
     const updatePayload = { assignedCompleted: true, assignedCompletedAt: new Date() };
