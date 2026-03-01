@@ -635,7 +635,7 @@ export default function AdminProfile() {
               </Paper>
 
               {/* ── Attorney-only sections below ── */}
-              <Paper shadow="xs" p="xl" radius="lg" bg="white">
+              {/* <Paper shadow="xs" p="xl" radius="lg" bg="white">
                 <Group mb="md" gap={8}>
                   <IconEdit size={18} color={ACCENT_TAN} stroke={2} />
                   <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">Signature</Text>
@@ -666,7 +666,7 @@ export default function AdminProfile() {
                     </Box>
                   </Box>
                 )}
-              </Paper>
+              </Paper> */}
 
               {isAttorney && (
                 <>
