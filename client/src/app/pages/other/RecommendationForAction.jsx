@@ -642,7 +642,6 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                                     Version History ({documentVersions.length})
                                 </Text>
                             </Group>
-                            <ScrollArea.Autosize mah={400} type="auto" offsetScrollbars>
                             <Timeline active={documentVersions.length} bulletSize={20} lineWidth={2}>
                                 {documentVersions.map((version, index) => (
                                     <Timeline.Item
@@ -700,7 +699,6 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                                     </Timeline.Item>
                                 ))}
                             </Timeline>
-                            </ScrollArea.Autosize>
                         </Paper>
                     )}
                     
@@ -2390,7 +2388,6 @@ export default function CaseRecordFormsDisplay() {
                                     <Grid gutter="xs">
                                         <InfoField label="Adverse Party" value={d.adverseParty} span={12} />
                                         <InfoField label="Address" value={d.adversePartyAddress} span={12} />
-                                        <InfoField label="Phone Number" value={d.adversePartyPhone} />
                                         <InfoField label="Counsel" value={d.adversePartyCounsel} span={12} />
                                         <InfoField label="Counsel Address" value={d.adversePartyCounselAddress} span={12} />
                                         <InfoField label="Counsel Phone" value={d.adversePartyCounselPhone} />

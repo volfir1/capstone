@@ -3,6 +3,7 @@ import User from '../models/user.js'
 import Case from '../models/case.js'
 import admin from 'firebase-admin'
 import { createNotification } from './notificationController.js'
+import { safeErrorMessage } from '../utils/errorResponse.js'
 
 export const createFinalize = async (req, res) => {
   try {
@@ -26,7 +27,6 @@ export const createFinalize = async (req, res) => {
     try {
       // Prefer explicit clientUserId or userId from payload content
       const userId = rec.clientUserId || toCreate.clientUserId || toCreate.userId || rec.content?.userId || null;
-import { safeErrorMessage } from '../utils/errorResponse.js';
       if (userId) {
         // Prepare case fields from finalize content where possible
         const caseTitle = rec.caseTitle || rec.content?.caseInfo?.caseTitle || `Case for ${rec.clientName || 'Client'}`;

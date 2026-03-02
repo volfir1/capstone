@@ -181,6 +181,8 @@ const initialState = {
   currentViewingDoc: null,
   wordDocHtml: null,
   wordDocLoading: false,
+  pdfBlobUrl: null,
+  pdfLoading: false,
 
 
   // Pagination
@@ -310,11 +312,17 @@ function stateReducer(state, action) {
         currentViewingDoc: null,
         wordDocHtml: null,
         wordDocLoading: false,
+        pdfBlobUrl: null,
+        pdfLoading: false,
       };
     case 'SET_WORD_DOC_HTML':
       return { ...state, wordDocHtml: action.payload };
     case 'SET_WORD_DOC_LOADING':
       return { ...state, wordDocLoading: action.payload };
+    case 'SET_PDF_BLOB_URL':
+      return { ...state, pdfBlobUrl: action.payload };
+    case 'SET_PDF_LOADING':
+      return { ...state, pdfLoading: action.payload };
 
 
     // Case Record Modal actions
@@ -452,6 +460,15 @@ export default function FinalizedCases() {
 
     convertWordIfNeeded();
   }, [state.documentViewerModalOpened, state.currentViewingDoc]);
+
+  // Revoke PDF blob URL when it's replaced or modal closes to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (state.pdfBlobUrl) {
+        URL.revokeObjectURL(state.pdfBlobUrl);
+      }
+    };
+  }, [state.pdfBlobUrl]);
 
   const formatDate = (value) => {
     if (!value) return '-';
@@ -1732,9 +1749,11 @@ export default function FinalizedCases() {
 
   // Function to handle viewing documents (for version history preview)
   const handleViewDocument = async (documentData) => {
-    // Reset Word doc state
+    // Reset Word doc / PDF state
     dispatch({ type: 'SET_WORD_DOC_HTML', payload: null });
     dispatch({ type: 'SET_WORD_DOC_LOADING', payload: false });
+    dispatch({ type: 'SET_PDF_BLOB_URL', payload: null });
+    dispatch({ type: 'SET_PDF_LOADING', payload: false });
 
     if (!documentData) {
       console.warn('No document to view');
@@ -1761,8 +1780,23 @@ export default function FinalizedCases() {
       docToView.fileName?.endsWith('.docx') ||
       docToView.fileName?.endsWith('.doc');
 
-    // If it's a PDF, the iframe will handle it
-    // No extra processing needed for PDF
+    // If it's a PDF, fetch as blob to bypass X-Frame-Options restriction
+    const isPdf = docToView.fileType?.includes('pdf') || docToView.fileName?.endsWith('.pdf');
+    if (isPdf) {
+      dispatch({ type: 'SET_PDF_LOADING', payload: true });
+      try {
+        const rawUrl = docToView.fileUrl || docToView.fileData;
+        const arrayBuffer = await fetchArrayBufferFromUrl(rawUrl);
+        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        dispatch({ type: 'SET_PDF_BLOB_URL', payload: blobUrl });
+      } catch (error) {
+        console.error('Error loading PDF for preview:', error);
+        dispatch({ type: 'SET_PDF_BLOB_URL', payload: null });
+      } finally {
+        dispatch({ type: 'SET_PDF_LOADING', payload: false });
+      }
+    }
 
     if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
       dispatch({ type: 'SET_WORD_DOC_LOADING', payload: true });
@@ -2682,12 +2716,27 @@ export default function FinalizedCases() {
 
               <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
                 {state.currentViewingDoc.fileType?.includes('pdf') || state.currentViewingDoc.fileName?.endsWith('.pdf') ? (
-                  // PDF - embed directly (works for both server URLs and base64)
-                  <iframe
-                    src={state.currentViewingDoc.fileUrl ? getServerFileUrl(state.currentViewingDoc.fileUrl) : state.currentViewingDoc.fileData}
-                    style={{ width: '100%', height: '100%', minHeight: '75vh', border: 'none', flex: 1 }}
-                    title="PDF Viewer"
-                  />
+                  // PDF - fetch as blob to bypass X-Frame-Options
+                  state.pdfLoading ? (
+                    <Box style={{ textAlign: 'center', padding: '40px' }}>
+                      <IconFileText size={64} color={PRIMARY_BROWN} />
+                      <Text size="xl" fw={700} mt="md" c={PRIMARY_BROWN}>Loading PDF...</Text>
+                    </Box>
+                  ) : state.pdfBlobUrl ? (
+                    <iframe
+                      src={state.pdfBlobUrl}
+                      style={{ width: '100%', height: '100%', minHeight: '75vh', border: 'none', flex: 1 }}
+                      title="PDF Viewer"
+                    />
+                  ) : (
+                    <Box style={{ textAlign: 'center', padding: '40px' }}>
+                      <IconFileText size={64} color={PRIMARY_BROWN} />
+                      <Text size="xl" fw={700} mt="md" c={PRIMARY_BROWN}>PDF Preview Unavailable</Text>
+                      <Text size="sm" c="dimmed" mt="xs" mb="md">{state.currentViewingDoc.fileName}</Text>
+                      <Text size="sm" c="dimmed" mb="xl">Unable to preview this PDF. Please download to view.</Text>
+                      <Button size="lg" leftSection={<IconDownload size={20} />} onClick={() => handleDownloadDocument(state.currentViewingDoc)} style={{ backgroundColor: PRIMARY_BROWN }}>Download to View</Button>
+                    </Box>
+                  )
                 ) : (state.currentViewingDoc.fileType?.includes('word') || state.currentViewingDoc.fileName?.endsWith('.docx') || state.currentViewingDoc.fileName?.endsWith('.doc')) ? (
                   // Word Document - Render using mammoth.js
                   <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -4181,34 +4230,52 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
 
   console.debug('fetchArrayBufferFromUrl candidates:', candidates);
 
-  for (const c of candidates) {
-    if (!c || tried.has(c)) continue;
-    tried.add(c);
+  const tryFetch = async (url) => {
+    if (!url || tried.has(url)) return null;
+    tried.add(url);
     try {
-      console.debug('Attempting fetch for:', c);
-      const resp = await fetch(c);
-      console.debug('Response status for', c, resp.status);
+      const resp = await fetch(url);
       if (!resp.ok) {
-        console.warn('Fetch not ok for', c, resp.status, resp.statusText);
-        continue;
+        console.warn('Fetch not ok for', url, resp.status, resp.statusText);
+        return null;
       }
       const contentType = resp.headers.get('content-type') || '';
       if (contentType.includes('text/html')) {
-        try {
-          const text = await resp.text();
-          console.warn('Skipped HTML response for', c, 'snippet:', text.slice(0, 300));
-        } catch (e) {
-          console.warn('Skipped HTML response for', c);
-        }
-        continue;
+        console.warn('Skipped HTML response for', url);
+        return null;
       }
-      const ab = await resp.arrayBuffer();
-      console.debug('Successfully fetched binary from', c);
-      return ab;
+      return await resp.arrayBuffer();
     } catch (err) {
-      console.warn('Error fetching candidate', c, err);
-      continue;
+      console.warn('Error fetching candidate', url, err);
+      return null;
     }
+  };
+
+  for (const c of candidates) {
+    const ab = await tryFetch(c);
+    if (ab) return ab;
   }
+
+  // Last resort: ask the server to fuzzy-match the filename against files on disk
+  try {
+    const last = typeof rawUrl === 'string' ? rawUrl.split('/').pop() : '';
+    if (last) {
+      const apiHost = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : 'http://127.0.0.1:5000';
+      const resolveUrl = `${apiHost}/api/uploads/resolve?path=${encodeURIComponent(decodeURIComponent(last))}`;
+      const resolveResp = await fetch(resolveUrl);
+      if (resolveResp.ok) {
+        const resolveJson = await resolveResp.json();
+        if (resolveJson.found && resolveJson.url) {
+          console.info('fetchArrayBufferFromUrl: resolved via fuzzy match ->', resolveJson.url);
+          const resolved = getServerFileUrl(resolveJson.url);
+          const ab = await tryFetch(resolved);
+          if (ab) return ab;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('fetchArrayBufferFromUrl: resolve endpoint failed', e);
+  }
+
   throw new Error('Failed to fetch binary file from provided URL(s)');
 };

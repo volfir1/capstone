@@ -49,7 +49,7 @@ export const getProfile = async (req, res) => {
                 accountStatus: isAttorney ? profile.accountStatus : undefined,
                 profileImage: profile.profileImage || '',
                 signatureUrl: profile.signatureUrl || '',
-                google: profile.google ? { connected: !!profile.google.connected, email: profile.google.email || '' } : { connected: false, email: '' },
+                google: profile.google ? { connected: !!profile.google.connected } : { connected: false },
             }
         })
 
