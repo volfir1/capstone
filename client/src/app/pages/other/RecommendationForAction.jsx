@@ -1416,7 +1416,7 @@ export default function CaseRecordFormsDisplay() {
                 for (const cand of candidates) {
                     if (!cand) continue;
                     try {
-                        arrayBuffer = await fetchArrayBufferFromUrl(cand, cloudinaryUrl);
+                        arrayBuffer = await fetchArrayBufferFromUrl(cand, docToView?.cloudinaryUrl);
                         if (arrayBuffer) break;
                     } catch (e) {
                         lastErr = e;
@@ -1443,7 +1443,7 @@ export default function CaseRecordFormsDisplay() {
                             const jr = await r.json();
                             if (jr?.found && jr?.url) {
                                 console.debug('Resolver returned', jr.url);
-                                arrayBuffer = await fetchArrayBufferFromUrl(getServerFileUrl(jr.url), cloudinaryUrl);
+                                arrayBuffer = await fetchArrayBufferFromUrl(getServerFileUrl(jr.url), docToView?.cloudinaryUrl);
                             }
                         }
                     } catch (resErr) {
