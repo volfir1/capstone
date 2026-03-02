@@ -106,6 +106,25 @@ export default function ReviewForm({ formData, getValues, setValue }) {
           <ReviewField label="Court Division" value={allData.courtDivision} />
           <ReviewField label="Presiding Officer" value={allData.presidingOfficer} />
           <ReviewField label="Court Address" value={allData.courtAddress} span={12} />
+          <ReviewField label="Court Phone Number" value={allData.courtPhoneNumber} />
+        </Grid>
+      </Paper>
+
+      {/* Adverse Party */}
+      <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+        <Group gap={8} mb="md">
+          <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#FA5252', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconBriefcase size={14} color="white" stroke={2.5} />
+          </Box>
+          <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Adverse Party</Text>
+        </Group>
+        <Grid gutter="sm">
+          <ReviewField label="Adverse Party(ies)" value={allData.adverseParty} span={12} />
+          <ReviewField label="Address" value={allData.adversePartyAddress} span={12} />
+          <ReviewField label="Phone Number" value={allData.adversePartyPhone} />
+          <ReviewField label="Counsel" value={allData.adversePartyCounsel} />
+          <ReviewField label="Counsel Address" value={allData.adversePartyCounselAddress} span={12} />
+          <ReviewField label="Counsel Phone" value={allData.adversePartyCounselPhone} />
         </Grid>
       </Paper>
 

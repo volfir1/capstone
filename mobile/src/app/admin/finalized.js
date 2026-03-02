@@ -756,6 +756,45 @@ export default function FinalizedCases() {
                     <Text style={styles.modalValue}>{appointmentDetails.courtAddress || 'N/A'}</Text>
                   </View>
                   <View>
+                    <Text style={styles.modalLabel}>Court Phone Number</Text>
+                    <Text style={styles.modalValue}>{appointmentDetails.courtPhoneNumber || 'N/A'}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.modalLabel}>Presiding Officer</Text>
+                    <Text style={styles.modalValue}>{appointmentDetails.presidingOfficer || 'N/A'}</Text>
+                  </View>
+
+                  {/* Adverse Party */}
+                  <View style={styles.detailRowBetween}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                      <Text style={styles.modalLabel}>Adverse Party(ies)</Text>
+                      <Text style={styles.modalValue}>{appointmentDetails.adverseParty || 'N/A'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalLabel}>Adverse Party Phone</Text>
+                      <Text style={styles.modalValue}>{appointmentDetails.adversePartyPhone || 'N/A'}</Text>
+                    </View>
+                  </View>
+                  <View>
+                    <Text style={styles.modalLabel}>Adverse Party Address</Text>
+                    <Text style={styles.modalValue}>{appointmentDetails.adversePartyAddress || 'N/A'}</Text>
+                  </View>
+                  <View style={styles.detailRowBetween}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                      <Text style={styles.modalLabel}>Adverse Party Counsel</Text>
+                      <Text style={styles.modalValue}>{appointmentDetails.adversePartyCounsel || 'N/A'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalLabel}>Counsel Phone</Text>
+                      <Text style={styles.modalValue}>{appointmentDetails.adversePartyCounselPhone || 'N/A'}</Text>
+                    </View>
+                  </View>
+                  <View>
+                    <Text style={styles.modalLabel}>Adverse Party Counsel Address</Text>
+                    <Text style={styles.modalValue}>{appointmentDetails.adversePartyCounselAddress || 'N/A'}</Text>
+                  </View>
+
+                  <View>
                     <Text style={styles.modalLabel}>Case Description</Text>
                     <Text style={styles.modalValue}>{appointmentDetails.caseDescription || 'N/A'}</Text>
                   </View>

@@ -332,6 +332,7 @@ export default function ClientInfoView() {
         courtPhoneNumber: data?.courtPhoneNumber || '',
         adverseParty: data?.adverseParty || '',
         adversePartyAddress: data?.adversePartyAddress || '',
+        adversePartyPhone: data?.adversePartyPhone || '',
         adversePartyCounsel: data?.adversePartyCounsel || '',
         adversePartyCounselAddress: data?.adversePartyCounselAddress || '',
         adversePartyCounselPhone: data?.adversePartyCounselPhone || '',
@@ -389,6 +390,7 @@ export default function ClientInfoView() {
     presidingOfficer: values.presidingOfficer || undefined,
     adverseParty: values.adverseParty || undefined,
     adversePartyAddress: values.adversePartyAddress || undefined,
+    adversePartyPhone: values.adversePartyPhone || undefined,
     adversePartyCounsel: values.adversePartyCounsel || undefined,
     adversePartyCounselAddress: values.adversePartyCounselAddress || undefined,
     adversePartyCounselPhone: values.adversePartyCounselPhone || undefined,
@@ -727,6 +729,8 @@ export default function ClientInfoView() {
 
         <InfoRow label="Adverse Party(ies)" value={editData.adverseParty} field="adverseParty" />
         <InfoRow label="Address" value={editData.adversePartyAddress} field="adversePartyAddress" />
+        <InfoRow label="Phone Number" value={editData.adversePartyPhone} field="adversePartyPhone"
+          keyboardType="phone-pad" formatter={formatPhoneNumber} />
         <InfoRow label="Counsel" value={editData.adversePartyCounsel} field="adversePartyCounsel" />
         <InfoRow label="Counsel Address" value={editData.adversePartyCounselAddress} field="adversePartyCounselAddress" />
         <InfoRow label="Counsel Phone" value={editData.adversePartyCounselPhone} field="adversePartyCounselPhone"
@@ -798,6 +802,23 @@ export default function ClientInfoView() {
           <ReviewField label="COURT DIVISION" value={d.courtDivision} />
           <ReviewField label="PRESIDING OFFICER" value={d.presidingOfficer} />
           <ReviewField label="COURT ADDRESS" value={d.courtAddress} />
+          <ReviewField label="COURT PHONE NUMBER" value={d.courtPhoneNumber} />
+        </View>
+
+        {/* ADVERSE PARTY SUMMARY */}
+        <View style={s.sectionCard}>
+          <View style={s.sectionHeader}>
+            <View style={[s.sectionIcon, { backgroundColor: '#FA5252' }]}>
+              <Ionicons name="scale" size={14} color="#fff" />
+            </View>
+            <Text style={s.sectionTitle}>ADVERSE PARTY</Text>
+          </View>
+          <ReviewField label="ADVERSE PARTY(IES)" value={d.adverseParty} />
+          <ReviewField label="ADDRESS" value={d.adversePartyAddress} />
+          <ReviewField label="PHONE NUMBER" value={d.adversePartyPhone} />
+          <ReviewField label="COUNSEL" value={d.adversePartyCounsel} />
+          <ReviewField label="COUNSEL ADDRESS" value={d.adversePartyCounselAddress} />
+          <ReviewField label="COUNSEL PHONE" value={d.adversePartyCounselPhone} />
         </View>
 
         {/* PREFERRED APPOINTMENT */}

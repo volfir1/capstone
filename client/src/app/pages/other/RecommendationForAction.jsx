@@ -2370,6 +2370,7 @@ export default function CaseRecordFormsDisplay() {
                                     <Grid gutter="xs">
                                         <InfoField label="Adverse Party" value={d.adverseParty} span={12} />
                                         <InfoField label="Address" value={d.adversePartyAddress} span={12} />
+                                        <InfoField label="Phone Number" value={d.adversePartyPhone} />
                                         <InfoField label="Counsel" value={d.adversePartyCounsel} span={12} />
                                         <InfoField label="Counsel Address" value={d.adversePartyCounselAddress} span={12} />
                                         <InfoField label="Counsel Phone" value={d.adversePartyCounselPhone} />

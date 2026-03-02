@@ -1621,12 +1621,52 @@ export default function AppointmentTracker() {
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtDivision || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Court Phone Number</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtPhoneNumber || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
                   <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Presiding Officer</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.presidingOfficer || 'N/A'}</Text>
                 </Grid.Col>
                 <Grid.Col span={12}>
                   <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Court Address</Text>
                   <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.courtAddress || 'N/A'}</Text>
+                </Grid.Col>
+              </Grid>
+            </Paper>
+
+            {/* Adverse Party */}
+            <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+              <Group gap={8} mb="md">
+                <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#FA5252', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconGavel size={14} color="white" stroke={2.5} />
+                </Box>
+                <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Adverse Party</Text>
+              </Group>
+              <Grid gutter="sm">
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Adverse Party(ies)</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adverseParty || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Address</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adversePartyAddress || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Phone Number</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adversePartyPhone || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Counsel</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adversePartyCounsel || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Counsel Address</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adversePartyCounselAddress || 'N/A'}</Text>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} lts={0.3} mb={2}>Counsel Phone</Text>
+                  <Text size="sm" c={CHARCOAL} fw={500}>{appointmentDetails.adversePartyCounselPhone || 'N/A'}</Text>
                 </Grid.Col>
               </Grid>
             </Paper>

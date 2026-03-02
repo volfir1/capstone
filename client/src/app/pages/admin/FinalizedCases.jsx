@@ -542,6 +542,7 @@ export default function FinalizedCases() {
     presidingOfficer: details?.presidingOfficer || '',
     adverseParty: details?.adverseParty || '',
     adversePartyAddress: details?.adversePartyAddress || '',
+    adversePartyPhone: details?.adversePartyPhone || '',
     adversePartyCounsel: details?.adversePartyCounsel || '',
     adversePartyCounselAddress: details?.adversePartyCounselAddress || '',
     adversePartyCounselPhone: details?.adversePartyCounselPhone || '',
@@ -3200,6 +3201,14 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Phone Number</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.adversePartyPhone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyPhone: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyPhone || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel</Text>
                     {state.appointmentEditMode ? (
@@ -3844,6 +3853,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const presidingOfficerPhone = txt(a.courtPhoneNumber || a.presidingOfficerPhone || a.phoneNumber);
   const adverseParties = txt(a.adverseParty || a.adverseParties);
   const adversePartiesAddress = txt(a.adversePartyAddress || a.adversePartiesAddress);
+  const adversePartiesPhone = txt(a.adversePartyPhone || a.adversePartiesPhone);
   const adversePartiesCounsel = txt(a.adversePartyCounsel || a.adversePartiesCounsel);
   const adversePartiesCounselAddress = txt(a.adversePartyCounselAddress || a.adversePartiesCounselAddress);
   const adversePartiesCounselPhone = txt(a.adversePartyCounselPhone || a.adversePartiesCounselPhone);
@@ -4101,6 +4111,9 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 
   checkPageBreak();
   y += field({ labelText: "Adverse Party(ies) Address:", value: adversePartiesAddress, x: leftX, y, labelW: 52, lineW: pageW - margin * 2 - 54 });
+
+  checkPageBreak();
+  y += field({ labelText: "Adverse Party(ies) Phone Number:", value: adversePartiesPhone, x: leftX, y, labelW: 60, lineW: pageW - margin * 2 - 62 });
 
   checkPageBreak();
   y += field({ labelText: "Adverse Party(ies) Counsel:", value: adversePartiesCounsel, x: leftX, y, labelW: 50, lineW: pageW - margin * 2 - 52 });

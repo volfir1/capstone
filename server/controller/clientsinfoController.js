@@ -152,6 +152,7 @@ export const createClientsInfo = async (req, res) => {
       caseDescription: payload.caseDescription,
       adverseParty: payload.adverseParty,
       adversePartyAddress: payload.adversePartyAddress,
+      adversePartyPhone: payload.adversePartyPhone,
       adversePartyCounsel: payload.adversePartyCounsel,
       adversePartyCounselAddress: payload.adversePartyCounselAddress,
       adversePartyCounselPhone: payload.adversePartyCounselPhone,
@@ -391,6 +392,7 @@ export const updateClientsInfo = async (req, res) => {
     setField('caseDescription')
     setField('adverseParty')
     setField('adversePartyAddress')
+    setField('adversePartyPhone')
     setField('adversePartyCounsel')
     setField('adversePartyCounselAddress')
     setField('adversePartyCounselPhone')

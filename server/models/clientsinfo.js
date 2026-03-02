@@ -76,6 +76,7 @@ const ClientsInfoSchema = new mongoose.Schema({
   caseDescription: { type: String },
   adverseParty: { type: String },
   adversePartyAddress: { type: String },
+  adversePartyPhone: { type: String },
   adversePartyCounsel: { type: String },
   adversePartyCounselAddress: { type: String },
   adversePartyCounselPhone: { type: String },

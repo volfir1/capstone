@@ -209,6 +209,27 @@ export default function CaseDetailsForm({ register, errors, watch, setValue }) {
           </Grid>
 
           <Grid gutter="sm">
+            <Grid.Col span={6}>
+              <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Phone Number</Text>
+              <TextInput
+                placeholder="+63 XXX XXX XXXX"
+                size="sm"
+                {...register('adversePartyPhone', validationRules.adversePartyPhone)}
+                error={errors.adversePartyPhone?.message}
+                value={watch('adversePartyPhone') || '+63 '}
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value);
+                  setValue('adversePartyPhone', formatted);
+                }}
+                onFocus={(e) => {
+                  if (!e.target.value || e.target.value === '') setValue('adversePartyPhone', '+63 ');
+                }}
+                styles={{ input: { borderColor: errors.adversePartyPhone ? '#E74C3C' : '#E0E0E0' } }}
+              />
+            </Grid.Col>
+          </Grid>
+
+          <Grid gutter="sm">
             <Grid.Col span={4}>
               <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Counsel</Text>
               <TextInput

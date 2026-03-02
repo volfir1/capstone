@@ -112,7 +112,14 @@ const syncAppointmentFormFromDetails = (details) => ({
   presentStage: details?.presentStage || '',
   courtDivision: details?.courtDivision || '',
   courtAddress: details?.courtAddress || '',
+  courtPhoneNumber: details?.courtPhoneNumber || '',
   presidingOfficer: details?.presidingOfficer || '',
+  adverseParty: details?.adverseParty || '',
+  adversePartyAddress: details?.adversePartyAddress || '',
+  adversePartyPhone: details?.adversePartyPhone || '',
+  adversePartyCounsel: details?.adversePartyCounsel || '',
+  adversePartyCounselAddress: details?.adversePartyCounselAddress || '',
+  adversePartyCounselPhone: details?.adversePartyCounselPhone || '',
   caseDescription: details?.caseDescription || '',
   caseNature: details?.caseNature || details?.natureOfCase || '',
   appointmentType: details?.caseDetails?.appointmentType || details?.appointmentType || details?.personal?.legalMatter || '',
@@ -991,7 +998,8 @@ export default function AssignedCases() {
                   { label: 'Present Stage', key: 'presentStage', span: 6 },
                   { label: 'Court Division', key: 'courtDivision', span: 12 },
                   { label: 'Court Address', key: 'courtAddress', span: 12 },
-                  { label: 'Presiding Officer', key: 'presidingOfficer', span: 12 },
+                  { label: 'Court Phone Number', key: 'courtPhoneNumber', span: 6 },
+                  { label: 'Presiding Officer', key: 'presidingOfficer', span: 6 },
                 ].map(({ label, key, span, display, readOnly }) => (
                   <Grid.Col span={span} key={key}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
@@ -1010,6 +1018,31 @@ export default function AssignedCases() {
                     <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails.caseDescription || 'N/A'}</Text>
                   )}
                 </Grid.Col>
+              </Grid>
+            </Paper>
+
+            {/* Adverse Party */}
+            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
+              <Title order={4} mb="md" c={CHARCOAL}>Adverse Party</Title>
+              <Divider mb="md" color="#F0F0F0" />
+              <Grid gutter="md">
+                {[
+                  { label: 'Adverse Party(ies)', key: 'adverseParty', span: 12 },
+                  { label: 'Address', key: 'adversePartyAddress', span: 12 },
+                  { label: 'Phone Number', key: 'adversePartyPhone', span: 6 },
+                  { label: 'Counsel', key: 'adversePartyCounsel', span: 6 },
+                  { label: 'Counsel Address', key: 'adversePartyCounselAddress', span: 12 },
+                  { label: 'Counsel Phone', key: 'adversePartyCounselPhone', span: 6 },
+                ].map(({ label, key, span }) => (
+                  <Grid.Col span={span} key={key}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
+                    {receiptEditMode ? (
+                      <TextInput size="sm" value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails[key] || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
+                ))}
               </Grid>
             </Paper>
           </Stack>

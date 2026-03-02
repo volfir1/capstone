@@ -222,7 +222,7 @@ export default function UserForm() {
         // Clear case-specific fields
         partyRepresented: '', venue: '', caseNumber: '', presentStage: '',
         caseNature: '', courtDivision: '', courtAddress: '', presidingOfficer: '',
-        adverseParty: '', adversePartyAddress: '', adversePartyCounsel: '',
+        adverseParty: '', adversePartyAddress: '', adversePartyPhone: '', adversePartyCounsel: '',
       });
       setFormData(profileData);
       setActive(0);
@@ -265,7 +265,7 @@ export default function UserForm() {
           ...profileData,
           partyRepresented: '', venue: '', caseNumber: '', presentStage: '',
           caseNature: '', courtDivision: '', courtAddress: '', presidingOfficer: '',
-          adverseParty: '', adversePartyAddress: '', adversePartyCounsel: '',
+          adverseParty: '', adversePartyAddress: '', adversePartyPhone: '', adversePartyCounsel: '',
         });
         setFormData(profileData);
         setActive(0);

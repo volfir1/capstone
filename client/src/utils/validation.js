@@ -317,8 +317,13 @@ export const validationRules = {
   
   adversePartyAddress: {},
   
-  adversePartyCounsel: {},
-  
+  adversePartyPhone: {
+    pattern: { 
+      value: /^[\d\s\-+()]+$/, 
+      message: "Please enter a valid phone number" 
+    }
+  },
+
   adversePartyCounselAddress: {},
   
   adversePartyCounselPhone: {
