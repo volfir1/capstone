@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/* ─── Notification transitions ─────────────────────────────
+   Slow entrance (500ms via transitionDuration prop),
+   fast exit: target Mantine's Transition wrapper when
+   data-mounted is false (leaving state).                   */
+
+/* Mantine v7: transition wrapper sitting inside the notifications list */
+.m-NotificationsContainer [data-mounted="false"],
+[class*="NotificationsContainer"] [data-mounted="false"] {
+  transition-duration: 120ms !important;
+}
+
+/* Fallback: any mounted=false wrapper that holds a Notification */
+[data-mounted="false"]:has(.m-Notification) {
+  transition-duration: 120ms !important;
+}
+
 /* Calendar day cell hover effects */
 .calendar-day-cell:hover {
   transform: translateY(-1px);

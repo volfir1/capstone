@@ -513,22 +513,52 @@ export default function StaffAppointmentManager() {
   return (
     <Box bg={BG} mih="100vh">
       <Container size="xl" py="xl">
-        {/* Modern Header - Integrated Custom Event Button */}
-        <Group justify="space-between" mb="xl" px="xs" align="center">
-          <Group gap="xl" align="center">
-            <Group gap="md">
-              <Box style={{ width: 44, height: 44, borderRadius: '12px', background: `linear-gradient(45deg, ${PRIMARY_BROWN}, ${PRIMARY_GOLD})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(107,68,35,0.15)' }}>
-                <IconScale size={24} color="white" stroke={2} />
-              </Box>
-              <Stack gap={0}>
-                                <Title order={2} fw={700} c={CHARCOAL}>Staff Appointment Manager</Title>
-                                <Text size="xs" c={MUTED_OLIVE} fw={500}>San Sebastian College - Recoletos Manila Legal Aid</Text>
-                              </Stack>
-                            </Group>
-                          </Group>
-                
-                          <Group gap="xs" align="center">            <Paper shadow="xs" p="xs" radius="lg" withBorder bg="white">
-              <Group gap="xl" px="sm">
+        {/* Modern Header */}
+        <Group justify="space-between" mb="xl" px="xs" align="center" wrap="nowrap">
+          {/* Left: Brand */}
+          <Group gap="md" align="center" wrap="nowrap">
+            <Box style={{ width: 44, height: 44, borderRadius: '12px', background: `linear-gradient(45deg, ${PRIMARY_BROWN}, ${PRIMARY_GOLD})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(107,68,35,0.15)', flexShrink: 0 }}>
+              <IconScale size={24} color="white" stroke={2} />
+            </Box>
+            <Stack gap={0}>
+              <Title order={2} fw={700} c={CHARCOAL}>Staff Appointment Manager</Title>
+              <Text size="xs" c={MUTED_OLIVE} fw={500}>San Sebastian College - Recoletos Manila Legal Aid</Text>
+            </Stack>
+          </Group>
+
+          {/* Right: Google Calendar pill → Stats → Refresh */}
+          <Group gap="sm" align="center" wrap="nowrap">
+
+            {/* Google Calendar pill — clickable to connect when not connected */}
+            <Tooltip label={isGoogleConnected ? 'Google Calendar connected' : 'Click to connect your Google Calendar'}>
+              <Paper
+                shadow="xs"
+                radius="xl"
+                withBorder
+                bg="white"
+                px="md"
+                py={6}
+                style={{
+                  cursor: isGoogleConnected ? 'default' : (isConnectingGoogle ? 'wait' : 'pointer'),
+                  opacity: isConnectingGoogle ? 0.7 : 1,
+                }}
+                onClick={!isGoogleConnected && !isConnectingGoogle ? handleConnectGoogleCalendar : undefined}
+              >
+                <Group gap="sm" align="center" wrap="nowrap">
+                  <IconBrandGoogle size={26} color={isGoogleConnected ? '#34A853' : '#EA4335'} />
+                  <Stack gap={0}>
+                    <Text size="xs" c={MUTED_OLIVE} fw={500} lh={1.2}>Google Calendar</Text>
+                    <Text size="sm" fw={700} c={isGoogleConnected ? 'green' : 'red'} lh={1.2}>
+                      {isConnectingGoogle ? 'Connecting…' : isGoogleConnected ? 'Connected' : 'Connect'}
+                    </Text>
+                  </Stack>
+                </Group>
+              </Paper>
+            </Tooltip>
+
+            {/* Stats pill */}
+            <Paper shadow="xs" p="xs" radius="xl" withBorder bg="white">
+              <Group gap="xl" px="sm" align="center">
                 <Stack gap={0} ta="center">
                   <Text size="xs" c={MUTED_OLIVE} fw={600}>PENDING</Text>
                   <Text fw={700} size="lg" c="orange">{pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length}</Text>
@@ -540,34 +570,14 @@ export default function StaffAppointmentManager() {
                 </Stack>
               </Group>
             </Paper>
-            {!isGoogleConnected && (
-              <Tooltip label="Connect your Google Calendar to sync appointments">
-                <Button
-                  variant="light"
-                  color="blue"
-                  radius="md"
-                  size="compact-sm"
-                  leftSection={<IconBrandGoogle size={16} />}
-                  onClick={handleConnectGoogleCalendar}
-                  loading={isConnectingGoogle}
-                  fw={600}
-                >
-                  Connect Google Calendar
-                </Button>
-              </Tooltip>
-            )}
-            {isGoogleConnected && (
-              <Tooltip label="Google Calendar connected">
-                <Badge variant="light" color="green" radius="md" size="lg" leftSection={<IconBrandGoogle size={14} />}>
-                  Calendar Connected
-                </Badge>
-              </Tooltip>
-            )}
+
+            {/* Refresh button */}
             <Tooltip label="Refresh data">
-              <ActionIcon variant="light" onClick={() => loadAllData()} radius="md">
+              <ActionIcon variant="filled" color="blue" onClick={() => loadAllData()} radius="xl" size="lg">
                 <IconRefresh size={18} />
               </ActionIcon>
             </Tooltip>
+
           </Group>
         </Group>
 
