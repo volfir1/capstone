@@ -1834,16 +1834,43 @@ export default function FinalizedCases() {
     if (!documentData) return;
     try {
       // Prefer cloudinaryUrl (persistent) over fileUrl (ephemeral on Render)
-      const url = documentData.cloudinaryUrl
-        || (documentData.fileUrl
-          ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
-          : documentData.fileData);
+      const cloudUrl = documentData.cloudinaryUrl;
+      let url = cloudUrl || (documentData.fileUrl
+        ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
+        : documentData.fileData);
       if (!url) {
         notifications.show({ title: 'Error', message: 'No file URL available', color: 'red' });
         return;
       }
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch file');
+
+      // Attach auth header when fetching server-protected URLs
+      const isServerUrl = typeof url === 'string' && (url.includes('/uploads/') || url.includes('/api/uploads/'));
+      const headers = {};
+      try {
+        if (isServerUrl && firebaseAuth.currentUser) {
+          const token = await firebaseAuth.currentUser.getIdToken();
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (e) {
+        console.debug('Could not get auth token for download', e);
+      }
+
+      // Try fetching the final URL (cloudinary or server) as a blob
+      let response = await fetch(url, { headers });
+      if (!response.ok) {
+        // If unauthorized, try refreshing token once and retry
+        if ((response.status === 401 || response.status === 403) && firebaseAuth.currentUser) {
+          try {
+            const token = await firebaseAuth.currentUser.getIdToken(true);
+            headers['Authorization'] = `Bearer ${token}`;
+            response = await fetch(url, { headers });
+          } catch (refreshErr) {
+            console.debug('Token refresh failed', refreshErr);
+          }
+        }
+      }
+
+      if (!response.ok) throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1856,12 +1883,34 @@ export default function FinalizedCases() {
     } catch (err) {
       console.error('Download failed:', err);
       // Fallback: open in new tab
-      const url = documentData.cloudinaryUrl
+      const fallbackUrl = documentData.cloudinaryUrl
         || (documentData.fileUrl
           ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
           : documentData.fileData);
-      if (url) window.open(url, '_blank');
-      else notifications.show({ title: 'Error', message: 'Download failed', color: 'red' });
+      if (fallbackUrl) {
+        // Try authenticated server fallback if applicable
+        try {
+          if (fallbackUrl.includes('/uploads/') && firebaseAuth.currentUser) {
+            const token = await firebaseAuth.currentUser.getIdToken();
+            const r = await fetch(fallbackUrl, { headers: { Authorization: `Bearer ${token}` } });
+            if (r.ok) {
+              const b = await r.blob();
+              const blobUrl2 = window.URL.createObjectURL(b);
+              const link2 = document.createElement('a');
+              link2.href = blobUrl2;
+              link2.download = documentData.fileName || 'document';
+              document.body.appendChild(link2);
+              link2.click();
+              document.body.removeChild(link2);
+              window.URL.revokeObjectURL(blobUrl2);
+              return;
+            }
+          }
+        } catch (fallbackErr) {
+          console.debug('Authenticated fallback failed', fallbackErr);
+        }
+        window.open(fallbackUrl, '_blank');
+      } else notifications.show({ title: 'Error', message: 'Download failed', color: 'red' });
     }
   };
 
