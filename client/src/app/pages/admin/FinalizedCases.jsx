@@ -38,6 +38,7 @@ import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, BG, CHARCOAL
 import FinalizedCasesSkeleton from '@/components/skeleton/FinalizedCasesSkeleton';
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
+import { auth as firebaseAuth } from '@/firebase/firebase';
 import { CaseInformationSection } from '../other/CaseInformationSection';
 
 // Normalize server file URLs so client always requests the backend, not the dev server origin
@@ -4196,6 +4197,18 @@ const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
     return bytes.buffer;
   }
 
+  // Helper: get auth headers for server URLs (not external/Cloudinary)
+  const getAuthHeaders = async (url) => {
+    try {
+      const isServerUrl = typeof url === 'string' && (url.includes('/uploads/') || url.includes('/api/uploads/'));
+      if (isServerUrl && firebaseAuth.currentUser) {
+        const token = await firebaseAuth.currentUser.getIdToken();
+        return { Authorization: `Bearer ${token}` };
+      }
+    } catch (e) { /* ignore */ }
+    return {};
+  };
+
   const tried = new Set();
   const candidates = [];
 
@@ -4241,7 +4254,8 @@ const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
     tried.add(url);
     try {
       console.debug('Attempting fetch for:', url);
-      const resp = await fetch(url);
+      const headers = await getAuthHeaders(url);
+      const resp = await fetch(url, { headers });
       if (!resp.ok) {
         console.warn('Fetch not ok for', url, resp.status, resp.statusText);
         return null;
@@ -4275,11 +4289,12 @@ const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
       // Try both the configured API host and direct localhost
       const resolveHosts = [apiHost, 'http://127.0.0.1:5000', 'http://localhost:5000'];
       const uniqueHosts = [...new Set(resolveHosts)];
+      const resolveHeaders = await getAuthHeaders('/api/uploads/resolve');
       for (const host of uniqueHosts) {
         try {
           const resolveUrl = `${host}/api/uploads/resolve?path=${encodeURIComponent(decodeURIComponent(last))}`;
           console.debug('Trying resolve endpoint:', resolveUrl);
-          const resolveResp = await fetch(resolveUrl);
+          const resolveResp = await fetch(resolveUrl, { headers: resolveHeaders });
           if (resolveResp.ok) {
             const resolveJson = await resolveResp.json();
             if (resolveJson.found && resolveJson.url) {

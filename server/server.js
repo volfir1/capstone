@@ -118,8 +118,8 @@ app.use(express.json({ limit: '10mb' })) // Limit payload size
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cors(corsOptions))
 
-// Serve uploaded files statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded files — require authentication so only logged-in users can access
+app.use('/uploads', authenticateFirebaseToken, express.static(path.join(__dirname, 'uploads')));
 
 // Request timeout middleware - prevents hanging requests
 app.use((req, res, next) => {
@@ -167,14 +167,20 @@ app.post('/api/upload/document', authenticateFirebaseToken, upload.single('docum
     let cloudinaryUrl = null;
     try {
       const filePath = path.join(__dirname, 'uploads/documents', req.file.filename);
+      const publicId = req.file.filename.replace(/\.[^.]+$/, ''); // strip extension
       const uploadResult = await cloudinary.uploader.upload(filePath, {
         folder: 'capstone_documents',
         resource_type: 'raw', // raw for non-image files (PDF, docx)
-        public_id: req.file.filename.replace(/\.[^.]+$/, ''), // strip extension for public_id
+        public_id: publicId,
         overwrite: true,
+        type: 'private', // private delivery — URL requires signature to access
       });
-      cloudinaryUrl = uploadResult.secure_url;
-      console.log('Document uploaded to Cloudinary:', cloudinaryUrl);
+      // Generate a signed URL so the client can fetch the file securely
+      cloudinaryUrl = cloudinary.url(
+        uploadResult.public_id + '.' + (req.file.originalname.split('.').pop() || 'bin'),
+        { resource_type: 'raw', type: 'private', sign_url: true, secure: true }
+      );
+      console.log('Document uploaded to Cloudinary (private, signed):', cloudinaryUrl);
     } catch (cloudErr) {
       console.warn('Cloudinary upload failed (file still available on disk):', cloudErr.message);
     }
@@ -215,8 +221,8 @@ app.delete('/api/upload/document/:filename', authenticateFirebaseToken, (req, re
   }
 });
 
-// Resolve uploaded filename to an existing file if possible
-app.get('/api/uploads/resolve', (req, res) => {
+// Resolve uploaded filename to an existing file if possible (auth-protected)
+app.get('/api/uploads/resolve', authenticateFirebaseToken, (req, res) => {
   try {
     const q = req.query.path || req.query.filename || '';
     if (!q) return res.status(400).json({ error: 'path or filename query required' });

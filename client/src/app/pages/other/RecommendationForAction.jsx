@@ -32,6 +32,7 @@ import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import { auth as firebaseAuth } from '@/firebase/firebase';
 
 // Configure PDF.js worker â€” try local node_modules first, fall back to CDN
 try {
@@ -82,6 +83,18 @@ const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
         for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
         return bytes.buffer;
     }
+
+    // Helper: get auth headers for server URLs (not external/Cloudinary)
+    const getAuthHeaders = async (url) => {
+        try {
+            const isServerUrl = typeof url === 'string' && (url.includes('/uploads/') || url.includes('/api/uploads/'));
+            if (isServerUrl && firebaseAuth.currentUser) {
+                const token = await firebaseAuth.currentUser.getIdToken();
+                return { Authorization: `Bearer ${token}` };
+            }
+        } catch (e) { /* ignore */ }
+        return {};
+    };
 
     const tried = new Set();
     const candidates = [];
@@ -137,7 +150,8 @@ const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
         tried.add(c);
         try {
             console.debug('Attempting fetch for:', c);
-            const resp = await fetch(c);
+            const headers = await getAuthHeaders(c);
+            const resp = await fetch(c, { headers });
             console.debug('Response status for', c, resp.status);
             if (!resp.ok) {
                 // If 404, log and continue
