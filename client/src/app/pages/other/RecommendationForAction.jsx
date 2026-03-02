@@ -70,8 +70,8 @@ const getServerFileUrl = (pathOrUrl) => {
 };
 // Robust fetch helper: tries absolute/relative and retries with 127.0.0.1 if localhost fails,
 // and avoids returning HTML pages (dev server 404) which break binary parsers like mammoth.
-const fetchArrayBufferFromUrl = async (rawUrl) => {
-    if (!rawUrl) throw new Error('No URL provided');
+const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
+    if (!rawUrl && !cloudinaryUrl) throw new Error('No URL provided');
 
     // Data URL -> convert directly
     if (typeof rawUrl === 'string' && rawUrl.startsWith('data:')) {
@@ -85,6 +85,12 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
 
     const tried = new Set();
     const candidates = [];
+
+    // Cloudinary URL is persistent (survives Render ephemeral disk wipes) — try it first
+    if (cloudinaryUrl && typeof cloudinaryUrl === 'string') {
+        candidates.push(cloudinaryUrl);
+    }
+
     if (typeof rawUrl === 'string') {
         // If relative path
         if (rawUrl.startsWith('/')) candidates.push(getServerFileUrl(rawUrl));
@@ -319,7 +325,7 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
 EvidenceTable.displayName = 'EvidenceTable';
 
 // Simple PDF viewer using pdfjs-dist
-const PdfViewer = ({ url, fileData }) => {
+const PdfViewer = ({ url, fileData, cloudinaryUrl }) => {
     const [loading, setLoading] = React.useState(true);
     const containerRef = React.useRef(null);
 
@@ -340,10 +346,10 @@ const PdfViewer = ({ url, fileData }) => {
                     arrayBuffer = bytes.buffer;
                 } else if (fileData && fileData instanceof ArrayBuffer) {
                     arrayBuffer = fileData;
-                } else if (url) {
+                } else if (url || cloudinaryUrl) {
                     // Use robust fetch helper that retries multiple URL variants
                     // and skips HTML responses from dev server 404s
-                    arrayBuffer = await fetchArrayBufferFromUrl(url);
+                    arrayBuffer = await fetchArrayBufferFromUrl(url, cloudinaryUrl);
                 }
 
                 if (!arrayBuffer) throw new Error('No PDF data');
@@ -376,7 +382,7 @@ const PdfViewer = ({ url, fileData }) => {
         renderPdf();
 
         return () => { cancelled = true; };
-    }, [url, fileData]);
+    }, [url, fileData, cloudinaryUrl]);
 
     return (
         <div style={{ flex: 1, overflow: 'auto' }}>
@@ -1279,6 +1285,7 @@ export default function CaseRecordFormsDisplay() {
                     fileName: file.name,
                     fileType: file.type,
                     fileUrl: file.serverFile.url,
+                    cloudinaryUrl: file.serverFile.cloudinaryUrl || null,
                     isServerFile: true
                 };
             } else {
@@ -1288,6 +1295,7 @@ export default function CaseRecordFormsDisplay() {
                     fileName: file.name,
                     fileType: file.type,
                     fileData: URL.createObjectURL(file),
+                    cloudinaryUrl: null,
                     isServerFile: false
                 };
             }
@@ -1299,6 +1307,7 @@ export default function CaseRecordFormsDisplay() {
                 fileType: documentData.fileType,
                 fileData: documentData.fileData,
                 fileUrl: documentData.fileUrl,
+                cloudinaryUrl: documentData.cloudinaryUrl || null,
                 isServerFile: documentData.isServerFile || false
             };
         } else if (interviewInfo.uploadedDocument) {
@@ -1309,6 +1318,7 @@ export default function CaseRecordFormsDisplay() {
                 fileType: interviewInfo.uploadedDocument.fileType,
                 fileData: interviewInfo.uploadedDocument.fileData,
                 fileUrl: interviewInfo.uploadedDocument.fileUrl,
+                cloudinaryUrl: interviewInfo.uploadedDocument.cloudinaryUrl || null,
                 isServerFile: interviewInfo.uploadedDocument.isServerFile || false
             };
         } else {
@@ -1350,11 +1360,13 @@ export default function CaseRecordFormsDisplay() {
                          docToView.fileName?.endsWith('.docx') || 
                          docToView.fileName?.endsWith('.doc');
         
-        if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
+        if (isWordDoc && (docToView.fileUrl || docToView.fileData || docToView.cloudinaryUrl)) {
             setWordDocLoading(true);
             try {
                 // Build candidate URLs to try (order matters)
                 const candidates = [];
+                // Cloudinary URL is persistent — try it first on deployed environments
+                if (docToView.cloudinaryUrl) candidates.push(docToView.cloudinaryUrl);
                 if (docToView.fileData) candidates.push(docToView.fileData);
                 if (docToView.fileUrl) candidates.push(docToView.fileUrl);
                 // serverFile filename may exist
@@ -1459,9 +1471,12 @@ export default function CaseRecordFormsDisplay() {
         // Always use the original filename (never the server-mangled one with random numbers)
         const fileName = file?.name || docData?.fileName || 'document';
         
-        // Check if it's a server file first
+        // Check if it's a server file first — prefer cloudinaryUrl for deployed environments
         let url = null;
-        if (file?.isServerFile && file?.serverFile?.url) {
+        const cloudUrl = file?.serverFile?.cloudinaryUrl || docData?.cloudinaryUrl || interviewInfo.uploadedDocument?.cloudinaryUrl;
+        if (cloudUrl) {
+            url = cloudUrl;
+        } else if (file?.isServerFile && file?.serverFile?.url) {
             url = file.serverFile.url;
         } else if (docData?.isServerFile && docData?.fileUrl) {
             url = docData.fileUrl;
@@ -2838,7 +2853,7 @@ export default function CaseRecordFormsDisplay() {
                         <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
                             {currentViewingDoc.fileType?.includes('pdf') || currentViewingDoc.fileName?.endsWith('.pdf') ? (
                                 // PDF - use PdfViewer for reliable in-app rendering
-                                <PdfViewer url={currentViewingDoc.fileUrl ? getServerFileUrl(currentViewingDoc.fileUrl) : null} fileData={currentViewingDoc.fileData} />
+                                <PdfViewer url={currentViewingDoc.fileUrl ? getServerFileUrl(currentViewingDoc.fileUrl) : null} fileData={currentViewingDoc.fileData} cloudinaryUrl={currentViewingDoc.cloudinaryUrl} />
                             ) : (currentViewingDoc.fileType?.includes('word') || currentViewingDoc.fileName?.endsWith('.docx') || currentViewingDoc.fileName?.endsWith('.doc')) ? (
                                 // Word Document - Render using mammoth.js
                                 <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
