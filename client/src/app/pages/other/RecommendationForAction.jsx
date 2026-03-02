@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
     Group, 
     Box, 
@@ -33,7 +33,7 @@ import { useLocation, useParams, useSearchParams, useNavigate } from 'react-rout
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
 
-// Configure PDF.js worker — try local node_modules first, fall back to CDN
+// Configure PDF.js worker â€” try local node_modules first, fall back to CDN
 try {
     const pdfWorkerUrl = new URL('../../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js', import.meta.url).href;
     pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -278,7 +278,8 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
     return (
         <Stack gap="sm">
             <Title order={4} c={PRIMARY_BROWN}>{title}</Title>
-            <Table withRowBorders withColumnBorders withTableBorder striped>
+            <ScrollArea type="auto">
+            <Table withRowBorders withColumnBorders withTableBorder striped style={{ minWidth: 500 }}>
                 <Table.Thead>
                     <Table.Tr>
                         <Table.Th style={{ width: showPurpose ? '30%' : '35%' }}>Type / Description</Table.Th>
@@ -300,6 +301,7 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
                     ))}
                 </Table.Tbody>
             </Table>
+            </ScrollArea>
 
             {!readOnly && (
                 <Button
@@ -419,9 +421,9 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
     }
     
     return (
-    <Paper shadow="md" p="xl" radius="lg" bg="white">
-        <Stack gap="xl">
-            <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Client Interview and Evidence Record</Title>
+    <Paper shadow="md" p={{ base: 'sm', sm: 'xl' }} radius="lg" bg="white">
+        <Stack gap={{ base: 'md', sm: 'xl' }}>
+            <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center', fontSize: 'clamp(16px, 4vw, 24px)' }}>Client Interview and Evidence Record</Title>
             
             {isReadOnly && (
                 <Alert color="yellow" title="View Only Mode" radius="md">
@@ -575,8 +577,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                     
                     {/* Current Document Display */}
                     {(uploadedFile || value.uploadedDocument) && (
-                        <Paper p="md" mt="sm" radius="md" style={{ backgroundColor: '#F0F8FF', border: '1px solid #B0D4F1' }}>
-                            <Group justify="space-between">
+                        <Paper p={{ base: 'sm', sm: 'md' }} mt="sm" radius="md" style={{ backgroundColor: '#F0F8FF', border: '1px solid #B0D4F1' }}>
+                            <Group justify="space-between" wrap="wrap" gap="sm">
                                 <Group gap="xs">
                                     <IconFile size={20} color={PRIMARY_BROWN} />
                                     <Box>
@@ -585,8 +587,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                                         </Text>
                                         <Text size="xs" c="dimmed">
                                             {uploadedFile 
-                                                ? `${(uploadedFile.size / 1024).toFixed(2)} KB • Latest Version ${uploadedFile.isServerFile ? '(Uploaded)' : '(Uploading...)'}`
-                                                : `${((value.uploadedDocument?.fileSize || 0) / 1024).toFixed(2)} KB • Current Version`
+                                                ? `${(uploadedFile.size / 1024).toFixed(2)} KB â€¢ Latest Version ${uploadedFile.isServerFile ? '(Uploaded)' : '(Uploading...)'}`
+                                                : `${((value.uploadedDocument?.fileSize || 0) / 1024).toFixed(2)} KB â€¢ Current Version`
                                             }
                                         </Text>
                                         {(uploadedFile?.uploadedBy || value.uploadedDocument?.uploadedBy) && (
@@ -652,7 +654,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                                         }
                                     >
                                         <Text size="xs" c="dimmed" mb={4}>
-                                            {version.fileName} • {(version.fileSize / 1024).toFixed(2)} KB
+                                            {version.fileName} â€¢ {(version.fileSize / 1024).toFixed(2)} KB
                                         </Text>
                                         {version.uploadedBy && (
                                             <Text size="xs" c="dimmed" mb={4}>
@@ -786,9 +788,9 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
     };
 
     return (
-        <Paper shadow="md" p="xl" radius="lg" bg="white">
-            <Stack gap="xl">
-                <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Supervising Lawyer & Director Action</Title>
+        <Paper shadow="md" p={{ base: 'sm', sm: 'xl' }} radius="lg" bg="white">
+            <Stack gap={{ base: 'md', sm: 'xl' }}>
+                <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center', fontSize: 'clamp(16px, 4vw, 24px)' }}>Supervising Lawyer & Director Action</Title>
 
                 <Divider />
                 
@@ -852,7 +854,7 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
             <Divider />
 
             <Title order={3} c={PRIMARY_BROWN}>Assignment & Signatures</Title>
-            <Grid gutter="xl">
+            <Grid gutter={{ base: 'md', md: 'xl' }}>
                 <Grid.Col span={{ base: 12, md: 6 }}>
                     <Textarea 
                         label="Assigned to: Law Interns" 
@@ -2246,7 +2248,7 @@ export default function CaseRecordFormsDisplay() {
         { label: "Action", description: "Lawyer & Director" },
     ];
 
-    // ── Read-only Client Information Sheet side panel ──
+    // â”€â”€ Read-only Client Information Sheet side panel â”€â”€
     const ClientInfoSidePanel = () => {
         if (clientInfoLoading) {
             return (
@@ -2398,54 +2400,56 @@ export default function CaseRecordFormsDisplay() {
         <Box 
             bg={THEMED_LIGHT_BG} 
             mih="100vh" 
-            py="xl"
+            py={{ base: 'sm', sm: 'xl' }}
             style={{
                 fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
             }}
         >
-            <Container size="xl">
+            <Container size="xl" px={{ base: 'xs', sm: 'md' }}>
                 {/* Header */}
                 <Paper 
                     shadow="xs" 
-                    p="xl" 
-                    mb="xl" 
+                    p={{ base: 'sm', sm: 'xl' }} 
+                    mb={{ base: 'sm', sm: 'xl' }} 
                     radius="lg"
                     style={{ background: PRIMARY_BROWN, border: 'none' }}
                 >
-                    <Group gap="md" align="center" justify="space-between">
-                        <Group gap="md" align="center">
+                    <Group gap={{ base: 'xs', sm: 'md' }} align="center" justify="space-between" wrap="nowrap">
+                        <Group gap={{ base: 'xs', sm: 'md' }} align="center" wrap="nowrap">
                             <Box
-                                style={{ width: 48, height: 48, borderRadius: '12px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ width: 40, height: 40, flexShrink: 0, borderRadius: '12px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >
-                                <IconFileText size={24} color={PRIMARY_BROWN} stroke={2.5} />
+                                <IconFileText size={22} color={PRIMARY_BROWN} stroke={2.5} />
                             </Box>
-                            <Title order={2} c="white">
-                                
+                            <Title order={3} c="white" style={{ fontSize: 'clamp(14px, 3.5vw, 20px)' }}>
+                                Recommendation
                             </Title>
                         </Group>
                         <Button
                             variant="white"
-                            leftSection={<IconArrowLeft size={18} />}
+                            leftSection={<IconArrowLeft size={16} />}
                             onClick={() => navigate('/admin/clientformstatus')}
-                            size="md"
+                            size='sm'
                             styles={{
                                 root: {
                                     color: PRIMARY_BROWN,
                                     fontWeight: 600,
+                                    flexShrink: 0,
                                     '&:hover': {
                                         backgroundColor: 'rgba(255, 255, 255, 0.9)',
                                     },
                                 },
                             }}
                         >
-                            Back to Appointments
+                            <Text visibleFrom="xs">Back to Appointments</Text>
+                            <Text hiddenFrom="xs">Back</Text>
                         </Button>
                     </Group>
                 </Paper>
 
                 {/* Form Content Wrapper */}
-                <Paper shadow="xs" p="xl" radius="lg" bg="white">
-                    <Stack gap="xl">
+                <Paper shadow="xs" p={{ base: 'sm', sm: 'xl' }} radius="lg" bg="white">
+                    <Stack gap={{ base: 'md', sm: 'xl' }}>
                         {/* Review Stage Indicator - Only show when viewing existing review */}
                         {isViewingExistingReview && (
                             <Paper 
@@ -2466,7 +2470,7 @@ export default function CaseRecordFormsDisplay() {
                                     }`
                                 }}
                             >
-                                <Group justify="space-between" align="center">
+                                <Group justify="space-between" align="center" wrap="wrap" gap="sm">
                                     <Box>
                                         <Text fw={700} size="sm" c={PRIMARY_BROWN}>
                                             Current Review Stage
@@ -2526,13 +2530,13 @@ export default function CaseRecordFormsDisplay() {
                         <Divider color="#F0F0F0" />
                         
                         {/* Navigation Buttons */}
-                        <Group justify="space-between">
+                        <Group justify="space-between" wrap="wrap" gap="sm">
                             {active > 0 ? (
                                 <Button 
                                     variant="outline" 
-                                    leftSection={<IconChevronLeft size={20} />}
+                                    leftSection={<IconChevronLeft size={18} />}
                                     onClick={prevStep}
-                                    size="md"
+                                    size='sm'
                                     styles={{
                                         root: { borderColor: '#E0E0E0', color: MUTED_OLIVE, '&:hover': { backgroundColor: THEMED_LIGHT_BG } },
                                     }}
@@ -2543,13 +2547,13 @@ export default function CaseRecordFormsDisplay() {
                                 <Box /> // Empty box to maintain spacing
                             )}
                             
-                            <Group gap="md">
+                            <Group gap="sm" wrap="wrap">
                                 {/* Step 0: Always show Next Step button */}
                                 {active === 0 && (
                                     <Button 
-                                        rightSection={<IconChevronRight size={20} />}
+                                        rightSection={<IconChevronRight size={18} />}
                                         onClick={nextStep}
-                                        size="md"
+                                        size='sm'
                                         style={{ backgroundColor: PRIMARY_BROWN }}
                                     >
                                         Next Step
@@ -2564,11 +2568,11 @@ export default function CaseRecordFormsDisplay() {
                                             isIntern ? (
                                                 // Intern: Save Changes and Resubmit (if returned)
                                                 currentReviewStage === 'returned_to_intern' ? (
-                                                    <Group gap="md">
+                                                    <Group gap="sm" wrap="wrap">
                                                         <Button 
-                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleSaveChanges}
-                                                            size="md"
+                                                            size='sm'
                                                             variant="outline"
                                                             style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
                                                             disabled={saving}
@@ -2576,9 +2580,9 @@ export default function CaseRecordFormsDisplay() {
                                                             {saving ? 'Saving...' : 'Save Changes'}
                                                         </Button>
                                                         <Button 
-                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleResubmitForReview}
-                                                            size="md"
+                                                            size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
                                                             disabled={saving}
@@ -2595,11 +2599,11 @@ export default function CaseRecordFormsDisplay() {
                                             ) : userData?.role === 'supervising_lawyer' ? (
                                                 // Supervising Lawyer: Can only act on supervising_lawyer stage
                                                 currentReviewStage === 'supervising_lawyer' ? (
-                                                    <Group gap="md">
+                                                    <Group gap="sm" wrap="wrap">
                                                         <Button 
-                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleSaveChanges}
-                                                            size="md"
+                                                            size='sm'
                                                             variant="outline"
                                                             style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
                                                             disabled={saving}
@@ -2607,9 +2611,9 @@ export default function CaseRecordFormsDisplay() {
                                                             {saving ? 'Saving...' : 'Save Changes'}
                                                         </Button>
                                                         <Button 
-                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleApproveToDirector}
-                                                            size="md"
+                                                            size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#FF8C42' }}
                                                             disabled={saving}
@@ -2617,9 +2621,9 @@ export default function CaseRecordFormsDisplay() {
                                                             {saving ? 'Approving...' : 'Approve to Director'}
                                                         </Button>
                                                         <Button 
-                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleReturnToIntern}
-                                                            size="md"
+                                                            size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
                                                             disabled={saving}
@@ -2641,11 +2645,11 @@ export default function CaseRecordFormsDisplay() {
                                             ) : userData?.role === 'director' ? (
                                                 // Director: Can only act on director stage
                                                 currentReviewStage === 'director' ? (
-                                                    <Group gap="md">
+                                                    <Group gap="sm" wrap="wrap">
                                                         <Button 
-                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleSaveChanges}
-                                                            size="md"
+                                                            size='sm'
                                                             variant="outline"
                                                             style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
                                                             disabled={saving || actionInfo.decision !== 'pending'}
@@ -2653,9 +2657,9 @@ export default function CaseRecordFormsDisplay() {
                                                             {saving ? 'Saving...' : 'Save Changes'}
                                                         </Button>
                                                         <Button 
-                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleSubmit}
-                                                            size="md"
+                                                            size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: PRIMARY_BROWN }}
                                                             disabled={saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')}
@@ -2663,9 +2667,9 @@ export default function CaseRecordFormsDisplay() {
                                                             {saving ? 'Finalizing...' : 'Finalize Record'}
                                                         </Button>
                                                         <Button 
-                                                            leftSection={<IconCircleCheck size={20} />}
+                                                            leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleReturnToSupervisingLawyer}
-                                                            size="md"
+                                                            size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
                                                             disabled={saving || !!actionInfo.decision}
@@ -2686,11 +2690,11 @@ export default function CaseRecordFormsDisplay() {
                                                 )
                                             ) : (
                                                 // Fallback: Attorney with completed or unknown stage
-                                                <Group gap="md">
+                                                <Group gap="sm" wrap="wrap">
                                                     <Button 
-                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        leftSection={<IconCircleCheck size={18} />}
                                                         onClick={handleSaveChanges}
-                                                        size="md"
+                                                        size='sm'
                                                         variant="outline"
                                                         style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
                                                         disabled={saving}
@@ -2698,9 +2702,9 @@ export default function CaseRecordFormsDisplay() {
                                                         {saving ? 'Saving...' : 'Save Changes'}
                                                     </Button>
                                                     <Button 
-                                                        leftSection={<IconCircleCheck size={20} />}
+                                                        leftSection={<IconCircleCheck size={18} />}
                                                         onClick={handleSubmit}
-                                                        size="md"
+                                                        size='sm'
                                                         variant="filled"
                                                         style={{ backgroundColor: PRIMARY_BROWN }}
                                                         disabled={saving}
@@ -2712,12 +2716,12 @@ export default function CaseRecordFormsDisplay() {
                                         ) : isIntern ? (
                                             // Intern creating new review: Only Submit for Review button
                                             <Button 
-                                                leftSection={<IconCircleCheck size={20} />}
+                                                leftSection={<IconCircleCheck size={18} />}
                                                 onClick={() => {
                                                     window.__internFinalizeClicked = false;
                                                     handleSubmit();
                                                 }}
-                                                size="md"
+                                                size='sm'
                                                 variant="filled"
                                                 style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
                                                 disabled={saving}
@@ -2727,9 +2731,9 @@ export default function CaseRecordFormsDisplay() {
                                         ) : (
                                             // Attorney creating new: Finalize Record button only
                                             <Button 
-                                                leftSection={<IconCircleCheck size={20} />}
+                                                leftSection={<IconCircleCheck size={18} />}
                                                 onClick={handleSubmit}
-                                                size="md"
+                                                size='sm'
                                                 style={{ backgroundColor: PRIMARY_BROWN }}
                                                 disabled={saving}
                                             >
@@ -2749,8 +2753,8 @@ export default function CaseRecordFormsDisplay() {
     return (
         <>
             {showClientInfoPanel ? (
-                <Box bg={THEMED_LIGHT_BG} mih="100vh" py="xl" px="md">
-                    <Grid gutter="xl">
+                <Box bg={THEMED_LIGHT_BG} mih="100vh" py={{ base: 'sm', sm: 'xl' }} px={{ base: 'xs', sm: 'md' }}>
+                    <Grid gutter={{ base: 'md', sm: 'xl' }}>
                         <Grid.Col span={{ base: 12, lg: 8 }}>
                             {mainContent}
                         </Grid.Col>

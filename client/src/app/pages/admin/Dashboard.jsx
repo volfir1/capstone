@@ -277,7 +277,7 @@ export default function AdminDashboard() {
               {/* Stack vertically on mobile, side-by-side on sm+ */}
               <Stack gap="sm" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 {/* Donut */}
-                <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 110, height: 110, flexShrink: 0 }}>
                   <DonutChart
                     data={chart.data}
                     size={110}
@@ -761,7 +761,7 @@ export default function AdminDashboard() {
               </ScrollArea>
 
               <Box px={{ base: 'md', sm: 'lg' }} py="sm" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
-                <Text size="xs" c="dimmed" italic fw={400}>Activity status is updated every 15 seconds</Text>
+                <Text size="xs" c="dimmed" fs="italic" fw={400}>Activity status is updated every 15 seconds</Text>
               </Box>
             </Tabs.Panel>
           </Tabs>
