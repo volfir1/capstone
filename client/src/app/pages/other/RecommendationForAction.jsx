@@ -32,6 +32,7 @@ import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import { auth as firebaseAuth } from '@/firebase/firebase';
 
 // Configure PDF.js worker â€” try local node_modules first, fall back to CDN
 try {
@@ -70,8 +71,8 @@ const getServerFileUrl = (pathOrUrl) => {
 };
 // Robust fetch helper: tries absolute/relative and retries with 127.0.0.1 if localhost fails,
 // and avoids returning HTML pages (dev server 404) which break binary parsers like mammoth.
-const fetchArrayBufferFromUrl = async (rawUrl) => {
-    if (!rawUrl) throw new Error('No URL provided');
+const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
+    if (!rawUrl && !cloudinaryUrl) throw new Error('No URL provided');
 
     // Data URL -> convert directly
     if (typeof rawUrl === 'string' && rawUrl.startsWith('data:')) {
@@ -87,13 +88,8 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
     const getAuthHeaders = async (url) => {
         try {
             const isServerUrl = typeof url === 'string' && (url.includes('/uploads/') || url.includes('/api/uploads/'));
-            if (isServerUrl && window.firebase && window.firebase.auth && window.firebase.auth().currentUser) {
-                const token = await window.firebase.auth().currentUser.getIdToken();
-                return { Authorization: `Bearer ${token}` };
-            }
-            // Try project import (if firebase is initialized as module import)
-            if (typeof firebase !== 'undefined' && firebase?.auth && firebase.auth().currentUser) {
-                const token = await firebase.auth().currentUser.getIdToken();
+            if (isServerUrl && firebaseAuth && firebaseAuth.currentUser) {
+                const token = await firebaseAuth.currentUser.getIdToken();
                 return { Authorization: `Bearer ${token}` };
             }
         } catch (e) { /* ignore */ }
@@ -102,6 +98,8 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
 
     const tried = new Set();
     const candidates = [];
+    // Cloudinary persistent URL first (if provided)
+    if (cloudinaryUrl && typeof cloudinaryUrl === 'string') candidates.push(cloudinaryUrl);
     if (typeof rawUrl === 'string') {
         // If relative path
         if (rawUrl.startsWith('/')) candidates.push(getServerFileUrl(rawUrl));
@@ -152,10 +150,28 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
             const resp = await fetch(c, { headers });
             console.debug('Response status for', c, resp.status);
             if (!resp.ok) {
-                // If 404, log and continue
                 console.warn('Fetch not ok for', c, resp.status, resp.statusText);
-                if (resp.status === 401 || resp.status === 403) {
-                    console.warn('Unauthorized/forbidden when fetching', c);
+                // If unauthorized, try to refresh the Firebase token once and retry
+                if ((resp.status === 401 || resp.status === 403) && firebaseAuth && firebaseAuth.currentUser) {
+                    try {
+                        console.debug('Attempting token refresh for', c);
+                        const token = await firebaseAuth.currentUser.getIdToken(true);
+                        const retryHeaders = { ...(await getAuthHeaders(c)), Authorization: `Bearer ${token}` };
+                        const retryResp = await fetch(c, { headers: retryHeaders });
+                        console.debug('Retry response status for', c, retryResp.status);
+                        if (retryResp.ok) {
+                            const retryContentType = retryResp.headers.get('content-type') || '';
+                            if (retryContentType.includes('text/html')) {
+                                const text = await retryResp.text();
+                                console.warn('Skipped HTML response on retry for', c, 'snippet:', text.slice(0, 300));
+                                continue;
+                            }
+                            const abRetry = await retryResp.arrayBuffer();
+                            return abRetry;
+                        }
+                    } catch (refreshErr) {
+                        console.debug('Token refresh retry failed for', c, refreshErr);
+                    }
                 }
                 continue;
             }
@@ -340,7 +356,7 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
 EvidenceTable.displayName = 'EvidenceTable';
 
 // Simple PDF viewer using pdfjs-dist
-const PdfViewer = ({ url, fileData }) => {
+const PdfViewer = ({ url, fileData, cloudinaryUrl }) => {
     const [loading, setLoading] = React.useState(true);
     const containerRef = React.useRef(null);
 
@@ -361,10 +377,10 @@ const PdfViewer = ({ url, fileData }) => {
                     arrayBuffer = bytes.buffer;
                 } else if (fileData && fileData instanceof ArrayBuffer) {
                     arrayBuffer = fileData;
-                } else if (url) {
+                } else if (url || cloudinaryUrl) {
                     // Use robust fetch helper that retries multiple URL variants
                     // and skips HTML responses from dev server 404s
-                    arrayBuffer = await fetchArrayBufferFromUrl(url);
+                    arrayBuffer = await fetchArrayBufferFromUrl(url, cloudinaryUrl);
                 }
 
                 if (!arrayBuffer) throw new Error('No PDF data');
@@ -397,7 +413,7 @@ const PdfViewer = ({ url, fileData }) => {
         renderPdf();
 
         return () => { cancelled = true; };
-    }, [url, fileData]);
+    }, [url, fileData, cloudinaryUrl]);
 
     return (
         <div style={{ flex: 1, overflow: 'auto' }}>
@@ -1400,7 +1416,7 @@ export default function CaseRecordFormsDisplay() {
                 for (const cand of candidates) {
                     if (!cand) continue;
                     try {
-                        arrayBuffer = await fetchArrayBufferFromUrl(cand);
+                        arrayBuffer = await fetchArrayBufferFromUrl(cand, cloudinaryUrl);
                         if (arrayBuffer) break;
                     } catch (e) {
                         lastErr = e;
@@ -1414,12 +1430,20 @@ export default function CaseRecordFormsDisplay() {
                         const backend = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
                         const resolveUrl = `${backend}/api/uploads/resolve?path=${encodeURIComponent(docToView.fileUrl || docToView.fileName || '')}`;
                         console.debug('Attempting resolver:', resolveUrl);
-                        const r = await fetch(resolveUrl);
+                        // Attach auth header for resolver since it's protected in production
+                        const resolveHeaders = {};
+                        try {
+                            if (firebaseAuth.currentUser) {
+                                const token = await firebaseAuth.currentUser.getIdToken();
+                                resolveHeaders['Authorization'] = `Bearer ${token}`;
+                            }
+                        } catch (e) { console.debug('No token for resolver fetch', e); }
+                        const r = await fetch(resolveUrl, { headers: resolveHeaders });
                         if (r.ok) {
                             const jr = await r.json();
                             if (jr?.found && jr?.url) {
                                 console.debug('Resolver returned', jr.url);
-                                arrayBuffer = await fetchArrayBufferFromUrl(getServerFileUrl(jr.url));
+                                arrayBuffer = await fetchArrayBufferFromUrl(getServerFileUrl(jr.url), cloudinaryUrl);
                             }
                         }
                     } catch (resErr) {
@@ -2908,7 +2932,7 @@ export default function CaseRecordFormsDisplay() {
                         <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
                             {currentViewingDoc.fileType?.includes('pdf') || currentViewingDoc.fileName?.endsWith('.pdf') ? (
                                 // PDF - use PdfViewer for reliable in-app rendering
-                                <PdfViewer url={currentViewingDoc.fileUrl ? getServerFileUrl(currentViewingDoc.fileUrl) : null} fileData={currentViewingDoc.fileData} />
+                                <PdfViewer url={currentViewingDoc.fileUrl ? getServerFileUrl(currentViewingDoc.fileUrl) : null} fileData={currentViewingDoc.fileData} cloudinaryUrl={currentViewingDoc.cloudinaryUrl || currentViewingDoc.serverFile?.cloudinaryUrl} />
                             ) : (currentViewingDoc.fileType?.includes('word') || currentViewingDoc.fileName?.endsWith('.docx') || currentViewingDoc.fileName?.endsWith('.doc')) ? (
                                 // Word Document - Render using mammoth.js
                                 <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
