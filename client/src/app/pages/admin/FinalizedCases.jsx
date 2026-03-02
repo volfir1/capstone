@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useReducer, useRef } from 'react';
+﻿import React, { useState, useEffect, useReducer, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -351,7 +351,7 @@ export default function FinalizedCases() {
   const [state, dispatch] = useReducer(stateReducer, initialState);
   const { userData } = useAuth();
 
-  // ── Assign Case Modal State ──
+  // â”€â”€ Assign Case Modal State â”€â”€
   const [assignModalOpened, setAssignModalOpened] = useState(false);
   const [assignTargetCase, setAssignTargetCase] = useState(null);
   const [adminStaff, setAdminStaff] = useState([]);
@@ -719,7 +719,7 @@ export default function FinalizedCases() {
       return;
     }
 
-    // If currently editing, export what’s on-screen (form) merged over details
+    // If currently editing, export whatâ€™s on-screen (form) merged over details
     const exportData = state.appointmentEditMode
       ? { ...state.appointmentDetails, ...state.appointmentForm }
       : state.appointmentDetails;
@@ -1473,7 +1473,7 @@ export default function FinalizedCases() {
   // Group finalized records by decision and apply search filter
   const acceptedCases = filterCases(state.finalized.filter(f => f.decision === 'accepted'));
 
-  // Rejected cases — all types, with optional case type filter
+  // Rejected cases â€” all types, with optional case type filter
   const rejectedCasesAll = state.finalized.filter(f => f.decision === 'rejected');
   const rejectedCasesFiltered = (() => {
     let filtered = rejectedCasesAll;
@@ -2112,7 +2112,8 @@ export default function FinalizedCases() {
     return (
       <Box mb="lg">
         <Title order={5} c={PRIMARY_BROWN} mb="sm">{title}</Title>
-        <Table withTableBorder withColumnBorders striped>
+        <ScrollArea type="auto">
+        <Table withTableBorder withColumnBorders striped style={{ minWidth: 500 }}>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Type / Description</Table.Th>
@@ -2180,6 +2181,7 @@ export default function FinalizedCases() {
             ))}
           </Table.Tbody>
         </Table>
+        </ScrollArea>
         {state.editMode && (
           <Button
             variant="subtle"
@@ -2276,7 +2278,7 @@ export default function FinalizedCases() {
               <Group gap={4} mt={2} wrap="nowrap">
                 <Text size="xs" c="dimmed">{dateStr}</Text>
                 {/* caseNature (category/case type) label removed per request */}
-                <Text size="xs" c="dimmed">·</Text>
+                <Text size="xs" c="dimmed">Â·</Text>
                 <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
                   {capitalizedRole}
                 </Text>
@@ -2374,7 +2376,7 @@ export default function FinalizedCases() {
     : (state.appointmentDetails?.status || 'For Appointment');
 
   return (
-    <Box bg={BG} mih="100vh" py="xl">
+    <Box bg={BG} mih="100vh" py={{ base: 'sm', sm: 'xl' }}>
       <style>
         {`
           ::-webkit-scrollbar { width: 8px; }
@@ -2386,13 +2388,13 @@ export default function FinalizedCases() {
           .case-row:hover { background: #F5F6F8 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
         `}
       </style>
-      <Container size="xl">
+      <Container size="xl" px={{ base: 'xs', sm: 'md' }}>
         {/* Modal for Case Record */}
         <Modal
           opened={state.caseRecordModalOpened}
           onClose={() => dispatch({ type: 'CLOSE_CASE_RECORD_MODAL' })}
           title={
-            <Group justify="space-between" style={{ width: '100%' }}>
+            <Group justify="space-between" wrap="wrap" gap="xs" style={{ width: '100%' }}>
               <Title order={3} c={PRIMARY_BROWN}>Case Record</Title>
               <Group gap="sm">
                 {!state.caseRecordEditMode ? (
@@ -2763,7 +2765,7 @@ export default function FinalizedCases() {
           opened={state.appointmentModalOpened}
           onClose={() => dispatch({ type: 'CLOSE_APPOINTMENT_MODAL' })}
           title={
-            <Group justify="space-between" style={{ width: '100%' }}>
+            <Group justify="space-between" wrap="wrap" gap="xs" style={{ width: '100%' }}>
               <Text fw={700} size="xl" c={PRIMARY_BROWN}>
                 Appointment Receipt
               </Text>
@@ -2850,7 +2852,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.fullName || state.appointmentDetails.name || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Age</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" type="number" value={state.appointmentForm.age} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, age: e.target.value } })} />
@@ -2858,7 +2860,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.age || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Birthday</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" type="date" value={state.appointmentForm.birthday} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, birthday: e.target.value } })} />
@@ -2866,7 +2868,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.birthday || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Sex</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.sex} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, sex: e.target.value } })} />
@@ -2874,7 +2876,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.sex || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Civil Status</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.civilStatus} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, civilStatus: e.target.value } })} />
@@ -2882,7 +2884,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.civilStatus || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Citizenship</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.citizenship} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, citizenship: e.target.value } })} />
@@ -2890,7 +2892,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.citizenship || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.contactNumber} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, contactNumber: e.target.value } })} />
@@ -2898,7 +2900,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.contactNumber || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Cellphone Number</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.cellphoneNumber} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, cellphoneNumber: e.target.value } })} />
@@ -2914,7 +2916,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.presentAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Address Tel.</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.presentAddressTelephone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentAddressTelephone: e.target.value } })} />
@@ -2930,7 +2932,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Permanent Address Tel.</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.permanentAddressTelephone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, permanentAddressTelephone: e.target.value } })} />
@@ -2938,7 +2940,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.permanentAddressTelephone || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.spouseName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseName: e.target.value } })} />
@@ -2954,7 +2956,7 @@ export default function FinalizedCases() {
                 <Title order={4} mb="md" c={CHARCOAL}>Relator / Representative</Title>
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relator Name</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.relatorName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relatorName: e.target.value } })} />
@@ -2962,7 +2964,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.relatorName || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Relationship to Client</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.relationshipToClient} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, relationshipToClient: e.target.value } })} />
@@ -2986,7 +2988,7 @@ export default function FinalizedCases() {
                       <Badge size="lg" variant="light" color="gray" style={{ backgroundColor: `${PRIMARY_BROWN}10`, color: PRIMARY_BROWN }}>{appointmentStatusLabel}</Badge>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
                     {state.appointmentEditMode ? (
                       <TextInput type="date" size="sm" value={state.appointmentForm.appointedDate || ''} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointedDate: e.target.value } })} />
@@ -2994,7 +2996,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.appointedDate ? new Date(state.appointmentDetails.appointedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Time</Text>
                     {state.appointmentEditMode ? (
                       <TextInput type="time" size="sm" value={state.appointmentForm.appointmentTime || ''} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, appointmentTime: e.target.value } })} />
@@ -3010,7 +3012,7 @@ export default function FinalizedCases() {
                 <Title order={4} mb="md" c={CHARCOAL}>Financial Details</Title>
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Source of Income</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.currentSourceOfIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, currentSourceOfIncome: e.target.value } })} />
@@ -3018,15 +3020,15 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.currentSourceOfIncome || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" type="number" value={state.appointmentForm.monthlyIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, monthlyIncome: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.monthlyIncome ? `₱${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.monthlyIncome ? `â‚±${Number(state.appointmentDetails.monthlyIncome).toLocaleString()}` : 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.natureOfWork} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, natureOfWork: e.target.value } })} />
@@ -3034,7 +3036,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.natureOfWork || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.employerName} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerName: e.target.value } })} />
@@ -3050,7 +3052,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.employerAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Telephone</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.employerTelephone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, employerTelephone: e.target.value } })} />
@@ -3066,7 +3068,7 @@ export default function FinalizedCases() {
                 <Title order={4} mb="md" c={CHARCOAL}>Spouse&apos;s Income</Title>
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Source of Income</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.spouseSourceOfIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseSourceOfIncome: e.target.value } })} />
@@ -3074,12 +3076,12 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseSourceOfIncome || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Monthly Income</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" type="number" value={state.appointmentForm.spouseMonthlyIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseMonthlyIncome: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseMonthlyIncome ? `₱${Number(state.appointmentDetails.spouseMonthlyIncome).toLocaleString()}` : 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseMonthlyIncome ? `â‚±${Number(state.appointmentDetails.spouseMonthlyIncome).toLocaleString()}` : 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
@@ -3090,12 +3092,12 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseEmployerAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Total Combined Income</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" type="number" value={state.appointmentForm.totalCombinedIncome} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, totalCombinedIncome: e.target.value } })} />
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.totalCombinedIncome ? `₱${Number(state.appointmentDetails.totalCombinedIncome).toLocaleString()}` : 'N/A'}</Text>
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.totalCombinedIncome ? `â‚±${Number(state.appointmentDetails.totalCombinedIncome).toLocaleString()}` : 'N/A'}</Text>
                     )}
                   </Grid.Col>
                 </Grid>
@@ -3106,7 +3108,7 @@ export default function FinalizedCases() {
                 <Title order={4} mb="md" c={CHARCOAL}>Case Details</Title>
                 <Divider mb="md" color="#F0F0F0" />
                 <Grid gutter="md">
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Party Represented</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.partyRepresented} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, partyRepresented: e.target.value } })} />
@@ -3114,7 +3116,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.partyRepresented || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.venue} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, venue: e.target.value } })} />
@@ -3122,11 +3124,11 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.venue || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={4}>Case Number</Text>
                     <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.caseNumber || 'N/A'}</Text>
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Present Stage</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.presentStage} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presentStage: e.target.value } })} />
@@ -3158,7 +3160,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court Phone Number</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.courtPhoneNumber} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtPhoneNumber: e.target.value } })} />
@@ -3166,7 +3168,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.courtPhoneNumber || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Presiding Officer</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.presidingOfficer} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, presidingOfficer: e.target.value } })} />
@@ -3214,7 +3216,7 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounselAddress || 'N/A'}</Text>
                     )}
                   </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel Phone</Text>
                     {state.appointmentEditMode ? (
                       <TextInput size="sm" value={state.appointmentForm.adversePartyCounselPhone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounselPhone: e.target.value } })} />
@@ -3237,7 +3239,7 @@ export default function FinalizedCases() {
           opened={state.modalOpened}
           onClose={() => dispatch({ type: 'CLOSE_REVIEW_MODAL' })}
           title={
-            <Group justify="space-between" style={{ width: '100%' }}>
+            <Group justify="space-between" wrap="wrap" gap="xs" style={{ width: '100%' }}>
               <Title order={3} c={PRIMARY_BROWN}>Recommendation for Action</Title>
               <Group gap="sm">
                 {!state.editMode ? (
@@ -3312,7 +3314,7 @@ export default function FinalizedCases() {
               {state.activeStep === 0 && (
                 <Paper p="md" withBorder>
                   <Title order={4} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
-                  <SimpleGrid cols={2} spacing="sm" mb="md">
+                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mb="md">
                     <Box>
                       <Text size="xs" c="dimmed">Date of Interview</Text>
                       <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
@@ -3430,7 +3432,7 @@ export default function FinalizedCases() {
                     )}
                   </Box>
                   <Divider my="md" />
-                  <SimpleGrid cols={2} spacing="sm">
+                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
                     <Box>
                       <Text size="xs" c="dimmed">Assigned To</Text>
                       <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
@@ -3510,7 +3512,7 @@ export default function FinalizedCases() {
         </Group>
 
         {/* Search, Filter & Tabs */}
-        <Paper shadow="xs" p="lg" radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
+        <Paper shadow="xs" p={{ base: 'sm', sm: 'lg' }} radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
           <Group mb="md" gap="sm" wrap="nowrap">
             <TextInput
               placeholder="Search by Case ID or Client Name..."
@@ -3534,7 +3536,8 @@ export default function FinalizedCases() {
           <Tabs value={state.activeTab} onChange={(val) => dispatch({ type: 'SET_ACTIVE_TAB', payload: val })}
             styles={{ tab: { '&[data-active]': { backgroundColor: '#F9FAFB', fontWeight: 600 } } }}
           >
-            <Tabs.List mb="md" style={{ borderBottom: '1px solid #E5E7EB' }}>
+            <ScrollArea type="scroll" scrollbarSize={0} mb="md">
+              <Tabs.List style={{ borderBottom: '1px solid #E5E7EB', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
               <Tabs.Tab value="accepted"
                 rightSection={<Badge size="xs" variant="light" color="green" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{acceptedWithRecord.length}</Badge>}
                 style={{ fontSize: '13px', padding: '10px 14px' }}
@@ -3565,7 +3568,8 @@ export default function FinalizedCases() {
               >
                 Rejected
               </Tabs.Tab>
-            </Tabs.List>
+              </Tabs.List>
+            </ScrollArea>
 
             <Tabs.Panel value="accepted" pb="md">
               <Stack gap={10}>
@@ -3655,7 +3659,7 @@ export default function FinalizedCases() {
               <Group justify="flex-end" mb="md">
                 <Select
                   size="xs"
-                  w={220}
+                  style={{ width: '100%', maxWidth: 220 }}
                   placeholder="Filter by case type"
                   value={state.rejectedCaseTypeFilter}
                   onChange={(val) => dispatch({ type: 'SET_REJECTED_CASE_TYPE_FILTER', payload: val || 'all' })}
@@ -3691,7 +3695,7 @@ export default function FinalizedCases() {
         </Paper>
       </Container>
 
-      {/* ── Assign Case Modal ── */}
+      {/* â”€â”€ Assign Case Modal â”€â”€ */}
       <Modal
         opened={assignModalOpened}
         onClose={() => setAssignModalOpened(false)}
@@ -3712,7 +3716,7 @@ export default function FinalizedCases() {
             <Paper p="sm" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #E8E3D5' }}>
               <Text size="xs" c={MUTED_OLIVE} fw={600} tt="uppercase" mb={4}>Case</Text>
               <Text size="sm" fw={600} c={CHARCOAL}>{assignTargetCase.caseTitle || 'Untitled'}</Text>
-              <Text size="xs" c="dimmed">{assignTargetCase.caseId} · {assignTargetCase.clientName || 'No client'}</Text>
+              <Text size="xs" c="dimmed">{assignTargetCase.caseId} Â· {assignTargetCase.clientName || 'No client'}</Text>
             </Paper>
 
             <Select
@@ -3784,19 +3788,19 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const a = raw || {};
 
   const txt = (v) => (v === undefined || v === null ? "" : String(v));
-  // NOTE: jsPDF's built-in Times font doesn't reliably render the Peso sign (₱)
+  // NOTE: jsPDF's built-in Times font doesn't reliably render the Peso sign (â‚±)
   // and can show garbled characters like '+&'. Keep export ASCII-safe.
   const money = (v) => {
     if (v === undefined || v === null || v === "") return "";
     if (typeof v === 'number' && Number.isFinite(v)) return v.toLocaleString();
     const s = String(v).trim();
-    // Strip common currency formatting (₱, PHP, commas) and parse
+    // Strip common currency formatting (â‚±, PHP, commas) and parse
     const cleaned = s
       .replace(/php/gi, '')
-      .replace(/[₱,\s]/g, '')
+      .replace(/[â‚±,\s]/g, '')
       .replace(/[^0-9.-]/g, '');
     const n = Number(cleaned);
-    if (Number.isNaN(n)) return s.replace(/₱/g, '').trim();
+    if (Number.isNaN(n)) return s.replace(/â‚±/g, '').trim();
     return n.toLocaleString();
   };
 
@@ -3975,7 +3979,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   let leftY = y;
   let rightY = y;
 
-  // ---- Left column – Personal Details ----
+  // ---- Left column â€“ Personal Details ----
   leftY += field({ labelText: "Name:", value: fullName, x: leftX, y: leftY, labelW: 14, lineW: leftW - 16 });
 
   const ageH = field({ labelText: "Age:", value: age, x: leftX, y: leftY, labelW: 10, lineW: 18 });
@@ -3996,7 +4000,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   leftY += field({ labelText: "Permanent Address:", value: permanentAddress, x: leftX, y: leftY, labelW: 34, lineToX: pageW - margin });
   leftY += field({ labelText: "Telephone Number:", value: permanentAddressTelephone, x: leftX, y: leftY, labelW: 32, lineToX: pageW - margin });
 
-  // ---- Right column – Relator / Representative (independent layout) ----
+  // ---- Right column â€“ Relator / Representative (independent layout) ----
   label("If through a Relator / Representative:", rightX, rightY);
   rightY += rowH;
 
