@@ -1,6 +1,7 @@
 import ActivityLog from '../models/activityLog.js';
 import admin from 'firebase-admin';
 
+import { safeErrorMessage } from '../utils/errorResponse.js';
 // ── Helper: resolve firebaseUid from the Authorization header ──
 const getUidFromHeader = async (req) => {
   const authHeader = req.headers.authorization;
@@ -39,7 +40,7 @@ export const createActivityLog = async (req, res) => {
     res.status(201).json({ success: true, data: log });
   } catch (error) {
     console.error('Create activity log error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -109,7 +110,7 @@ export const getActivityLogs = async (req, res) => {
     });
   } catch (error) {
     console.error('Get activity logs error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -129,6 +130,6 @@ export const getOnlineUsers = async (req, res) => {
     res.json({ success: true, data: onlineAgg });
   } catch (error) {
     console.error('Get online users error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };

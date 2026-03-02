@@ -25,6 +25,8 @@ import {
   Select,
   SimpleGrid,
   Stepper,
+  Container,
+  ScrollArea,
 } from '@mantine/core';
 import {
   IconClipboardCheck,
@@ -41,6 +43,7 @@ import {
   IconCircleCheck,
   IconChevronLeft,
   IconChevronRight,
+  IconRefresh,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '@/context/authContext';
@@ -125,6 +128,7 @@ const syncAppointmentFormFromDetails = (details) => ({
   appointmentType: details?.caseDetails?.appointmentType || details?.appointmentType || details?.personal?.legalMatter || '',
 });
 
+// ── Status Badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status, deadline }) {
   const isOverdue = status === 'pending' && new Date(deadline) < new Date();
   if (status === 'done') {
@@ -148,6 +152,92 @@ function StatusBadge({ status, deadline }) {
   );
 }
 
+// ── Mobile Assignment Card ────────────────────────────────────────────────────
+function AssignmentCard({ a, showAssignedTo, showAssignedBy, onMarkDone, loading, canComplete, onViewReview, onViewReceipt, onViewCaseHistory }) {
+  const isOverdue = a.status !== 'done' && new Date(a.deadline) < new Date();
+  return (
+    <Box
+      px="md"
+      py="sm"
+      style={{
+        borderLeft: `4px solid ${a.status === 'done' ? '#40C057' : isOverdue ? '#FA5252' : PRIMARY_BROWN}`,
+        background: 'white',
+      }}
+    >
+      {/* Top: title + menu */}
+      <Group justify="space-between" align="flex-start" wrap="nowrap" mb={6}>
+        <Box style={{ minWidth: 0 }}>
+          <Text fw={600} size="sm" c={CHARCOAL} style={{ wordBreak: 'break-word' }}>
+            {a.caseTitle || 'Untitled'}
+          </Text>
+          <Text size="xs" c={MUTED_OLIVE} truncate mt={2}>{a.clientName || '-'}</Text>
+        </Box>
+        <Menu shadow="md" width={200} position="bottom-end">
+          <Menu.Target>
+            <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: '1px solid #E5E7EB', flexShrink: 0 }}>
+              <IconDots size={15} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Label>Actions</Menu.Label>
+            <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onViewReview(a)}>View Review</Menu.Item>
+            <Menu.Item leftSection={<IconReceipt size={16} />} onClick={() => onViewReceipt(a)}>Full Receipt</Menu.Item>
+            <Menu.Item leftSection={<IconFileText size={16} />} onClick={() => onViewCaseHistory(a)}>Case History</Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      </Group>
+
+      {/* Assigned person */}
+      {showAssignedTo && a.assignedTo && (
+        <Group gap={6} mb={6} wrap="nowrap">
+          <Avatar size={20} radius="xl" style={{ backgroundColor: ACCENT_TAN, flexShrink: 0 }}>
+            <Text size="10px" c="white" fw={700}>{a.assignedTo?.name?.charAt(0) || '?'}</Text>
+          </Avatar>
+          <Text size="xs" c={MUTED_OLIVE} truncate>To: {a.assignedTo?.name}</Text>
+        </Group>
+      )}
+      {showAssignedBy && a.assignedBy && (
+        <Group gap={6} mb={6} wrap="nowrap">
+          <Avatar size={20} radius="xl" style={{ backgroundColor: PRIMARY_BROWN, flexShrink: 0 }}>
+            <Text size="10px" c="white" fw={700}>{a.assignedBy?.name?.charAt(0) || '?'}</Text>
+          </Avatar>
+          <Text size="xs" c={MUTED_OLIVE} truncate>By: {a.assignedBy?.name}</Text>
+        </Group>
+      )}
+
+      {/* Message preview */}
+      {a.message && (
+        <Text size="xs" c={MUTED_OLIVE} mb={6} style={{ wordBreak: 'break-word' }} lineClamp={2}>
+          {a.message}
+        </Text>
+      )}
+
+      {/* Bottom: deadline + status + done button */}
+      <Group justify="space-between" align="center" wrap="wrap" gap="xs">
+        <Group gap={6}>
+          <Text size="xs" fw={500} c={isOverdue ? 'red' : MUTED_OLIVE}>
+            Due: {new Date(a.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </Text>
+          <StatusBadge status={a.status} deadline={a.deadline} />
+        </Group>
+        {canComplete && a.status === 'pending' && (
+          <Button
+            size="xs"
+            color="green"
+            variant="light"
+            leftSection={<IconCheck size={12} />}
+            loading={loading === a._id}
+            onClick={() => onMarkDone(a._id)}
+          >
+            Done
+          </Button>
+        )}
+      </Group>
+    </Box>
+  );
+}
+
+// ── Desktop Assignment Table ──────────────────────────────────────────────────
 function AssignmentTable({ data, showAssignedTo, showAssignedBy, onMarkDone, loading, canComplete, onViewReview, onViewReceipt, onViewCaseHistory }) {
   if (!data || data.length === 0) {
     return (
@@ -161,120 +251,124 @@ function AssignmentTable({ data, showAssignedTo, showAssignedBy, onMarkDone, loa
   }
 
   return (
-    <Table.ScrollContainer minWidth={700}>
-      <Table striped highlightOnHover withTableBorder withColumnBorders>
-        <Table.Thead>
-          <Table.Tr style={{ backgroundColor: PRIMARY_BROWN }}>
-            <Table.Th style={{ color: 'white', fontSize: 13, minWidth: 180 }}>Case Title</Table.Th>
-            <Table.Th style={{ color: 'white', fontSize: 13 }}>Client</Table.Th>
-            {showAssignedTo && <Table.Th style={{ color: 'white', fontSize: 13 }}>Assigned To</Table.Th>}
-            {showAssignedBy && <Table.Th style={{ color: 'white', fontSize: 13 }}>Assigned By</Table.Th>}
-            <Table.Th style={{ color: 'white', fontSize: 13 }}>Deadline</Table.Th>
-            <Table.Th style={{ color: 'white', fontSize: 13, maxWidth: 180 }}>Message</Table.Th>
-            <Table.Th style={{ color: 'white', fontSize: 13 }}>Status</Table.Th>
-            <Table.Th style={{ color: 'white', fontSize: 13 }}>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {data.map((a) => (
-            <Table.Tr key={a._id}>
-              <Table.Td>
-                <Text size="sm" fw={500} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.caseTitle || 'Untitled'}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.clientName || '-'}</Text>
-              </Table.Td>
-              {showAssignedTo && (
-                <Table.Td>
-                  <Group gap={6} wrap="nowrap">
-                    <Avatar size={24} radius="xl" style={{ backgroundColor: ACCENT_TAN, flexShrink: 0 }}>
-                      <Text size="10px" c="white" fw={700}>{a.assignedTo?.name?.charAt(0) || '?'}</Text>
-                    </Avatar>
-                    <Box>
-                      <Text size="sm" fw={500} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.assignedTo?.name || '-'}</Text>
-                      <Text size="xs" c="dimmed">{ROLE_LABELS[a.assignedTo?.role] || a.assignedTo?.role || ''}</Text>
-                    </Box>
-                  </Group>
-                </Table.Td>
-              )}
-              {showAssignedBy && (
-                <Table.Td>
-                  <Group gap={6} wrap="nowrap">
-                    <Avatar size={24} radius="xl" style={{ backgroundColor: PRIMARY_BROWN, flexShrink: 0 }}>
-                      <Text size="10px" c="white" fw={700}>{a.assignedBy?.name?.charAt(0) || '?'}</Text>
-                    </Avatar>
-                    <Box>
-                      <Text size="sm" fw={500} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.assignedBy?.name || '-'}</Text>
-                      <Text size="xs" c="dimmed">{ROLE_LABELS[a.assignedBy?.role] || a.assignedBy?.role || ''}</Text>
-                    </Box>
-                  </Group>
-                </Table.Td>
-              )}
-              <Table.Td>
-                <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} c={new Date(a.deadline) < new Date() && a.status !== 'done' ? 'red' : undefined}>
-                  {new Date(a.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </Text>
-              </Table.Td>
-              <Table.Td style={{ maxWidth: 180 }}>
-                <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.message || '-'}</Text>
-              </Table.Td>
-              <Table.Td>
-                <StatusBadge status={a.status} deadline={a.deadline} />
-              </Table.Td>
-              <Table.Td>
-                <Group gap={6} wrap="nowrap">
-                  {canComplete && a.status === 'pending' && (
-                    <Tooltip label="Mark as Done">
-                      <Button
-                        size="xs"
-                        color="green"
-                        variant="light"
-                        leftSection={<IconCheck size={14} />}
-                        loading={loading === a._id}
-                        onClick={() => onMarkDone(a._id)}
-                      >
-                        Done
-                      </Button>
-                    </Tooltip>
+    <>
+      {/* DESKTOP TABLE */}
+      <Box visibleFrom="sm">
+        <Table.ScrollContainer minWidth={700}>
+          <Table striped highlightOnHover withTableBorder withColumnBorders>
+            <Table.Thead>
+              <Table.Tr style={{ backgroundColor: PRIMARY_BROWN }}>
+                <Table.Th style={{ color: 'white', fontSize: 13, minWidth: 180 }}>Case Title</Table.Th>
+                <Table.Th style={{ color: 'white', fontSize: 13 }}>Client</Table.Th>
+                {showAssignedTo && <Table.Th style={{ color: 'white', fontSize: 13 }}>Assigned To</Table.Th>}
+                {showAssignedBy && <Table.Th style={{ color: 'white', fontSize: 13 }}>Assigned By</Table.Th>}
+                <Table.Th style={{ color: 'white', fontSize: 13 }}>Deadline</Table.Th>
+                <Table.Th style={{ color: 'white', fontSize: 13, maxWidth: 180 }}>Message</Table.Th>
+                <Table.Th style={{ color: 'white', fontSize: 13 }}>Status</Table.Th>
+                <Table.Th style={{ color: 'white', fontSize: 13 }}>Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {data.map((a) => (
+                <Table.Tr key={a._id}>
+                  <Table.Td>
+                    <Text size="sm" fw={500} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.caseTitle || 'Untitled'}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.clientName || '-'}</Text>
+                  </Table.Td>
+                  {showAssignedTo && (
+                    <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        <Avatar size={24} radius="xl" style={{ backgroundColor: ACCENT_TAN, flexShrink: 0 }}>
+                          <Text size="10px" c="white" fw={700}>{a.assignedTo?.name?.charAt(0) || '?'}</Text>
+                        </Avatar>
+                        <Box>
+                          <Text size="sm" fw={500} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.assignedTo?.name || '-'}</Text>
+                          <Text size="xs" c="dimmed">{ROLE_LABELS[a.assignedTo?.role] || a.assignedTo?.role || ''}</Text>
+                        </Box>
+                      </Group>
+                    </Table.Td>
                   )}
-                  <Menu shadow="md" width={200} position="bottom-end">
-                    <Menu.Target>
-                      <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: '1px solid #E5E7EB' }}>
-                        <IconDots size={15} />
-                      </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      <Menu.Label>Actions</Menu.Label>
-                      <Menu.Item
-                        leftSection={<IconEye size={16} />}
-                        onClick={() => onViewReview(a)}
-                      >
-                        View Review
-                      </Menu.Item>
-                      <Menu.Item
-                        leftSection={<IconReceipt size={16} />}
-                        onClick={() => onViewReceipt(a)}
-                      >
-                        Full Receipt
-                      </Menu.Item>
-                      <Menu.Item
-                        leftSection={<IconFileText size={16} />}
-                        onClick={() => onViewCaseHistory(a)}
-                      >
-                        Case History
-                      </Menu.Item>
-                    </Menu.Dropdown>
-                  </Menu>
-                </Group>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </Table.ScrollContainer>
+                  {showAssignedBy && (
+                    <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        <Avatar size={24} radius="xl" style={{ backgroundColor: PRIMARY_BROWN, flexShrink: 0 }}>
+                          <Text size="10px" c="white" fw={700}>{a.assignedBy?.name?.charAt(0) || '?'}</Text>
+                        </Avatar>
+                        <Box>
+                          <Text size="sm" fw={500} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.assignedBy?.name || '-'}</Text>
+                          <Text size="xs" c="dimmed">{ROLE_LABELS[a.assignedBy?.role] || a.assignedBy?.role || ''}</Text>
+                        </Box>
+                      </Group>
+                    </Table.Td>
+                  )}
+                  <Table.Td>
+                    <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} c={new Date(a.deadline) < new Date() && a.status !== 'done' ? 'red' : undefined}>
+                      {new Date(a.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td style={{ maxWidth: 180 }}>
+                    <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.message || '-'}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <StatusBadge status={a.status} deadline={a.deadline} />
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap={6} wrap="nowrap">
+                      {canComplete && a.status === 'pending' && (
+                        <Tooltip label="Mark as Done">
+                          <Button size="xs" color="green" variant="light" leftSection={<IconCheck size={14} />} loading={loading === a._id} onClick={() => onMarkDone(a._id)}>
+                            Done
+                          </Button>
+                        </Tooltip>
+                      )}
+                      <Menu shadow="md" width={200} position="bottom-end">
+                        <Menu.Target>
+                          <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: '1px solid #E5E7EB' }}>
+                            <IconDots size={15} />
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Label>Actions</Menu.Label>
+                          <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onViewReview(a)}>View Review</Menu.Item>
+                          <Menu.Item leftSection={<IconReceipt size={16} />} onClick={() => onViewReceipt(a)}>Full Receipt</Menu.Item>
+                          <Menu.Item leftSection={<IconFileText size={16} />} onClick={() => onViewCaseHistory(a)}>Case History</Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      </Box>
+
+      {/* MOBILE CARDS */}
+      <Stack gap={0} hiddenFrom="sm">
+        {data.map((a, idx) => (
+          <Box key={a._id}>
+            <AssignmentCard
+              a={a}
+              showAssignedTo={showAssignedTo}
+              showAssignedBy={showAssignedBy}
+              onMarkDone={onMarkDone}
+              loading={loading}
+              canComplete={canComplete}
+              onViewReview={onViewReview}
+              onViewReceipt={onViewReceipt}
+              onViewCaseHistory={onViewCaseHistory}
+            />
+            {idx < data.length - 1 && <Divider color="#F3F4F6" />}
+          </Box>
+        ))}
+      </Stack>
+    </>
   );
 }
 
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function AssignedCases() {
   const { userData } = useAuth();
   const [activeTab, setActiveTab] = useState('my-assignments');
@@ -316,26 +410,25 @@ export default function AssignedCases() {
   const isAssigner = ['director', 'secretary'].includes(userData?.role);
 
   // ── Fetch data ──
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      try {
-        const [myRes, ...assignedRes] = await Promise.all([
-          apiClient.get('/case-assignments/mine'),
-          ...(isAssigner ? [apiClient.get('/case-assignments/assigned-by-me')] : []),
-        ]);
-
-        setMyAssignments(myRes.data?.data || []);
-
-        if (isAssigner && assignedRes[0]) {
-          setAssignedByMe(assignedRes[0].data?.data || []);
-        }
-      } catch (err) {
-        console.error('Error fetching assigned cases:', err);
-      } finally {
-        setLoading(false);
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [myRes, ...assignedRes] = await Promise.all([
+        apiClient.get('/case-assignments/mine'),
+        ...(isAssigner ? [apiClient.get('/case-assignments/assigned-by-me')] : []),
+      ]);
+      setMyAssignments(myRes.data?.data || []);
+      if (isAssigner && assignedRes[0]) {
+        setAssignedByMe(assignedRes[0].data?.data || []);
       }
-    };
+    } catch (err) {
+      console.error('Error fetching assigned cases:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (userData) fetchAll();
   }, [userData]);
 
@@ -351,9 +444,7 @@ export default function AssignedCases() {
     } finally { setActionLoading(null); }
   };
 
-  // ══════════════════════════════════════════════════════════
-  // VIEW REVIEW — open in-page modal with edit capability
-  // ══════════════════════════════════════════════════════════
+  // ── View Review ──
   const handleViewReview = async (assignment) => {
     setReviewModalOpened(true);
     setReviewLoading(true);
@@ -367,7 +458,6 @@ export default function AssignedCases() {
       setReviewData(data);
       setEditedReviewData(JSON.parse(JSON.stringify(data)));
     } catch (err) {
-      console.error('Error fetching review data:', err);
       notifications.show({ title: 'Error', message: 'Could not load review data', color: 'red' });
       setReviewModalOpened(false);
     } finally { setReviewLoading(false); }
@@ -408,53 +498,68 @@ export default function AssignedCases() {
         notifications.show({ title: 'Success', message: 'Review saved successfully', color: 'green' });
       }
     } catch (err) {
-      console.error('Error saving review:', err);
       notifications.show({ title: 'Error', message: 'Failed to save review: ' + (err.response?.data?.error || err.message), color: 'red' });
     } finally { setReviewSaving(false); }
   };
 
   const renderEvidenceTable = (title, evidence = [], fieldName) => {
     if (!reviewEditMode && (!evidence || evidence.length === 0)) return null;
-    const rows = evidence && evidence.length >= 3 ? evidence : [...(evidence || []), ...Array(3 - (evidence?.length || 0)).fill({ type: '', author: '', purpose: '', issues: '' })];
+    const rows = evidence && evidence.length >= 3
+      ? evidence
+      : [...(evidence || []), ...Array(3 - (evidence?.length || 0)).fill({ type: '', author: '', purpose: '', issues: '' })];
     return (
       <Box mb="lg">
         <Title order={5} c={PRIMARY_BROWN} mb="sm">{title}</Title>
-        <Table withTableBorder withColumnBorders striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Type / Description</Table.Th>
-              <Table.Th>Author / Custodian</Table.Th>
-              <Table.Th>Purpose</Table.Th>
-              <Table.Th>Admissibility Issues</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map((row, idx) => (
-              <Table.Tr key={idx}>
-                <Table.Td>
-                  {reviewEditMode ? (
-                    <TextInput placeholder="Type/Desc" size="xs" variant="unstyled" value={row?.type || ''} onChange={(e) => updateEvidence(fieldName, idx, 'type', e.target.value)} />
-                  ) : (row?.type || '-')}
-                </Table.Td>
-                <Table.Td>
-                  {reviewEditMode ? (
-                    <TextInput placeholder="Author/Custodian" size="xs" variant="unstyled" value={row?.author || ''} onChange={(e) => updateEvidence(fieldName, idx, 'author', e.target.value)} />
-                  ) : (row?.author || '-')}
-                </Table.Td>
-                <Table.Td>
-                  {reviewEditMode ? (
-                    <TextInput placeholder="Purpose" size="xs" variant="unstyled" value={row?.purpose || ''} onChange={(e) => updateEvidence(fieldName, idx, 'purpose', e.target.value)} />
-                  ) : (row?.purpose || '-')}
-                </Table.Td>
-                <Table.Td>
-                  {reviewEditMode ? (
-                    <TextInput placeholder="Issues" size="xs" variant="unstyled" value={row?.issues || ''} onChange={(e) => updateEvidence(fieldName, idx, 'issues', e.target.value)} />
-                  ) : (row?.issues || '-')}
-                </Table.Td>
+        {/* Mobile: stacked cards for evidence */}
+        <Stack gap="xs" hiddenFrom="sm">
+          {rows.map((row, idx) => (
+            <Paper key={idx} p="sm" withBorder radius="md">
+              <SimpleGrid cols={1} spacing="xs">
+                {[
+                  { label: 'Type / Description', field: 'type', placeholder: 'Type/Desc' },
+                  { label: 'Author / Custodian', field: 'author', placeholder: 'Author/Custodian' },
+                  { label: 'Purpose', field: 'purpose', placeholder: 'Purpose' },
+                  { label: 'Admissibility Issues', field: 'issues', placeholder: 'Issues' },
+                ].map(({ label, field, placeholder }) => (
+                  <Box key={field}>
+                    <Text size="xs" c={MUTED_OLIVE} fw={600} mb={2}>{label}</Text>
+                    {reviewEditMode ? (
+                      <TextInput placeholder={placeholder} size="xs" value={row?.[field] || ''} onChange={(e) => updateEvidence(fieldName, idx, field, e.target.value)} />
+                    ) : (
+                      <Text size="sm">{row?.[field] || '-'}</Text>
+                    )}
+                  </Box>
+                ))}
+              </SimpleGrid>
+            </Paper>
+          ))}
+        </Stack>
+        {/* Desktop: table */}
+        <Box visibleFrom="sm">
+          <Table withTableBorder withColumnBorders striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Type / Description</Table.Th>
+                <Table.Th>Author / Custodian</Table.Th>
+                <Table.Th>Purpose</Table.Th>
+                <Table.Th>Admissibility Issues</Table.Th>
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {rows.map((row, idx) => (
+                <Table.Tr key={idx}>
+                  {['type', 'author', 'purpose', 'issues'].map((field, fi) => (
+                    <Table.Td key={field}>
+                      {reviewEditMode ? (
+                        <TextInput placeholder={['Type/Desc', 'Author/Custodian', 'Purpose', 'Issues'][fi]} size="xs" variant="unstyled" value={row?.[field] || ''} onChange={(e) => updateEvidence(fieldName, idx, field, e.target.value)} />
+                      ) : (row?.[field] || '-')}
+                    </Table.Td>
+                  ))}
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Box>
         {reviewEditMode && (
           <Button variant="subtle" size="xs" mt="xs" style={{ color: PRIMARY_BROWN }}
             onClick={() => {
@@ -465,17 +570,13 @@ export default function AssignedCases() {
               newData.content.interviewInfo[fieldName] = [...newData.content.interviewInfo[fieldName], { type: '', author: '', purpose: '', issues: '' }];
               setEditedReviewData(newData);
             }}
-          >
-            + Add another row
-          </Button>
+          >+ Add another row</Button>
         )}
       </Box>
     );
   };
 
-  // ══════════════════════════════════════════════════════════
-  // FULL RECEIPT — use assignment.caseId directly
-  // ══════════════════════════════════════════════════════════
+  // ── View Receipt ──
   const handleViewReceipt = async (assignment) => {
     setReceiptModalOpened(true);
     setReceiptLoading(true);
@@ -542,9 +643,7 @@ export default function AssignedCases() {
     } finally { setReceiptSaving(false); }
   };
 
-  // ══════════════════════════════════════════════════════════
-  // CASE HISTORY — fetch via caserecords/finalize/:finalizeId
-  // ══════════════════════════════════════════════════════════
+  // ── View Case History ──
   const handleViewCaseHistory = async (assignment) => {
     setCaseHistoryModalOpened(true);
     setCaseHistoryLoading(true);
@@ -553,11 +652,8 @@ export default function AssignedCases() {
     setCaseHistoryEditMode(false);
     try {
       const resp = await apiClient.get(`/caserecords/finalize/${assignment.finalizeId}`);
-      if (resp.data) {
-        setCaseHistoryData(resp.data);
-      }
-    } catch (fetchErr) {
-      // No existing case record — try finalize content
+      if (resp.data) setCaseHistoryData(resp.data);
+    } catch {
       try {
         const fRes = await apiClient.get(`/finalize/detail/${assignment.finalizeId}`);
         setCaseHistoryData(fRes.data?.content?.caseInfo || {});
@@ -604,121 +700,158 @@ export default function AssignedCases() {
   const paginatedAssigned = filteredAssigned.slice((assignedPage - 1) * ITEMS_PER_PAGE, assignedPage * ITEMS_PER_PAGE);
   const paginatedAssignedCompleted = filteredAssignedCompleted.slice((assignedCompletedPage - 1) * ITEMS_PER_PAGE, assignedCompletedPage * ITEMS_PER_PAGE);
 
-  // Receipt status label
   const appointmentStatusLabel = receiptDetails?.status
     ? receiptDetails.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     : 'N/A';
 
-  if (loading) {
-    return <AssignedCasesSkeleton rows={5} isAssigner={isAssigner} />;
-  }
+  if (loading) return <AssignedCasesSkeleton rows={5} isAssigner={isAssigner} />;
+
+  // ── Tab definitions ──
+  const tabDefs = [
+    { value: 'my-assignments',      icon: <IconClipboardCheck size={15} />, fullLabel: 'Your Assigned Cases', shortLabel: 'Assigned',   count: filteredMy.length,               color: PRIMARY_BROWN },
+    { value: 'my-completed',        icon: <IconCheckbox size={15} />,       fullLabel: 'Completed',           shortLabel: 'Completed',  count: filteredMyCompleted.length,      color: 'green' },
+    ...(isAssigner ? [
+      { value: 'assigned-by-me',    icon: <IconSend size={15} />,           fullLabel: 'Cases You Assigned',  shortLabel: 'By Me',      count: filteredAssigned.length,         color: 'blue' },
+      { value: 'assigned-completed',icon: <IconCheckbox size={15} />,       fullLabel: 'Assigned Completed',  shortLabel: 'Done',       count: filteredAssignedCompleted.length, color: 'teal' },
+    ] : []),
+  ];
 
   return (
-    <Box p="lg">
-      {/* Header */}
-      <Paper shadow="xs" p="xl" mb="xl" radius="lg" style={{ background: PRIMARY_BROWN, border: 'none' }}>
-        <Group gap="md" align="center">
-          <Box style={{ width: 48, height: 48, borderRadius: '12px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <IconClipboardCheck size={24} color={PRIMARY_BROWN} stroke={2.5} />
-          </Box>
+    <Box bg={BG} mih="100vh" py="xl">
+      <Container size="xl" px={{ base: 'md', sm: 'xl' }}>
+
+        {/* ── A. Page Header — matches Dashboard/UserManagement pattern ── */}
+        <Group justify="space-between" align="center" mb="lg">
           <Box>
-            <Title order={2} c="white" mb={4}>Assigned Cases</Title>
-            <Text c="rgba(255, 255, 255, 0.9)" size="sm" fw={500}>View and manage your case assignments</Text>
+            <Title order={3} fw={700} c={CHARCOAL}>Assigned Cases</Title>
+            <Text size="sm" fw={500} c={MUTED_OLIVE}>View and manage your case assignments</Text>
           </Box>
+          <ActionIcon variant="subtle" color="gray" radius="md" onClick={fetchAll} loading={loading}>
+            <IconRefresh size={18} />
+          </ActionIcon>
         </Group>
-      </Paper>
 
-      {/* Search */}
-      <Paper shadow="xs" p="md" mb="md" radius="md">
-        <TextInput
-          placeholder="Search by case title, ID, client name..."
-          leftSection={<IconSearch size={16} />}
-          value={searchQuery}
-          onChange={(e) => { setSearchQuery(e.target.value); setMyPage(1); setMyCompletedPage(1); setAssignedPage(1); setAssignedCompletedPage(1); }}
-          styles={{ input: { borderColor: '#E0E0E0' } }}
-        />
-      </Paper>
+        {/* ── B. Search ── */}
+        <Paper shadow="xs" p="md" mb="md" radius="lg" withBorder style={{ background: 'white' }}>
+          <TextInput
+            placeholder="Search by case title, ID, client name..."
+            leftSection={<IconSearch size={16} />}
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setMyPage(1); setMyCompletedPage(1); setAssignedPage(1); setAssignedCompletedPage(1);
+            }}
+            styles={{ input: { borderColor: '#E0E0E0' } }}
+          />
+        </Paper>
 
-      {/* Tabs */}
-      <Paper shadow="xs" radius="md" p="md">
-        <Tabs value={activeTab} onChange={setActiveTab}>
-          <Tabs.List mb="md">
-            <Tabs.Tab value="my-assignments" leftSection={<IconClipboardCheck size={16} />}
-              rightSection={filteredMy.length > 0 ? <Badge size="sm" color={PRIMARY_BROWN} variant="filled">{filteredMy.length}</Badge> : null}
-            >Your Assigned Cases</Tabs.Tab>
-            <Tabs.Tab value="my-completed" leftSection={<IconCheckbox size={16} />}
-              rightSection={filteredMyCompleted.length > 0 ? <Badge size="sm" color="green" variant="filled">{filteredMyCompleted.length}</Badge> : null}
-            >Completed</Tabs.Tab>
-            {isAssigner && (
-              <Tabs.Tab value="assigned-by-me" leftSection={<IconSend size={16} />}
-                rightSection={filteredAssigned.length > 0 ? <Badge size="sm" color="blue" variant="filled">{filteredAssigned.length}</Badge> : null}
-              >Cases You Assigned</Tabs.Tab>
-            )}
-            {isAssigner && (
-              <Tabs.Tab value="assigned-completed" leftSection={<IconCheckbox size={16} />}
-                rightSection={filteredAssignedCompleted.length > 0 ? <Badge size="sm" color="teal" variant="filled">{filteredAssignedCompleted.length}</Badge> : null}
-              >Assigned Completed</Tabs.Tab>
-            )}
-          </Tabs.List>
+        {/* ── C. Tabs + Table ── */}
+        <Paper shadow="xs" radius="lg" withBorder style={{ overflow: 'hidden', background: 'white' }}>
+          {/* Tab header area */}
+          <Box px={{ base: 'sm', sm: 'md' }} pt="md" style={{ borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' }}>
+            <ScrollArea type="scroll" scrollbarSize={0}>
+              <Tabs
+                value={activeTab}
+                onChange={setActiveTab}
+                variant="pills"
+              >
+                <Tabs.List style={{ flexWrap: 'nowrap' }} pb="sm">
+                  {tabDefs.map((t) => (
+                    <Tabs.Tab
+                      key={t.value}
+                      value={t.value}
+                      leftSection={t.icon}
+                      style={{ whiteSpace: 'nowrap' }}
+                      rightSection={
+                        t.count > 0
+                          ? <Badge size="xs" circle color={t.color} variant="filled" fw={600}>{t.count}</Badge>
+                          : null
+                      }
+                    >
+                      {/* Short label on mobile, full label on sm+ */}
+                      <Text component="span" hiddenFrom="sm">{t.shortLabel}</Text>
+                      <Text component="span" visibleFrom="sm">{t.fullLabel}</Text>
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+              </Tabs>
+            </ScrollArea>
+          </Box>
 
-          <Tabs.Panel value="my-assignments">
-            <AssignmentTable
-              data={paginatedMy} showAssignedTo={false} showAssignedBy={true}
-              onMarkDone={handleMarkDone} loading={actionLoading} canComplete={true}
-              onViewReview={handleViewReview} onViewReceipt={handleViewReceipt} onViewCaseHistory={handleViewCaseHistory}
-            />
-            {filteredMy.length > ITEMS_PER_PAGE && (
-              <Group justify="center" mt="md"><Pagination total={Math.ceil(filteredMy.length / ITEMS_PER_PAGE)} value={myPage} onChange={setMyPage} /></Group>
-            )}
-          </Tabs.Panel>
-
-          <Tabs.Panel value="my-completed">
-            <AssignmentTable
-              data={paginatedMyCompleted} showAssignedTo={false} showAssignedBy={true}
-              onMarkDone={() => {}} loading={null} canComplete={false}
-              onViewReview={handleViewReview} onViewReceipt={handleViewReceipt} onViewCaseHistory={handleViewCaseHistory}
-            />
-            {filteredMyCompleted.length > ITEMS_PER_PAGE && (
-              <Group justify="center" mt="md"><Pagination total={Math.ceil(filteredMyCompleted.length / ITEMS_PER_PAGE)} value={myCompletedPage} onChange={setMyCompletedPage} /></Group>
-            )}
-          </Tabs.Panel>
-
-          {isAssigner && (
-            <Tabs.Panel value="assigned-by-me">
+          {/* Tab panels */}
+          <Tabs value={activeTab} onChange={setActiveTab}>
+            {/* My Assignments */}
+            <Tabs.Panel value="my-assignments" p={{ base: 'xs', sm: 'md' }}>
               <AssignmentTable
-                data={paginatedAssigned} showAssignedTo={true} showAssignedBy={false}
+                data={paginatedMy} showAssignedTo={false} showAssignedBy={true}
+                onMarkDone={handleMarkDone} loading={actionLoading} canComplete={true}
+                onViewReview={handleViewReview} onViewReceipt={handleViewReceipt} onViewCaseHistory={handleViewCaseHistory}
+              />
+              {filteredMy.length > ITEMS_PER_PAGE && (
+                <Group justify="center" mt="md">
+                  <Pagination total={Math.ceil(filteredMy.length / ITEMS_PER_PAGE)} value={myPage} onChange={setMyPage} size="sm" withEdges={false} color={PRIMARY_BROWN} />
+                </Group>
+              )}
+            </Tabs.Panel>
+
+            {/* My Completed */}
+            <Tabs.Panel value="my-completed" p={{ base: 'xs', sm: 'md' }}>
+              <AssignmentTable
+                data={paginatedMyCompleted} showAssignedTo={false} showAssignedBy={true}
                 onMarkDone={() => {}} loading={null} canComplete={false}
                 onViewReview={handleViewReview} onViewReceipt={handleViewReceipt} onViewCaseHistory={handleViewCaseHistory}
               />
-              {filteredAssigned.length > ITEMS_PER_PAGE && (
-                <Group justify="center" mt="md"><Pagination total={Math.ceil(filteredAssigned.length / ITEMS_PER_PAGE)} value={assignedPage} onChange={setAssignedPage} /></Group>
+              {filteredMyCompleted.length > ITEMS_PER_PAGE && (
+                <Group justify="center" mt="md">
+                  <Pagination total={Math.ceil(filteredMyCompleted.length / ITEMS_PER_PAGE)} value={myCompletedPage} onChange={setMyCompletedPage} size="sm" withEdges={false} color={PRIMARY_BROWN} />
+                </Group>
               )}
             </Tabs.Panel>
-          )}
 
-          {isAssigner && (
-            <Tabs.Panel value="assigned-completed">
-              <AssignmentTable
-                data={paginatedAssignedCompleted} showAssignedTo={true} showAssignedBy={false}
-                onMarkDone={() => {}} loading={null} canComplete={false}
-                onViewReview={handleViewReview} onViewReceipt={handleViewReceipt} onViewCaseHistory={handleViewCaseHistory}
-              />
-              {filteredAssignedCompleted.length > ITEMS_PER_PAGE && (
-                <Group justify="center" mt="md"><Pagination total={Math.ceil(filteredAssignedCompleted.length / ITEMS_PER_PAGE)} value={assignedCompletedPage} onChange={setAssignedCompletedPage} /></Group>
-              )}
-            </Tabs.Panel>
-          )}
-        </Tabs>
-      </Paper>
+            {/* Assigned by Me */}
+            {isAssigner && (
+              <Tabs.Panel value="assigned-by-me" p={{ base: 'xs', sm: 'md' }}>
+                <AssignmentTable
+                  data={paginatedAssigned} showAssignedTo={true} showAssignedBy={false}
+                  onMarkDone={() => {}} loading={null} canComplete={false}
+                  onViewReview={handleViewReview} onViewReceipt={handleViewReceipt} onViewCaseHistory={handleViewCaseHistory}
+                />
+                {filteredAssigned.length > ITEMS_PER_PAGE && (
+                  <Group justify="center" mt="md">
+                    <Pagination total={Math.ceil(filteredAssigned.length / ITEMS_PER_PAGE)} value={assignedPage} onChange={setAssignedPage} size="sm" withEdges={false} color={PRIMARY_BROWN} />
+                  </Group>
+                )}
+              </Tabs.Panel>
+            )}
+
+            {/* Assigned Completed */}
+            {isAssigner && (
+              <Tabs.Panel value="assigned-completed" p={{ base: 'xs', sm: 'md' }}>
+                <AssignmentTable
+                  data={paginatedAssignedCompleted} showAssignedTo={true} showAssignedBy={false}
+                  onMarkDone={() => {}} loading={null} canComplete={false}
+                  onViewReview={handleViewReview} onViewReceipt={handleViewReceipt} onViewCaseHistory={handleViewCaseHistory}
+                />
+                {filteredAssignedCompleted.length > ITEMS_PER_PAGE && (
+                  <Group justify="center" mt="md">
+                    <Pagination total={Math.ceil(filteredAssignedCompleted.length / ITEMS_PER_PAGE)} value={assignedCompletedPage} onChange={setAssignedCompletedPage} size="sm" withEdges={false} color={PRIMARY_BROWN} />
+                  </Group>
+                )}
+              </Tabs.Panel>
+            )}
+          </Tabs>
+        </Paper>
+
+      </Container>
 
       {/* ═══════════════════ VIEW REVIEW MODAL ═══════════════════ */}
       <Modal
         opened={reviewModalOpened}
         onClose={() => { setReviewModalOpened(false); setReviewEditMode(false); }}
         title={
-          <Group justify="space-between" style={{ width: '100%' }}>
-            <Title order={3} c={PRIMARY_BROWN}>Recommendation for Action</Title>
-            <Group gap="sm">
+          <Group justify="space-between" style={{ width: '100%' }} wrap="wrap" gap="xs">
+            <Title order={4} c={PRIMARY_BROWN}>Recommendation for Action</Title>
+            <Group gap="xs" wrap="nowrap">
               {!reviewEditMode ? (
                 ['director', 'supervising_lawyer', 'secretary'].includes(userData?.role) && (
                   <Button size="xs" variant="outline" color={PRIMARY_BROWN} onClick={() => setReviewEditMode(true)}>Edit</Button>
@@ -726,48 +859,57 @@ export default function AssignedCases() {
               ) : (
                 <>
                   <Button size="xs" variant="outline" onClick={() => { setEditedReviewData(JSON.parse(JSON.stringify(reviewData))); setReviewEditMode(false); }}>Cancel</Button>
-                  <Button size="xs" style={{ backgroundColor: PRIMARY_BROWN }} onClick={handleSaveReview} loading={reviewSaving}>Save Changes</Button>
+                  <Button size="xs" style={{ backgroundColor: PRIMARY_BROWN }} onClick={handleSaveReview} loading={reviewSaving}>Save</Button>
                 </>
               )}
             </Group>
           </Group>
         }
-        size="calc(90vw)"
-        styles={{ title: { fontWeight: 700, width: '100%' }, body: { maxHeight: '80vh', overflowY: 'auto' } }}
+        size={{ base: '100%', sm: '90vw' }}
+        fullScreen={false}
+        styles={{
+          title: { fontWeight: 700, width: '100%' },
+          body: { maxHeight: '80vh', overflowY: 'auto', padding: '16px' },
+          inner: { padding: '8px' },
+        }}
       >
         {reviewLoading ? (
           <Center py="xl"><Loader size="lg" color={PRIMARY_BROWN} /></Center>
         ) : editedReviewData ? (
           <Stack gap="lg">
-            <Stepper active={reviewActiveStep} color={PRIMARY_BROWN} completedIcon={<IconCircleCheck size={20} />}
-              styles={{ stepLabel: { fontWeight: 600, fontSize: '14px' }, stepDescription: { fontSize: '12px', color: MUTED_OLIVE } }}
-            >
-              <Stepper.Step label="Interview" description="Client & Evidence" />
-              <Stepper.Step label="Action" description="Lawyer & Director" />
-            </Stepper>
+            <ScrollArea type="scroll" scrollbarSize={0}>
+              <Stepper
+                active={reviewActiveStep}
+                color={PRIMARY_BROWN}
+                completedIcon={<IconCircleCheck size={18} />}
+                size="sm"
+                styles={{
+                  stepLabel: { fontWeight: 600, fontSize: '13px' },
+                  stepDescription: { fontSize: '11px', color: MUTED_OLIVE },
+                }}
+              >
+                <Stepper.Step label="Interview" description="Client & Evidence" />
+                <Stepper.Step label="Action" description="Lawyer & Director" />
+              </Stepper>
+            </ScrollArea>
             <Divider />
 
-            {/* Step 1: Interview Information */}
+            {/* Step 1 */}
             {reviewActiveStep === 0 && (
-              <Paper p="md" withBorder>
-                <Title order={4} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
-                <SimpleGrid cols={2} spacing="sm" mb="md">
-                  <Box>
-                    <Text size="xs" c="dimmed">Date of Interview</Text>
-                    <Text fw={500}>{editedReviewData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Date Submitted</Text>
-                    <Text fw={500}>{editedReviewData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Client's Name</Text>
-                    <Text fw={500}>{editedReviewData.content?.interviewInfo?.clientName || '-'}</Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
-                    <Text fw={500}>{editedReviewData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
-                  </Box>
+              <Paper p={{ base: 'sm', sm: 'md' }} withBorder radius="md">
+                <Title order={5} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mb="md">
+                  {[
+                    { label: 'Date of Interview', value: editedReviewData.content?.interviewInfo?.dateOfInterview },
+                    { label: 'Date Submitted', value: editedReviewData.content?.interviewInfo?.dateSubmitted },
+                    { label: "Client's Name", value: editedReviewData.content?.interviewInfo?.clientName },
+                    { label: 'Interviewing Intern/s', value: editedReviewData.content?.interviewInfo?.interviewingInterns },
+                  ].map(({ label, value }) => (
+                    <Box key={label}>
+                      <Text size="xs" c="dimmed">{label}</Text>
+                      <Text fw={500} size="sm">{value || '-'}</Text>
+                    </Box>
+                  ))}
                 </SimpleGrid>
                 <Divider my="md" />
                 <Box mb="md">
@@ -779,8 +921,8 @@ export default function AssignedCases() {
                   )}
                 </Box>
                 <Divider my="md" />
-                {renderEvidenceTable("Evidence on Hand / Available for the Client(s)", editedReviewData.content?.interviewInfo?.clientEvidence, 'clientEvidence')}
-                {renderEvidenceTable("Evidence on Hand / Available for the Adverse Party(ies)", editedReviewData.content?.interviewInfo?.adversePartyEvidence, 'adversePartyEvidence')}
+                {renderEvidenceTable("Evidence for Client(s)", editedReviewData.content?.interviewInfo?.clientEvidence, 'clientEvidence')}
+                {renderEvidenceTable("Evidence for Adverse Party(ies)", editedReviewData.content?.interviewInfo?.adversePartyEvidence, 'adversePartyEvidence')}
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
                   {reviewEditMode ? (
@@ -800,10 +942,10 @@ export default function AssignedCases() {
               </Paper>
             )}
 
-            {/* Step 2: Action Information */}
+            {/* Step 2 */}
             {reviewActiveStep === 1 && (
-              <Paper p="md" withBorder>
-                <Title order={4} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
+              <Paper p={{ base: 'sm', sm: 'md' }} withBorder radius="md">
+                <Title order={5} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
                   {reviewEditMode ? (
@@ -828,25 +970,33 @@ export default function AssignedCases() {
                   )}
                 </Box>
                 <Divider my="md" />
-                <SimpleGrid cols={2} spacing="sm">
-                  <Box><Text size="xs" c="dimmed">Assigned To</Text><Text fw={500}>{editedReviewData.content?.actionInfo?.assignedTo || '-'}</Text></Box>
-                  <Box><Text size="xs" c="dimmed">Supervising Lawyer</Text><Text fw={500}>{editedReviewData.content?.actionInfo?.supervisingLawyer || '-'}</Text></Box>
-                  <Box><Text size="xs" c="dimmed">Director's Signature</Text><Text fw={500}>{editedReviewData.content?.actionInfo?.directorSignature || '-'}</Text></Box>
-                  <Box><Text size="xs" c="dimmed">Signature Date</Text><Text fw={500}>{editedReviewData.content?.actionInfo?.signatureDate || '-'}</Text></Box>
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  {[
+                    { label: 'Assigned To', value: editedReviewData.content?.actionInfo?.assignedTo },
+                    { label: 'Supervising Lawyer', value: editedReviewData.content?.actionInfo?.supervisingLawyer },
+                    { label: "Director's Signature", value: editedReviewData.content?.actionInfo?.directorSignature },
+                    { label: 'Signature Date', value: editedReviewData.content?.actionInfo?.signatureDate },
+                  ].map(({ label, value }) => (
+                    <Box key={label}>
+                      <Text size="xs" c="dimmed">{label}</Text>
+                      <Text fw={500} size="sm">{value || '-'}</Text>
+                    </Box>
+                  ))}
                 </SimpleGrid>
               </Paper>
             )}
 
-            {/* Navigation */}
             <Divider />
             <Group justify="space-between">
               {reviewActiveStep > 0 ? (
-                <Button variant="outline" leftSection={<IconChevronLeft size={20} />} onClick={() => setReviewActiveStep(0)} size="sm"
-                  styles={{ root: { borderColor: '#E0E0E0', color: MUTED_OLIVE } }}
-                >Previous</Button>
+                <Button variant="outline" leftSection={<IconChevronLeft size={18} />} onClick={() => setReviewActiveStep(0)} size="sm" styles={{ root: { borderColor: '#E0E0E0', color: MUTED_OLIVE } }}>
+                  Previous
+                </Button>
               ) : <Box />}
               {reviewActiveStep < 1 && (
-                <Button rightSection={<IconChevronRight size={20} />} onClick={() => setReviewActiveStep(1)} size="sm" style={{ backgroundColor: PRIMARY_BROWN }}>Next Step</Button>
+                <Button rightSection={<IconChevronRight size={18} />} onClick={() => setReviewActiveStep(1)} size="sm" style={{ backgroundColor: PRIMARY_BROWN }}>
+                  Next Step
+                </Button>
               )}
             </Group>
           </Stack>
@@ -860,9 +1010,9 @@ export default function AssignedCases() {
         opened={receiptModalOpened}
         onClose={() => { setReceiptModalOpened(false); setReceiptDetails(null); setReceiptEditMode(false); }}
         title={
-          <Group justify="space-between" style={{ width: '100%' }}>
-            <Text fw={700} size="xl" c={PRIMARY_BROWN}>Appointment Receipt</Text>
-            <Group gap="xs">
+          <Group justify="space-between" style={{ width: '100%' }} wrap="wrap" gap="xs">
+            <Text fw={700} size="lg" c={PRIMARY_BROWN}>Appointment Receipt</Text>
+            <Group gap="xs" wrap="nowrap">
               {receiptEditMode ? (
                 <>
                   <Button size="xs" variant="outline" onClick={() => { setReceiptForm(syncAppointmentFormFromDetails(receiptDetails)); setReceiptEditMode(false); }} disabled={receiptSaving}>Cancel</Button>
@@ -874,18 +1024,22 @@ export default function AssignedCases() {
             </Group>
           </Group>
         }
-        size="calc(90vw)"
+        size={{ base: '100%', sm: '90vw' }}
         radius="lg"
-        styles={{ title: { fontWeight: 700, width: '100%' }, body: { maxHeight: '80vh', overflowY: 'auto' } }}
+        styles={{
+          title: { fontWeight: 700, width: '100%' },
+          body: { maxHeight: '80vh', overflowY: 'auto', padding: '16px' },
+          inner: { padding: '8px' },
+        }}
       >
         {receiptLoading ? (
           <Center py="xl"><Loader size="lg" color={PRIMARY_BROWN} /></Center>
         ) : receiptDetails ? (
-          <Stack gap="lg" mt="lg">
+          <Stack gap="lg" mt="sm">
             {/* Header Badge */}
             <Paper p="md" radius="md" style={{ backgroundColor: `${PRIMARY_GOLD}15`, border: `1px solid ${PRIMARY_GOLD}` }}>
-              <Group justify="space-between" align="center">
-                <Text fw={700} size="lg" c={PRIMARY_BROWN}>
+              <Group justify="space-between" align="center" wrap="wrap" gap="xs">
+                <Text fw={700} size="md" c={PRIMARY_BROWN}>
                   {receiptDetails.caseDetails?.appointmentType || receiptDetails.personal?.legalMatter || 'Appointment'}
                 </Text>
                 <Badge size="lg" variant="filled" style={{ backgroundColor: PRIMARY_GOLD, color: CHARCOAL }}>{appointmentStatusLabel}</Badge>
@@ -894,156 +1048,199 @@ export default function AssignedCases() {
             </Paper>
 
             {/* Personal Details */}
-            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-              <Title order={4} mb="md" c={CHARCOAL}>Personal Details</Title>
+            <Paper shadow="xs" p={{ base: 'sm', sm: 'lg' }} radius="lg" withBorder>
+              <Title order={5} mb="md" c={CHARCOAL}>Personal Details</Title>
               <Divider mb="md" color="#F0F0F0" />
-              <Grid gutter="md">
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
                 {[
-                  { label: 'Name', key: 'fullName', span: 6, display: receiptDetails.fullName || receiptDetails.name || 'N/A' },
-                  { label: 'Age', key: 'age', span: 6, type: 'number' },
-                  { label: 'Birthday', key: 'birthday', span: 6, type: 'date' },
-                  { label: 'Sex', key: 'sex', span: 6 },
-                  { label: 'Civil Status', key: 'civilStatus', span: 6 },
-                  { label: 'Citizenship', key: 'citizenship', span: 6 },
-                  { label: 'Contact Number', key: 'contactNumber', span: 6 },
-                  { label: 'Email', key: 'email', span: 6 },
-                  { label: 'Present Address', key: 'presentAddress', span: 12 },
-                  { label: 'Permanent Address', key: 'permanentAddress', span: 12 },
-                  { label: 'Spouse Name', key: 'spouseName', span: 6 },
-                  { label: 'Relator Name', key: 'relatorName', span: 6 },
-                  { label: 'Relator Contact Number', key: 'relatorContactNumber', span: 6 },
-                ].map(({ label, key, span, type, display }) => (
-                  <Grid.Col span={span} key={key}>
+                  { label: 'Name', key: 'fullName', display: receiptDetails.fullName || receiptDetails.name || 'N/A' },
+                  { label: 'Age', key: 'age', type: 'number' },
+                  { label: 'Birthday', key: 'birthday', type: 'date' },
+                  { label: 'Sex', key: 'sex' },
+                  { label: 'Civil Status', key: 'civilStatus' },
+                  { label: 'Citizenship', key: 'citizenship' },
+                  { label: 'Contact Number', key: 'contactNumber' },
+                  { label: 'Email', key: 'email' },
+                  { label: 'Spouse Name', key: 'spouseName' },
+                  { label: 'Relator Name', key: 'relatorName' },
+                  { label: 'Relator Contact', key: 'relatorContactNumber' },
+                ].map(({ label, key, type, display }) => (
+                  <Box key={key}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
                     {receiptEditMode ? (
                       <TextInput size="sm" type={type || 'text'} value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{display || receiptDetails[key] || 'N/A'}</Text>
                     )}
-                  </Grid.Col>
+                  </Box>
                 ))}
-              </Grid>
-            </Paper>
-
-            {/* Schedule Details */}
-            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-              <Title order={4} mb="md" c={CHARCOAL}>Schedule Details</Title>
-              <Divider mb="md" color="#F0F0F0" />
-              <Grid gutter="md">
-                <Grid.Col span={12}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Status</Text>
-                  {receiptEditMode ? (
-                    <Select size="sm" data={APPOINTMENT_STATUS_OPTIONS} placeholder="Select status" value={receiptForm.status || null}
-                      onChange={(val) => setReceiptForm({ ...receiptForm, status: val || '' })} />
-                  ) : (
-                    <Badge size="lg" variant="light" color="gray" style={{ backgroundColor: `${PRIMARY_BROWN}10`, color: PRIMARY_BROWN }}>{appointmentStatusLabel}</Badge>
-                  )}
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
-                  {receiptEditMode ? (
-                    <TextInput type="date" size="sm" value={receiptForm.appointedDate || ''} onChange={(e) => setReceiptForm({ ...receiptForm, appointedDate: e.target.value })} />
-                  ) : (
-                    <Text size="sm" c={CHARCOAL} fw={500}>
-                      {receiptDetails.appointedDate ? new Date(receiptDetails.appointedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
-                    </Text>
-                  )}
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Time</Text>
-                  {receiptEditMode ? (
-                    <TextInput type="time" size="sm" value={receiptForm.appointmentTime || ''} onChange={(e) => setReceiptForm({ ...receiptForm, appointmentTime: e.target.value })} />
-                  ) : (
-                    <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails.appointmentTime || 'N/A'}</Text>
-                  )}
-                </Grid.Col>
-              </Grid>
-            </Paper>
-
-            {/* Financial Details */}
-            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-              <Title order={4} mb="md" c={CHARCOAL}>Financial Details</Title>
-              <Divider mb="md" color="#F0F0F0" />
-              <Grid gutter="md">
+                {/* Full-width address fields */}
                 {[
-                  { label: 'Income Source', key: 'currentSourceOfIncome', span: 6 },
-                  { label: 'Monthly Income', key: 'monthlyIncome', span: 6, type: 'number', display: receiptDetails.monthlyIncome ? `₱${Number(receiptDetails.monthlyIncome).toLocaleString()}` : 'N/A' },
-                  { label: 'Nature of Work', key: 'natureOfWork', span: 6 },
-                  { label: 'Employer', key: 'employerName', span: 6 },
-                  { label: 'Employer Address', key: 'employerAddress', span: 12 },
-                ].map(({ label, key, span, type, display }) => (
-                  <Grid.Col span={span} key={key}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
-                    {receiptEditMode ? (
-                      <TextInput size="sm" type={type || 'text'} value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{display || receiptDetails[key] || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                ))}
-              </Grid>
-            </Paper>
-
-            {/* Case Details */}
-            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-              <Title order={4} mb="md" c={CHARCOAL}>Case Details</Title>
-              <Divider mb="md" color="#F0F0F0" />
-              <Grid gutter="md">
-                {[
-                  { label: 'Party Represented', key: 'partyRepresented', span: 6 },
-                  { label: 'Case Number', key: 'caseNumber', span: 6, readOnly: true },
-                  { label: 'Case Nature', key: 'caseNature', span: 6, display: receiptDetails.caseNature || receiptDetails.natureOfCase || 'N/A' },
-                  { label: 'Appointment Type', key: 'appointmentType', span: 6, display: receiptDetails.caseDetails?.appointmentType || receiptDetails.personal?.legalMatter || receiptDetails.appointmentType || 'N/A' },
-                  { label: 'Venue', key: 'venue', span: 6 },
-                  { label: 'Present Stage', key: 'presentStage', span: 6 },
-                  { label: 'Court Division', key: 'courtDivision', span: 12 },
-                  { label: 'Court Address', key: 'courtAddress', span: 12 },
-                  { label: 'Court Phone Number', key: 'courtPhoneNumber', span: 6 },
-                  { label: 'Presiding Officer', key: 'presidingOfficer', span: 6 },
-                ].map(({ label, key, span, display, readOnly }) => (
-                  <Grid.Col span={span} key={key}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
-                    {receiptEditMode && !readOnly ? (
-                      <TextInput size="sm" value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{display || receiptDetails[key] || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                ))}
-                <Grid.Col span={12}>
-                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Description</Text>
-                  {receiptEditMode ? (
-                    <Textarea size="sm" minRows={2} value={receiptForm.caseDescription || ''} onChange={(e) => setReceiptForm({ ...receiptForm, caseDescription: e.target.value })} />
-                  ) : (
-                    <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails.caseDescription || 'N/A'}</Text>
-                  )}
-                </Grid.Col>
-              </Grid>
-            </Paper>
-
-            {/* Adverse Party */}
-            <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-              <Title order={4} mb="md" c={CHARCOAL}>Adverse Party</Title>
-              <Divider mb="md" color="#F0F0F0" />
-              <Grid gutter="md">
-                {[
-                  { label: 'Adverse Party(ies)', key: 'adverseParty', span: 12 },
-                  { label: 'Address', key: 'adversePartyAddress', span: 12 },
-                  { label: 'Phone Number', key: 'adversePartyPhone', span: 6 },
-                  { label: 'Counsel', key: 'adversePartyCounsel', span: 6 },
-                  { label: 'Counsel Address', key: 'adversePartyCounselAddress', span: 12 },
-                  { label: 'Counsel Phone', key: 'adversePartyCounselPhone', span: 6 },
-                ].map(({ label, key, span }) => (
-                  <Grid.Col span={span} key={key}>
+                  { label: 'Present Address', key: 'presentAddress' },
+                  { label: 'Permanent Address', key: 'permanentAddress' },
+                ].map(({ label, key }) => (
+                  <Box key={key} style={{ gridColumn: '1 / -1' }}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
                     {receiptEditMode ? (
                       <TextInput size="sm" value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails[key] || 'N/A'}</Text>
                     )}
-                  </Grid.Col>
+                  </Box>
                 ))}
-              </Grid>
+              </SimpleGrid>
+            </Paper>
+
+            {/* Schedule Details */}
+            <Paper shadow="xs" p={{ base: 'sm', sm: 'lg' }} radius="lg" withBorder>
+              <Title order={5} mb="md" c={CHARCOAL}>Schedule Details</Title>
+              <Divider mb="md" color="#F0F0F0" />
+              <Stack gap="md">
+                <Box>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Status</Text>
+                  {receiptEditMode ? (
+                    <Select size="sm" data={APPOINTMENT_STATUS_OPTIONS} placeholder="Select status" value={receiptForm.status || null} onChange={(val) => setReceiptForm({ ...receiptForm, status: val || '' })} />
+                  ) : (
+                    <Badge size="lg" variant="light" color="gray" style={{ backgroundColor: `${PRIMARY_BROWN}10`, color: PRIMARY_BROWN }}>{appointmentStatusLabel}</Badge>
+                  )}
+                </Box>
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                  <Box>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Date</Text>
+                    {receiptEditMode ? (
+                      <TextInput type="date" size="sm" value={receiptForm.appointedDate || ''} onChange={(e) => setReceiptForm({ ...receiptForm, appointedDate: e.target.value })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>
+                        {receiptDetails.appointedDate ? new Date(receiptDetails.appointedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
+                      </Text>
+                    )}
+                  </Box>
+                  <Box>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Appointment Time</Text>
+                    {receiptEditMode ? (
+                      <TextInput type="time" size="sm" value={receiptForm.appointmentTime || ''} onChange={(e) => setReceiptForm({ ...receiptForm, appointmentTime: e.target.value })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails.appointmentTime || 'N/A'}</Text>
+                    )}
+                  </Box>
+                </SimpleGrid>
+              </Stack>
+            </Paper>
+
+            {/* Financial Details */}
+            <Paper shadow="xs" p={{ base: 'sm', sm: 'lg' }} radius="lg" withBorder>
+              <Title order={5} mb="md" c={CHARCOAL}>Financial Details</Title>
+              <Divider mb="md" color="#F0F0F0" />
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                {[
+                  { label: 'Income Source', key: 'currentSourceOfIncome' },
+                  { label: 'Monthly Income', key: 'monthlyIncome', type: 'number', display: receiptDetails.monthlyIncome ? `₱${Number(receiptDetails.monthlyIncome).toLocaleString()}` : 'N/A' },
+                  { label: 'Nature of Work', key: 'natureOfWork' },
+                  { label: 'Employer', key: 'employerName' },
+                ].map(({ label, key, type, display }) => (
+                  <Box key={key}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
+                    {receiptEditMode ? (
+                      <TextInput size="sm" type={type || 'text'} value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{display || receiptDetails[key] || 'N/A'}</Text>
+                    )}
+                  </Box>
+                ))}
+                <Box style={{ gridColumn: '1 / -1' }}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Employer Address</Text>
+                  {receiptEditMode ? (
+                    <TextInput size="sm" value={receiptForm.employerAddress || ''} onChange={(e) => setReceiptForm({ ...receiptForm, employerAddress: e.target.value })} />
+                  ) : (
+                    <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails.employerAddress || 'N/A'}</Text>
+                  )}
+                </Box>
+              </SimpleGrid>
+            </Paper>
+
+            {/* Case Details */}
+            <Paper shadow="xs" p={{ base: 'sm', sm: 'lg' }} radius="lg" withBorder>
+              <Title order={5} mb="md" c={CHARCOAL}>Case Details</Title>
+              <Divider mb="md" color="#F0F0F0" />
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                {[
+                  { label: 'Party Represented', key: 'partyRepresented' },
+                  { label: 'Case Number', key: 'caseNumber', readOnly: true },
+                  { label: 'Case Nature', key: 'caseNature', display: receiptDetails.caseNature || receiptDetails.natureOfCase || 'N/A' },
+                  { label: 'Appointment Type', key: 'appointmentType', display: receiptDetails.caseDetails?.appointmentType || receiptDetails.personal?.legalMatter || receiptDetails.appointmentType || 'N/A' },
+                  { label: 'Venue', key: 'venue' },
+                  { label: 'Present Stage', key: 'presentStage' },
+                ].map(({ label, key, display, readOnly }) => (
+                  <Box key={key}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
+                    {receiptEditMode && !readOnly ? (
+                      <TextInput size="sm" value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{display || receiptDetails[key] || 'N/A'}</Text>
+                    )}
+                  </Box>
+                ))}
+                {/* Full-width fields */}
+                {[
+                  { label: 'Court Division', key: 'courtDivision' },
+                  { label: 'Court Address', key: 'courtAddress' },
+                ].map(({ label, key }) => (
+                  <Box key={key} style={{ gridColumn: '1 / -1' }}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
+                    {receiptEditMode ? (
+                      <TextInput size="sm" value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails[key] || 'N/A'}</Text>
+                    )}
+                  </Box>
+                ))}
+                {[
+                  { label: 'Court Phone Number', key: 'courtPhoneNumber' },
+                  { label: 'Presiding Officer', key: 'presidingOfficer' },
+                ].map(({ label, key }) => (
+                  <Box key={key}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
+                    {receiptEditMode ? (
+                      <TextInput size="sm" value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails[key] || 'N/A'}</Text>
+                    )}
+                  </Box>
+                ))}
+                <Box style={{ gridColumn: '1 / -1' }}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Case Description</Text>
+                  {receiptEditMode ? (
+                    <Textarea size="sm" minRows={2} value={receiptForm.caseDescription || ''} onChange={(e) => setReceiptForm({ ...receiptForm, caseDescription: e.target.value })} />
+                  ) : (
+                    <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails.caseDescription || 'N/A'}</Text>
+                  )}
+                </Box>
+              </SimpleGrid>
+            </Paper>
+
+            {/* Adverse Party */}
+            <Paper shadow="xs" p={{ base: 'sm', sm: 'lg' }} radius="lg" withBorder>
+              <Title order={5} mb="md" c={CHARCOAL}>Adverse Party</Title>
+              <Divider mb="md" color="#F0F0F0" />
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                {[
+                  { label: 'Adverse Party(ies)', key: 'adverseParty', fullWidth: true },
+                  { label: 'Address', key: 'adversePartyAddress', fullWidth: true },
+                  { label: 'Phone Number', key: 'adversePartyPhone' },
+                  { label: 'Counsel', key: 'adversePartyCounsel' },
+                  { label: 'Counsel Address', key: 'adversePartyCounselAddress', fullWidth: true },
+                  { label: 'Counsel Phone', key: 'adversePartyCounselPhone' },
+                ].map(({ label, key, fullWidth }) => (
+                  <Box key={key} style={fullWidth ? { gridColumn: '1 / -1' } : undefined}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>{label}</Text>
+                    {receiptEditMode ? (
+                      <TextInput size="sm" value={receiptForm[key] || ''} onChange={(e) => setReceiptForm({ ...receiptForm, [key]: e.target.value })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{receiptDetails[key] || 'N/A'}</Text>
+                    )}
+                  </Box>
+                ))}
+              </SimpleGrid>
             </Paper>
           </Stack>
         ) : (
@@ -1056,22 +1253,26 @@ export default function AssignedCases() {
         opened={caseHistoryModalOpened}
         onClose={() => { setCaseHistoryModalOpened(false); setCaseHistoryEditMode(false); }}
         title={
-          <Group justify="space-between" style={{ width: '100%' }}>
-            <Title order={3} c={PRIMARY_BROWN}>Case Record</Title>
-            <Group gap="sm">
+          <Group justify="space-between" style={{ width: '100%' }} wrap="wrap" gap="xs">
+            <Title order={4} c={PRIMARY_BROWN}>Case Record</Title>
+            <Group gap="xs" wrap="nowrap">
               {!caseHistoryEditMode ? (
                 <Button size="xs" variant="outline" color={PRIMARY_BROWN} onClick={() => setCaseHistoryEditMode(true)}>Edit</Button>
               ) : (
                 <>
                   <Button size="xs" variant="outline" onClick={() => { setCaseHistoryEditMode(false); handleViewCaseHistory({ finalizeId: caseHistoryFinalizeId }); }}>Cancel</Button>
-                  <Button size="xs" style={{ backgroundColor: PRIMARY_BROWN }} onClick={handleSaveCaseHistory} loading={caseHistorySaving}>Save Changes</Button>
+                  <Button size="xs" style={{ backgroundColor: PRIMARY_BROWN }} onClick={handleSaveCaseHistory} loading={caseHistorySaving}>Save</Button>
                 </>
               )}
             </Group>
           </Group>
         }
-        size="calc(90vw)"
-        styles={{ title: { fontWeight: 700, width: '100%' }, body: { maxHeight: '80vh', overflowY: 'auto' } }}
+        size={{ base: '100%', sm: '90vw' }}
+        styles={{
+          title: { fontWeight: 700, width: '100%' },
+          body: { maxHeight: '80vh', overflowY: 'auto', padding: '16px' },
+          inner: { padding: '8px' },
+        }}
       >
         {caseHistoryLoading ? (
           <Center py="xl"><Loader size="lg" color={PRIMARY_BROWN} /></Center>

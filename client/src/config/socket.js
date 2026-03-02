@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { auth } from '@/firebase/firebase';
 
 // ── Singleton Socket.IO client ──
 // Connects to the same origin (proxied by Vite in dev, same host in prod).
@@ -6,6 +7,20 @@ import { io } from 'socket.io-client';
 
 let socket = null;
 let registeredUid = null;
+
+/**
+ * Emit 'register' with UID + a fresh Firebase ID token for server verification.
+ */
+const emitRegister = async (s, uid) => {
+  try {
+    const user = auth.currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
+    s.emit('register', uid, token);
+  } catch (err) {
+    console.warn('[Socket] Could not get token for register:', err.message);
+  }
+};
 
 /**
  * Get or create the shared socket instance.
@@ -39,7 +54,7 @@ export const getSocket = () => {
       // Re-register the user's UID on every (re)connect so the server
       // always knows which room this socket belongs to.
       if (registeredUid) {
-        socket.emit('register', registeredUid);
+        emitRegister(socket, registeredUid);
       }
     });
 
@@ -57,7 +72,7 @@ export const registerUser = (firebaseUid) => {
   registeredUid = firebaseUid || null;
   const s = getSocket();
   if (firebaseUid && s.connected) {
-    s.emit('register', firebaseUid);
+    emitRegister(s, firebaseUid);
   }
   // No need for s.once('connect') — the 'connect' handler in getSocket()
   // will emit 'register' automatically on every (re)connect.

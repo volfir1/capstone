@@ -3,6 +3,7 @@ import User from '../models/user.js';
 import Attorney from '../models/attorney.js';
 import { createNotification } from './notificationController.js';
 
+import { safeErrorMessage } from '../utils/errorResponse.js';
 // Create a new event
 export const createEvent = async (req, res) => {
   try {
@@ -64,7 +65,7 @@ export const createEvent = async (req, res) => {
     res.status(201).json(savedEvent);
   } catch (error) {
     console.error('Error creating event:', error);
-    res.status(500).json({ error: 'Failed to create event', details: error.message });
+    res.status(500).json({ error: 'Failed to create event' });
   }
 };
 
@@ -75,7 +76,7 @@ export const getEvents = async (req, res) => {
     res.status(200).json(events);
   } catch (error) {
     console.error('Error fetching events:', error);
-    res.status(500).json({ error: 'Failed to fetch events', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch events' });
   }
 };
 
@@ -92,7 +93,7 @@ export const getEventById = async (req, res) => {
     res.status(200).json(event);
   } catch (error) {
     console.error('Error fetching event:', error);
-    res.status(500).json({ error: 'Failed to fetch event', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch event' });
   }
 };
 
@@ -174,7 +175,7 @@ export const updateEvent = async (req, res) => {
     res.status(200).json(updatedEvent);
   } catch (error) {
     console.error('Error updating event:', error);
-    res.status(500).json({ error: 'Failed to update event', details: error.message });
+    res.status(500).json({ error: 'Failed to update event' });
   }
 };
 
@@ -191,7 +192,7 @@ export const deleteEvent = async (req, res) => {
     res.status(200).json({ message: 'Event deleted successfully', event: deletedEvent });
   } catch (error) {
     console.error('Error deleting event:', error);
-    res.status(500).json({ error: 'Failed to delete event', details: error.message });
+    res.status(500).json({ error: 'Failed to delete event' });
   }
 };
 
@@ -214,6 +215,6 @@ export const getEventsByDateRange = async (req, res) => {
     res.status(200).json(events);
   } catch (error) {
     console.error('Error fetching events by date range:', error);
-    res.status(500).json({ error: 'Failed to fetch events', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch events' });
   }
 };

@@ -7,6 +7,7 @@ import CaseRecord from "../models/caserecord.js";
 import admin from "firebase-admin";
 import { createNotification } from "./notificationController.js";
 
+import { safeErrorMessage } from '../utils/errorResponse.js';
 // Submit a new case
 export const submitCase = async (req, res) => {
   try {
@@ -73,7 +74,7 @@ export const submitCase = async (req, res) => {
     console.error("Submit case error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to submit case",
+      message: safeErrorMessage(error, "Failed to submit case"),
     });
   }
 };
@@ -118,7 +119,7 @@ export const getUserCases = async (req, res) => {
     console.error("Get user cases error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve cases",
+      message: safeErrorMessage(error, "Failed to retrieve cases"),
     });
   }
 };
@@ -148,7 +149,7 @@ export const getCaseById = async (req, res) => {
     console.error("Get case by ID error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve case",
+      message: safeErrorMessage(error, "Failed to retrieve case"),
     });
   }
 };
@@ -170,7 +171,7 @@ export const getAllCases = async (req, res) => {
     console.error("Get all cases error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve cases",
+      message: safeErrorMessage(error, "Failed to retrieve cases"),
     });
   }
 };
@@ -191,7 +192,7 @@ export const getAllAttorneys = async (req, res) => {
     console.error("Get all attorneys error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve attorneys",
+      message: safeErrorMessage(error, "Failed to retrieve attorneys"),
     });
   }
 };
@@ -266,7 +267,7 @@ export const assignAttorney = async (req, res) => {
     console.error("Assign attorney error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to assign attorney",
+      message: safeErrorMessage(error, "Failed to assign attorney"),
     });
   }
 };
@@ -365,7 +366,7 @@ export const getDashboardStats = async (req, res) => {
     console.error("Get dashboard stats error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve dashboard stats",
+      message: safeErrorMessage(error, "Failed to retrieve dashboard stats"),
     });
   }
 };
@@ -410,7 +411,7 @@ export const getAttorneyCases = async (req, res) => {
     console.error("Get attorney cases error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve attorney cases",
+      message: safeErrorMessage(error, "Failed to retrieve attorney cases"),
     });
   }
 };
@@ -466,7 +467,7 @@ export const createCaseForUser = async (req, res) => {
     console.error("Create case for user error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to create case",
+      message: safeErrorMessage(error, "Failed to create case"),
     });
   }
 };

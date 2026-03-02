@@ -5,13 +5,21 @@ import {
   listCaseRecords,
   updateCaseRecord,
   deleteCaseRecord,
-  getCaseRecordByFinalizeId
+  getCaseRecordByFinalizeId,
+  getBulkCaseRecordsByFinalizeIds
 } from '../controller/caseRecordController.js'
+import { authenticateFirebaseToken } from '../firebase/authMiddleware.js'
 
 const router = express.Router()
 
+// All case record routes require authentication
+router.use(authenticateFirebaseToken)
+
 // Create or Update Case Record (by finalizeId)
 router.put('/finalize/:finalizeId', upsertCaseRecord)
+
+// Bulk-check which finalizeIds have a case record — must be BEFORE the /:finalizeId param route
+router.post('/finalize/bulk', getBulkCaseRecordsByFinalizeIds)
 
 // Get Case Record by caseId (legacy)
 router.get('/case/:caseId', getCaseRecord)

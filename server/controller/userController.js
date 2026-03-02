@@ -10,6 +10,7 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+import { safeErrorMessage } from '../utils/errorResponse.js';
 export const getProfile = async (req, res) => {
     try {
         const authHeader = req.headers.authorization
@@ -48,12 +49,12 @@ export const getProfile = async (req, res) => {
                 accountStatus: isAttorney ? profile.accountStatus : undefined,
                 profileImage: profile.profileImage || '',
                 signatureUrl: profile.signatureUrl || '',
-                google: profile.google ? { connected: !!profile.google.connected } : { connected: false },
+                google: profile.google ? { connected: !!profile.google.connected, email: profile.google.email || '' } : { connected: false, email: '' },
             }
         })
 
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message })
+        res.status(500).json({ success: false, message: safeErrorMessage(error)})
     }
 }
 
@@ -84,7 +85,7 @@ export const fetchUsers = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
         }
 
-        const users = await User.find({}, '-password')
+        const users = await User.find({}, 'email firstName lastName username role isVerified createdAt profileImage disabled')
 
         res.json({
             success: true,
@@ -93,7 +94,7 @@ export const fetchUsers = async (req, res) => {
         })
 
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message })
+        res.status(500).json({ success: false, message: safeErrorMessage(error)})
     }
 
 }
@@ -137,7 +138,7 @@ export const updateUserRole = async (req, res) => {
         const updatedUser = await User.findByIdAndUpdate(
             userId,
             { role },
-            { new: true, select: '-password' }
+            { new: true, select: 'email firstName lastName username role isVerified createdAt profileImage disabled' }
         )
 
         if (!updatedUser) {
@@ -151,7 +152,7 @@ export const updateUserRole = async (req, res) => {
         })
 
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message })
+        res.status(500).json({ success: false, message: safeErrorMessage(error)})
     }
 }
 
@@ -188,7 +189,7 @@ export const toggleUserStatus = async (req, res) => {
         const updatedUser = await User.findByIdAndUpdate(
             userId,
             { disabled: disabled === true },
-            { new: true, select: '-password' }
+            { new: true, select: 'email firstName lastName username role isVerified createdAt profileImage disabled' }
         )
 
         if (!updatedUser) {
@@ -211,7 +212,7 @@ export const toggleUserStatus = async (req, res) => {
         })
 
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message })
+        res.status(500).json({ success: false, message: safeErrorMessage(error)})
     }
 }
 
@@ -252,8 +253,6 @@ export const sendPasswordResetEmail = async (req, res) => {
         const resetLink = await admin.auth().generatePasswordResetLink(email)
 
         // In production, you would send this via email service
-        // For now, we'll just return success
-        console.log('Password reset link for', email, ':', resetLink)
 
         res.json({
             success: true,
@@ -264,7 +263,7 @@ export const sendPasswordResetEmail = async (req, res) => {
 
     } catch (error) {
         console.error('Send password reset error:', error)
-        res.status(500).json({ success: false, message: error.message })
+        res.status(500).json({ success: false, message: safeErrorMessage(error)})
     }
 }
 
@@ -312,7 +311,7 @@ export const updateProfileImage = async (req, res) => {
         });
     } catch (error) {
         console.error('Update profile image error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error)});
     }
 };
 
@@ -360,7 +359,7 @@ export const updateSignature = async (req, res) => {
         });
     } catch (error) {
         console.error('Update signature error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error)});
     }
 };
 
@@ -418,7 +417,7 @@ export const uploadSignature = async (req, res) => {
         res.json({ success: true, data: { signatureUrl }, message: 'Signature uploaded and saved.' });
     } catch (error) {
         console.error('uploadSignature error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error)});
     }
 }
 
@@ -471,6 +470,6 @@ export const getUserById = async (req, res) => {
 
         res.json({ success: true, data: payload })
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message })
+        res.status(500).json({ success: false, message: safeErrorMessage(error)})
     }
 }

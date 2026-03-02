@@ -27,7 +27,7 @@ export const doSignInWithGoogle = async () =>{
         result.credential = credential;
         result.googleAccessToken = accessToken;
         if (accessToken) {
-            try { localStorage.setItem('googleAccessToken', accessToken); } catch(_) {}
+            try { sessionStorage.setItem('googleAccessToken', accessToken); } catch(_) {}
         }
     } catch (err) {
         console.warn('doSignInWithGoogle: failed to extract credential', err);
@@ -47,7 +47,7 @@ export const doSignOut = () =>{
     localStorage.removeItem('role');
     localStorage.removeItem('taguig_geocoding_cache');
     // Clear cached Google access token
-    localStorage.removeItem('googleAccessToken');
+    sessionStorage.removeItem('googleAccessToken');
     
     return auth.signOut()
 }

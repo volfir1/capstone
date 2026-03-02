@@ -115,7 +115,13 @@ function AppRoutes() {
 function App() {
   return (
     <MantineProvider theme={theme}>
-      <Notifications position="top-right" zIndex={1000} />
+      <Notifications
+        position="top-center"
+        zIndex={1000}
+        transitionDuration={500}
+        containerWidth={370}
+        limit={4}
+      />
       <DatesProvider settings={{ locale: 'en', firstDayOfWeek: 0, weekendDays: [0, 6] }}>
         <AuthProvider>
           <Router>
