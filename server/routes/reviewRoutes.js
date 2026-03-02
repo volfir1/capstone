@@ -1,7 +1,11 @@
 import express from 'express'
 import { createReview, getReviewsByCase, listAllReviews, updateReview, deleteReviewByCaseId, deleteReviewById } from '../controller/reviewController.js'
+import { authenticateFirebaseToken } from '../firebase/authMiddleware.js'
 
 const router = express.Router()
+
+// All review routes require authentication
+router.use(authenticateFirebaseToken)
 
 router.post('/', createReview)
 router.get('/', listAllReviews)

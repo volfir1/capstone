@@ -31,15 +31,40 @@ export async function getTokensFromCode(code) {
   return tokens;
 }
 
+// Fetch the timezone of the user's calendar so we can send events in their local time
+async function getCalendarTimeZone(calendar, calendarId = 'primary') {
+  try {
+    const res = await calendar.calendars.get({ calendarId });
+    return res.data.timeZone || null;
+  } catch (e) {
+    console.warn('Could not fetch calendar timezone:', e.message);
+    return null;
+  }
+}
+
+// Override event start/end timeZone to match the user's calendar timezone
+// so a bare datetime like "T14:30:00" is always interpreted as 2:30 PM in *their* calendar
+function patchEventTimezone(event, calendarTz) {
+  if (!calendarTz) return event;
+  const patched = { ...event };
+  if (patched.start) patched.start = { ...patched.start, timeZone: calendarTz };
+  if (patched.end) patched.end = { ...patched.end, timeZone: calendarTz };
+  return patched;
+}
+
 export async function createEventWithRefreshToken(refreshToken, calendarId = 'primary', event = {}) {
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
+  // Use the calendar's own timezone so the displayed time matches the intended time
+  const calTz = await getCalendarTimeZone(calendar, calendarId);
+  const patchedEvent = patchEventTimezone(event, calTz);
+
   const res = await calendar.events.insert({
     calendarId,
-    requestBody: event,
+    requestBody: patchedEvent,
   });
 
   return res.data;
@@ -51,9 +76,12 @@ export async function createEventWithAccessToken(accessToken, calendarId = 'prim
 
   const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
+  const calTz = await getCalendarTimeZone(calendar, calendarId);
+  const patchedEvent = patchEventTimezone(event, calTz);
+
   const res = await calendar.events.insert({
     calendarId,
-    requestBody: event,
+    requestBody: patchedEvent,
   });
 
   return res.data;

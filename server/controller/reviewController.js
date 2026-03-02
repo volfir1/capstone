@@ -4,6 +4,7 @@ import Attorney from '../models/attorney.js'
 import Case from '../models/case.js'
 import { createNotification } from './notificationController.js'
 import { getIO } from '../socket.js'
+import { safeErrorMessage } from '../utils/errorResponse.js';
 
 export const createReview = async (req, res) => {
   try {
@@ -93,7 +94,7 @@ export const createReview = async (req, res) => {
   } catch (err) {
     console.error('createReview error:', err.name, err.message)
     if (err.errors) console.error('Validation errors:', JSON.stringify(err.errors))
-    res.status(500).json({ error: err.message, name: err.name })
+    res.status(500).json({ error: safeErrorMessage(err) })
   }
 }
 
@@ -104,7 +105,7 @@ export const getReviewsByCase = async (req, res) => {
     res.json(reviews)
   } catch (err) {
     console.error('getReviewsByCase error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -118,7 +119,7 @@ export const listAllReviews = async (req, res) => {
     res.json(reviews)
   } catch (err) {
     console.error('listAllReviews error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -129,7 +130,7 @@ export const deleteReviewByCaseId = async (req, res) => {
     res.json({ success: true, deletedCount: result.deletedCount })
   } catch (err) {
     console.error('deleteReviewByCaseId error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -278,7 +279,7 @@ export const updateReview = async (req, res) => {
     res.json(updated)
   } catch (err) {
     console.error('updateReview error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -292,6 +293,6 @@ export const deleteReviewById = async (req, res) => {
     res.json({ success: true, deletedReview: result })
   } catch (err) {
     console.error('deleteReviewById error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }

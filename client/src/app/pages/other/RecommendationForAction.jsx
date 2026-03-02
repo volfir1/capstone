@@ -587,8 +587,8 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                                         </Text>
                                         <Text size="xs" c="dimmed">
                                             {uploadedFile 
-                                                ? `${(uploadedFile.size / 1024).toFixed(2)} KB â€¢ Latest Version ${uploadedFile.isServerFile ? '(Uploaded)' : '(Uploading...)'}`
-                                                : `${((value.uploadedDocument?.fileSize || 0) / 1024).toFixed(2)} KB â€¢ Current Version`
+                                                ? `${(uploadedFile.size / 1024).toFixed(2)} KB • Latest Version ${uploadedFile.isServerFile ? '(Uploaded)' : '(Uploading...)'}`
+                                                : `${((value.uploadedDocument?.fileSize || 0) / 1024).toFixed(2)} KB • Current Version`
                                             }
                                         </Text>
                                         {(uploadedFile?.uploadedBy || value.uploadedDocument?.uploadedBy) && (
@@ -642,6 +642,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                                     Version History ({documentVersions.length})
                                 </Text>
                             </Group>
+                            <ScrollArea.Autosize mah={400} type="auto" offsetScrollbars>
                             <Timeline active={documentVersions.length} bulletSize={20} lineWidth={2}>
                                 {documentVersions.map((version, index) => (
                                     <Timeline.Item
@@ -654,7 +655,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                                         }
                                     >
                                         <Text size="xs" c="dimmed" mb={4}>
-                                            {version.fileName} â€¢ {(version.fileSize / 1024).toFixed(2)} KB
+                                            {version.fileName} • {(version.fileSize / 1024).toFixed(2)} KB
                                         </Text>
                                         {version.uploadedBy && (
                                             <Text size="xs" c="dimmed" mb={4}>
@@ -699,6 +700,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                                     </Timeline.Item>
                                 ))}
                             </Timeline>
+                            </ScrollArea.Autosize>
                         </Paper>
                     )}
                     
@@ -1409,7 +1411,32 @@ export default function CaseRecordFormsDisplay() {
 
                 // Convert to HTML using mammoth
                 const result = await mammoth.convertToHtml({ arrayBuffer });
-                setWordDocHtml(result.value);
+
+                // Split HTML into pages at Word page-break markers.
+                // mammoth outputs: <br clear="all" style="page-break-before:always">
+                // or <hr> style breaks. We split on those and wrap each segment
+                // in a page-styled container so the preview looks like real pages.
+                const raw = result.value || '';
+                const PAGE_BREAK_RE = /<br[^>]*page-break[^>]*>|<hr[^>]*page-break[^>]*>/gi;
+                const pages = raw.split(PAGE_BREAK_RE).filter(p => p.trim().length > 0);
+
+                if (pages.length > 1) {
+                    // Multiple pages detected – wrap each in a page div
+                    const pagesHtml = pages.map((pageContent, idx) =>
+                        `<div class="word-page" data-page="${idx + 1}">
+                            <div class="word-page-number">Page ${idx + 1} of ${pages.length}</div>
+                            ${pageContent}
+                        </div>`
+                    ).join('');
+                    setWordDocHtml(pagesHtml);
+                } else {
+                    // Single page or no explicit breaks – still wrap in page div for consistent styling
+                    setWordDocHtml(
+                        `<div class="word-page" data-page="1">
+                            ${raw}
+                        </div>`
+                    );
+                }
 
                 if (result.messages.length > 0) {
                     console.log('Mammoth conversion messages:', result.messages);
@@ -1508,16 +1535,11 @@ export default function CaseRecordFormsDisplay() {
                 const formData = new FormData();
                 formData.append('document', file);
                 
-                const response = await fetch('/api/upload/document', {
-                    method: 'POST',
-                    body: formData
+                const response = await apiClient.post('/upload/document', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 
-                if (!response.ok) {
-                    throw new Error('Failed to upload document');
-                }
-                
-                const result = await response.json();
+                const result = response.data;
                 console.log('Document uploaded successfully:', result);
                 
                 // Store file with URL reference - explicitly copy File properties
@@ -1542,9 +1564,7 @@ export default function CaseRecordFormsDisplay() {
             // When file is removed (null), delete from server if it was uploaded
             if (uploadedFile?.isServerFile && uploadedFile?.serverFile?.filename) {
                 try {
-                    await fetch(`/api/upload/document/${uploadedFile.serverFile.filename}`, {
-                        method: 'DELETE'
-                    });
+                    await apiClient.delete(`/upload/document/${uploadedFile.serverFile.filename}`);
                 } catch (error) {
                     console.error('Error deleting file from server:', error);
                 }
@@ -1552,9 +1572,7 @@ export default function CaseRecordFormsDisplay() {
             // Also delete from server if file exists in interviewInfo
             if (interviewInfo.uploadedDocument?.isServerFile && interviewInfo.uploadedDocument?.filename) {
                 try {
-                    await fetch(`/api/upload/document/${interviewInfo.uploadedDocument.filename}`, {
-                        method: 'DELETE'
-                    });
+                    await apiClient.delete(`/upload/document/${interviewInfo.uploadedDocument.filename}`);
                 } catch (error) {
                     console.error('Error deleting file from server:', error);
                 }
@@ -2829,14 +2847,64 @@ export default function CaseRecordFormsDisplay() {
                                         </Box>
                                     ) : wordDocHtml ? (
                                         <ScrollArea style={{ flex: 1, height: '100%' }}>
+                                            <style>{`
+                                                .word-pages-container {
+                                                    padding: 20px 0;
+                                                    display: flex;
+                                                    flex-direction: column;
+                                                    align-items: center;
+                                                    gap: 24px;
+                                                }
+                                                .word-pages-container .word-page {
+                                                    position: relative;
+                                                    background: white;
+                                                    width: 100%;
+                                                    max-width: 794px; /* A4 width at 96dpi */
+                                                    min-height: 1123px; /* A4 height at 96dpi */
+                                                    padding: 60px 60px 80px 60px;
+                                                    box-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 0 1px rgba(0,0,0,0.1);
+                                                    border-radius: 2px;
+                                                    box-sizing: border-box;
+                                                    overflow-wrap: break-word;
+                                                    word-wrap: break-word;
+                                                }
+                                                .word-pages-container .word-page-number {
+                                                    position: absolute;
+                                                    bottom: 24px;
+                                                    left: 0;
+                                                    right: 0;
+                                                    text-align: center;
+                                                    font-size: 11px;
+                                                    color: #999;
+                                                    font-family: Arial, sans-serif;
+                                                }
+                                                .word-pages-container .word-page p {
+                                                    margin: 0 0 10px 0;
+                                                    line-height: 1.5;
+                                                }
+                                                .word-pages-container .word-page table {
+                                                    border-collapse: collapse;
+                                                    width: 100%;
+                                                    margin: 10px 0;
+                                                }
+                                                .word-pages-container .word-page table td,
+                                                .word-pages-container .word-page table th {
+                                                    border: 1px solid #ccc;
+                                                    padding: 6px 8px;
+                                                }
+                                                .word-pages-container .word-page img {
+                                                    max-width: 100%;
+                                                    height: auto;
+                                                }
+                                                @media (max-width: 850px) {
+                                                    .word-pages-container .word-page {
+                                                        padding: 30px 24px 60px 24px;
+                                                        min-height: auto;
+                                                    }
+                                                }
+                                            `}</style>
                                             <Box 
-                                                p="xl" 
-                                                style={{ 
-                                                    backgroundColor: 'white',
-                                                    maxWidth: '800px',
-                                                    margin: '0 auto',
-                                                    minHeight: '100%'
-                                                }}
+                                                className="word-pages-container"
                                                 dangerouslySetInnerHTML={{ __html: wordDocHtml }}
                                             />
                                         </ScrollArea>

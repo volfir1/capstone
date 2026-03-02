@@ -1,7 +1,11 @@
 import express from 'express'
 import { createFinalize, listFinalized, updateFinalized, getFinalizeByCaseId, getFinalizeById, getFinalizedByUserId, completeFinalize, deleteFinalized } from '../controller/finalizeController.js'
+import { authenticateFirebaseToken } from '../firebase/authMiddleware.js'
 
 const router = express.Router()
+
+// All finalize routes require authentication
+router.use(authenticateFirebaseToken)
 
 router.post('/', createFinalize)
 router.get('/', listFinalized)

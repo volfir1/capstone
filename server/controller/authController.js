@@ -2,6 +2,7 @@ import User from "../models/user.js";
 import Attorney from "../models/attorney.js";
 import admin from "firebase-admin";
 
+import { safeErrorMessage } from '../utils/errorResponse.js';
 const getFirebaseUserWithRetry = async (
   email,
   maxRetries = 3,
@@ -29,8 +30,6 @@ export const register = async (req, res) => {
   try {
     const { idToken, firstName, lastName, username, email, isVerified, role } =
       req.body;
-
-    console.log("Server received:", { firstName, lastName, username, email });
 
     let userEmail, firebaseUid;
     let userVerified = false;
@@ -93,16 +92,8 @@ export const register = async (req, res) => {
     }
 
     let userRole = "user";
-    if (role) {
-      const validRoles = ["user", "admin"];
-      if (!validRoles.includes(role)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid role. Must be 'user' or 'admin' only",
-        });
-      }
-      userRole = role;
-    }
+    // SECURITY: Never accept role from client during self-registration.
+    // New users are always "user". Role changes require admin action via /users/:userId/role.
 
     // Check if user already exists
     const existingUser = await User.findOne({
@@ -153,7 +144,7 @@ export const register = async (req, res) => {
     });
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -174,13 +165,10 @@ export const checkEmailExists = async (req, res) => {
     res.status(200).json({
       success: true,
       exists: !!existingUser,
-      message: existingUser
-        ? "Email is already registered"
-        : "Email is available",
     });
   } catch (error) {
     console.error("Check email error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -232,7 +220,7 @@ export const verifyUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Verify user error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -261,8 +249,6 @@ export const registerAttorney = async (req, res) => {
       biography,
       education,
     } = req.body;
-
-    console.log("Attorney registration received:", { email, username, firstName, lastName });
 
     // Validate required fields
     if (!email || !username || !firstName || !lastName) {
@@ -377,7 +363,7 @@ export const registerAttorney = async (req, res) => {
     console.error("Attorney registration error:", error);
     res.status(500).json({ 
       success: false, 
-      message: error.message || "Failed to register attorney" 
+      message: safeErrorMessage(error, "Failed to register attorney") 
     });
   }
 };
@@ -386,7 +372,7 @@ export const registerAttorney = async (req, res) => {
 export const getAllAttorneys = async (req, res) => {
   try {
     const attorneys = await Attorney.find()
-      .select('-__v')
+      .select('-__v -firebaseUid')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -398,7 +384,7 @@ export const getAllAttorneys = async (req, res) => {
     console.error("Get all attorneys error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve attorneys",
+      message: safeErrorMessage(error, "Failed to retrieve attorneys"),
     });
   }
 };
@@ -430,14 +416,23 @@ export const activateAttorney = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: attorney,
+      data: {
+        id: attorney._id,
+        email: attorney.email,
+        firstName: attorney.firstName,
+        lastName: attorney.lastName,
+        username: attorney.username,
+        role: attorney.role,
+        accountStatus: attorney.accountStatus,
+        isVerified: attorney.isVerified,
+      },
       message: "Attorney account activated successfully",
     });
   } catch (error) {
     console.error("Activate attorney error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to activate attorney account",
+      message: safeErrorMessage(error, "Failed to activate attorney account"),
     });
   }
 };
@@ -494,7 +489,7 @@ export const verifyAttorney = async (req, res) => {
     console.error("Verify attorney error:", error);
     res.status(500).json({ 
       success: false, 
-      message: error.message || "Failed to verify attorney" 
+      message: safeErrorMessage(error, "Failed to verify attorney") 
     });
   }
 };
@@ -503,7 +498,6 @@ export const verifyAttorney = async (req, res) => {
 export const getEmailFromUsername = async (req, res) => {
   try {
     const { username } = req.body;
-    console.log('getEmailFromUsername called with username:', username);
 
     if (!username) {
       return res.status(400).json({
@@ -514,7 +508,6 @@ export const getEmailFromUsername = async (req, res) => {
 
     // Check if it's already an email format
     if (username.includes('@')) {
-      console.log('Input is already an email:', username);
       return res.status(200).json({
         success: true,
         email: username,
@@ -525,7 +518,6 @@ export const getEmailFromUsername = async (req, res) => {
     // Try to find user by username
     const user = await User.findOne({ username });
     if (user) {
-      console.log('Found user with email:', user.email);
       return res.status(200).json({
         success: true,
         email: user.email,
@@ -536,7 +528,6 @@ export const getEmailFromUsername = async (req, res) => {
     // Try to find attorney by username
     const attorney = await Attorney.findOne({ username });
     if (attorney) {
-      console.log('Found attorney with email:', attorney.email);
       return res.status(200).json({
         success: true,
         email: attorney.email,
@@ -544,7 +535,6 @@ export const getEmailFromUsername = async (req, res) => {
       });
     }
 
-    console.log('Username not found:', username);
     return res.status(404).json({
       success: false,
       message: "Username not found",
@@ -553,7 +543,7 @@ export const getEmailFromUsername = async (req, res) => {
     console.error("Get email from username error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to get email from username",
+      message: safeErrorMessage(error, "Failed to get email from username"),
     });
   }
 };
@@ -641,7 +631,7 @@ export const createClientAccount = async (req, res) => {
       console.error("Firebase user creation error:", firebaseError);
       return res.status(500).json({
         success: false,
-        message: `Failed to create Firebase account: ${firebaseError.message}`,
+        message: safeErrorMessage(firebaseError, "Failed to create Firebase account"),
       });
     }
 
@@ -680,7 +670,7 @@ export const createClientAccount = async (req, res) => {
     console.error("Create client account error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to create client account",
+      message: safeErrorMessage(error, "Failed to create client account"),
     });
   }
 };
@@ -728,7 +718,7 @@ export const verifyClientAccount = async (req, res) => {
     console.error("Verify client account error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to verify client account",
+      message: safeErrorMessage(error, "Failed to verify client account"),
     });
   }
 };

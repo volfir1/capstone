@@ -26,6 +26,7 @@ export const createFinalize = async (req, res) => {
     try {
       // Prefer explicit clientUserId or userId from payload content
       const userId = rec.clientUserId || toCreate.clientUserId || toCreate.userId || rec.content?.userId || null;
+import { safeErrorMessage } from '../utils/errorResponse.js';
       if (userId) {
         // Prepare case fields from finalize content where possible
         const caseTitle = rec.caseTitle || rec.content?.caseInfo?.caseTitle || `Case for ${rec.clientName || 'Client'}`;
@@ -76,7 +77,7 @@ export const createFinalize = async (req, res) => {
     res.status(201).json(rec)
   } catch (err) {
     console.error('createFinalize error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -86,7 +87,7 @@ export const listFinalized = async (req, res) => {
     res.json(items)
   } catch (err) {
     console.error('listFinalized error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -131,7 +132,7 @@ export const updateFinalized = async (req, res) => {
     res.json(updated)
   } catch (err) {
     console.error('updateFinalized error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -143,7 +144,7 @@ export const getFinalizeById = async (req, res) => {
     res.json(finalize)
   } catch (err) {
     console.error('getFinalizeById error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -162,7 +163,7 @@ export const getFinalizeByCaseId = async (req, res) => {
     res.json(finalize)
   } catch (err) {
     console.error('getFinalizeByCaseId error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -181,7 +182,7 @@ export const getFinalizedByUserId = async (req, res) => {
     res.json(finalizedCases)
   } catch (err) {
     console.error('getFinalizedByUserId error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -224,7 +225,7 @@ export const completeFinalize = async (req, res) => {
     return res.json({ success: true, finalize: updated });
   } catch (err) {
     console.error('completeFinalize error', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err)});
   }
 }
 
@@ -236,6 +237,6 @@ export const deleteFinalized = async (req, res) => {
     res.json({ success: true, message: 'Finalized record deleted' })
   } catch (err) {
     console.error('deleteFinalized error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }

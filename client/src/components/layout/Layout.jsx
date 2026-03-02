@@ -61,10 +61,20 @@ const Layout = ({ children, headerHeight = 60, navbarWidth = 260 }) => {
   };
 
   const handleNavNotification = (referenceId, type) => {
-    if (type === 'case_assigned') navigate('/admin/assigned-cases');
-    else if (referenceId) navigate(`/admin/recommendation/${referenceId}`, {
-      state: { showClientInfo: true, isViewingExistingReview: true },
-    });
+    if (type === 'case_assigned') {
+      navigate('/admin/assigned-cases');
+    } else if (type === 'appointment_created' || type === 'appointment_updated') {
+      // Always go to appointment list so admin can review pending appointments
+      navigate('/admin/clientformstatus');
+    } else if (type === 'review_pending' && referenceId) {
+      navigate(`/admin/recommendation/${referenceId}`, {
+        state: { showClientInfo: true, isViewingExistingReview: true },
+      });
+    } else if (referenceId) {
+      navigate(`/admin/recommendation/${referenceId}`, {
+        state: { showClientInfo: true, isViewingExistingReview: true },
+      });
+    }
   };
 
   return (

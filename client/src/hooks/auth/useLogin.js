@@ -249,7 +249,7 @@ export const useLogin = () => {
         const credential = GoogleAuthProvider.credentialFromResult(result);
         const accessToken = credential?.accessToken;
         if (accessToken) {
-          localStorage.setItem('googleAccessToken', accessToken);
+          sessionStorage.setItem('googleAccessToken', accessToken);
         }
       } catch (credErr) {
         // ignore if credential extraction fails

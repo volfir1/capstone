@@ -115,8 +115,7 @@ export default function Appointment() {
     { value: "13:00", label: "1:00 PM" }, { value: "13:30", label: "1:30 PM" },
     { value: "14:00", label: "2:00 PM" }, { value: "14:30", label: "2:30 PM" },
     { value: "15:00", label: "3:00 PM" }, { value: "15:30", label: "3:30 PM" },
-    { value: "16:00", label: "4:00 PM" }, { value: "16:30", label: "4:30 PM" },
-    { value: "17:00", label: "5:00 PM" },
+    { value: "16:00", label: "4:00 PM" },
   ];
 
   const form = useForm({

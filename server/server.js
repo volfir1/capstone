@@ -26,6 +26,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { setIO } from './socket.js'
+import { authenticateFirebaseToken } from './firebase/authMiddleware.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,12 +53,24 @@ const io = new SocketIOServer(httpServer, {
 setIO(io);
 
 // Track connected users by their Firebase UID for targeted events
+// SECURITY: Verify Firebase token before allowing socket registration
 io.on('connection', (socket) => {
-  // Client sends its firebaseUid after connecting
-  socket.on('register', (firebaseUid) => {
-    if (firebaseUid) {
+  socket.on('register', async (firebaseUid, token) => {
+    try {
+      // Require a valid Firebase ID token to prove identity
+      if (!token) {
+        socket.emit('auth-error', 'Token required');
+        return;
+      }
+      const decoded = await admin.auth().verifyIdToken(token);
+      if (decoded.uid !== firebaseUid) {
+        socket.emit('auth-error', 'UID mismatch');
+        return;
+      }
       socket.join(firebaseUid); // join a room named after the uid
-      console.log(`[Socket] User ${firebaseUid} registered (socket ${socket.id})`);
+      socket.firebaseUid = firebaseUid; // store for reference
+    } catch (err) {
+      socket.emit('auth-error', 'Invalid token');
     }
   });
   socket.on('disconnect', () => {
@@ -133,7 +146,7 @@ app.get("/api/test", (req, res) => {
 });
 
 // File upload route for Word documents (PDF stays as base64)
-app.post('/api/upload/document', upload.single('document'), (req, res) => {
+app.post('/api/upload/document', authenticateFirebaseToken, upload.single('document'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -160,9 +173,9 @@ app.post('/api/upload/document', upload.single('document'), (req, res) => {
 });
 
 // File delete route for Word documents
-app.delete('/api/upload/document/:filename', (req, res) => {
+app.delete('/api/upload/document/:filename', authenticateFirebaseToken, (req, res) => {
   try {
-    const filename = req.params.filename;
+    const filename = path.basename(req.params.filename); // SECURITY: strip path traversal
     const filePath = path.join(__dirname, 'uploads/documents', filename);
 
     if (fs.existsSync(filePath)) {

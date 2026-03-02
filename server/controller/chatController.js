@@ -4,6 +4,7 @@ import User from "../models/user.js";
 import Attorney from "../models/attorney.js";
 import admin from "firebase-admin";
 
+import { safeErrorMessage } from '../utils/errorResponse.js';
 // Send a message
 export const sendMessage = async (req, res) => {
   try {
@@ -100,7 +101,7 @@ export const sendMessage = async (req, res) => {
     console.error("Send message error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to send message",
+      message: safeErrorMessage(error, "Failed to send message"),
     });
   }
 };
@@ -173,7 +174,7 @@ export const getMessagesByCase = async (req, res) => {
     console.error("Get messages error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve messages",
+      message: safeErrorMessage(error, "Failed to retrieve messages"),
     });
   }
 };
@@ -239,7 +240,7 @@ export const markMessagesAsRead = async (req, res) => {
     console.error("Mark messages as read error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to mark messages as read",
+      message: safeErrorMessage(error, "Failed to mark messages as read"),
     });
   }
 };
@@ -325,7 +326,7 @@ export const getChatList = async (req, res) => {
     console.error("Get chat list error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve chat list",
+      message: safeErrorMessage(error, "Failed to retrieve chat list"),
     });
   }
 };
@@ -386,7 +387,7 @@ export const getAssignedAttorney = async (req, res) => {
     console.error("Get assigned attorney error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve attorney information",
+      message: safeErrorMessage(error, "Failed to retrieve attorney information"),
     });
   }
 };

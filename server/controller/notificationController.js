@@ -3,6 +3,7 @@ import User from '../models/user.js';
 import Attorney from '../models/attorney.js';
 import admin from 'firebase-admin';
 
+import { safeErrorMessage } from '../utils/errorResponse.js';
 // ── Helper: resolve firebaseUid from the Authorization header ──
 const getUidFromHeader = async (req) => {
   const authHeader = req.headers.authorization;
@@ -53,7 +54,7 @@ export const getNotifications = async (req, res) => {
     });
   } catch (error) {
     console.error('Get notifications error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -66,7 +67,7 @@ export const getUnreadCount = async (req, res) => {
     const unreadCount = await Notification.countDocuments({ recipientId: uid, read: false });
     res.json({ success: true, unreadCount });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -85,7 +86,7 @@ export const markAsRead = async (req, res) => {
     if (!notification) return res.status(404).json({ success: false, message: 'Notification not found' });
     res.json({ success: true, data: notification });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -98,7 +99,7 @@ export const markAllAsRead = async (req, res) => {
     await Notification.updateMany({ recipientId: uid, read: false }, { read: true });
     res.json({ success: true, message: 'All notifications marked as read' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -111,7 +112,7 @@ export const deleteAllNotifications = async (req, res) => {
     await Notification.deleteMany({ recipientId: uid });
     res.json({ success: true, message: 'All notifications deleted' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };
 
@@ -125,6 +126,6 @@ export const deleteNotification = async (req, res) => {
     if (!deleted) return res.status(404).json({ success: false, message: 'Notification not found' });
     res.json({ success: true, message: 'Notification deleted' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: safeErrorMessage(error)});
   }
 };

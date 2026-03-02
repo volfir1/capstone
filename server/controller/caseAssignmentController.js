@@ -4,6 +4,7 @@ import User from '../models/user.js'
 import admin from 'firebase-admin'
 import { createNotification } from './notificationController.js'
 import { getIO } from '../socket.js'
+import { safeErrorMessage } from '../utils/errorResponse.js'
 
 // ── Helper: resolve user from Firebase token ──
 const getUserFromToken = async (req) => {
@@ -93,7 +94,7 @@ export const createCaseAssignment = async (req, res) => {
     res.status(201).json({ success: true, data: assignment })
   } catch (err) {
     console.error('createCaseAssignment error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -113,7 +114,7 @@ export const getMyAssignments = async (req, res) => {
     res.json({ success: true, data: assignments })
   } catch (err) {
     console.error('getMyAssignments error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -129,7 +130,7 @@ export const getAssignedByMe = async (req, res) => {
     res.json({ success: true, data: assignments })
   } catch (err) {
     console.error('getAssignedByMe error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -180,7 +181,7 @@ export const completeCaseAssignment = async (req, res) => {
     res.json({ success: true, data: assignment })
   } catch (err) {
     console.error('completeCaseAssignment error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -206,7 +207,7 @@ export const undoCaseAssignment = async (req, res) => {
     res.json({ success: true, data: assignment })
   } catch (err) {
     console.error('undoCaseAssignment error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -228,7 +229,7 @@ export const deleteCaseAssignment = async (req, res) => {
     res.json({ success: true, message: 'Assignment deleted' })
   } catch (err) {
     console.error('deleteCaseAssignment error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -243,6 +244,6 @@ export const getAdminStaff = async (req, res) => {
     res.json({ success: true, data: users })
   } catch (err) {
     console.error('getAdminStaff error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }

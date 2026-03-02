@@ -1,5 +1,6 @@
 import CaseRecord from '../models/caserecord.js'
 import Finalize from '../models/finalize.js'
+import { safeErrorMessage } from '../utils/errorResponse.js'
 
 // Create or Update Case Record
 export const upsertCaseRecord = async (req, res) => {
@@ -64,7 +65,7 @@ export const upsertCaseRecord = async (req, res) => {
     })
   } catch (err) {
     console.error('upsertCaseRecord error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -83,7 +84,7 @@ export const getCaseRecord = async (req, res) => {
       return res.json(caseRecord)
   } catch (err) {
     console.error('getCaseRecord error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -119,7 +120,7 @@ export const listCaseRecords = async (req, res) => {
     })
   } catch (err) {
     console.error('listCaseRecords error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -161,7 +162,7 @@ export const updateCaseRecord = async (req, res) => {
     })
   } catch (err) {
     console.error('updateCaseRecord error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -189,7 +190,7 @@ export const deleteCaseRecord = async (req, res) => {
     })
   } catch (err) {
     console.error('deleteCaseRecord error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -208,7 +209,7 @@ export const getBulkCaseRecordsByFinalizeIds = async (req, res) => {
     return res.json({ success: true, data: resultMap })
   } catch (err) {
     console.error('getBulkCaseRecordsByFinalizeIds error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }
 
@@ -227,6 +228,6 @@ export const getCaseRecordByFinalizeId = async (req, res) => {
       return res.json(caseRecord)
   } catch (err) {
     console.error('getCaseRecordByFinalizeId error', err)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: safeErrorMessage(err)})
   }
 }

@@ -1,13 +1,17 @@
 import express from 'express';
 import { getAuthUrl, oauthCallback, createEvent, createEventAndRecord, rescheduleEvent } from '../controller/googleController.js';
+import { authenticateFirebaseToken } from '../firebase/authMiddleware.js';
 
 const router = express.Router();
 
+// ── Public: Google OAuth2 callback (GET) ──
+router.get('/callback', oauthCallback);
+
+// ── Protected routes (auth required) ──
+router.use(authenticateFirebaseToken);
+
 // Request an auth URL for the current user (body: { firebaseUid })
 router.post('/connect', getAuthUrl);
-
-// Google OAuth2 callback (GET)
-router.get('/callback', oauthCallback);
 
 // Create event for user (body: { firebaseUid, event })
 // Create event for user (body: { firebaseUid, event })

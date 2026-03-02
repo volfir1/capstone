@@ -118,6 +118,7 @@ export function useNotifications(navigate) {
           }
           const canNavigate = navigate && data.referenceId;
           const isCaseAssignment = data.type === 'case_assigned';
+          const isAppointment = data.type === 'appointment_created' || data.type === 'appointment_updated';
           mantineNotifications.show({
             title: data.title,
             message: canNavigate
@@ -128,6 +129,8 @@ export function useNotifications(navigate) {
                       mantineNotifications.clean();
                       if (isCaseAssignment) {
                         navigate('/admin/assigned-cases');
+                      } else if (isAppointment) {
+                        navigate('/admin/clientformstatus');
                       } else {
                         navigate(`/admin/recommendation/${data.referenceId}`, {
                           state: { showClientInfo: true, isViewingExistingReview: true },
@@ -140,11 +143,11 @@ export function useNotifications(navigate) {
                   createElement(
                     'div',
                     { style: { fontSize: 11, color: '#886b30', fontWeight: 600, marginTop: 6 } },
-                    isCaseAssignment ? 'Click to view assignments →' : 'Click to view →'
+                    isCaseAssignment ? 'Click to view assignments →' : isAppointment ? 'Click to view appointment →' : 'Click to view →'
                   )
                 )
               : data.message || '',
-            color: isCaseAssignment ? 'blue' : 'orange',
+            color: isCaseAssignment ? 'blue' : isAppointment ? 'green' : 'orange',
             autoClose: 6000,
             style: canNavigate ? { cursor: 'pointer' } : undefined,
           });

@@ -18,8 +18,8 @@ const userSchema = new mongoose.Schema({
   // Google Calendar connection info (optional)
   google: {
     connected: { type: Boolean, default: false },
-    refreshToken: { type: String, default: '' },
-    accessToken: { type: String, default: '' },
+    refreshToken: { type: String, default: '', select: false },
+    accessToken: { type: String, default: '', select: false },
     tokenExpiry: { type: Date },
     primaryCalendarId: { type: String, default: 'primary' },
   },

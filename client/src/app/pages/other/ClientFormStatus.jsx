@@ -350,22 +350,37 @@ export default function StaffAppointmentManager() {
       const title = appointment.clientName ? `${appointment.clientName} - Interview` : 'Client Interview';
       const description = appointment.purpose || `Case ID: ${appointment.id}`;
       const dateObj = new Date(appointment.rawAppointedDate);
-      const rawTime = appointment.fullData?.appointmentTime || '';
+      // Get raw 24h time from the DB document (e.g. "16:30")
+      let rawTime = appointment.fullData?.appointmentTime || '';
+      // Fallback: parse the display-formatted time (e.g. "4:30 PM") back to 24h
+      if (!rawTime && appointment.appointmentTime) {
+        const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(appointment.appointmentTime.trim());
+        if (m) {
+          let h = parseInt(m[1], 10);
+          const period = m[3].toUpperCase();
+          if (period === 'PM' && h < 12) h += 12;
+          if (period === 'AM' && h === 12) h = 0;
+          rawTime = `${String(h).padStart(2, '0')}:${m[2]}`;
+        }
+      }
       const year = dateObj.getFullYear();
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
       const day = String(dateObj.getDate()).padStart(2, '0');
       let startHour = 9, startMin = 0;
       if (rawTime) {
         const parts = rawTime.split(':');
-        startHour = parseInt(parts[0]) || 9;
-        startMin = parseInt(parts[1]) || 0;
+        startHour = parseInt(parts[0], 10);
+        startMin = parseInt(parts[1], 10) || 0;
+        if (Number.isNaN(startHour)) startHour = 9;
       }
       const startDateTime = `${year}-${month}-${day}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
       const endHour = startHour + 1;
       const endDateTime = `${year}-${month}-${day}T${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
+      const solaLocation = 'SOLA - Sebastinian Office of Legal Aid, San Sebastian College - Recoletos Manila';
       const googleEvent = {
         summary: title,
         description,
+        location: solaLocation,
         start: { dateTime: startDateTime, timeZone: 'Asia/Manila' },
         end: { dateTime: endDateTime, timeZone: 'Asia/Manila' },
       };
@@ -378,7 +393,7 @@ export default function StaffAppointmentManager() {
           description,
           eventDate: appointment.rawAppointedDate,
           eventType: 'appointment',
-          location: appointment.location,
+          location: solaLocation,
           clientName: appointment.clientName,
           status: 'scheduled',
         }

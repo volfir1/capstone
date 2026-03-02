@@ -104,7 +104,7 @@ const handleEmailSignup = async (data) => {
         try {
           const credential = GoogleAuthProvider.credentialFromResult(result);
           const accessToken = credential?.accessToken;
-          if (accessToken) localStorage.setItem('googleAccessToken', accessToken);
+          if (accessToken) sessionStorage.setItem('googleAccessToken', accessToken);
         } catch (credErr) {
           console.warn('Failed to extract Google credential on signup', credErr);
         }
