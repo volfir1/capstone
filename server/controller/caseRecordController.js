@@ -2,6 +2,7 @@ import CaseRecord from '../models/caserecord.js'
 import CaseAssignment from '../models/caseAssignment.js'
 import Finalize from '../models/finalize.js'
 import { safeErrorMessage } from '../utils/errorResponse.js'
+import { getIO } from '../socket.js'
 
 // Create or Update Case Record
 export const upsertCaseRecord = async (req, res) => {
@@ -59,10 +60,22 @@ export const upsertCaseRecord = async (req, res) => {
 
     // Also update caseTitle in any existing case assignments for this finalize record
     if (payload?.title || payload?.caseTitle) {
+      const affected = await CaseAssignment.find({ finalizeId: finalizeRecord._id }).select('assignedTo assignedBy').lean()
       await CaseAssignment.updateMany(
         { finalizeId: finalizeRecord._id },
         { caseTitle: payload.title || payload.caseTitle }
       )
+      // Notify all involved users so their lists auto-refresh
+      const io = getIO()
+      if (io && affected.length) {
+        const uids = new Set()
+        affected.forEach(a => {
+          if (a.assignedTo?.firebaseUid) uids.add(a.assignedTo.firebaseUid)
+          else if (a.assignedTo?.id) uids.add(a.assignedTo.id)
+          if (a.assignedBy?.id) uids.add(a.assignedBy.id)
+        })
+        uids.forEach(uid => io.to(uid).emit('assignment-updated'))
+      }
     }
 
     console.log('Case record saved:', { finalizeId, recordId: caseRecord._id })

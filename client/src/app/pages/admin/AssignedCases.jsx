@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Group,
@@ -50,6 +50,7 @@ import { useAuth } from '@/context/authContext';
 import apiClient from '@config/api/apiClient';
 import { CaseInformationSection } from '../other/CaseInformationSection';
 import AssignedCasesSkeleton from '@/components/skeleton/AssignedCasesSkeleton';
+import { getSocket } from '@config/socket';
 import {
   PRIMARY_GOLD,
   PRIMARY_BROWN,
@@ -452,8 +453,8 @@ export default function AssignedCases() {
   const isAssigner = ['director', 'secretary'].includes(userData?.role);
 
   // ── Fetch data ──
-  const fetchAll = async () => {
-    setLoading(true);
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [myRes, ...assignedRes] = await Promise.all([
         apiClient.get('/case-assignments/mine'),
@@ -466,13 +467,31 @@ export default function AssignedCases() {
     } catch (err) {
       console.error('Error fetching assigned cases:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [isAssigner]);
 
+  // Initial fetch
   useEffect(() => {
     if (userData) fetchAll();
-  }, [userData]);
+  }, [userData, fetchAll]);
+
+  // ── Auto-refresh: socket listener + polling ──
+  const silentRefresh = useCallback(() => fetchAll(true), [fetchAll]);
+
+  useEffect(() => {
+    if (!userData) return;
+    const socket = getSocket();
+    socket.on('assignment-updated', silentRefresh);
+
+    // Poll every 30s as fallback in case socket misses an event
+    const interval = setInterval(silentRefresh, 30_000);
+
+    return () => {
+      socket.off('assignment-updated', silentRefresh);
+      clearInterval(interval);
+    };
+  }, [userData, silentRefresh]);
 
   // ── Mark done ──
   const handleMarkDone = async (id) => {

@@ -92,6 +92,14 @@ export const createCaseAssignment = async (req, res) => {
       })
     }
 
+    // Notify both parties to refresh their assignment lists
+    if (io) {
+      io.to(recipientId).emit('assignment-updated')
+      // Also notify the assigner (self-assign scenario)
+      const assignerUid = assigner.firebaseUid || assigner._id.toString()
+      if (assignerUid) io.to(assignerUid).emit('assignment-updated')
+    }
+
     res.status(201).json({ success: true, data: assignment })
   } catch (err) {
     console.error('createCaseAssignment error', err)
@@ -224,7 +232,13 @@ export const completeCaseAssignment = async (req, res) => {
           type: 'case_assigned',
           referenceId: assignment._id.toString(),
         })
+        // Notify assigner to refresh assignment lists
+        io.to(recipientId).emit('assignment-updated')
       }
+      // Notify the assignee too
+      const assigneeUid = assignment.assignedTo.firebaseUid || assignment.assignedTo.id
+      const io2 = getIO()
+      if (io2 && assigneeUid) io2.to(assigneeUid).emit('assignment-updated')
     }
 
     res.json({ success: true, data: assignment })
