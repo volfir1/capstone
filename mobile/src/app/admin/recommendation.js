@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,22 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import apiClient from '../../api/apiClient';
 import { useAuth } from '../../context/authContext';
+import getEnv from '../../api/environment';
+
+// Safe import — prevents "unmatched route" crash when native module isn't linked yet
+let DocumentPicker = null;
+try {
+  DocumentPicker = require('expo-document-picker');
+} catch (e) {
+  console.warn('expo-document-picker not available — rebuild required');
+}
 
 // ─── Color constants ───
 const PRIMARY_BROWN = '#7D5A3B';
@@ -45,9 +55,16 @@ export default function RecommendationForAction() {
   const normalizedRole = (userData?.role || '').toLowerCase().trim();
   const isIntern = normalizedRole === 'intern' || normalizedRole === 'secretary';
 
+  // ─── Refs ───
+  const scrollViewRef = useRef(null);
+  const legalOpinionRef = useRef(null);
+
   // ─── State ───
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [documentVersions, setDocumentVersions] = useState([]);
+  const [uploading, setUploading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [reviewId, setReviewId] = useState(null);
   const [currentReviewStage, setCurrentReviewStage] = useState(''); // '' = new review not yet submitted
@@ -72,6 +89,7 @@ export default function RecommendationForAction() {
     internAdvice: '',
     caseType: '',
     legalOpinion: '',
+    uploadedDocument: null,
   });
 
   const [actionInfo, setActionInfo] = useState({
@@ -123,6 +141,13 @@ export default function RecommendationForAction() {
             ? passedReview.content.interviewInfo.adversePartyEvidence
             : prev.adversePartyEvidence,
         }));
+        // Restore uploaded document and version history from passedReview
+        if (passedReview.content.interviewInfo.uploadedDocument) {
+          setUploadedFile(passedReview.content.interviewInfo.uploadedDocument);
+        }
+        if (passedReview.content.interviewInfo.documentVersions?.length > 0) {
+          setDocumentVersions(passedReview.content.interviewInfo.documentVersions);
+        }
       }
       if (passedReview.content.actionInfo) {
         setActionInfo(prev => ({ ...prev, ...passedReview.content.actionInfo }));
@@ -230,6 +255,14 @@ export default function RecommendationForAction() {
                 ? review.content.interviewInfo.adversePartyEvidence
                 : prev.adversePartyEvidence,
             }));
+            // Restore uploaded document if present
+            if (review.content.interviewInfo.uploadedDocument) {
+              setUploadedFile(review.content.interviewInfo.uploadedDocument);
+            }
+            // Restore version history if present
+            if (review.content.interviewInfo.documentVersions?.length > 0) {
+              setDocumentVersions(review.content.interviewInfo.documentVersions);
+            }
           }
           if (review.content.actionInfo) {
             setActionInfo(prev => ({ ...prev, ...review.content.actionInfo }));
@@ -254,6 +287,7 @@ export default function RecommendationForAction() {
     ...interviewInfo,
     clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
     adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+    documentVersions: documentVersions,
     createdByRole: interviewInfo.createdByRole || normalizedRole || null,
     createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName
       ? `${userData.firstName} ${userData.lastName}`
@@ -546,6 +580,150 @@ export default function RecommendationForAction() {
     }));
   }, []);
 
+  // ─── Resolve full document URL from relative server path ───
+  const resolveDocUrl = (relativeUrl) => {
+    if (!relativeUrl) return null;
+    if (relativeUrl.startsWith('http')) return relativeUrl;
+    // Build base URL from apiClient (strip /api suffix)
+    const { apiUrl } = getEnv();
+    const baseUrl = apiUrl.replace(/\/api\/?$/, '');
+    return `${baseUrl}${relativeUrl}`;
+  };
+
+  // ─── Document picker & upload helpers ───
+  const handlePickDocument = async () => {
+    if (!DocumentPicker) {
+      Alert.alert(
+        'Rebuild Required',
+        'Document picker requires a native rebuild. Run: npx expo run:android',
+      );
+      return;
+    }
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const file = result.assets[0];
+      setUploading(true);
+
+      // Push current document to version history before replacing
+      const currentDoc = uploadedFile || interviewInfo.uploadedDocument;
+      if (currentDoc && currentDoc.fileName) {
+        setDocumentVersions(prev => [currentDoc, ...prev]);
+      }
+
+      const formData = new FormData();
+      formData.append('document', {
+        uri: file.uri,
+        name: file.name,
+        type: file.mimeType || 'application/octet-stream',
+      });
+
+      const response = await apiClient.post('/upload/document', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (response.data?.success) {
+        const serverFile = response.data.file;
+        const uploadedDoc = {
+          fileName: serverFile.originalName || file.name,
+          fileSize: serverFile.size || file.size,
+          fileUrl: serverFile.url || serverFile.path,
+          filename: serverFile.filename,
+          mimeType: serverFile.mimetype || file.mimeType,
+          uploadedBy: userData?.firstName && userData?.lastName
+            ? `${userData.firstName} ${userData.lastName}`
+            : userData?.username || 'Unknown',
+          uploadedByRole: normalizedRole,
+          uploadedAt: new Date().toISOString(),
+        };
+        setUploadedFile(uploadedDoc);
+        setInterviewInfo(prev => ({ ...prev, uploadedDocument: uploadedDoc }));
+        Alert.alert('Success', 'Document uploaded successfully.');
+      } else {
+        Alert.alert('Error', 'Upload failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Document pick/upload error:', error);
+      Alert.alert('Error', 'Failed to upload document.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleViewDocument = (doc) => {
+    const docData = doc || uploadedFile || interviewInfo.uploadedDocument;
+    if (!docData) return;
+    const url = resolveDocUrl(docData.fileUrl);
+    if (url) {
+      Linking.openURL(url).catch(() => {
+        Alert.alert('Error', 'Cannot open document. The file may not be available on the server.');
+      });
+    } else {
+      Alert.alert('Error', 'No document URL available.');
+    }
+  };
+
+  const handleRemoveDocument = () => {
+    const docData = uploadedFile || interviewInfo.uploadedDocument;
+    Alert.alert(
+      'Remove Document',
+      'Are you sure you want to remove the current document?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            // Try to delete from server
+            if (docData?.filename) {
+              try {
+                await apiClient.delete(`/upload/document/${docData.filename}`);
+              } catch (err) {
+                console.warn('Server delete failed (may already be gone):', err.message);
+              }
+            }
+            setUploadedFile(null);
+            setInterviewInfo(prev => ({ ...prev, uploadedDocument: null }));
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRemoveVersion = (index) => {
+    const version = documentVersions[index];
+    Alert.alert(
+      'Remove Version',
+      `Remove version "${version?.fileName || 'Unknown'}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            if (version?.filename) {
+              try {
+                await apiClient.delete(`/upload/document/${version.filename}`);
+              } catch (err) {
+                console.warn('Server delete failed:', err.message);
+              }
+            }
+            setDocumentVersions(prev => prev.filter((_, i) => i !== index));
+          },
+        },
+      ],
+    );
+  };
+
   // ─── Get review stage display info ───
   const getStageInfo = () => {
     switch (currentReviewStage) {
@@ -784,11 +962,114 @@ export default function RecommendationForAction() {
           })}
         </View>
 
+        {/* Conditional File Upload for Legal Document Drafting */}
+        {interviewInfo.caseType === 'legal-document' && (
+          <View style={styles.uploadSection}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name="document-attach-outline" size={20} color={PRIMARY_BROWN} />
+              <Text style={styles.sectionTitle}>Legal Document Management</Text>
+            </View>
+            <Text style={{ fontSize: 12, color: MUTED_OLIVE, marginBottom: 12 }}>
+              Upload a PDF or Word document (.pdf, .doc, .docx)
+            </Text>
+
+            {/* Upload Button — available at all stages so any reviewer can upload a version */}
+            <TouchableOpacity
+              style={[styles.uploadButton, uploading && styles.buttonDisabled]}
+              onPress={handlePickDocument}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator size="small" color={PRIMARY_BROWN} />
+              ) : (
+                <>
+                  <Ionicons name="cloud-upload-outline" size={20} color={PRIMARY_BROWN} />
+                  <Text style={styles.uploadButtonText}>
+                    {uploadedFile || interviewInfo.uploadedDocument ? 'Upload New Version' : 'Upload Document'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Current Document Display */}
+            {(uploadedFile || interviewInfo.uploadedDocument) && (() => {
+              const doc = uploadedFile || interviewInfo.uploadedDocument;
+              return (
+                <View style={styles.uploadedFileCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                    <Ionicons name="document-text-outline" size={24} color={PRIMARY_BROWN} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: CHARCOAL }} numberOfLines={1}>
+                        {doc.fileName || 'Document'}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: MUTED_OLIVE }}>
+                        {((doc.fileSize || 0) / 1024).toFixed(2)} KB
+                        {doc.uploadedAt ? ` • ${new Date(doc.uploadedAt).toLocaleDateString()}` : ''}
+                      </Text>
+                      {doc.uploadedBy && (
+                        <Text style={{ fontSize: 11, color: MUTED_OLIVE }}>
+                          By: {doc.uploadedBy} ({doc.uploadedByRole || 'unknown'})
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity onPress={() => handleViewDocument(doc)} style={styles.docActionBtn}>
+                      <Ionicons name="eye-outline" size={18} color="#2563EB" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleRemoveDocument} style={styles.docActionBtn}>
+                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })()}
+
+            {/* Version History */}
+            {documentVersions.length > 0 && (
+              <View style={styles.versionSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <Ionicons name="time-outline" size={16} color={PRIMARY_BROWN} />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY_BROWN }}>
+                    Version History ({documentVersions.length})
+                  </Text>
+                </View>
+                {documentVersions.map((version, index) => (
+                  <View key={`version-${index}`} style={styles.versionCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={styles.versionDot} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: CHARCOAL }} numberOfLines={1}>
+                          v{documentVersions.length - index}: {version.fileName || 'Document'}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: MUTED_OLIVE }}>
+                          {((version.fileSize || 0) / 1024).toFixed(2)} KB
+                          {version.uploadedBy ? ` • ${version.uploadedBy}` : ''}
+                          {version.uploadedAt ? ` • ${new Date(version.uploadedAt).toLocaleDateString()}` : ''}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 4 }}>
+                        <TouchableOpacity onPress={() => handleViewDocument(version)} style={styles.docActionBtnSmall}>
+                          <Ionicons name="eye-outline" size={14} color="#2563EB" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleRemoveVersion(index)} style={styles.docActionBtnSmall}>
+                          <Ionicons name="trash-outline" size={14} color="#DC2626" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.divider} />
 
         {/* Legal Opinion */}
         <Text style={styles.sectionTitle}>Legal Opinion</Text>
         <TextInput
+          ref={legalOpinionRef}
           style={[styles.input, styles.textArea, readOnly && styles.disabledInput]}
           value={interviewInfo.legalOpinion}
           onChangeText={(text) => setInterviewInfo(prev => ({ ...prev, legalOpinion: text }))}
@@ -797,6 +1078,18 @@ export default function RecommendationForAction() {
           multiline
           numberOfLines={5}
           editable={!readOnly}
+          onFocus={() => {
+            // Scroll to make the legal opinion field visible above the keyboard
+            setTimeout(() => {
+              legalOpinionRef.current?.measureLayout?.(
+                scrollViewRef.current,
+                (_x, y) => {
+                  scrollViewRef.current?.scrollTo({ y: y - 80, animated: true });
+                },
+                () => {}
+              );
+            }, 300);
+          }}
         />
       </View>
     );
@@ -1181,8 +1474,17 @@ export default function RecommendationForAction() {
         ))}
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView style={styles.formContainer} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.formContainer}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
           {currentStep === 0 ? renderInterviewStep() : renderActionStep()}
           <View style={{ height: 20 }} />
         </ScrollView>
@@ -1191,7 +1493,7 @@ export default function RecommendationForAction() {
       {/* Navigation & Action Buttons */}
       <View style={styles.buttonContainer}>
         {currentStep > 0 && (
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => setCurrentStep(0)}>
+          <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
             <Ionicons name="chevron-back" size={20} color={PRIMARY_BROWN} />
             <Text style={styles.secondaryButtonText}>Previous</Text>
           </TouchableOpacity>
@@ -1466,12 +1768,25 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
     backgroundColor: 'white',
     gap: 12,
     flexWrap: 'wrap',
+  },
+  prevButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'white',
+    borderWidth: 1.5,
+    borderColor: PRIMARY_BROWN,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    gap: 6,
   },
   primaryButton: {
     flex: 1,
@@ -1596,5 +1911,80 @@ const styles = StyleSheet.create({
     color: MUTED_OLIVE,
     fontStyle: 'italic',
     textAlign: 'center',
+  },
+
+  // Upload section
+  uploadSection: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#FFF9F0',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: PRIMARY_BROWN,
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 8,
+    backgroundColor: 'white',
+  },
+  uploadButtonText: {
+    color: PRIMARY_BROWN,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  uploadedFileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#F0F8FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#B0D4F1',
+  },
+  docActionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  docActionBtnSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  versionSection: {
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E8D9C0',
+  },
+  versionCard: {
+    backgroundColor: 'white',
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  versionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: PRIMARY_GOLD,
   },
 });
