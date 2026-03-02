@@ -40,41 +40,43 @@ import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { CaseInformationSection } from '../other/CaseInformationSection';
 
-// Normalize server file URLs so client always requests the backend, not the dev server origin
-const getServerFileUrl = (pathOrUrl) => {
-  if (!pathOrUrl) return null;
+// Returns all candidate URLs for a given server path, covering dev proxy, prod, and direct localhost.
+const getAllServerFileUrls = (pathOrUrl) => {
+  if (!pathOrUrl) return [];
+  const results = [];
+
+  // If it's already absolute, normalise localhost → 127.0.0.1 and include as-is
   try {
-    // If it's already an absolute URL, prefer IPv4 loopback when hostname is localhost
     const parsed = new URL(pathOrUrl);
     if (parsed.protocol && parsed.host) {
       if (parsed.hostname === 'localhost') parsed.hostname = '127.0.0.1';
-      return parsed.href;
+      results.push(parsed.href);
+      return results;
     }
-  } catch (e) {
-    // not an absolute URL
+  } catch (e) { /* not absolute */ }
+
+  const rel = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+
+  // 1. Relative path — works via Vite dev-server proxy (/uploads and /api are proxied)
+  results.push(rel);
+
+  // 2. Production backend (VITE_API_URL)
+  if (import.meta.env.VITE_API_URL) {
+    const host = import.meta.env.VITE_API_URL.replace(/\/$/, '');
+    results.push(`${host}${rel}`);
   }
 
-  // In dev mode Vite proxies /uploads and /api to the local backend.
-  // Return a relative path so the browser hits the Vite dev server proxy,
-  // which avoids CORS / X-Frame-Options issues from the production URL.
-  if (import.meta.env.DEV) {
-    if (pathOrUrl.startsWith('/')) return pathOrUrl;
-    return `/${pathOrUrl}`;
-  }
+  // 3. Direct local backend (dev without proxy, or fallback)
+  results.push(`http://127.0.0.1:5000${rel}`);
+  results.push(`http://localhost:5000${rel}`);
 
-  let apiHost = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : 'http://127.0.0.1:5000';
-  try {
-    const parsed = new URL(apiHost);
-    if (parsed.hostname === 'localhost') {
-      parsed.hostname = '127.0.0.1';
-      apiHost = parsed.href.replace(/\/$/, '');
-    }
-  } catch (e) {
-    // ignore
-  }
+  return results;
+};
 
-  if (pathOrUrl.startsWith('/')) return `${apiHost}${pathOrUrl}`;
-  return `${apiHost}/${pathOrUrl}`;
+// Primary URL helper — returns relative in dev (Vite proxy), absolute in prod.
+const getServerFileUrl = (pathOrUrl) => {
+  const all = getAllServerFileUrls(pathOrUrl);
+  return all[0] ?? null;
 };
 
 const APPOINTMENT_STATUS_OPTIONS = [
@@ -4206,43 +4208,34 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
 
   const tried = new Set();
   const candidates = [];
+  const push = (...urls) => urls.forEach(u => u && candidates.push(u));
+
   if (typeof rawUrl === 'string') {
-    if (rawUrl.startsWith('/')) candidates.push(getServerFileUrl(rawUrl));
-    candidates.push(rawUrl);
+    // 1. Original URL as-is (covers absolute prod URLs stored in DB)
+    push(rawUrl);
+
+    // 2. localhost → 127.0.0.1 swap
     try {
       const u = new URL(rawUrl);
-      if (u.hostname === 'localhost') {
-        u.hostname = '127.0.0.1';
-        candidates.push(u.href);
-      }
+      if (u.hostname === 'localhost') { u.hostname = '127.0.0.1'; push(u.href); }
     } catch (e) { }
-    try {
-      const decoded = decodeURIComponent(rawUrl);
-      if (decoded !== rawUrl) candidates.push(decoded);
-    } catch (e) { }
-    try {
-      const encoded = encodeURI(rawUrl);
-      if (encoded !== rawUrl) candidates.push(encoded);
-    } catch (e) { }
-    // Try filename-based candidates
+
+    // 3. All environment variants of the path (relative, VITE_API_URL, direct 127.0.0.1)
+    push(...getAllServerFileUrls(rawUrl));
+
+    // 4. Decoded / encoded variants
+    try { const d = decodeURIComponent(rawUrl); if (d !== rawUrl) push(d, ...getAllServerFileUrls(d)); } catch (e) { }
+    try { const e2 = encodeURI(rawUrl); if (e2 !== rawUrl) push(e2); } catch (e) { }
+
+    // 5. Filename-only variants covering all environments
     try {
       const last = rawUrl.split('/').pop();
       if (last) {
         const decodedLast = decodeURIComponent(last);
-        candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(decodedLast)}`));
-        candidates.push(getServerFileUrl(`/uploads/documents/${decodedLast}`));
-        // Always add direct 127.0.0.1 fallbacks in case Vite proxy or prod URL fails
-        candidates.push(`http://127.0.0.1:5000/uploads/documents/${encodeURIComponent(decodedLast)}`);
-        candidates.push(`http://127.0.0.1:5000/uploads/documents/${decodedLast}`);
-        candidates.push(`http://localhost:5000/uploads/documents/${encodeURIComponent(decodedLast)}`);
+        push(...getAllServerFileUrls(`/uploads/documents/${encodeURIComponent(decodedLast)}`));
+        push(...getAllServerFileUrls(`/uploads/documents/${decodedLast}`));
       }
     } catch (e) { }
-    candidates.push(getServerFileUrl(rawUrl));
-    // Direct backend fallbacks regardless of VITE_API_URL
-    if (typeof rawUrl === 'string' && rawUrl.startsWith('/')) {
-      candidates.push(`http://127.0.0.1:5000${rawUrl}`);
-      candidates.push(`http://localhost:5000${rawUrl}`);
-    }
   }
 
   console.debug('fetchArrayBufferFromUrl candidates:', candidates);
@@ -4277,14 +4270,13 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
   try {
     const last = typeof rawUrl === 'string' ? rawUrl.split('/').pop() : '';
     if (last) {
-      // In dev use relative path (Vite proxy); in prod use VITE_API_URL; always also try 127.0.0.1 direct
-      const resolveHosts = import.meta.env.DEV
-        ? ['', 'http://127.0.0.1:5000', 'http://localhost:5000']
-        : [
-            import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '',
-            'http://127.0.0.1:5000',
-            'http://localhost:5000',
-          ];
+      // Try all environments for the resolve endpoint
+      const resolveHosts = [
+        '',  // relative (Vite proxy in dev)
+        import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : null,
+        'http://127.0.0.1:5000',
+        'http://localhost:5000',
+      ].filter(Boolean);
       for (const host of resolveHosts) {
         try {
           const resolveUrl = `${host}/api/uploads/resolve?path=${encodeURIComponent(decodeURIComponent(last))}`;
@@ -4293,16 +4285,8 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
             const resolveJson = await resolveResp.json();
             if (resolveJson.found && resolveJson.url) {
               console.info('fetchArrayBufferFromUrl: resolved via fuzzy match ->', resolveJson.url, 'from', host || '(relative)');
-              // Build candidate list: relative (dev proxy) + direct 127.0.0.1
-              const resolvedCandidates = [
-                import.meta.env.DEV ? resolveJson.url : null,
-                `http://127.0.0.1:5000${resolveJson.url}`,
-                `http://localhost:5000${resolveJson.url}`,
-                resolveJson.url.startsWith('/') && !import.meta.env.DEV && import.meta.env.VITE_API_URL
-                  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}${resolveJson.url}`
-                  : null,
-              ].filter(Boolean);
-              for (const rc of resolvedCandidates) {
+              // Try all environment variants of the resolved URL
+              for (const rc of getAllServerFileUrls(resolveJson.url)) {
                 const ab = await tryFetch(rc);
                 if (ab) return ab;
               }
