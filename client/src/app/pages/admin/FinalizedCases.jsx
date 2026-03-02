@@ -461,6 +461,13 @@ export default function FinalizedCases() {
     convertWordIfNeeded();
   }, [state.documentViewerModalOpened, state.currentViewingDoc]);
 
+  // Revoke PDF blob URL when replaced or modal closes to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (state.pdfBlobUrl) URL.revokeObjectURL(state.pdfBlobUrl);
+    };
+  }, [state.pdfBlobUrl]);
+
   const formatDate = (value) => {
     if (!value) return '-';
     const parsed = new Date(value);
@@ -550,7 +557,6 @@ export default function FinalizedCases() {
     presidingOfficer: details?.presidingOfficer || '',
     adverseParty: details?.adverseParty || '',
     adversePartyAddress: details?.adversePartyAddress || '',
-    adversePartyPhone: details?.adversePartyPhone || '',
     adversePartyCounsel: details?.adversePartyCounsel || '',
     adversePartyCounselAddress: details?.adversePartyCounselAddress || '',
     adversePartyCounselPhone: details?.adversePartyCounselPhone || '',
@@ -1771,16 +1777,18 @@ export default function FinalizedCases() {
       docToView.fileName?.endsWith('.docx') ||
       docToView.fileName?.endsWith('.doc');
 
-    // If it's a PDF, fetch as blob to bypass X-Frame-Options restriction
+    // If it's a PDF, fetch as blob to bypass X-Frame-Options / CORS restrictions
     const isPdf = docToView.fileType?.includes('pdf') || docToView.fileName?.endsWith('.pdf');
     if (isPdf) {
       dispatch({ type: 'SET_PDF_LOADING', payload: true });
       try {
         const rawUrl = docToView.fileUrl || docToView.fileData;
-        const arrayBuffer = await fetchArrayBufferFromUrl(rawUrl);
-        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
-        const blobUrl = URL.createObjectURL(blob);
-        dispatch({ type: 'SET_PDF_BLOB_URL', payload: blobUrl });
+        if (rawUrl) {
+          const arrayBuffer = await fetchArrayBufferFromUrl(rawUrl);
+          const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+          const blobUrl = URL.createObjectURL(blob);
+          dispatch({ type: 'SET_PDF_BLOB_URL', payload: blobUrl });
+        }
       } catch (error) {
         console.error('Error loading PDF for preview:', error);
         dispatch({ type: 'SET_PDF_BLOB_URL', payload: null });
@@ -2707,7 +2715,7 @@ export default function FinalizedCases() {
 
               <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
                 {state.currentViewingDoc.fileType?.includes('pdf') || state.currentViewingDoc.fileName?.endsWith('.pdf') ? (
-                  // PDF - fetch as blob to bypass X-Frame-Options
+                  // PDF - fetched as blob to bypass X-Frame-Options / CORS
                   state.pdfLoading ? (
                     <Box style={{ textAlign: 'center', padding: '40px' }}>
                       <IconFileText size={64} color={PRIMARY_BROWN} />
@@ -3239,14 +3247,6 @@ export default function FinalizedCases() {
                       <TextInput size="sm" value={state.appointmentForm.adversePartyAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyAddress: e.target.value } })} />
                     ) : (
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyAddress || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Phone Number</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput size="sm" value={state.appointmentForm.adversePartyPhone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyPhone: e.target.value } })} />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyPhone || 'N/A'}</Text>
                     )}
                   </Grid.Col>
                   <Grid.Col span={12}>
@@ -3895,7 +3895,6 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const presidingOfficerPhone = txt(a.courtPhoneNumber || a.presidingOfficerPhone || a.phoneNumber);
   const adverseParties = txt(a.adverseParty || a.adverseParties);
   const adversePartiesAddress = txt(a.adversePartyAddress || a.adversePartiesAddress);
-  const adversePartiesPhone = txt(a.adversePartyPhone || a.adversePartiesPhone);
   const adversePartiesCounsel = txt(a.adversePartyCounsel || a.adversePartiesCounsel);
   const adversePartiesCounselAddress = txt(a.adversePartyCounselAddress || a.adversePartiesCounselAddress);
   const adversePartiesCounselPhone = txt(a.adversePartyCounselPhone || a.adversePartiesCounselPhone);
@@ -4153,9 +4152,6 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 
   checkPageBreak();
   y += field({ labelText: "Adverse Party(ies) Address:", value: adversePartiesAddress, x: leftX, y, labelW: 52, lineW: pageW - margin * 2 - 54 });
-
-  checkPageBreak();
-  y += field({ labelText: "Adverse Party(ies) Phone Number:", value: adversePartiesPhone, x: leftX, y, labelW: 60, lineW: pageW - margin * 2 - 62 });
 
   checkPageBreak();
   y += field({ labelText: "Adverse Party(ies) Counsel:", value: adversePartiesCounsel, x: leftX, y, labelW: 50, lineW: pageW - margin * 2 - 52 });
