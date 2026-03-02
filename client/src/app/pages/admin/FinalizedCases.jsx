@@ -461,15 +461,6 @@ export default function FinalizedCases() {
     convertWordIfNeeded();
   }, [state.documentViewerModalOpened, state.currentViewingDoc]);
 
-  // Revoke PDF blob URL when it's replaced or modal closes to avoid memory leaks
-  useEffect(() => {
-    return () => {
-      if (state.pdfBlobUrl) {
-        URL.revokeObjectURL(state.pdfBlobUrl);
-      }
-    };
-  }, [state.pdfBlobUrl]);
-
   const formatDate = (value) => {
     if (!value) return '-';
     const parsed = new Date(value);
@@ -4230,52 +4221,34 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
 
   console.debug('fetchArrayBufferFromUrl candidates:', candidates);
 
-  const tryFetch = async (url) => {
-    if (!url || tried.has(url)) return null;
-    tried.add(url);
+  for (const c of candidates) {
+    if (!c || tried.has(c)) continue;
+    tried.add(c);
     try {
-      const resp = await fetch(url);
+      console.debug('Attempting fetch for:', c);
+      const resp = await fetch(c);
+      console.debug('Response status for', c, resp.status);
       if (!resp.ok) {
-        console.warn('Fetch not ok for', url, resp.status, resp.statusText);
-        return null;
+        console.warn('Fetch not ok for', c, resp.status, resp.statusText);
+        continue;
       }
       const contentType = resp.headers.get('content-type') || '';
       if (contentType.includes('text/html')) {
-        console.warn('Skipped HTML response for', url);
-        return null;
-      }
-      return await resp.arrayBuffer();
-    } catch (err) {
-      console.warn('Error fetching candidate', url, err);
-      return null;
-    }
-  };
-
-  for (const c of candidates) {
-    const ab = await tryFetch(c);
-    if (ab) return ab;
-  }
-
-  // Last resort: ask the server to fuzzy-match the filename against files on disk
-  try {
-    const last = typeof rawUrl === 'string' ? rawUrl.split('/').pop() : '';
-    if (last) {
-      const apiHost = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : 'http://127.0.0.1:5000';
-      const resolveUrl = `${apiHost}/api/uploads/resolve?path=${encodeURIComponent(decodeURIComponent(last))}`;
-      const resolveResp = await fetch(resolveUrl);
-      if (resolveResp.ok) {
-        const resolveJson = await resolveResp.json();
-        if (resolveJson.found && resolveJson.url) {
-          console.info('fetchArrayBufferFromUrl: resolved via fuzzy match ->', resolveJson.url);
-          const resolved = getServerFileUrl(resolveJson.url);
-          const ab = await tryFetch(resolved);
-          if (ab) return ab;
+        try {
+          const text = await resp.text();
+          console.warn('Skipped HTML response for', c, 'snippet:', text.slice(0, 300));
+        } catch (e) {
+          console.warn('Skipped HTML response for', c);
         }
+        continue;
       }
+      const ab = await resp.arrayBuffer();
+      console.debug('Successfully fetched binary from', c);
+      return ab;
+    } catch (err) {
+      console.warn('Error fetching candidate', c, err);
+      continue;
     }
-  } catch (e) {
-    console.warn('fetchArrayBufferFromUrl: resolve endpoint failed', e);
   }
-
   throw new Error('Failed to fetch binary file from provided URL(s)');
 };
