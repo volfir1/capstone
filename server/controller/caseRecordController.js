@@ -1,4 +1,5 @@
 import CaseRecord from '../models/caserecord.js'
+import CaseAssignment from '../models/caseAssignment.js'
 import Finalize from '../models/finalize.js'
 import { safeErrorMessage } from '../utils/errorResponse.js'
 
@@ -55,6 +56,14 @@ export const upsertCaseRecord = async (req, res) => {
     }
     finalizeRecord.markModified('content') // Explicitly mark as modified for Mixed type
     await finalizeRecord.save()
+
+    // Also update caseTitle in any existing case assignments for this finalize record
+    if (payload?.title || payload?.caseTitle) {
+      await CaseAssignment.updateMany(
+        { finalizeId: finalizeRecord._id },
+        { caseTitle: payload.title || payload.caseTitle }
+      )
+    }
 
     console.log('Case record saved:', { finalizeId, recordId: caseRecord._id })
 

@@ -52,6 +52,7 @@ export const createCaseAssignment = async (req, res) => {
       caseTitle: finalize.caseTitle,
       clientName: finalize.clientName,
       category: finalize.category,
+      caseType: finalize.content?.interviewInfo?.caseType || '',
       assignedTo: {
         id: assignee._id.toString(),
         name: `${assignee.firstName || ''} ${assignee.lastName || ''}`.trim() || assignee.email,
@@ -111,6 +112,30 @@ export const getMyAssignments = async (req, res) => {
     if (firebaseUid) query.$or.push({ 'assignedTo.firebaseUid': firebaseUid })
 
     const assignments = await CaseAssignment.find(query).sort({ createdAt: -1 }).lean()
+
+    // Backfill caseType for old assignments that don't have it
+    const needBackfill = assignments.filter(a => !a.caseType)
+    if (needBackfill.length > 0) {
+      const finalizeIds = [...new Set(needBackfill.map(a => a.finalizeId).filter(Boolean))]
+      if (finalizeIds.length > 0) {
+        const finalizes = await Finalize.find({ _id: { $in: finalizeIds } }).select('content.interviewInfo.caseType').lean()
+        const typeMap = {}
+        for (const f of finalizes) {
+          typeMap[f._id.toString()] = f.content?.interviewInfo?.caseType || ''
+        }
+        for (const a of assignments) {
+          if (!a.caseType && a.finalizeId) {
+            a.caseType = typeMap[a.finalizeId.toString()] || ''
+          }
+        }
+        // Persist so we don't re-query next time
+        const bulkOps = needBackfill
+          .filter(a => a.caseType)
+          .map(a => ({ updateOne: { filter: { _id: a._id }, update: { caseType: a.caseType } } }))
+        if (bulkOps.length > 0) CaseAssignment.bulkWrite(bulkOps).catch(() => {})
+      }
+    }
+
     res.json({ success: true, data: assignments })
   } catch (err) {
     console.error('getMyAssignments error', err)
@@ -127,6 +152,30 @@ export const getAssignedByMe = async (req, res) => {
     const assignments = await CaseAssignment.find({ 'assignedBy.id': user._id.toString() })
       .sort({ createdAt: -1 })
       .lean()
+
+    // Backfill caseType for old assignments that don't have it
+    const needBackfill = assignments.filter(a => !a.caseType)
+    if (needBackfill.length > 0) {
+      const finalizeIds = [...new Set(needBackfill.map(a => a.finalizeId).filter(Boolean))]
+      if (finalizeIds.length > 0) {
+        const finalizes = await Finalize.find({ _id: { $in: finalizeIds } }).select('content.interviewInfo.caseType').lean()
+        const typeMap = {}
+        for (const f of finalizes) {
+          typeMap[f._id.toString()] = f.content?.interviewInfo?.caseType || ''
+        }
+        for (const a of assignments) {
+          if (!a.caseType && a.finalizeId) {
+            a.caseType = typeMap[a.finalizeId.toString()] || ''
+          }
+        }
+        // Persist so we don't re-query next time
+        const bulkOps = needBackfill
+          .filter(a => a.caseType)
+          .map(a => ({ updateOne: { filter: { _id: a._id }, update: { caseType: a.caseType } } }))
+        if (bulkOps.length > 0) CaseAssignment.bulkWrite(bulkOps).catch(() => {})
+      }
+    }
+
     res.json({ success: true, data: assignments })
   } catch (err) {
     console.error('getAssignedByMe error', err)

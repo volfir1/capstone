@@ -78,6 +78,26 @@ const APPOINTMENT_STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
+const CASE_TYPE_LABELS = {
+  'court-representation': 'Court Representation',
+  'legal-advice': 'Legal Advice',
+  'legal-document': 'Drafting of Legal Documents',
+};
+
+const CASE_TYPE_SHORT = {
+  'court-representation': { letter: 'C', color: 'blue', label: 'Court Representation' },
+  'legal-advice':         { letter: 'A', color: 'green', label: 'Legal Advice' },
+  'legal-document':       { letter: 'D', color: 'orange', label: 'Drafting of Legal Documents' },
+};
+
+const getCaseDisplayTitle = (a) => {
+  if (isCourtCase(a)) return a.caseTitle || 'Untitled';
+  if (a.caseType === 'legal-advice') return 'Legal Advice';
+  if (a.caseType === 'legal-document') return 'Drafting';
+  return a.caseTitle || 'Untitled';
+};
+const isCourtCase = (a) => a.caseType !== 'legal-advice' && a.caseType !== 'legal-document';
+
 const toInputDate = (value) => {
   if (!value) return '';
   const parsed = new Date(value);
@@ -167,9 +187,18 @@ function AssignmentCard({ a, showAssignedTo, showAssignedBy, onMarkDone, loading
       {/* Top: title + menu */}
       <Group justify="space-between" align="flex-start" wrap="nowrap" mb={6}>
         <Box style={{ minWidth: 0 }}>
-          <Text fw={600} size="sm" c={CHARCOAL} style={{ wordBreak: 'break-word' }}>
-            {a.caseTitle || 'Untitled'}
-          </Text>
+          <Group gap={6} wrap="nowrap" align="center">
+            {CASE_TYPE_SHORT[a.caseType] && (
+              <Tooltip label={CASE_TYPE_SHORT[a.caseType].label}>
+                <Badge size="sm" circle variant="filled" color={CASE_TYPE_SHORT[a.caseType].color} style={{ flexShrink: 0 }}>
+                  {CASE_TYPE_SHORT[a.caseType].letter}
+                </Badge>
+              </Tooltip>
+            )}
+            <Text fw={600} size="sm" c={CHARCOAL} style={{ wordBreak: 'break-word' }}>
+              {getCaseDisplayTitle(a)}
+            </Text>
+          </Group>
           <Text size="xs" c={MUTED_OLIVE} truncate mt={2}>{a.clientName || '-'}</Text>
         </Box>
         <Menu shadow="md" width={200} position="bottom-end">
@@ -182,7 +211,9 @@ function AssignmentCard({ a, showAssignedTo, showAssignedBy, onMarkDone, loading
             <Menu.Label>Actions</Menu.Label>
             <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onViewReview(a)}>View Review</Menu.Item>
             <Menu.Item leftSection={<IconReceipt size={16} />} onClick={() => onViewReceipt(a)}>Full Receipt</Menu.Item>
-            <Menu.Item leftSection={<IconFileText size={16} />} onClick={() => onViewCaseHistory(a)}>Case History</Menu.Item>
+            {isCourtCase(a) && (
+              <Menu.Item leftSection={<IconFileText size={16} />} onClick={() => onViewCaseHistory(a)}>Case History</Menu.Item>
+            )}
           </Menu.Dropdown>
         </Menu>
       </Group>
@@ -272,7 +303,16 @@ function AssignmentTable({ data, showAssignedTo, showAssignedBy, onMarkDone, loa
               {data.map((a) => (
                 <Table.Tr key={a._id}>
                   <Table.Td>
-                    <Text size="sm" fw={500} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.caseTitle || 'Untitled'}</Text>
+                    <Group gap={8} wrap="nowrap" align="center">
+                      {CASE_TYPE_SHORT[a.caseType] && (
+                        <Tooltip label={CASE_TYPE_SHORT[a.caseType].label}>
+                          <Badge size="sm" circle variant="filled" color={CASE_TYPE_SHORT[a.caseType].color} style={{ flexShrink: 0 }}>
+                            {CASE_TYPE_SHORT[a.caseType].letter}
+                          </Badge>
+                        </Tooltip>
+                      )}
+                      <Text size="sm" fw={500} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{getCaseDisplayTitle(a)}</Text>
+                    </Group>
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.clientName || '-'}</Text>
@@ -333,7 +373,9 @@ function AssignmentTable({ data, showAssignedTo, showAssignedBy, onMarkDone, loa
                           <Menu.Label>Actions</Menu.Label>
                           <Menu.Item leftSection={<IconEye size={16} />} onClick={() => onViewReview(a)}>View Review</Menu.Item>
                           <Menu.Item leftSection={<IconReceipt size={16} />} onClick={() => onViewReceipt(a)}>Full Receipt</Menu.Item>
-                          <Menu.Item leftSection={<IconFileText size={16} />} onClick={() => onViewCaseHistory(a)}>Case History</Menu.Item>
+                          {isCourtCase(a) && (
+                            <Menu.Item leftSection={<IconFileText size={16} />} onClick={() => onViewCaseHistory(a)}>Case History</Menu.Item>
+                          )}
                         </Menu.Dropdown>
                       </Menu>
                     </Group>
@@ -504,9 +546,16 @@ export default function AssignedCases() {
 
   const renderEvidenceTable = (title, evidence = [], fieldName) => {
     if (!reviewEditMode && (!evidence || evidence.length === 0)) return null;
+    const showPurpose = fieldName !== 'adversePartyEvidence';
     const rows = evidence && evidence.length >= 3
       ? evidence
       : [...(evidence || []), ...Array(3 - (evidence?.length || 0)).fill({ type: '', author: '', purpose: '', issues: '' })];
+    const columns = [
+      { label: 'Type / Description', field: 'type', placeholder: 'Type/Desc' },
+      { label: 'Author / Custodian', field: 'author', placeholder: 'Author/Custodian' },
+      ...(showPurpose ? [{ label: 'Purpose', field: 'purpose', placeholder: 'Purpose' }] : []),
+      { label: 'Admissibility Issues', field: 'issues', placeholder: 'Issues' },
+    ];
     return (
       <Box mb="lg">
         <Title order={5} c={PRIMARY_BROWN} mb="sm">{title}</Title>
@@ -515,12 +564,7 @@ export default function AssignedCases() {
           {rows.map((row, idx) => (
             <Paper key={idx} p="sm" withBorder radius="md">
               <SimpleGrid cols={1} spacing="xs">
-                {[
-                  { label: 'Type / Description', field: 'type', placeholder: 'Type/Desc' },
-                  { label: 'Author / Custodian', field: 'author', placeholder: 'Author/Custodian' },
-                  { label: 'Purpose', field: 'purpose', placeholder: 'Purpose' },
-                  { label: 'Admissibility Issues', field: 'issues', placeholder: 'Issues' },
-                ].map(({ label, field, placeholder }) => (
+                {columns.map(({ label, field, placeholder }) => (
                   <Box key={field}>
                     <Text size="xs" c={MUTED_OLIVE} fw={600} mb={2}>{label}</Text>
                     {reviewEditMode ? (
@@ -539,19 +583,18 @@ export default function AssignedCases() {
           <Table withTableBorder withColumnBorders striped>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Type / Description</Table.Th>
-                <Table.Th>Author / Custodian</Table.Th>
-                <Table.Th>Purpose</Table.Th>
-                <Table.Th>Admissibility Issues</Table.Th>
+                {columns.map(({ label }) => (
+                  <Table.Th key={label}>{label}</Table.Th>
+                ))}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {rows.map((row, idx) => (
                 <Table.Tr key={idx}>
-                  {['type', 'author', 'purpose', 'issues'].map((field, fi) => (
+                  {columns.map(({ field, placeholder }) => (
                     <Table.Td key={field}>
                       {reviewEditMode ? (
-                        <TextInput placeholder={['Type/Desc', 'Author/Custodian', 'Purpose', 'Issues'][fi]} size="xs" variant="unstyled" value={row?.[field] || ''} onChange={(e) => updateEvidence(fieldName, idx, field, e.target.value)} />
+                        <TextInput placeholder={placeholder} size="xs" variant="unstyled" value={row?.[field] || ''} onChange={(e) => updateEvidence(fieldName, idx, field, e.target.value)} />
                       ) : (row?.[field] || '-')}
                     </Table.Td>
                   ))}
@@ -668,7 +711,8 @@ export default function AssignedCases() {
       setCaseHistorySaving(true);
       const resp = await apiClient.put(`/caserecords/finalize/${caseHistoryFinalizeId}`, caseHistoryData);
       if (resp.data) {
-        setCaseHistoryData(resp.data);
+        // Server returns { success, data: caseRecord, message } — extract the actual record
+        setCaseHistoryData(resp.data.data || resp.data);
         setCaseHistoryEditMode(false);
         notifications.show({ title: 'Success', message: 'Case record saved successfully!', color: 'green' });
       }
@@ -865,7 +909,7 @@ export default function AssignedCases() {
             </Group>
           </Group>
         }
-        size={{ base: '100%', sm: '90vw' }}
+        size="calc(90vw)"
         fullScreen={false}
         styles={{
           title: { fontWeight: 700, width: '100%' },
@@ -1024,7 +1068,7 @@ export default function AssignedCases() {
             </Group>
           </Group>
         }
-        size={{ base: '100%', sm: '90vw' }}
+        size="calc(90vw)"
         radius="lg"
         styles={{
           title: { fontWeight: 700, width: '100%' },
@@ -1267,7 +1311,7 @@ export default function AssignedCases() {
             </Group>
           </Group>
         }
-        size={{ base: '100%', sm: '90vw' }}
+        size="calc(90vw)"
         styles={{
           title: { fontWeight: 700, width: '100%' },
           body: { maxHeight: '80vh', overflowY: 'auto', padding: '16px' },

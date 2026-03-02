@@ -2149,6 +2149,9 @@ export default function FinalizedCases() {
   const renderEvidenceTable = (title, evidence = [], fieldName) => {
     if (!state.editMode && (!evidence || evidence.length === 0)) return null;
 
+    // Hide "Purpose" column for adverse party evidence
+    const showPurpose = fieldName !== 'adversePartyEvidence';
+
     const rows = evidence && evidence.length >= 3 ? evidence : [...(evidence || []), ...Array(3 - (evidence?.length || 0)).fill({ type: '', author: '', purpose: '', issues: '' })];
 
     return (
@@ -2160,7 +2163,7 @@ export default function FinalizedCases() {
             <Table.Tr>
               <Table.Th>Type / Description</Table.Th>
               <Table.Th>Author / Custodian</Table.Th>
-              <Table.Th>Purpose</Table.Th>
+              {showPurpose && <Table.Th>Purpose</Table.Th>}
               <Table.Th>Admissibility Issues</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -2193,19 +2196,21 @@ export default function FinalizedCases() {
                     row?.author || '-'
                   )}
                 </Table.Td>
-                <Table.Td>
-                  {state.editMode ? (
-                    <TextInput
-                      placeholder="Purpose"
-                      size="xs"
-                      variant="unstyled"
-                      value={row?.purpose || ''}
-                      onChange={(e) => updateEvidence(fieldName, idx, 'purpose', e.target.value)}
-                    />
-                  ) : (
-                    row?.purpose || '-'
-                  )}
-                </Table.Td>
+                {showPurpose && (
+                  <Table.Td>
+                    {state.editMode ? (
+                      <TextInput
+                        placeholder="Purpose"
+                        size="xs"
+                        variant="unstyled"
+                        value={row?.purpose || ''}
+                        onChange={(e) => updateEvidence(fieldName, idx, 'purpose', e.target.value)}
+                      />
+                    ) : (
+                      row?.purpose || '-'
+                    )}
+                  </Table.Td>
+                )}
                 <Table.Td>
                   {state.editMode ? (
                     <TextInput

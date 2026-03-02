@@ -7,6 +7,7 @@ const CaseAssignmentSchema = new mongoose.Schema({
   caseTitle: { type: String },
   clientName: { type: String },
   category: { type: String },
+  caseType: { type: String },  // e.g. 'court-representation', 'legal-advice', 'legal-document'
 
   // Who was assigned
   assignedTo: {
