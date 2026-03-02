@@ -26,7 +26,7 @@ export const oauthCallback = async (req, res) => {
 
     const tokens = await getTokensFromCode(code);
 
-    const user = await User.findOne({ firebaseUid: state });
+    const user = await User.findOne({ firebaseUid: state }).select('+google.refreshToken +google.accessToken');
     if (!user) return res.status(404).send('User not found for provided state');
 
     user.google = user.google || {};
@@ -78,7 +78,7 @@ export const createEvent = async (req, res) => {
       return res.status(400).json({ error: 'firebaseUid and event required' });
     }
 
-    const user = await User.findOne({ firebaseUid });
+    const user = await User.findOne({ firebaseUid }).select('+google.refreshToken +google.accessToken');
     if (!user) {
       console.warn('google.createEvent user not found for firebaseUid', firebaseUid);
       return res.status(404).json({ error: 'User not found for provided firebaseUid' });
@@ -118,7 +118,7 @@ export const createEventAndRecord = async (req, res) => {
 
     if (!firebaseUid || !event) return res.status(400).json({ error: 'firebaseUid and event required' });
 
-    const user = await User.findOne({ firebaseUid });
+    const user = await User.findOne({ firebaseUid }).select('+google.refreshToken +google.accessToken');
     // If accessToken provided by client, use it. Otherwise require stored refresh token.
     if (!accessToken && (!user || !user.google || !user.google.connected || !user.google.refreshToken)) {
       return res.status(400).json({ error: 'User has not connected Google Calendar' });
@@ -253,7 +253,7 @@ export const rescheduleEvent = async (req, res) => {
       return res.status(400).json({ error: 'firebaseUid, eventId, and newDate are required' });
     }
 
-    const user = await User.findOne({ firebaseUid });
+    const user = await User.findOne({ firebaseUid }).select('+google.refreshToken +google.accessToken');
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // 1) Find the local event

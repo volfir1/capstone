@@ -418,6 +418,8 @@ export default function FinalizedCases() {
       dispatch({ type: 'SET_WORD_DOC_LOADING', payload: true });
       try {
         const candidates = [];
+        // Prefer cloudinaryUrl (persistent) over disk-based URLs
+        if (doc.cloudinaryUrl) candidates.push(doc.cloudinaryUrl);
         if (doc.fileUrl) candidates.push(doc.fileUrl);
         if (doc.fileData) candidates.push(doc.fileData);
         if (doc.filename) {
@@ -427,6 +429,7 @@ export default function FinalizedCases() {
         // Try document versions if present in payload
         if (doc.documentVersions && Array.isArray(doc.documentVersions)) {
           for (const v of doc.documentVersions) {
+            if (v.cloudinaryUrl) candidates.push(v.cloudinaryUrl);
             if (v.fileUrl) candidates.push(v.fileUrl);
             if (v.filename) candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(v.filename)}`));
           }
@@ -1762,6 +1765,7 @@ export default function FinalizedCases() {
       fileType: documentData.fileType,
       fileData: documentData.fileData,
       fileUrl: documentData.fileUrl,
+      cloudinaryUrl: documentData.cloudinaryUrl || null,
       isServerFile: documentData.isServerFile || false
     };
 
@@ -1771,6 +1775,9 @@ export default function FinalizedCases() {
     }
 
     dispatch({ type: 'OPEN_DOCUMENT_VIEWER_MODAL', payload: docToView });
+
+    // Prefer cloudinaryUrl (persistent) over fileUrl (ephemeral disk on Render)
+    const primaryUrl = docToView.cloudinaryUrl || docToView.fileUrl || docToView.fileData;
 
     // If it's a Word document, convert to HTML using mammoth
     const isWordDoc = docToView.fileType?.includes('word') ||
@@ -1782,9 +1789,8 @@ export default function FinalizedCases() {
     if (isPdf) {
       dispatch({ type: 'SET_PDF_LOADING', payload: true });
       try {
-        const rawUrl = docToView.fileUrl || docToView.fileData;
-        if (rawUrl) {
-          const arrayBuffer = await fetchArrayBufferFromUrl(rawUrl);
+        if (primaryUrl) {
+          const arrayBuffer = await fetchArrayBufferFromUrl(primaryUrl, docToView.cloudinaryUrl);
           const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
           const blobUrl = URL.createObjectURL(blob);
           dispatch({ type: 'SET_PDF_BLOB_URL', payload: blobUrl });
@@ -1797,12 +1803,11 @@ export default function FinalizedCases() {
       }
     }
 
-    if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
+    if (isWordDoc && primaryUrl) {
       dispatch({ type: 'SET_WORD_DOC_LOADING', payload: true });
       try {
         // Fetch the Word document from the server or use fileData
-        const rawUrl = docToView.fileUrl || docToView.fileData;
-        const arrayBuffer = await fetchArrayBufferFromUrl(rawUrl);
+        const arrayBuffer = await fetchArrayBufferFromUrl(primaryUrl, docToView.cloudinaryUrl);
 
         // Convert to HTML using mammoth
         const result = await mammoth.convertToHtml({ arrayBuffer });
@@ -1827,9 +1832,11 @@ export default function FinalizedCases() {
   const handleDownloadDocument = async (documentData) => {
     if (!documentData) return;
     try {
-      const url = documentData.fileUrl
-        ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
-        : documentData.fileData;
+      // Prefer cloudinaryUrl (persistent) over fileUrl (ephemeral on Render)
+      const url = documentData.cloudinaryUrl
+        || (documentData.fileUrl
+          ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
+          : documentData.fileData);
       if (!url) {
         notifications.show({ title: 'Error', message: 'No file URL available', color: 'red' });
         return;
@@ -1848,9 +1855,10 @@ export default function FinalizedCases() {
     } catch (err) {
       console.error('Download failed:', err);
       // Fallback: open in new tab
-      const url = documentData.fileUrl
-        ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
-        : documentData.fileData;
+      const url = documentData.cloudinaryUrl
+        || (documentData.fileUrl
+          ? (documentData.fileUrl.startsWith('/') ? getServerFileUrl(documentData.fileUrl) : documentData.fileUrl)
+          : documentData.fileData);
       if (url) window.open(url, '_blank');
       else notifications.show({ title: 'Error', message: 'Download failed', color: 'red' });
     }
@@ -4171,7 +4179,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 };
 // Robust fetch helper: tries absolute/relative and retries with 127.0.0.1 if localhost fails,
 // and avoids returning HTML pages (dev server 404) which break binary parsers like mammoth.
-const fetchArrayBufferFromUrl = async (rawUrl) => {
+const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
   if (!rawUrl) throw new Error('No URL provided');
 
   if (typeof rawUrl === 'string' && rawUrl.startsWith('data:')) {
@@ -4185,6 +4193,12 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
 
   const tried = new Set();
   const candidates = [];
+
+  // Cloudinary URL is persistent (survives Render ephemeral disk wipes) — try it first
+  if (cloudinaryUrl && typeof cloudinaryUrl === 'string') {
+    candidates.push(cloudinaryUrl);
+  }
+
   if (typeof rawUrl === 'string') {
     if (rawUrl.startsWith('/')) candidates.push(getServerFileUrl(rawUrl));
     candidates.push(rawUrl);

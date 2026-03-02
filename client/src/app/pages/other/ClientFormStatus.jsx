@@ -7,7 +7,7 @@ import {
 import ClientFormStatusCalendar from '@components/calendar/ClientFormCalendar';
 import { DatePickerInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ClientFormStatusSkeleton from '@/components/skeleton/ClientFormStatusSkeleton';
 import { useAuth } from '@/context/authContext';
 import {
@@ -73,6 +73,32 @@ export default function StaffAppointmentManager() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(userData?.google?.connected || false);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Keep isGoogleConnected in sync with userData (async load / refresh)
+  useEffect(() => {
+    if (userData?.google?.connected !== undefined) {
+      setIsGoogleConnected(userData.google.connected);
+    }
+  }, [userData?.google?.connected]);
+
+  // Handle ?google=connected redirect from OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('google') === 'connected') {
+      // Remove the query param from URL
+      params.delete('google');
+      const newSearch = params.toString();
+      navigate(location.pathname + (newSearch ? `?${newSearch}` : ''), { replace: true });
+      // Refresh user data to pick up the new google.connected status
+      refreshUserData().then((freshData) => {
+        if (freshData?.google?.connected) {
+          setIsGoogleConnected(true);
+          notifications.show({ title: 'Connected!', message: 'Google Calendar is now connected.', color: 'green', icon: <IconCheck size={18} /> });
+        }
+      }).catch(() => { /* ignore */ });
+    }
+  }, [location.search]);
 
   // ─── Google Calendar connection helpers ───
   const isGoogleReconnectError = (err) => {

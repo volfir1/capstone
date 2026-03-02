@@ -25,8 +25,16 @@ import upload from './config/multerConfig.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
+import { v2 as cloudinary } from 'cloudinary'
 import { setIO } from './socket.js'
 import { authenticateFirebaseToken } from './firebase/authMiddleware.js'
+
+// Configure Cloudinary for document uploads
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -145,8 +153,8 @@ app.get("/api/test", (req, res) => {
   res.json({ message: "Server is working!" });
 });
 
-// File upload route for Word documents (PDF stays as base64)
-app.post('/api/upload/document', authenticateFirebaseToken, upload.single('document'), (req, res) => {
+// File upload route for documents (Word + PDF) — saves to disk AND Cloudinary for persistence
+app.post('/api/upload/document', authenticateFirebaseToken, upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -154,6 +162,22 @@ app.post('/api/upload/document', authenticateFirebaseToken, upload.single('docum
 
     // Return file information with relative path (will be proxied by Vite in dev)
     const fileUrl = `/uploads/documents/${req.file.filename}`;
+
+    // Upload to Cloudinary for persistent storage (Render uses ephemeral disk)
+    let cloudinaryUrl = null;
+    try {
+      const filePath = path.join(__dirname, 'uploads/documents', req.file.filename);
+      const uploadResult = await cloudinary.uploader.upload(filePath, {
+        folder: 'capstone_documents',
+        resource_type: 'raw', // raw for non-image files (PDF, docx)
+        public_id: req.file.filename.replace(/\.[^.]+$/, ''), // strip extension for public_id
+        overwrite: true,
+      });
+      cloudinaryUrl = uploadResult.secure_url;
+      console.log('Document uploaded to Cloudinary:', cloudinaryUrl);
+    } catch (cloudErr) {
+      console.warn('Cloudinary upload failed (file still available on disk):', cloudErr.message);
+    }
 
     res.json({
       success: true,
@@ -163,7 +187,8 @@ app.post('/api/upload/document', authenticateFirebaseToken, upload.single('docum
         size: req.file.size,
         mimetype: req.file.mimetype,
         url: fileUrl,
-        path: fileUrl
+        path: fileUrl,
+        cloudinaryUrl, // persistent URL (null if Cloudinary upload failed)
       }
     });
   } catch (error) {

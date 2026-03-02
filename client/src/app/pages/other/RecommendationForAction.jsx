@@ -1519,6 +1519,7 @@ export default function CaseRecordFormsDisplay() {
                     fileData: interviewInfo.uploadedDocument?.fileData,
                     fileUrl: uploadedFile?.serverFile?.url || interviewInfo.uploadedDocument?.fileUrl,
                     filename: uploadedFile?.serverFile?.filename || interviewInfo.uploadedDocument?.filename,
+                    cloudinaryUrl: uploadedFile?.serverFile?.cloudinaryUrl || interviewInfo.uploadedDocument?.cloudinaryUrl || null,
                     isServerFile: uploadedFile?.isServerFile || interviewInfo.uploadedDocument?.isServerFile || false,
                     uploadedAt: new Date().toISOString(),
                     // Don't use current userData as fallback - preserve original uploader or mark as Unknown
@@ -1541,12 +1542,13 @@ export default function CaseRecordFormsDisplay() {
                 console.log('Document uploaded successfully:', result);
                 
                 // Store file with URL reference - explicitly copy File properties
+                console.log('Server upload response file:', result.file);
                 setUploadedFile({
                     name: file.name,
                     size: file.size,
                     type: file.type,
                     lastModified: file.lastModified,
-                    serverFile: result.file,
+                    serverFile: result.file, // includes .url, .filename, .cloudinaryUrl
                     isServerFile: true,
                     uploadedBy: userData?.firstName && userData?.lastName 
                         ? `${userData.firstName} ${userData.lastName}` 
@@ -1999,6 +2001,7 @@ export default function CaseRecordFormsDisplay() {
                 fileType: uploadedFile.type,
                 fileUrl: uploadedFile.serverFile?.url,
                 filename: uploadedFile.serverFile?.filename,
+                cloudinaryUrl: uploadedFile.serverFile?.cloudinaryUrl || null,
                 isServerFile: uploadedFile.isServerFile,
                 uploadedBy: uploadedFile.uploadedBy,
                 uploadedByRole: uploadedFile.uploadedByRole
@@ -2059,6 +2062,7 @@ export default function CaseRecordFormsDisplay() {
                 fileType: uploadedFile.type,
                 fileUrl: uploadedFile.serverFile?.url,
                 filename: uploadedFile.serverFile?.filename,
+                cloudinaryUrl: uploadedFile.serverFile?.cloudinaryUrl || null,
                 isServerFile: uploadedFile.isServerFile,
                 uploadedBy: uploadedFile.uploadedBy,
                 uploadedByRole: uploadedFile.uploadedByRole
@@ -2119,6 +2123,7 @@ export default function CaseRecordFormsDisplay() {
                 fileType: uploadedFile.type,
                 fileUrl: uploadedFile.serverFile?.url,
                 filename: uploadedFile.serverFile?.filename,
+                cloudinaryUrl: uploadedFile.serverFile?.cloudinaryUrl || null,
                 isServerFile: uploadedFile.isServerFile,
                 uploadedBy: uploadedFile.uploadedBy,
                 uploadedByRole: uploadedFile.uploadedByRole
@@ -2179,6 +2184,7 @@ export default function CaseRecordFormsDisplay() {
                 fileType: uploadedFile.type,
                 fileUrl: uploadedFile.serverFile?.url,
                 filename: uploadedFile.serverFile?.filename,
+                cloudinaryUrl: uploadedFile.serverFile?.cloudinaryUrl || null,
                 isServerFile: uploadedFile.isServerFile,
                 uploadedBy: uploadedFile.uploadedBy,
                 uploadedByRole: uploadedFile.uploadedByRole
