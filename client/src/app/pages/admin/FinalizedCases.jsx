@@ -54,6 +54,14 @@ const getServerFileUrl = (pathOrUrl) => {
     // not an absolute URL
   }
 
+  // In dev mode Vite proxies /uploads and /api to the local backend.
+  // Return a relative path so the browser hits the Vite dev server proxy,
+  // which avoids CORS / X-Frame-Options issues from the production URL.
+  if (import.meta.env.DEV) {
+    if (pathOrUrl.startsWith('/')) return pathOrUrl;
+    return `/${pathOrUrl}`;
+  }
+
   let apiHost = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : 'http://127.0.0.1:5000';
   try {
     const parsed = new URL(apiHost);
@@ -4223,9 +4231,18 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
         const decodedLast = decodeURIComponent(last);
         candidates.push(getServerFileUrl(`/uploads/documents/${encodeURIComponent(decodedLast)}`));
         candidates.push(getServerFileUrl(`/uploads/documents/${decodedLast}`));
+        // Always add direct 127.0.0.1 fallbacks in case Vite proxy or prod URL fails
+        candidates.push(`http://127.0.0.1:5000/uploads/documents/${encodeURIComponent(decodedLast)}`);
+        candidates.push(`http://127.0.0.1:5000/uploads/documents/${decodedLast}`);
+        candidates.push(`http://localhost:5000/uploads/documents/${encodeURIComponent(decodedLast)}`);
       }
     } catch (e) { }
     candidates.push(getServerFileUrl(rawUrl));
+    // Direct backend fallbacks regardless of VITE_API_URL
+    if (typeof rawUrl === 'string' && rawUrl.startsWith('/')) {
+      candidates.push(`http://127.0.0.1:5000${rawUrl}`);
+      candidates.push(`http://localhost:5000${rawUrl}`);
+    }
   }
 
   console.debug('fetchArrayBufferFromUrl candidates:', candidates);
@@ -4260,16 +4277,39 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
   try {
     const last = typeof rawUrl === 'string' ? rawUrl.split('/').pop() : '';
     if (last) {
-      const apiHost = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : 'http://127.0.0.1:5000';
-      const resolveUrl = `${apiHost}/api/uploads/resolve?path=${encodeURIComponent(decodeURIComponent(last))}`;
-      const resolveResp = await fetch(resolveUrl);
-      if (resolveResp.ok) {
-        const resolveJson = await resolveResp.json();
-        if (resolveJson.found && resolveJson.url) {
-          console.info('fetchArrayBufferFromUrl: resolved via fuzzy match ->', resolveJson.url);
-          const resolved = getServerFileUrl(resolveJson.url);
-          const ab = await tryFetch(resolved);
-          if (ab) return ab;
+      // In dev use relative path (Vite proxy); in prod use VITE_API_URL; always also try 127.0.0.1 direct
+      const resolveHosts = import.meta.env.DEV
+        ? ['', 'http://127.0.0.1:5000', 'http://localhost:5000']
+        : [
+            import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '',
+            'http://127.0.0.1:5000',
+            'http://localhost:5000',
+          ];
+      for (const host of resolveHosts) {
+        try {
+          const resolveUrl = `${host}/api/uploads/resolve?path=${encodeURIComponent(decodeURIComponent(last))}`;
+          const resolveResp = await fetch(resolveUrl);
+          if (resolveResp.ok) {
+            const resolveJson = await resolveResp.json();
+            if (resolveJson.found && resolveJson.url) {
+              console.info('fetchArrayBufferFromUrl: resolved via fuzzy match ->', resolveJson.url, 'from', host || '(relative)');
+              // Build candidate list: relative (dev proxy) + direct 127.0.0.1
+              const resolvedCandidates = [
+                import.meta.env.DEV ? resolveJson.url : null,
+                `http://127.0.0.1:5000${resolveJson.url}`,
+                `http://localhost:5000${resolveJson.url}`,
+                resolveJson.url.startsWith('/') && !import.meta.env.DEV && import.meta.env.VITE_API_URL
+                  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}${resolveJson.url}`
+                  : null,
+              ].filter(Boolean);
+              for (const rc of resolvedCandidates) {
+                const ab = await tryFetch(rc);
+                if (ab) return ab;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('fetchArrayBufferFromUrl: resolve attempt failed for host', host, e);
         }
       }
     }
