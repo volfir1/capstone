@@ -32,7 +32,6 @@ import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
-import { auth as firebaseAuth } from '@/firebase/firebase';
 
 // Configure PDF.js worker â€” try local node_modules first, fall back to CDN
 try {
@@ -71,8 +70,8 @@ const getServerFileUrl = (pathOrUrl) => {
 };
 // Robust fetch helper: tries absolute/relative and retries with 127.0.0.1 if localhost fails,
 // and avoids returning HTML pages (dev server 404) which break binary parsers like mammoth.
-const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
-    if (!rawUrl && !cloudinaryUrl) throw new Error('No URL provided');
+const fetchArrayBufferFromUrl = async (rawUrl) => {
+    if (!rawUrl) throw new Error('No URL provided');
 
     // Data URL -> convert directly
     if (typeof rawUrl === 'string' && rawUrl.startsWith('data:')) {
@@ -84,26 +83,8 @@ const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
         return bytes.buffer;
     }
 
-    // Helper: get auth headers for server URLs (not external/Cloudinary)
-    const getAuthHeaders = async (url) => {
-        try {
-            const isServerUrl = typeof url === 'string' && (url.includes('/uploads/') || url.includes('/api/uploads/'));
-            if (isServerUrl && firebaseAuth.currentUser) {
-                const token = await firebaseAuth.currentUser.getIdToken();
-                return { Authorization: `Bearer ${token}` };
-            }
-        } catch (e) { /* ignore */ }
-        return {};
-    };
-
     const tried = new Set();
     const candidates = [];
-
-    // Cloudinary URL is persistent (survives Render ephemeral disk wipes) — try it first
-    if (cloudinaryUrl && typeof cloudinaryUrl === 'string') {
-        candidates.push(cloudinaryUrl);
-    }
-
     if (typeof rawUrl === 'string') {
         // If relative path
         if (rawUrl.startsWith('/')) candidates.push(getServerFileUrl(rawUrl));
@@ -150,8 +131,7 @@ const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
         tried.add(c);
         try {
             console.debug('Attempting fetch for:', c);
-            const headers = await getAuthHeaders(c);
-            const resp = await fetch(c, { headers });
+            const resp = await fetch(c);
             console.debug('Response status for', c, resp.status);
             if (!resp.ok) {
                 // If 404, log and continue
@@ -159,30 +139,17 @@ const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
                 continue;
             }
             const contentType = resp.headers.get('content-type') || '';
-            const ab = await resp.arrayBuffer();
-            // If content-type indicates HTML, skip. Also sniff initial bytes for HTML
+            // If server returned HTML (dev index/404), log snippet and skip it
             if (contentType.includes('text/html')) {
                 try {
-                    const text = new TextDecoder().decode(new Uint8Array(ab.slice(0, Math.min(ab.byteLength, 1024))));
+                    const text = await resp.text();
                     console.warn('Skipped HTML response for', c, 'snippet:', text.slice(0, 300));
                 } catch (e) {
                     console.warn('Skipped HTML response for', c);
                 }
                 continue;
             }
-            try {
-                const sniffLen = Math.min(ab.byteLength, 512);
-                if (sniffLen > 0) {
-                    const snippet = new TextDecoder().decode(new Uint8Array(ab.slice(0, sniffLen)));
-                    const lowered = snippet.toLowerCase();
-                    if (lowered.includes('<!doctype') || lowered.includes('<html') || lowered.includes('<head') || lowered.includes('doctype html')) {
-                        console.warn('Skipped HTML-like response (sniff) for', c);
-                        continue;
-                    }
-                }
-            } catch (sniffErr) {
-                // ignore sniff errors and proceed
-            }
+            const ab = await resp.arrayBuffer();
             console.debug('Successfully fetched binary from', c);
             return ab;
         } catch (err) {
@@ -352,7 +319,7 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
 EvidenceTable.displayName = 'EvidenceTable';
 
 // Simple PDF viewer using pdfjs-dist
-const PdfViewer = ({ url, fileData, cloudinaryUrl }) => {
+const PdfViewer = ({ url, fileData }) => {
     const [loading, setLoading] = React.useState(true);
     const containerRef = React.useRef(null);
 
@@ -373,10 +340,10 @@ const PdfViewer = ({ url, fileData, cloudinaryUrl }) => {
                     arrayBuffer = bytes.buffer;
                 } else if (fileData && fileData instanceof ArrayBuffer) {
                     arrayBuffer = fileData;
-                } else if (url || cloudinaryUrl) {
+                } else if (url) {
                     // Use robust fetch helper that retries multiple URL variants
                     // and skips HTML responses from dev server 404s
-                    arrayBuffer = await fetchArrayBufferFromUrl(url, cloudinaryUrl);
+                    arrayBuffer = await fetchArrayBufferFromUrl(url);
                 }
 
                 if (!arrayBuffer) throw new Error('No PDF data');
@@ -409,7 +376,7 @@ const PdfViewer = ({ url, fileData, cloudinaryUrl }) => {
         renderPdf();
 
         return () => { cancelled = true; };
-    }, [url, fileData, cloudinaryUrl]);
+    }, [url, fileData]);
 
     return (
         <div style={{ flex: 1, overflow: 'auto' }}>
@@ -1312,7 +1279,6 @@ export default function CaseRecordFormsDisplay() {
                     fileName: file.name,
                     fileType: file.type,
                     fileUrl: file.serverFile.url,
-                    cloudinaryUrl: file.serverFile.cloudinaryUrl || null,
                     isServerFile: true
                 };
             } else {
@@ -1322,7 +1288,6 @@ export default function CaseRecordFormsDisplay() {
                     fileName: file.name,
                     fileType: file.type,
                     fileData: URL.createObjectURL(file),
-                    cloudinaryUrl: null,
                     isServerFile: false
                 };
             }
@@ -1334,7 +1299,6 @@ export default function CaseRecordFormsDisplay() {
                 fileType: documentData.fileType,
                 fileData: documentData.fileData,
                 fileUrl: documentData.fileUrl,
-                cloudinaryUrl: documentData.cloudinaryUrl || null,
                 isServerFile: documentData.isServerFile || false
             };
         } else if (interviewInfo.uploadedDocument) {
@@ -1345,7 +1309,6 @@ export default function CaseRecordFormsDisplay() {
                 fileType: interviewInfo.uploadedDocument.fileType,
                 fileData: interviewInfo.uploadedDocument.fileData,
                 fileUrl: interviewInfo.uploadedDocument.fileUrl,
-                cloudinaryUrl: interviewInfo.uploadedDocument.cloudinaryUrl || null,
                 isServerFile: interviewInfo.uploadedDocument.isServerFile || false
             };
         } else {
@@ -1387,13 +1350,11 @@ export default function CaseRecordFormsDisplay() {
                          docToView.fileName?.endsWith('.docx') || 
                          docToView.fileName?.endsWith('.doc');
         
-        if (isWordDoc && (docToView.fileUrl || docToView.fileData || docToView.cloudinaryUrl)) {
+        if (isWordDoc && (docToView.fileUrl || docToView.fileData)) {
             setWordDocLoading(true);
             try {
                 // Build candidate URLs to try (order matters)
                 const candidates = [];
-                // Cloudinary URL is persistent — try it first on deployed environments
-                if (docToView.cloudinaryUrl) candidates.push(docToView.cloudinaryUrl);
                 if (docToView.fileData) candidates.push(docToView.fileData);
                 if (docToView.fileUrl) candidates.push(docToView.fileUrl);
                 // serverFile filename may exist
@@ -1498,12 +1459,9 @@ export default function CaseRecordFormsDisplay() {
         // Always use the original filename (never the server-mangled one with random numbers)
         const fileName = file?.name || docData?.fileName || 'document';
         
-        // Check if it's a server file first — prefer cloudinaryUrl for deployed environments
+        // Check if it's a server file first
         let url = null;
-        const cloudUrl = file?.serverFile?.cloudinaryUrl || docData?.cloudinaryUrl || interviewInfo.uploadedDocument?.cloudinaryUrl;
-        if (cloudUrl) {
-            url = cloudUrl;
-        } else if (file?.isServerFile && file?.serverFile?.url) {
+        if (file?.isServerFile && file?.serverFile?.url) {
             url = file.serverFile.url;
         } else if (docData?.isServerFile && docData?.fileUrl) {
             url = docData.fileUrl;
@@ -1524,28 +1482,52 @@ export default function CaseRecordFormsDisplay() {
         }
         
         try {
-            // Fetch the file as a blob so the download attribute is always honoured
-            // and the saved filename is the original name regardless of what multer
-            // stored on disk (which includes random numbers).
-            const response = await fetch(url);
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(blobUrl);
+                // Prefer Cloudinary persistent copy when available
+                const cloudUrl = file?.serverFile?.cloudinaryUrl || docData?.cloudinaryUrl || interviewInfo?.uploadedDocument?.cloudinaryUrl;
+                const finalUrl = cloudUrl || url;
+
+                // Build auth headers when fetching from our server endpoints
+                const headers = {};
+                try {
+                    const isServerUrl = typeof finalUrl === 'string' && (finalUrl.includes('/uploads/') || finalUrl.includes('/api/uploads/'));
+                    if (isServerUrl && firebaseAuth.currentUser) {
+                        const token = await firebaseAuth.currentUser.getIdToken();
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+                } catch (e) {
+                    console.debug('Could not get auth token for download', e);
+                }
+
+                // Fetch as blob so we can force the filename when saving
+                const response = await fetch(finalUrl, { headers });
+                console.debug('Download response status for', finalUrl, response.status);
+                if (!response.ok) {
+                    throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                }
+                const blob = await response.blob();
+                try {
+                    const fb = new Uint8Array(await blob.slice(0, Math.min(64, blob.size)).arrayBuffer());
+                    const hex = Array.from(fb).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                    console.debug('Download blob size:', blob.size, 'firstBytesHex:', hex);
+                } catch (e) {/* ignore */}
+                const blobUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(blobUrl);
         } catch (err) {
-            console.error('Blob download failed, falling back to direct link:', err);
-            // Fallback: direct link without target=_blank so download attribute is used
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+                console.error('Blob download failed, falling back to direct link:', err);
+                // Fallback: open in new tab (user can save from viewer) or use direct link
+                const link = document.createElement('a');
+                link.href = url;
+                link.target = '_blank';
+                // Some browsers won't respect download for cross-origin URLs; open in new tab instead
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
         }
     };
     
@@ -1561,7 +1543,6 @@ export default function CaseRecordFormsDisplay() {
                     fileData: interviewInfo.uploadedDocument?.fileData,
                     fileUrl: uploadedFile?.serverFile?.url || interviewInfo.uploadedDocument?.fileUrl,
                     filename: uploadedFile?.serverFile?.filename || interviewInfo.uploadedDocument?.filename,
-                    cloudinaryUrl: uploadedFile?.serverFile?.cloudinaryUrl || interviewInfo.uploadedDocument?.cloudinaryUrl || null,
                     isServerFile: uploadedFile?.isServerFile || interviewInfo.uploadedDocument?.isServerFile || false,
                     uploadedAt: new Date().toISOString(),
                     // Don't use current userData as fallback - preserve original uploader or mark as Unknown
@@ -1584,13 +1565,12 @@ export default function CaseRecordFormsDisplay() {
                 console.log('Document uploaded successfully:', result);
                 
                 // Store file with URL reference - explicitly copy File properties
-                console.log('Server upload response file:', result.file);
                 setUploadedFile({
                     name: file.name,
                     size: file.size,
                     type: file.type,
                     lastModified: file.lastModified,
-                    serverFile: result.file, // includes .url, .filename, .cloudinaryUrl
+                    serverFile: result.file,
                     isServerFile: true,
                     uploadedBy: userData?.firstName && userData?.lastName 
                         ? `${userData.firstName} ${userData.lastName}` 
@@ -2043,7 +2023,6 @@ export default function CaseRecordFormsDisplay() {
                 fileType: uploadedFile.type,
                 fileUrl: uploadedFile.serverFile?.url,
                 filename: uploadedFile.serverFile?.filename,
-                cloudinaryUrl: uploadedFile.serverFile?.cloudinaryUrl || null,
                 isServerFile: uploadedFile.isServerFile,
                 uploadedBy: uploadedFile.uploadedBy,
                 uploadedByRole: uploadedFile.uploadedByRole
@@ -2104,7 +2083,6 @@ export default function CaseRecordFormsDisplay() {
                 fileType: uploadedFile.type,
                 fileUrl: uploadedFile.serverFile?.url,
                 filename: uploadedFile.serverFile?.filename,
-                cloudinaryUrl: uploadedFile.serverFile?.cloudinaryUrl || null,
                 isServerFile: uploadedFile.isServerFile,
                 uploadedBy: uploadedFile.uploadedBy,
                 uploadedByRole: uploadedFile.uploadedByRole
@@ -2165,7 +2143,6 @@ export default function CaseRecordFormsDisplay() {
                 fileType: uploadedFile.type,
                 fileUrl: uploadedFile.serverFile?.url,
                 filename: uploadedFile.serverFile?.filename,
-                cloudinaryUrl: uploadedFile.serverFile?.cloudinaryUrl || null,
                 isServerFile: uploadedFile.isServerFile,
                 uploadedBy: uploadedFile.uploadedBy,
                 uploadedByRole: uploadedFile.uploadedByRole
@@ -2226,7 +2203,6 @@ export default function CaseRecordFormsDisplay() {
                 fileType: uploadedFile.type,
                 fileUrl: uploadedFile.serverFile?.url,
                 filename: uploadedFile.serverFile?.filename,
-                cloudinaryUrl: uploadedFile.serverFile?.cloudinaryUrl || null,
                 isServerFile: uploadedFile.isServerFile,
                 uploadedBy: uploadedFile.uploadedBy,
                 uploadedByRole: uploadedFile.uploadedByRole
@@ -2880,7 +2856,7 @@ export default function CaseRecordFormsDisplay() {
                         <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
                             {currentViewingDoc.fileType?.includes('pdf') || currentViewingDoc.fileName?.endsWith('.pdf') ? (
                                 // PDF - use PdfViewer for reliable in-app rendering
-                                <PdfViewer url={currentViewingDoc.fileUrl ? getServerFileUrl(currentViewingDoc.fileUrl) : null} fileData={currentViewingDoc.fileData} cloudinaryUrl={currentViewingDoc.cloudinaryUrl} />
+                                <PdfViewer url={currentViewingDoc.fileUrl ? getServerFileUrl(currentViewingDoc.fileUrl) : null} fileData={currentViewingDoc.fileData} />
                             ) : (currentViewingDoc.fileType?.includes('word') || currentViewingDoc.fileName?.endsWith('.docx') || currentViewingDoc.fileName?.endsWith('.doc')) ? (
                                 // Word Document - Render using mammoth.js
                                 <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
