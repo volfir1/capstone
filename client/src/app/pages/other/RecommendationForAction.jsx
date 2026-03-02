@@ -83,6 +83,23 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
         return bytes.buffer;
     }
 
+    // Helper: get auth headers for server URLs (not external/Cloudinary)
+    const getAuthHeaders = async (url) => {
+        try {
+            const isServerUrl = typeof url === 'string' && (url.includes('/uploads/') || url.includes('/api/uploads/'));
+            if (isServerUrl && window.firebase && window.firebase.auth && window.firebase.auth().currentUser) {
+                const token = await window.firebase.auth().currentUser.getIdToken();
+                return { Authorization: `Bearer ${token}` };
+            }
+            // Try project import (if firebase is initialized as module import)
+            if (typeof firebase !== 'undefined' && firebase?.auth && firebase.auth().currentUser) {
+                const token = await firebase.auth().currentUser.getIdToken();
+                return { Authorization: `Bearer ${token}` };
+            }
+        } catch (e) { /* ignore */ }
+        return {};
+    };
+
     const tried = new Set();
     const candidates = [];
     if (typeof rawUrl === 'string') {
@@ -131,11 +148,15 @@ const fetchArrayBufferFromUrl = async (rawUrl) => {
         tried.add(c);
         try {
             console.debug('Attempting fetch for:', c);
-            const resp = await fetch(c);
+            const headers = await getAuthHeaders(c);
+            const resp = await fetch(c, { headers });
             console.debug('Response status for', c, resp.status);
             if (!resp.ok) {
                 // If 404, log and continue
                 console.warn('Fetch not ok for', c, resp.status, resp.statusText);
+                if (resp.status === 401 || resp.status === 403) {
+                    console.warn('Unauthorized/forbidden when fetching', c);
+                }
                 continue;
             }
             const contentType = resp.headers.get('content-type') || '';
@@ -1519,12 +1540,43 @@ export default function CaseRecordFormsDisplay() {
                 document.body.removeChild(link);
                 URL.revokeObjectURL(blobUrl);
         } catch (err) {
-                console.error('Blob download failed, falling back to direct link:', err);
-                // Fallback: open in new tab (user can save from viewer) or use direct link
+                console.error('Blob download failed, attempting authenticated server download as fallback:', err);
+                // If cloudinary failed or cross-origin prevented download, try server URL with auth header
+                try {
+                    const serverUrl = (url && url.startsWith('/')) ? getServerFileUrl(url) : url;
+                    const isServerUrl = typeof serverUrl === 'string' && (serverUrl.includes('/uploads/') || serverUrl.includes('/api/uploads/'));
+                    if (isServerUrl) {
+                        const headers = {};
+                        try {
+                            if (firebaseAuth.currentUser) {
+                                const token = await firebaseAuth.currentUser.getIdToken();
+                                headers['Authorization'] = `Bearer ${token}`;
+                            }
+                        } catch (e) { console.debug('No auth token for fallback server download', e); }
+
+                        const r = await fetch(serverUrl, { headers });
+                        console.debug('Fallback server download response', r.status);
+                        if (r.ok) {
+                            const b = await r.blob();
+                            const blobUrl2 = URL.createObjectURL(b);
+                            const link2 = document.createElement('a');
+                            link2.href = blobUrl2;
+                            link2.download = fileName;
+                            document.body.appendChild(link2);
+                            link2.click();
+                            document.body.removeChild(link2);
+                            URL.revokeObjectURL(blobUrl2);
+                            return;
+                        }
+                    }
+                } catch (fallbackErr) {
+                    console.error('Authenticated server fallback failed', fallbackErr);
+                }
+
+                // Last resort: open original URL in new tab so user can manually save
                 const link = document.createElement('a');
                 link.href = url;
                 link.target = '_blank';
-                // Some browsers won't respect download for cross-origin URLs; open in new tab instead
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);

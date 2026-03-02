@@ -49,6 +49,9 @@ admin.initializeApp({
 });
 
 const app = express()
+// Trust reverse proxy (Render, Vercel) so express-rate-limit and other
+// middleware can correctly detect client IPs from X-Forwarded-For.
+app.set('trust proxy', true);
 
 // ── HTTP server + Socket.IO ──
 const httpServer = http.createServer(app);
