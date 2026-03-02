@@ -5,13 +5,17 @@ import {
   listCaseRecords,
   updateCaseRecord,
   deleteCaseRecord,
-  getCaseRecordByFinalizeId
+  getCaseRecordByFinalizeId,
+  getBulkCaseRecordsByFinalizeIds
 } from '../controller/caseRecordController.js'
 
 const router = express.Router()
 
 // Create or Update Case Record (by finalizeId)
 router.put('/finalize/:finalizeId', upsertCaseRecord)
+
+// Bulk-check which finalizeIds have a case record — must be BEFORE the /:finalizeId param route
+router.post('/finalize/bulk', getBulkCaseRecordsByFinalizeIds)
 
 // Get Case Record by caseId (legacy)
 router.get('/case/:caseId', getCaseRecord)

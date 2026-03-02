@@ -193,6 +193,25 @@ export const deleteCaseRecord = async (req, res) => {
   }
 }
 
+// Bulk-check which finalizeIds have a case record (eliminates N+1 on FinalizedCases page)
+export const getBulkCaseRecordsByFinalizeIds = async (req, res) => {
+  try {
+    const { ids } = req.body
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.json({ success: true, data: {} })
+    }
+    // Only fetch _id + finalizeId — no need for full documents
+    const records = await CaseRecord.find({ finalizeId: { $in: ids } }).select('finalizeId')
+    const resultMap = {}
+    ids.forEach(id => { resultMap[id] = false })
+    records.forEach(r => { resultMap[r.finalizeId.toString()] = true })
+    return res.json({ success: true, data: resultMap })
+  } catch (err) {
+    console.error('getBulkCaseRecordsByFinalizeIds error', err)
+    res.status(500).json({ error: err.message })
+  }
+}
+
 // Get Case Record by Finalize ID
 export const getCaseRecordByFinalizeId = async (req, res) => {
   try {

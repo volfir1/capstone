@@ -36,20 +36,20 @@ client.interceptors.request.use(
       if (user) {
         const token = await user.getIdToken();
         config.headers.Authorization = `Bearer ${token}`;
-        console.log('✅ Request with auth:', config.method.toUpperCase(), config.url);
+        console.log(' Request with auth:', config.method.toUpperCase(), config.url);
       } else {
-        console.error('❌ No authenticated user found for request:', config.url);
+        console.error(' No authenticated user found for request:', config.url);
         console.error('Auth state:', { hasAuth: !!auth, hasCurrentUser: !!auth.currentUser });
       }
     } catch (tokenError) {
-      console.error('❌ Failed to get auth token:', tokenError);
+      console.error(' Failed to get auth token:', tokenError);
     }
-    
+
     return config;
   },
   (error) => {
     // This function will be called if there is an error setting up the request
-    console.error('❌ Request interceptor error:', error);
+    console.error(' Failed to set up request:', error);
     return Promise.reject(error);
   }
 );

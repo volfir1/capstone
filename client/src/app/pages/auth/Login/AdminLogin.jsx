@@ -112,11 +112,49 @@ export default function AdminLogin() {
           from { opacity: 0; transform: translateY(12px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+
+        /* ── Mobile Brand Bar (hidden on desktop) ── */
+        .mobile-brand { display: none; }
+
+        /* ── Mobile Responsive ── */
+        @media (max-width: 768px) {
+          .left-panel { display: none !important; }
+
+          .mobile-brand {
+            display: flex !important;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, ${PRIMARY_BROWN} 0%, #5C2D0A 100%);
+            padding: 14px 20px;
+            flex-shrink: 0;
+          }
+
+          .form-content-area {
+            align-items: flex-start !important;
+            justify-content: flex-start !important;
+            padding: 56px 20px 40px !important;
+          }
+
+          .back-btn {
+            top: 14px !important;
+            left: 16px !important;
+          }
+
+          .form-fade {
+            padding-top: 8px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .form-content-area {
+            padding: 52px 16px 32px !important;
+          }
+        }
       `}</style>
 
       {/* ── Left Panel ── */}
       <Box
-        className="left-panel-fade"
+        className="left-panel left-panel-fade"
         style={{
           width: '42%',
           background: `linear-gradient(160deg, ${PRIMARY_BROWN} 0%, #5C2D0A 100%)`,
@@ -167,17 +205,32 @@ export default function AdminLogin() {
       {/* ── Right Panel ── */}
       <Box
         className="office-login"
-        style={{ flex: 1, backgroundColor: '#FAF8F5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative' }}
+        style={{ flex: 1, backgroundColor: '#FAF8F5', display: 'flex', flexDirection: 'column', position: 'relative' }}
       >
-        <Button
-          variant="subtle"
-          size="xs"
-          leftSection={<IconArrowLeft size={14} />}
-          onClick={() => navigate('/')}
-          style={{ position: 'absolute', top: 24, left: 24, color: MUTED_OLIVE, fontSize: 12 }}
+        {/* Mobile Brand Bar — visible only on mobile */}
+        <Box className="mobile-brand">
+          <img src="/sola_logo.png" alt="SOLA Logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+          <Box>
+            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>SOLA</Text>
+            <Text style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 8, color: 'rgba(196,171,125,0.8)', letterSpacing: 2, textTransform: 'uppercase' }}>Sebastinian Office of Legal Aid</Text>
+          </Box>
+        </Box>
+
+        {/* Form Content Area */}
+        <Box
+          className="form-content-area"
+          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative' }}
         >
-          Back to Home
-        </Button>
+          <Button
+            variant="subtle"
+            size="xs"
+            className="back-btn"
+            leftSection={<IconArrowLeft size={14} />}
+            onClick={() => navigate('/')}
+            style={{ position: 'absolute', top: 24, left: 24, color: MUTED_OLIVE, fontSize: 12 }}
+          >
+            Back to Home
+          </Button>
 
         <Box className="form-fade" style={{ width: '100%', maxWidth: 400 }}>
           <Stack gap={28}>
@@ -284,6 +337,7 @@ export default function AdminLogin() {
               {isSigningIn ? 'Connecting…' : 'Sign in with Google'}
             </Button>
           </Stack>
+        </Box>
         </Box>
       </Box>
     </Box>

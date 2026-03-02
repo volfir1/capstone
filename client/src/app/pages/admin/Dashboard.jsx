@@ -75,7 +75,6 @@ export default function AdminDashboard() {
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
 
-
   const [reviewTab, setReviewTab] = useState('supervising');
   const [reviewPage, setReviewPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
@@ -83,7 +82,6 @@ export default function AdminDashboard() {
   const location = useLocation();
 
   const [reviewSearch, setReviewSearch] = useState('');
-
 
   // Activity log state
   const [activityLogs, setActivityLogs] = useState([]);
@@ -182,8 +180,6 @@ export default function AdminDashboard() {
   const directorReviews = useMemo(() => searchFilteredReviews.filter(r => r.reviewStage === 'director'), [searchFilteredReviews]);
   const returnedToInternReviews = useMemo(() => searchFilteredReviews.filter(r => r.reviewStage === 'returned_to_intern'), [searchFilteredReviews]);
 
-
-
   const serviceData = [
     { name: 'Legal Advice', value: stats.serviceBreakdown?.legalAdvice || 0, color: '#4DABF7' },
     { name: 'Legal Drafting', value: stats.serviceBreakdown?.legalDrafting || 0, color: PRIMARY_GOLD },
@@ -216,42 +212,87 @@ export default function AdminDashboard() {
 
   return (
     <Box bg={BG} mih="100vh" py="xl">
-      <Container size="xl">
+      <Container size="xl" px={{ base: 'md', sm: 'xl' }}>
+
+        {/* ── Header ── */}
         <Group justify="space-between" mb="lg">
-          <Box><Title order={3} fw={700} c={CHARCOAL}>Dashboard</Title><Text size="sm" fw={500} c={MUTED_OLIVE}>Manage legal services platform</Text></Box>
-          <ActionIcon variant="subtle" color="gray" onClick={() => { fetchStats(); fetchReviews(); fetchFinalized(); fetchActivityLogs(); }} loading={loading}><IconRefresh size={18} /></ActionIcon>
+          <Box>
+            <Title order={3} fw={700} c={CHARCOAL}>Dashboard</Title>
+            <Text size="sm" fw={500} c={MUTED_OLIVE}>Manage legal services platform</Text>
+          </Box>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            onClick={() => { fetchStats(); fetchReviews(); fetchActivityLogs(); }}
+            loading={loading}
+          >
+            <IconRefresh size={18} />
+          </ActionIcon>
         </Group>
 
-        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md" mb="md">
+        {/* ── A. Stats Cards ── */}
+        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing={{ base: 'sm', sm: 'md' }} mb="md">
           {[
             { label: 'Total Cases', value: stats.totalCases, icon: IconFiles, color: PRIMARY_BROWN },
             { label: 'Total Users', value: stats.totalUsers, icon: IconUsers, color: PRIMARY_GOLD },
             { label: 'Pending Reviews', value: stats.pendingReviews, icon: IconScale, color: '#F59F00' },
             { label: 'Finalized', value: stats.totalFinalized, icon: IconClipboardCheck, color: MUTED_OLIVE },
           ].map((card) => (
-            <Paper key={card.label} p="md" radius="lg" withBorder>
-              <Group gap="sm">
-                <Box style={{ width: 40, height: 40, borderRadius: 10, background: card.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><card.icon size={20} color="white" /></Box>
-                <Box><Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600}>{card.label}</Text><Text size="xl" fw={700} c={CHARCOAL}>{card.value}</Text></Box>
+            <Paper key={card.label} p={{ base: 'sm', sm: 'md' }} radius="lg" withBorder>
+              <Group gap="sm" wrap="nowrap">
+                <Box style={{
+                  width: 36,
+                  height: 36,
+                  flexShrink: 0,
+                  borderRadius: 10,
+                  background: card.color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <card.icon size={18} color="white" />
+                </Box>
+                <Box style={{ minWidth: 0 }}>
+                  <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {card.label}
+                  </Text>
+                  <Text size="xl" fw={700} c={CHARCOAL}>{card.value}</Text>
+                </Box>
               </Group>
             </Paper>
           ))}
         </SimpleGrid>
 
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mb="xl">
+        {/* ── B. Donut Charts ── */}
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={{ base: 'sm', sm: 'md' }} mb="xl">
           {[
             { title: 'Legal Services', data: serviceData, total: serviceData.reduce((s, d) => s + d.value, 0) },
             { title: 'Review Pipeline', data: reviewStageData, total: stats.totalReviews },
             { title: 'Finalized Decisions', data: finalizeData, total: stats.totalFinalized },
-            { title: 'Users by Role', data: userRoleData, total: stats.totalUsers }
+            { title: 'Users by Role', data: userRoleData, total: stats.totalUsers },
           ].map(chart => (
-            <Paper key={chart.title} p="md" radius="lg" withBorder style={{ minHeight: 180, overflow: 'visible' }}>
+            <Paper key={chart.title} p={{ base: 'sm', sm: 'md' }} radius="lg" withBorder>
               <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb="sm">{chart.title}</Text>
-              <Group gap="md" wrap="nowrap">
-                <Box style={{ flex: '0 0 160px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <DonutChart data={chart.data} size={120} thickness={18} chartLabel={`${chart.total}`} />
+
+              {/* Stack vertically on mobile, side-by-side on sm+ */}
+              <Stack gap="sm" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {/* Donut */}
+                <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <DonutChart
+                    data={chart.data}
+                    size={110}
+                    thickness={16}
+                    chartLabel={`${chart.total}`}
+                  />
                 </Box>
-                <Box style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+
+                {/* Legend */}
+                <Box style={{
+                  width: '100%',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '6px 12px',
+                }}>
                   {chart.title === 'Legal Services' ? (
                     (() => {
                       const courtNames = ['With Record', 'Without Record'];
@@ -261,18 +302,17 @@ export default function AdminDashboard() {
                         <>
                           {otherItems.map(d => (
                             <Group key={d.name} gap={6} wrap="nowrap">
-                              <Box style={{ width: 8, height: 8, borderRadius: 2, background: d.color }} />
-                              <Text size="xs" c={CHARCOAL} truncate fw={500}>{d.name}: {d.value}</Text>
+                              <Box style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 2, background: d.color, marginTop: 2 }} />
+                              <Text size="xs" c={CHARCOAL} fw={500} style={{ wordBreak: 'break-word' }}>{d.name}: {d.value}</Text>
                             </Group>
                           ))}
-
-                          <Box style={{ gridColumn: '1 / -1', marginTop: 6 }}>
-                            <Text size="xs" fw={700} c={CHARCOAL}>Court Representation:</Text>
-                            <Box style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginTop: 6 }}>
+                          <Box style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                            <Text size="xs" fw={700} c={CHARCOAL} mb={4}>Court Representation:</Text>
+                            <Box style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
                               {courtItems.map(d => (
                                 <Group key={d.name} gap={6} wrap="nowrap">
-                                  <Box style={{ width: 8, height: 8, borderRadius: 2, background: d.color }} />
-                                  <Text size="xs" c={CHARCOAL} truncate fw={500}>{d.name}: {d.value}</Text>
+                                  <Box style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 2, background: d.color, marginTop: 2 }} />
+                                  <Text size="xs" c={CHARCOAL} fw={500} style={{ wordBreak: 'break-word' }}>{d.name}: {d.value}</Text>
                                 </Group>
                               ))}
                             </Box>
@@ -283,120 +323,226 @@ export default function AdminDashboard() {
                   ) : (
                     chart.data.map(d => (
                       <Group key={d.name} gap={6} wrap="nowrap">
-                        <Box style={{ width: 8, height: 8, borderRadius: 2, background: d.color }} />
-                        <Text size="xs" c={CHARCOAL} truncate fw={500}>{d.name}: {d.value}</Text>
+                        <Box style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 2, background: d.color, marginTop: 2 }} />
+                        <Text size="xs" c={CHARCOAL} fw={500} style={{ wordBreak: 'break-word' }}>{d.name}: {d.value}</Text>
                       </Group>
                     ))
                   )}
                 </Box>
-              </Group>
+              </Stack>
             </Paper>
           ))}
         </SimpleGrid>
 
-        {/* Review Queue */}
+        {/* ── C. Review Queue ── */}
         <Paper shadow="sm" radius="lg" bg="white" withBorder style={{ overflow: 'hidden' }}>
-          <Box px="lg" py="md" style={{ borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' }}>
-            <Group justify="space-between">
-              <Title order={4} c={CHARCOAL} fw={700} tt="uppercase" lts={0.5}>Review Queue</Title>
-              <TextInput placeholder="Search client..." leftSection={<IconSearch size={14} />} size="xs" radius="md" value={reviewSearch} onChange={(e) => { setReviewSearch(e.currentTarget.value); setReviewPage(1); }} w={250} />
-            </Group>
+          {/* Header */}
+          <Box px={{ base: 'md', sm: 'lg' }} py="md" style={{ borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' }}>
+            <Stack gap="sm">
+              <Group justify="space-between" align="center">
+                <Title order={4} c={CHARCOAL} fw={700} tt="uppercase" lts={0.5}>Review Queue</Title>
+              </Group>
+              {/* Search always full-width */}
+              <TextInput
+                placeholder="Search client..."
+                leftSection={<IconSearch size={14} />}
+                size="xs"
+                radius="md"
+                value={reviewSearch}
+                onChange={(e) => { setReviewSearch(e.currentTarget.value); setReviewPage(1); }}
+                style={{ width: '100%' }}
+              />
+            </Stack>
           </Box>
-          <Tabs value={reviewTab} onChange={(v) => { setReviewTab(v); setReviewPage(1); }} variant="pills" p="md">
-            <Tabs.List mb="md">
-              <Tabs.Tab value="supervising" leftSection={<IconScale size={14} />} rightSection={<Badge size="xs" circle color="orange" fw={600}>{supervisingLawyerReviews.length}</Badge>}>Supervising</Tabs.Tab>
-              <Tabs.Tab value="director" leftSection={<IconClipboardCheck size={14} />} rightSection={<Badge size="xs" circle color="grape" fw={600}>{directorReviews.length}</Badge>}>Director</Tabs.Tab>
-              <Tabs.Tab value="returned" leftSection={<IconAlertCircle size={14} />} rightSection={<Badge size="xs" circle color="red" fw={600}>{returnedToInternReviews.length}</Badge>}>Returned</Tabs.Tab>
-            </Tabs.List>
-            <Box px="md" py={8} bg="#F8F9FA" style={{ borderBottom: '1px solid #EEE' }}>
+
+          <Tabs value={reviewTab} onChange={(v) => { setReviewTab(v); setReviewPage(1); }} variant="pills" p={{ base: 'sm', sm: 'md' }}>
+            {/* Scrollable tabs on mobile */}
+            <ScrollArea type="scroll" scrollbarSize={0} mb="md">
+              <Tabs.List style={{ flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                <Tabs.Tab value="supervising" leftSection={<IconScale size={14} />} rightSection={<Badge size="xs" circle color="orange" fw={600}>{supervisingLawyerReviews.length}</Badge>}>
+                  Supervising
+                </Tabs.Tab>
+                <Tabs.Tab value="director" leftSection={<IconClipboardCheck size={14} />} rightSection={<Badge size="xs" circle color="grape" fw={600}>{directorReviews.length}</Badge>}>
+                  Director
+                </Tabs.Tab>
+                <Tabs.Tab value="returned" leftSection={<IconAlertCircle size={14} />} rightSection={<Badge size="xs" circle color="red" fw={600}>{returnedToInternReviews.length}</Badge>}>
+                  Returned
+                </Tabs.Tab>
+              </Tabs.List>
+            </ScrollArea>
+
+            {/* Table header — hide date on mobile */}
+            <Box px={{ base: 'sm', sm: 'md' }} py={8} bg="#F8F9FA" style={{ borderBottom: '1px solid #EEE' }}>
               <Group wrap="nowrap" gap="md">
                 <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ flex: 1 }}>CLIENT NAME</Text>
-                <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ width: 150, textAlign: 'center' }}>SUBMISSION DATE</Text>
+                {/* Hide on mobile */}
+                <Text
+                  size="xs"
+                  fw={600}
+                  c={MUTED_OLIVE}
+                  style={{ width: 140, textAlign: 'center' }}
+                  visibleFrom="sm"
+                >
+                  SUBMISSION DATE
+                </Text>
                 <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ width: 40, textAlign: 'center' }}>VIEW</Text>
               </Group>
             </Box>
+
             {['supervising', 'director', 'returned'].map(tab => {
               const data = tab === 'supervising' ? supervisingLawyerReviews : tab === 'director' ? directorReviews : returnedToInternReviews;
               const paginated = data.slice((reviewPage - 1) * ITEMS_PER_PAGE, reviewPage * ITEMS_PER_PAGE);
               const bColor = tab === 'supervising' ? PRIMARY_GOLD : tab === 'director' ? '#7950F2' : '#FA5252';
               return (
                 <Tabs.Panel key={tab} value={tab}>
-                  <Stack gap={0}>{paginated.length > 0 ? paginated.map((r, i) => (
-                    <Box key={r._id || r.id}>
-                      <Group px="md" h={44} wrap="nowrap" gap="md" style={{ cursor: 'pointer', borderLeft: `4px solid ${bColor}`, background: i % 2 === 0 ? 'white' : '#FAFAFA' }} onClick={() => navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } })}>
-                        <Box style={{ flex: 1, minWidth: 0 }}><Text fw={600} size="sm" truncate>{r.clientName || 'Unknown'}</Text></Box>
-                        <Box style={{ width: 150, textAlign: 'center' }}><Text size="xs" fw={500} c={MUTED_OLIVE}>{new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text></Box>
-                        <Box style={{ width: 40, display: 'flex', justifyContent: 'center' }}><IconChevronRight size={18} color="gray" /></Box>
-                      </Group>
-                      <Divider color="#F3F4F6" />
-                    </Box>
-                  )) : <Center h={100}><Text c="dimmed" size="sm" fw={500}>No pending reviews</Text></Center>}</Stack>
+                  <Stack gap={0}>
+                    {paginated.length > 0 ? paginated.map((r, i) => (
+                      <Box key={r._id || r.id}>
+                        <Group
+                          px={{ base: 'sm', sm: 'md' }}
+                          py={{ base: 10, sm: 0 }}
+                          h={{ base: 'auto', sm: 44 }}
+                          wrap="nowrap"
+                          gap="md"
+                          style={{
+                            cursor: 'pointer',
+                            borderLeft: `4px solid ${bColor}`,
+                            background: i % 2 === 0 ? 'white' : '#FAFAFA',
+                            alignItems: 'center',
+                          }}
+                          onClick={() => navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } })}
+                        >
+                          {/* Client info: name + date stacked on mobile */}
+                          <Box style={{ flex: 1, minWidth: 0 }}>
+                            <Text fw={600} size="sm" truncate>{r.clientName || 'Unknown'}</Text>
+                            {/* Date shown inline below name on mobile only */}
+                            <Text
+                              size="xs"
+                              fw={500}
+                              c={MUTED_OLIVE}
+                              hiddenFrom="sm"
+                            >
+                              {new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </Text>
+                          </Box>
+                          {/* Date column: desktop only */}
+                          <Box style={{ width: 140, textAlign: 'center' }} visibleFrom="sm">
+                            <Text size="xs" fw={500} c={MUTED_OLIVE}>
+                              {new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </Text>
+                          </Box>
+                          <Box style={{ width: 40, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+                            <IconChevronRight size={18} color="gray" />
+                          </Box>
+                        </Group>
+                        <Divider color="#F3F4F6" />
+                      </Box>
+                    )) : (
+                      <Center h={100}>
+                        <Text c="dimmed" size="sm" fw={500}>No pending reviews</Text>
+                      </Center>
+                    )}
+                  </Stack>
                 </Tabs.Panel>
               );
             })}
           </Tabs>
-          <Box px="lg" py="xs" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}><Pagination total={Math.ceil((reviewTab === 'supervising' ? supervisingLawyerReviews.length : reviewTab === 'director' ? directorReviews.length : returnedToInternReviews.length) / ITEMS_PER_PAGE) || 1} value={reviewPage} onChange={setReviewPage} color={PRIMARY_BROWN} size="xs" radius="md" withEdges /></Box>
+
+          <Box px={{ base: 'md', sm: 'lg' }} py="xs" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
+            <Pagination
+              total={Math.ceil((reviewTab === 'supervising' ? supervisingLawyerReviews.length : reviewTab === 'director' ? directorReviews.length : returnedToInternReviews.length) / ITEMS_PER_PAGE) || 1}
+              value={reviewPage}
+              onChange={setReviewPage}
+              color={PRIMARY_BROWN}
+              size="xs"
+              radius="md"
+              withEdges={false}
+            />
+          </Box>
         </Paper>
 
-        {/* ── Activity Monitoring ── */}
+        {/* ── D. Activity Monitoring ── */}
         <Paper shadow="sm" radius="lg" bg="white" mt="xl" withBorder style={{ overflow: 'hidden' }}>
-          <Box px="lg" py="md" style={{ borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' }}>
-            <Group justify="space-between" align="center">
-              <Group gap="sm">
-                <Box style={{ width: 32, height: 32, borderRadius: 10, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <IconActivity size={18} color="white" stroke={2} />
-                </Box>
-                <Title order={4} c={CHARCOAL} fw={700} tt="uppercase" lts={0.5}>Activity Monitoring</Title>
-              </Group>
-              <Group gap="xs">
-                {activityTab === 'logs' && (
-                  <>
-                    <Select
-                      placeholder="Period"
-                      size="xs"
-                      radius="md"
-                      value={logPeriod}
-                      onChange={(val) => { setLogPeriod(val || 'today'); setLogPage(1); }}
-                      data={[{ value: 'today', label: 'Today' }, { value: 'week', label: 'Last 7 Days' }, { value: 'month', label: 'Last 30 Days' }]}
-                      w={120}
-                    />
-                    <Select
-                      placeholder="Action"
-                      size="xs"
-                      radius="md"
-                      value={logActionFilter}
-                      onChange={(val) => { setLogActionFilter(val || 'all'); setLogPage(1); }}
-                      data={[
-                        { value: 'all', label: 'All Actions' },
-                        { value: 'login', label: 'Login' },
-                        { value: 'logout', label: 'Logout' },
-                        { value: 'case_created', label: 'Case Created' },
-                        { value: 'case_updated', label: 'Case Updated' },
-                        { value: 'case_assigned', label: 'Case Assigned' },
-                        { value: 'review_submitted', label: 'Review Submitted' },
-                        { value: 'finalize_decision', label: 'Decision Finalized' },
-                      ]}
-                      w={150}
-                    />
-                  </>
-                )}
+          {/* Header */}
+          <Box px={{ base: 'md', sm: 'lg' }} py="md" style={{ borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' }}>
+            <Stack gap="sm">
+              {/* Title row */}
+              <Group justify="space-between" align="center">
+                <Group gap="sm">
+                  <Box style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 10, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconActivity size={18} color="white" stroke={2} />
+                  </Box>
+                  <Title order={4} c={CHARCOAL} fw={700} tt="uppercase" lts={0.5}>Activity Monitoring</Title>
+                </Group>
+                {/* Online badge — only show when on online tab */}
                 {activityTab === 'online' && (
                   <Badge size="lg" variant="light" color="green" radius="md" fw={600} leftSection={<IconCircleFilled size={10} style={{ color: '#40C057' }} />}>
-                    {onlineUsers.length} Users Active
+                    {onlineUsers.length} Active
                   </Badge>
                 )}
               </Group>
-            </Group>
+
+              {/* Filters row — only show when on logs tab, stack-friendly */}
+              {activityTab === 'logs' && (
+                <Group gap="xs" wrap="wrap">
+                  <Select
+                    placeholder="Period"
+                    size="xs"
+                    radius="md"
+                    value={logPeriod}
+                    onChange={(val) => { setLogPeriod(val || 'today'); setLogPage(1); }}
+                    data={[
+                      { value: 'today', label: 'Today' },
+                      { value: 'week', label: 'Last 7 Days' },
+                      { value: 'month', label: 'Last 30 Days' },
+                    ]}
+                    style={{ flex: '1 1 120px', minWidth: 100 }}
+                  />
+                  <Select
+                    placeholder="Action"
+                    size="xs"
+                    radius="md"
+                    value={logActionFilter}
+                    onChange={(val) => { setLogActionFilter(val || 'all'); setLogPage(1); }}
+                    data={[
+                      { value: 'all', label: 'All Actions' },
+                      { value: 'login', label: 'Login' },
+                      { value: 'logout', label: 'Logout' },
+                      { value: 'case_created', label: 'Case Created' },
+                      { value: 'case_updated', label: 'Case Updated' },
+                      { value: 'case_assigned', label: 'Case Assigned' },
+                      { value: 'review_submitted', label: 'Review Submitted' },
+                      { value: 'finalize_decision', label: 'Decision Finalized' },
+                    ]}
+                    style={{ flex: '1 1 150px', minWidth: 120 }}
+                  />
+                </Group>
+              )}
+            </Stack>
           </Box>
 
-          <Tabs value={activityTab} onChange={setActivityTab} variant="pills" p="md">
+          <Tabs value={activityTab} onChange={setActivityTab} variant="pills" p={{ base: 'sm', sm: 'md' }}>
             <Tabs.List mb="md">
               <Tabs.Tab value="logs" leftSection={<IconRotateClockwise size={14} />}>All Activity</Tabs.Tab>
-              <Tabs.Tab value="online" leftSection={<IconUsers size={14} />} rightSection={onlineUsers.length > 0 && <Badge size="xs" circle color="green" fw={600}>{onlineUsers.length}</Badge>}>Currently Online</Tabs.Tab>
+              <Tabs.Tab
+                value="online"
+                leftSection={<IconUsers size={14} />}
+                rightSection={onlineUsers.length > 0 && <Badge size="xs" circle color="green" fw={600}>{onlineUsers.length}</Badge>}
+              >
+                Currently Online
+              </Tabs.Tab>
             </Tabs.List>
 
+            {/* ── Logs Tab ── */}
             <Tabs.Panel value="logs">
-              <Box px="md" py={8} bg="#F8F9FA" style={{ borderBottom: '1px solid #EEE', borderRadius: '8px 8px 0 0' }}>
+              {/* Table header — desktop only */}
+              <Box
+                px={{ base: 'sm', sm: 'md' }}
+                py={8}
+                bg="#F8F9FA"
+                visibleFrom="sm"
+                style={{ borderBottom: '1px solid #EEE', borderRadius: '8px 8px 0 0' }}
+              >
                 <Group wrap="nowrap" gap="md">
                   <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ width: 60 }}>ACTION</Text>
                   <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ flex: 1 }}>USER</Text>
@@ -426,10 +572,50 @@ export default function AdminDashboard() {
                       const config = getActionConfig(log.action);
                       const roleName = (log.userRole || 'user').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                       const logDate = new Date(log.createdAt);
+
                       return (
                         <Box key={log._id}>
-                          <Group wrap="nowrap" px="md" h={50} gap="md" style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}>
-                            <Box style={{ width: 60 }}>
+                          {/* ── Mobile card layout ── */}
+                          <Box
+                            hiddenFrom="sm"
+                            px="sm"
+                            py="xs"
+                            style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}
+                          >
+                            <Group justify="space-between" align="flex-start" wrap="nowrap">
+                              <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                                <Badge size="xs" variant="light" color={config.color} fw={600} leftSection={config.icon} style={{ flexShrink: 0 }}>
+                                  {config.label}
+                                </Badge>
+                                <Box style={{ minWidth: 0 }}>
+                                  <Text size="sm" fw={600} c={CHARCOAL} truncate>{log.userName || log.userEmail || 'Unknown User'}</Text>
+                                  <Text size={10} fw={400} c="dimmed" truncate>{log.userEmail}</Text>
+                                </Box>
+                              </Group>
+                              <Box style={{ flexShrink: 0, textAlign: 'right' }}>
+                                <Text size="xs" fw={600} c={CHARCOAL}>
+                                  {logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </Text>
+                                <Text size={10} c="dimmed">
+                                  {logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </Text>
+                              </Box>
+                            </Group>
+                            <Box mt={4}>
+                              <Badge size="xs" variant="outline" color="gray" radius="sm" fw={500}>{roleName}</Badge>
+                            </Box>
+                          </Box>
+
+                          {/* ── Desktop row layout ── */}
+                          <Group
+                            visibleFrom="sm"
+                            wrap="nowrap"
+                            px="md"
+                            h={50}
+                            gap="md"
+                            style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}
+                          >
+                            <Box style={{ width: 60, flexShrink: 0 }}>
                               <Badge size="xs" variant="light" color={config.color} fw={600} leftSection={config.icon}>
                                 {config.label}
                               </Badge>
@@ -438,21 +624,22 @@ export default function AdminDashboard() {
                               <Text size="sm" fw={600} c={CHARCOAL} truncate>{log.userName || log.userEmail || 'Unknown User'}</Text>
                               <Text size={10} fw={400} c="dimmed" truncate>{log.userEmail}</Text>
                             </Box>
-                            <Box style={{ width: 120, textAlign: 'center' }}>
+                            <Box style={{ width: 120, textAlign: 'center', flexShrink: 0 }}>
                               <Badge size="xs" variant="outline" color="gray" radius="sm" fw={500}>{roleName}</Badge>
                             </Box>
-                            <Box style={{ width: 180, textAlign: 'right' }}>
+                            <Box style={{ width: 180, textAlign: 'right', flexShrink: 0 }}>
                               <Group gap={4} justify="flex-end">
                                 <Text size="xs" fw={600} c={CHARCOAL}>
                                   {logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </Text>
-                                <Text size="xs" c="dimmed" fw={400}>•</Text>
+                                <Text size="xs" c="dimmed">•</Text>
                                 <Text size="xs" c="dimmed" fw={500}>
                                   {logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                 </Text>
                               </Group>
                             </Box>
                           </Group>
+
                           <Divider color="#F3F4F6" />
                         </Box>
                       );
@@ -463,13 +650,29 @@ export default function AdminDashboard() {
                 )}
               </ScrollArea>
 
-              <Box px="lg" py="xs" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
-                <Pagination total={Math.ceil(logTotal / LOG_ITEMS) || 1} value={logPage} onChange={setLogPage} color={PRIMARY_BROWN} size="xs" radius="md" withEdges />
+              <Box px={{ base: 'md', sm: 'lg' }} py="xs" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
+                <Pagination
+                  total={Math.ceil(logTotal / LOG_ITEMS) || 1}
+                  value={logPage}
+                  onChange={setLogPage}
+                  color={PRIMARY_BROWN}
+                  size="xs"
+                  radius="md"
+                  withEdges={false}
+                />
               </Box>
             </Tabs.Panel>
 
+            {/* ── Online Tab ── */}
             <Tabs.Panel value="online">
-              <Box px="md" py={8} bg="#F8F9FA" style={{ borderBottom: '1px solid #EEE', borderRadius: '8px 8px 0 0' }}>
+              {/* Table header — desktop only */}
+              <Box
+                px={{ base: 'sm', sm: 'md' }}
+                py={8}
+                bg="#F8F9FA"
+                visibleFrom="sm"
+                style={{ borderBottom: '1px solid #EEE', borderRadius: '8px 8px 0 0' }}
+              >
                 <Group wrap="nowrap" gap="md">
                   <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ width: 40, textAlign: 'center' }}>STATUS</Text>
                   <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ flex: 1 }}>ACTIVE USER</Text>
@@ -486,45 +689,85 @@ export default function AdminDashboard() {
                       const seenDate = new Date(user.lastSeen);
                       return (
                         <Box key={user._id}>
-                          <Group wrap="nowrap" px="md" h={50} gap="md" style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}>
-                            <Box style={{ width: 40, display: 'flex', justifyContent: 'center' }}>
+                          {/* ── Mobile card layout ── */}
+                          <Box
+                            hiddenFrom="sm"
+                            px="sm"
+                            py="xs"
+                            style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}
+                          >
+                            <Group justify="space-between" align="center" wrap="nowrap">
+                              <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                                <IconCircleFilled size={10} style={{ color: '#40C057', flexShrink: 0 }} />
+                                <Box style={{ minWidth: 0 }}>
+                                  <Text size="sm" fw={600} c={CHARCOAL} truncate>{user.userName || 'Unknown User'}</Text>
+                                  <Badge size="xs" variant="outline" color="gray" radius="sm" fw={500} mt={2}>{roleName}</Badge>
+                                </Box>
+                              </Group>
+                              <Box style={{ flexShrink: 0, textAlign: 'right' }}>
+                                <Text size="xs" fw={600} c={CHARCOAL}>
+                                  {seenDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </Text>
+                                <Text size={10} c="dimmed">
+                                  {seenDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </Text>
+                              </Box>
+                            </Group>
+                          </Box>
+
+                          {/* ── Desktop row layout ── */}
+                          <Group
+                            visibleFrom="sm"
+                            wrap="nowrap"
+                            px="md"
+                            h={50}
+                            gap="md"
+                            style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}
+                          >
+                            <Box style={{ width: 40, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
                               <IconCircleFilled size={10} style={{ color: '#40C057' }} />
                             </Box>
                             <Box style={{ flex: 1, minWidth: 0 }}>
                               <Text size="sm" fw={600} c={CHARCOAL} truncate>{user.userName || 'Unknown User'}</Text>
                             </Box>
-                            <Box style={{ width: 120, textAlign: 'center' }}>
+                            <Box style={{ width: 120, textAlign: 'center', flexShrink: 0 }}>
                               <Badge size="xs" variant="outline" color="gray" radius="sm" fw={500}>{roleName}</Badge>
                             </Box>
-                            <Box style={{ width: 180, textAlign: 'right' }}>
+                            <Box style={{ width: 180, textAlign: 'right', flexShrink: 0 }}>
                               <Group gap={4} justify="flex-end">
                                 <Text size="xs" fw={600} c={CHARCOAL}>
                                   {seenDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </Text>
-                                <Text size="xs" c="dimmed" fw={400}>•</Text>
+                                <Text size="xs" c="dimmed">•</Text>
                                 <Text size="xs" c="dimmed" fw={500}>
                                   {seenDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                 </Text>
                               </Group>
                             </Box>
                           </Group>
+
                           <Divider color="#F3F4F6" />
                         </Box>
                       );
                     })}
                   </Stack>
                 ) : (
-                  <Center h={150}><Stack gap={4} align="center"><Text size="xs" c="dimmed" fw={500}>No users are currently online</Text></Stack></Center>
+                  <Center h={150}>
+                    <Stack gap={4} align="center">
+                      <Text size="xs" c="dimmed" fw={500}>No users are currently online</Text>
+                    </Stack>
+                  </Center>
                 )}
               </ScrollArea>
-              <Box px="lg" py="sm" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
+
+              <Box px={{ base: 'md', sm: 'lg' }} py="sm" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
                 <Text size="xs" c="dimmed" italic fw={400}>Activity status is updated every 15 seconds</Text>
               </Box>
             </Tabs.Panel>
           </Tabs>
         </Paper>
+
       </Container>
     </Box>
   );
 }
-

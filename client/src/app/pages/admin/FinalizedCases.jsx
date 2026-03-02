@@ -1553,23 +1553,21 @@ export default function FinalizedCases() {
 
       dispatch({ type: 'SET_FINALIZED', payload: normalizedFinalized });
 
-      // Check which accepted cases have case records
+      // Bulk-check which accepted cases have case records (single request instead of N)
       const accepted = normalizedFinalized.filter(f => f.decision === 'accepted');
-      const recordsMap = {};
+      let recordsMap = {};
 
-      await Promise.all(
-        accepted.map(async (caseData) => {
-          try {
-            const caseRecordResp = await apiClient.get(`/caserecords/finalize/${caseData._id || caseData.id}`);
-            if (caseRecordResp.data) {
-              recordsMap[caseData._id || caseData.id] = true;
-            }
-          } catch (err) {
-            // No case record exists
-            recordsMap[caseData._id || caseData.id] = false;
-          }
-        })
-      );
+      if (accepted.length > 0) {
+        try {
+          const ids = accepted.map(f => f._id || f.id);
+          const bulkResp = await apiClient.post('/caserecords/finalize/bulk', { ids });
+          recordsMap = bulkResp.data?.data || {};
+        } catch (err) {
+          console.error('Bulk case records check failed:', err);
+          // Fall back to marking all as false
+          accepted.forEach(f => { recordsMap[f._id || f.id] = false; });
+        }
+      }
 
       dispatch({ type: 'SET_CASE_RECORDS_MAP', payload: recordsMap });
     } catch (err) {
@@ -3728,9 +3726,9 @@ export default function FinalizedCases() {
                 .map(u => ({
                   value: u._id,
                   label: `${u.firstName} ${u.lastName} (${u.role === 'supervising_lawyer' ? 'Supervising Lawyer' :
-                      u.role === 'director' ? 'Director' :
-                        u.role === 'secretary' ? 'Secretary' :
-                          u.role === 'intern' ? 'Legal Intern' : u.role
+                    u.role === 'director' ? 'Director' :
+                      u.role === 'secretary' ? 'Secretary' :
+                        u.role === 'intern' ? 'Legal Intern' : u.role
                     })`,
                 }))}
               searchable
