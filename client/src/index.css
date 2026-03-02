@@ -26,3 +26,35 @@
 .calendar-day-cell:hover .add-event-hint {
   opacity: 1 !important;
 }
+
+/* ─── Staff Appointment Manager — responsive header ─────── */
+.apmt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.apmt-header-controls {
+  flex-shrink: 0;
+}
+
+/* On small screens: stack brand and controls into two rows */
+@media (max-width: 640px) {
+  .apmt-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .apmt-header-controls {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  /* Hide the Google Calendar text label on very small screens — show icon only */
+  .apmt-gcal-label {
+    display: none;
+  }
+}

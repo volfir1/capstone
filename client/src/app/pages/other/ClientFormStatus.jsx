@@ -89,7 +89,6 @@ export default function StaffAppointmentManager() {
       if (data?.url) {
         window.open(data.url, '_blank', 'width=600,height=700');
         notifications.show({ title: 'Google Calendar', message: 'Complete authorization in the new window. Come back here when done.', color: 'blue', autoClose: 8000 });
-        // Poll to check if connection succeeded using refreshUserData
         const pollInterval = setInterval(async () => {
           try {
             const freshData = await refreshUserData();
@@ -100,7 +99,6 @@ export default function StaffAppointmentManager() {
             }
           } catch (_) { /* ignore polling errors */ }
         }, 3000);
-        // Stop polling after 2 minutes
         setTimeout(() => clearInterval(pollInterval), 120000);
       }
     } catch (err) {
@@ -121,7 +119,7 @@ export default function StaffAppointmentManager() {
     setIsGoogleConnected(false);
   };
 
-  // Filtered lists logic
+  // ─── Filtered lists ───
   const filteredPending = useMemo(() => {
     return pendingAppointments
       .filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded)
@@ -137,23 +135,18 @@ export default function StaffAppointmentManager() {
   }, [pendingAppointments, selectedFilterDate, searchQuery]);
 
   const allAppointmentsForCalendar = useMemo(() => {
-    // Collect event IDs that are linked to clientsinfo records (approved appointments)
-    // so we don't show both the clientsinfo AND the linked event on the calendar
     const linkedEventIds = new Set(
       pendingAppointments
         .filter(apt => apt.calendarRecorded && apt.fullData?.calendarEventId)
         .map(apt => apt.fullData.calendarEventId)
     );
-
     const list = [
-      // Show ALL clientsinfo appointments (both pending and accepted) as "Initial Interview"
       ...pendingAppointments.map(apt => ({
         ...apt,
         uniqueId: `apt-${apt.id}`,
         date: apt.rawAppointedDate ? new Date(apt.rawAppointedDate) : null,
         isEvent: false
       })),
-      // Only show events that are NOT linked to a clientsinfo record (custom events only)
       ...events
         .filter(evt => !linkedEventIds.has(evt.id))
         .map(evt => ({
@@ -163,7 +156,6 @@ export default function StaffAppointmentManager() {
           isEvent: true
         }))
     ];
-
     if (calendarFilter === 'All') return list;
     return list.filter(item => item.type === calendarFilter);
   }, [pendingAppointments, events, calendarFilter]);
@@ -173,7 +165,6 @@ export default function StaffAppointmentManager() {
     if (!silent) setLoading(true);
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
-
       const pendingResp = await apiClient.get('/clientsinfo');
       const docs = pendingResp?.data || [];
       const mapped = (Array.isArray(docs) ? docs : [])
@@ -220,7 +211,7 @@ export default function StaffAppointmentManager() {
           const d = new Date(e.eventDate);
           const h = d.getHours();
           const m = d.getMinutes();
-          if (h === 0 && m === 0) return '';  // midnight likely means no specific time
+          if (h === 0 && m === 0) return '';
           const ampm = h >= 12 ? 'PM' : 'AM';
           const displayH = h % 12 || 12;
           return `${displayH}:${String(m).padStart(2, '0')} ${ampm}`;
@@ -275,11 +266,8 @@ export default function StaffAppointmentManager() {
   const handleOpenEditAppointment = (appointment) => {
     setSelectedAppointment(appointment);
     if (appointment?.rawAppointedDate) {
-      try {
-        setNewDate(new Date(appointment.rawAppointedDate));
-      } catch (e) {
-        setNewDate(null);
-      }
+      try { setNewDate(new Date(appointment.rawAppointedDate)); }
+      catch (e) { setNewDate(null); }
     } else {
       setNewDate(null);
     }
@@ -295,13 +283,8 @@ export default function StaffAppointmentManager() {
     setIsUpdating(true);
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
-
       if (selectedAppointment.calendarRecorded) {
-        // Accepted appointment — reschedule via Google Calendar sync endpoint
-        // Find the linked event by matching the appointment to its calendarEventId
         const eventId = selectedAppointment.fullData?.calendarEventId || '';
-        
-        // Set the time on the new date
         const dateWithTime = new Date(newDate);
         if (newTime) {
           const timeMatch = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(newTime);
@@ -313,7 +296,6 @@ export default function StaffAppointmentManager() {
             dateWithTime.setHours(h, parseInt(timeMatch[2]), 0, 0);
           }
         }
-
         await apiClient.post('/google/events/reschedule', {
           firebaseUid: currentUser.uid,
           eventId,
@@ -323,13 +305,11 @@ export default function StaffAppointmentManager() {
         });
         notifications.show({ title: 'Success', message: 'Appointment rescheduled and Google Calendar updated.', color: 'green', icon: <IconCheck size={18} /> });
       } else {
-        // Pending appointment — simple update
         const iso = newDate.toISOString();
         const payload = { appointedDate: iso, appointmentTime: newTime || '' };
         await apiClient.put(`/clientsinfo/${selectedAppointment.id}`, payload);
         notifications.show({ title: 'Success', message: 'Appointment updated successfully', color: 'green', icon: <IconCheck size={18} /> });
       }
-
       setRescheduleModal(false);
       await loadAllData();
     } catch (error) {
@@ -369,32 +349,26 @@ export default function StaffAppointmentManager() {
       const { default: apiClient } = await import('@config/api/apiClient');
       const title = appointment.clientName ? `${appointment.clientName} - Interview` : 'Client Interview';
       const description = appointment.purpose || `Case ID: ${appointment.id}`;
-
-      // Build proper date+time for Google Calendar using Asia/Manila timezone
       const dateObj = new Date(appointment.rawAppointedDate);
-      const rawTime = appointment.fullData?.appointmentTime || ''; // stored as "HH:mm"
+      const rawTime = appointment.fullData?.appointmentTime || '';
       const year = dateObj.getFullYear();
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
       const day = String(dateObj.getDate()).padStart(2, '0');
-
       let startHour = 9, startMin = 0;
       if (rawTime) {
         const parts = rawTime.split(':');
         startHour = parseInt(parts[0]) || 9;
         startMin = parseInt(parts[1]) || 0;
       }
-
       const startDateTime = `${year}-${month}-${day}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
       const endHour = startHour + 1;
       const endDateTime = `${year}-${month}-${day}T${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
-
       const googleEvent = {
         summary: title,
         description,
         start: { dateTime: startDateTime, timeZone: 'Asia/Manila' },
         end: { dateTime: endDateTime, timeZone: 'Asia/Manila' },
       };
-
       await apiClient.post('/google/events/atomic', {
         firebaseUid: currentUser.uid,
         event: googleEvent,
@@ -409,7 +383,6 @@ export default function StaffAppointmentManager() {
           status: 'scheduled',
         }
       });
-
       notifications.show({ title: 'Success', message: 'Synced to calendar successfully.', color: 'green' });
       await loadAllData();
     } catch (err) {
@@ -458,19 +431,26 @@ export default function StaffAppointmentManager() {
     }
   };
 
+  // ── Appointment Card (side panel) ─────────────────────────────────────────
   const SideAppointmentCard = ({ item }) => (
-    <Card shadow="xs" padding="md" radius="lg" withBorder style={{ borderLeft: `5px solid ${item.calendarRecorded ? 'green' : PRIMARY_GOLD}`, transition: 'all 0.2s ease', '&:hover': { transform: 'translateX(4px)', backgroundColor: '#F9FAFB' } }}>
+    <Card
+      shadow="xs"
+      padding="md"
+      radius="lg"
+      withBorder
+      style={{ borderLeft: `5px solid ${item.calendarRecorded ? 'green' : PRIMARY_GOLD}` }}
+    >
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start" wrap="nowrap">
-          <Group gap="xs">
-            <Box style={{ maxWidth: 160 }}>
-              <Text fw={600} size="sm" c={CHARCOAL} truncate>{item.clientName}</Text>
-              <Text size="xs" c={MUTED_OLIVE} fw={500}>{item.type}</Text>
-            </Box>
-          </Group>
+          <Box style={{ minWidth: 0, flex: 1 }}>
+            <Text fw={600} size="sm" c={CHARCOAL} truncate>{item.clientName}</Text>
+            <Text size="xs" c={MUTED_OLIVE} fw={500}>{item.type}</Text>
+          </Box>
           <Menu shadow="md" position="bottom-end" radius="md">
             <Menu.Target>
-              <ActionIcon variant="subtle" color="gray" size="sm"><IconDots size={16} /></ActionIcon>
+              <ActionIcon variant="subtle" color="gray" size="sm" style={{ flexShrink: 0 }}>
+                <IconDots size={16} />
+              </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => handleOpenEditAppointment(item)}>Edit Schedule</Menu.Item>
@@ -481,7 +461,7 @@ export default function StaffAppointmentManager() {
           </Menu>
         </Group>
 
-        <Group gap="md">
+        <Group gap="md" wrap="wrap">
           <Group gap={4}>
             <IconClock size={14} color={PRIMARY_BROWN} />
             <Text size="xs" fw={600} c={CHARCOAL}>{item.appointmentTime || 'TBD'}</Text>
@@ -494,14 +474,41 @@ export default function StaffAppointmentManager() {
 
         <Group grow gap="xs" mt={4}>
           {!item.calendarRecorded ? (
-            <Button size="compact-xs" radius="md" fw={600} style={{ backgroundColor: PRIMARY_BROWN }} onClick={() => { setAppointmentToApprove(item); setApproveModalOpen(true); }} loading={isUpdating}>Approve</Button>
+            <Button
+              size="compact-xs"
+              radius="md"
+              fw={600}
+              style={{ backgroundColor: PRIMARY_BROWN }}
+              onClick={() => { setAppointmentToApprove(item); setApproveModalOpen(true); }}
+              loading={isUpdating}
+            >
+              Approve
+            </Button>
           ) : (
             !['director', 'supervising_lawyer'].includes(userData?.role) && (
-              <Button size="compact-xs" variant="outline" radius="md" fw={600} style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }} onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { showClientInfo: true } })}>Interview</Button>
+              <Button
+                size="compact-xs"
+                variant="outline"
+                radius="md"
+                fw={600}
+                style={{ color: PRIMARY_BROWN, borderColor: PRIMARY_BROWN }}
+                onClick={() => navigate(`/admin/recommendation/${item.id}`, { state: { showClientInfo: true } })}
+              >
+                Interview
+              </Button>
             )
           )}
           {item.calendarRecorded && (
-            <Button size="compact-xs" variant="light" radius="md" fw={600} color="gray" onClick={() => openAppointmentModal(item.id)}>Details</Button>
+            <Button
+              size="compact-xs"
+              variant="light"
+              radius="md"
+              fw={600}
+              color="gray"
+              onClick={() => openAppointmentModal(item.id)}
+            >
+              Details
+            </Button>
           )}
         </Group>
       </Stack>
@@ -510,45 +517,61 @@ export default function StaffAppointmentManager() {
 
   if (loading) return <ClientFormStatusSkeleton />;
 
+  const pendingCount = pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length;
+  const interviewCount = pendingAppointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled').length;
+
   return (
     <Box bg={BG} mih="100vh">
-      <Container size="xl" py="xl">
-        {/* Modern Header */}
-        <Group justify="space-between" mb="xl" px="xs" align="center" wrap="nowrap">
+      <Container size="xl" py={{ base: 'md', sm: 'xl' }} px={{ base: 'md', sm: 'xl' }}>
+
+        {/* ── A. Header ── */}
+        <Group justify="space-between" align="center" mb="xl" wrap="wrap" gap="sm">
           {/* Left: Brand */}
-          <Group gap="md" align="center" wrap="nowrap">
-            <Box style={{ width: 44, height: 44, borderRadius: '12px', background: `linear-gradient(45deg, ${PRIMARY_BROWN}, ${PRIMARY_GOLD})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(107,68,35,0.15)', flexShrink: 0 }}>
-              <IconScale size={24} color="white" stroke={2} />
+          <Group gap="sm" align="center" wrap="nowrap">
+            <Box style={{
+              width: 44, height: 44, flexShrink: 0,
+              borderRadius: '12px',
+              background: `linear-gradient(45deg, ${PRIMARY_BROWN}, ${PRIMARY_GOLD})`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(107,68,35,0.15)',
+            }}>
+              <IconScale size={22} color="white" stroke={2} />
             </Box>
             <Stack gap={0}>
-              <Title order={2} fw={700} c={CHARCOAL}>Staff Appointment Manager</Title>
-              <Text size="xs" c={MUTED_OLIVE} fw={500}>San Sebastian College - Recoletos Manila Legal Aid</Text>
+              <Title order={3} fw={700} c={CHARCOAL} style={{ fontSize: 'clamp(15px, 3.5vw, 20px)' }}>
+                Staff Appointment Manager
+              </Title>
+              <Text size="xs" c={MUTED_OLIVE} fw={500} visibleFrom="sm">
+                San Sebastian College - Recoletos Manila Legal Aid
+              </Text>
             </Stack>
           </Group>
 
-          {/* Right: Google Calendar pill → Stats → Refresh */}
-          <Group gap="sm" align="center" wrap="nowrap">
+          {/* Right: Controls */}
+          <Group gap="xs" align="center" wrap="wrap">
 
-            {/* Google Calendar pill — clickable to connect when not connected */}
+            {/* Google Calendar pill */}
             <Tooltip label={isGoogleConnected ? 'Google Calendar connected' : 'Click to connect your Google Calendar'}>
               <Paper
                 shadow="xs"
                 radius="xl"
                 withBorder
                 bg="white"
-                px="md"
+                px="sm"
                 py={6}
                 style={{
                   cursor: isGoogleConnected ? 'default' : (isConnectingGoogle ? 'wait' : 'pointer'),
                   opacity: isConnectingGoogle ? 0.7 : 1,
+                  flexShrink: 0,
                 }}
                 onClick={!isGoogleConnected && !isConnectingGoogle ? handleConnectGoogleCalendar : undefined}
               >
-                <Group gap="sm" align="center" wrap="nowrap">
-                  <IconBrandGoogle size={26} color={isGoogleConnected ? '#34A853' : '#EA4335'} />
-                  <Stack gap={0}>
+                <Group gap="xs" align="center" wrap="nowrap">
+                  <IconBrandGoogle size={20} color={isGoogleConnected ? '#34A853' : '#EA4335'} />
+                  {/* Label: hidden on very small screens, visible on sm+ */}
+                  <Stack gap={0} visibleFrom="xs">
                     <Text size="xs" c={MUTED_OLIVE} fw={500} lh={1.2}>Google Calendar</Text>
-                    <Text size="sm" fw={700} c={isGoogleConnected ? 'green' : 'red'} lh={1.2}>
+                    <Text size="xs" fw={700} c={isGoogleConnected ? 'green' : 'red'} lh={1.2}>
                       {isConnectingGoogle ? 'Connecting…' : isGoogleConnected ? 'Connected' : 'Connect'}
                     </Text>
                   </Stack>
@@ -557,125 +580,164 @@ export default function StaffAppointmentManager() {
             </Tooltip>
 
             {/* Stats pill */}
-            <Paper shadow="xs" p="xs" radius="xl" withBorder bg="white">
-              <Group gap="xl" px="sm" align="center">
+            <Paper shadow="xs" radius="xl" withBorder bg="white" px="sm" py={6}>
+              <Group gap="sm" align="center" wrap="nowrap">
                 <Stack gap={0} ta="center">
-                  <Text size="xs" c={MUTED_OLIVE} fw={600}>PENDING</Text>
-                  <Text fw={700} size="lg" c="orange">{pendingAppointments.filter(a => a.status === 'auto-scheduled' && !a.calendarRecorded).length}</Text>
+                  {/* Label hidden on mobile to save space */}
+                  <Text size="xs" c={MUTED_OLIVE} fw={600} visibleFrom="sm">PENDING</Text>
+                  <Group gap={4} align="center">
+                    <IconClock size={12} color="orange" />
+                    <Text fw={700} size="sm" c="orange">{pendingCount}</Text>
+                  </Group>
                 </Stack>
                 <Divider orientation="vertical" />
                 <Stack gap={0} ta="center">
-                  <Text size="xs" c={MUTED_OLIVE} fw={600}>FOR INTERVIEW</Text>
-                  <Text fw={700} size="lg" c="green">{pendingAppointments.filter(a => a.calendarRecorded && a.status === 'auto-scheduled').length}</Text>
+                  <Text size="xs" c={MUTED_OLIVE} fw={600} visibleFrom="sm" style={{ whiteSpace: 'nowrap' }}>INTERVIEW</Text>
+                  <Group gap={4} align="center">
+                    <IconCheck size={12} color="green" />
+                    <Text fw={700} size="sm" c="green">{interviewCount}</Text>
+                  </Group>
                 </Stack>
               </Group>
             </Paper>
 
-            {/* Refresh button */}
+            {/* Refresh */}
             <Tooltip label="Refresh data">
-              <ActionIcon variant="filled" color="blue" onClick={() => loadAllData()} radius="xl" size="lg">
+              <ActionIcon
+                variant="filled"
+                color="blue"
+                onClick={() => loadAllData()}
+                radius="xl"
+                size="lg"
+                style={{ flexShrink: 0 }}
+              >
                 <IconRefresh size={18} />
               </ActionIcon>
             </Tooltip>
-
           </Group>
         </Group>
 
-        {/* Main Content: Calendar & Appointment Records Side Panel */}
-        <Grid gutter="xl" align="stretch">
+        {/* ── B. Main Content: Calendar + Appointment Records ── */}
+        <Grid gutter={{ base: 'md', xl: 'xl' }}>
+
+          {/* Calendar */}
           <Grid.Col span={{ base: 12, lg: 8 }}>
-            <Paper shadow="xl" p="lg" radius="xl" withBorder style={{ border: '2px solid #E5E7EB', backgroundColor: 'white', height: '100%' }}>
-                            <ClientFormStatusCalendar 
-                              appointments={allAppointmentsForCalendar}
-                              onEventCreated={loadAllData}
-                              onDateClick={handleDateClick}
-                              filterValue={calendarFilter}
-                              onFilterChange={setCalendarFilter}
-                              onAddEvent={() => { 
-                                setEventEditForm({ title: '', description: '', eventDate: new Date(), eventType: 'appointment', location: '', clientName: '', assignedTo: '', priority: 'Medium' }); 
-                                setEditEventModal(true); 
-                              }}
-                            />            </Paper>
+            <Paper
+              shadow="xl"
+              p={{ base: 'sm', sm: 'lg' }}
+              radius="xl"
+              withBorder
+              style={{ border: '2px solid #E5E7EB', backgroundColor: 'white', height: '100%' }}
+            >
+              <ClientFormStatusCalendar
+                appointments={allAppointmentsForCalendar}
+                onEventCreated={loadAllData}
+                onDateClick={handleDateClick}
+                filterValue={calendarFilter}
+                onFilterChange={setCalendarFilter}
+                onAddEvent={() => {
+                  setEventEditForm({ title: '', description: '', eventDate: new Date(), eventType: 'appointment', location: '', clientName: '', assignedTo: '', priority: 'Medium' });
+                  setSelectedEvent(null);
+                  setEditEventModal(true);
+                }}
+              />
+            </Paper>
           </Grid.Col>
 
-                    <Grid.Col span={{ base: 12, lg: 4 }}>
-                      <Paper shadow="xl" p="lg" radius="xl" withBorder h="100%" bg="white" style={{ display: 'flex', flexDirection: 'column' }}>
-                        <Stack gap="md" style={{ flex: 1 }}>
-                          <Group justify="space-between" align="center" mb="xs">
-                            <Group gap="sm">
-                              <Box style={{ width: 32, height: 32, borderRadius: '8px', background: `${PRIMARY_BROWN}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <IconAddressBook size={18} color={PRIMARY_BROWN} />
-                              </Box>
-                              <Title order={4} c={CHARCOAL} fw={700}>Appointment Records</Title>
-                            </Group>
-                            {selectedFilterDate && (
-                              <Tooltip label="Reset date filter">
-                                <ActionIcon variant="light" color="red" radius="md" onClick={handleResetDateFilter}>
-                                  <IconRotateClockwise size={18} />
-                                </ActionIcon>
-                              </Tooltip>
-                            )}
-                          </Group>
-          
-                          <Stack gap={8} mb="md">
-                            <TextInput 
-                              placeholder="Search by client name..." 
-                              leftSection={<IconSearch size={16} />} 
-                              value={searchQuery} 
-                              onChange={(e) => setSearchQuery(e.target.value)} 
-                              size="sm" 
-                              radius="md" 
-                              styles={{ input: { borderColor: '#E5E7EB', '&:focus': { borderColor: PRIMARY_BROWN } } }} 
-                            />
-                            {selectedFilterDate && (
-                              <Badge variant="light" color={PRIMARY_BROWN} radius="md" size="sm" fullWidth>
-                                Date: {selectedFilterDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </Badge>
-                            )}
-                          </Stack>
-          
-                          <Tabs value={activeTab} onChange={(val) => { setActiveTab(val); setPendingPage(1); setInterviewPage(1); }} variant="pills" radius="md" styles={{ tab: { fontWeight: 600, fontSize: '11px', padding: '6px 12px', '&[data-active]': { background: PRIMARY_BROWN } } }}>
-                            <Tabs.List mb="md" grow>
-                              <Tabs.Tab value="pending" leftSection={<IconClock size={14} />}>Pending</Tabs.Tab>
-                              <Tabs.Tab value="forInterview" leftSection={<IconFileText size={14} />}>Interview</Tabs.Tab>
-                            </Tabs.List>
-          
-                            <Tabs.Panel value="pending">
-                              <Stack gap="md">
-                                <ScrollArea style={{ height: 380 }} offsetScrollbars scrollbarSize={6} styles={{ thumb: { backgroundColor: PRIMARY_BROWN } }}>
-                                  <Stack gap="sm" pr="sm">
-                                    {filteredPending
-                                      .slice((pendingPage - 1) * itemsPerPage, pendingPage * itemsPerPage)
-                                      .map((item) => (
-                                        <SideAppointmentCard key={item.id} item={item} />
-                                      ))}
-                                    {filteredPending.length === 0 && (
-                                      <Center h={200}>
-                                        <Stack align="center" gap="xs">
-                                          <IconInfoCircle size={32} color="#D1D5DB" />
-                                          <Text c="dimmed" size="xs" fw={500}>No matches found.</Text>
-                                        </Stack>
-                                      </Center>
-                                    )}
-                                  </Stack>
-                                </ScrollArea>
-                      <Center>
-                        <Pagination total={Math.ceil(filteredPending.length / itemsPerPage) || 1} value={pendingPage} onChange={setPendingPage} color={PRIMARY_BROWN} size="xs" radius="md" withEdges />
-                      </Center>
-                    </Stack>
-                  </Tabs.Panel>
+          {/* Appointment Records Panel */}
+          <Grid.Col span={{ base: 12, lg: 4 }}>
+            <Paper
+              shadow="xl"
+              p={{ base: 'sm', sm: 'lg' }}
+              radius="xl"
+              withBorder
+              bg="white"
+            >
+              <Stack gap="md">
 
-                  <Tabs.Panel value="forInterview">
+                {/* Panel header */}
+                <Group justify="space-between" align="center">
+                  <Group gap="sm">
+                    <Box style={{
+                      width: 32, height: 32, borderRadius: '8px',
+                      background: `${PRIMARY_BROWN}15`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <IconAddressBook size={18} color={PRIMARY_BROWN} />
+                    </Box>
+                    <Title order={4} c={CHARCOAL} fw={700}>Appointment Records</Title>
+                  </Group>
+                  {selectedFilterDate && (
+                    <Tooltip label="Reset date filter">
+                      <ActionIcon variant="light" color="red" radius="md" onClick={handleResetDateFilter}>
+                        <IconRotateClockwise size={18} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                </Group>
+
+                {/* Search + date badge */}
+                <Stack gap={8}>
+                  <TextInput
+                    placeholder="Search by client name..."
+                    leftSection={<IconSearch size={16} />}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    size="sm"
+                    radius="md"
+                    styles={{ input: { borderColor: '#E5E7EB' } }}
+                  />
+                  {selectedFilterDate && (
+                    <Badge variant="light" color={PRIMARY_BROWN} radius="md" size="sm" fullWidth>
+                      Date: {selectedFilterDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </Badge>
+                  )}
+                </Stack>
+
+                {/* Tabs */}
+                <Tabs
+                  value={activeTab}
+                  onChange={(val) => { setActiveTab(val); setPendingPage(1); setInterviewPage(1); }}
+                  variant="pills"
+                  radius="md"
+                  styles={{
+                    tab: { fontWeight: 600, fontSize: '11px', padding: '6px 12px' },
+                  }}
+                >
+                  <Tabs.List mb="md" grow>
+                    <Tabs.Tab
+                      value="pending"
+                      leftSection={<IconClock size={14} />}
+                      rightSection={filteredPending.length > 0 ? <Badge size="xs" circle color="orange" variant="filled">{filteredPending.length}</Badge> : null}
+                    >
+                      Pending
+                    </Tabs.Tab>
+                    <Tabs.Tab
+                      value="forInterview"
+                      leftSection={<IconFileText size={14} />}
+                      rightSection={filteredInterview.length > 0 ? <Badge size="xs" circle color="green" variant="filled">{filteredInterview.length}</Badge> : null}
+                    >
+                      Interview
+                    </Tabs.Tab>
+                  </Tabs.List>
+
+                  {/* Pending Panel */}
+                  <Tabs.Panel value="pending">
                     <Stack gap="md">
-                      <ScrollArea style={{ height: 380 }} offsetScrollbars scrollbarSize={6} styles={{ thumb: { backgroundColor: PRIMARY_BROWN } }}>
-                        <Stack gap="sm" pr="sm">
-                          {filteredInterview
-                            .slice((interviewPage - 1) * itemsPerPage, interviewPage * itemsPerPage)
+                      <ScrollArea
+                        h="clamp(300px, 50vh, 520px)"
+                        offsetScrollbars
+                        scrollbarSize={6}
+                        styles={{ thumb: { backgroundColor: PRIMARY_BROWN } }}
+                      >
+                        <Stack gap="sm" pr="xs">
+                          {filteredPending
+                            .slice((pendingPage - 1) * itemsPerPage, pendingPage * itemsPerPage)
                             .map((item) => (
                               <SideAppointmentCard key={item.id} item={item} />
                             ))}
-                          {filteredInterview.length === 0 && (
-                            <Center h={200}>
+                          {filteredPending.length === 0 && (
+                            <Center h={180}>
                               <Stack align="center" gap="xs">
                                 <IconInfoCircle size={32} color="#D1D5DB" />
                                 <Text c="dimmed" size="xs" fw={500}>No matches found.</Text>
@@ -684,9 +746,55 @@ export default function StaffAppointmentManager() {
                           )}
                         </Stack>
                       </ScrollArea>
-
                       <Center>
-                        <Pagination total={Math.ceil(filteredInterview.length / itemsPerPage) || 1} value={interviewPage} onChange={setInterviewPage} color={PRIMARY_BROWN} size="xs" radius="md" withEdges />
+                        <Pagination
+                          total={Math.ceil(filteredPending.length / itemsPerPage) || 1}
+                          value={pendingPage}
+                          onChange={setPendingPage}
+                          color={PRIMARY_BROWN}
+                          size="xs"
+                          radius="md"
+                          withEdges={false}
+                        />
+                      </Center>
+                    </Stack>
+                  </Tabs.Panel>
+
+                  {/* For Interview Panel */}
+                  <Tabs.Panel value="forInterview">
+                    <Stack gap="md">
+                      <ScrollArea
+                        h="clamp(300px, 50vh, 520px)"
+                        offsetScrollbars
+                        scrollbarSize={6}
+                        styles={{ thumb: { backgroundColor: PRIMARY_BROWN } }}
+                      >
+                        <Stack gap="sm" pr="xs">
+                          {filteredInterview
+                            .slice((interviewPage - 1) * itemsPerPage, interviewPage * itemsPerPage)
+                            .map((item) => (
+                              <SideAppointmentCard key={item.id} item={item} />
+                            ))}
+                          {filteredInterview.length === 0 && (
+                            <Center h={180}>
+                              <Stack align="center" gap="xs">
+                                <IconInfoCircle size={32} color="#D1D5DB" />
+                                <Text c="dimmed" size="xs" fw={500}>No matches found.</Text>
+                              </Stack>
+                            </Center>
+                          )}
+                        </Stack>
+                      </ScrollArea>
+                      <Center>
+                        <Pagination
+                          total={Math.ceil(filteredInterview.length / itemsPerPage) || 1}
+                          value={interviewPage}
+                          onChange={setInterviewPage}
+                          color={PRIMARY_BROWN}
+                          size="xs"
+                          radius="md"
+                          withEdges={false}
+                        />
                       </Center>
                     </Stack>
                   </Tabs.Panel>
@@ -697,14 +805,30 @@ export default function StaffAppointmentManager() {
         </Grid>
       </Container>
 
-      {/* Modals */}
-      <Modal opened={approveModalOpen} onClose={() => { setApproveModalOpen(false); setAppointmentToApprove(null); }} title={<Text fw={700} size="lg">Approve Appointment</Text>} centered radius="xl">
+      {/* ══ Approve Modal ══ */}
+      <Modal
+        opened={approveModalOpen}
+        onClose={() => { setApproveModalOpen(false); setAppointmentToApprove(null); }}
+        title={<Text fw={700} size="lg">Approve Appointment</Text>}
+        centered
+        radius="xl"
+        size={{ base: '100%', sm: 'md' }}
+        styles={{ inner: { padding: '8px' } }}
+      >
         <Stack gap="md" align="center" ta="center">
-          <Box p="lg" bg={THEMED_LIGHT_BG + '40'} style={{ borderRadius: '50%' }}><IconCheck size={40} color={PRIMARY_BROWN} /></Box>
+          <Box p="lg" bg={THEMED_LIGHT_BG + '40'} style={{ borderRadius: '50%' }}>
+            <IconCheck size={40} color={PRIMARY_BROWN} />
+          </Box>
           <Box>
             <Text fw={700} size="lg">Approve this appointment?</Text>
-            {appointmentToApprove && <Text size="sm" c="dimmed" mt={4}>{appointmentToApprove.clientName} — {appointmentToApprove.scheduledDate}</Text>}
-            <Text size="sm" c="dimmed" mt={4}>This will schedule the appointment to Google Calendar and mark it for interview.</Text>
+            {appointmentToApprove && (
+              <Text size="sm" c="dimmed" mt={4}>
+                {appointmentToApprove.clientName} — {appointmentToApprove.scheduledDate}
+              </Text>
+            )}
+            <Text size="sm" c="dimmed" mt={4}>
+              This will schedule the appointment to Google Calendar and mark it for interview.
+            </Text>
           </Box>
           <Group grow w="100%">
             <Button variant="outline" color="gray" radius="md" fw={600} onClick={() => { setApproveModalOpen(false); setAppointmentToApprove(null); }}>Cancel</Button>
@@ -712,47 +836,159 @@ export default function StaffAppointmentManager() {
           </Group>
         </Stack>
       </Modal>
-      <Modal opened={rescheduleModal} onClose={() => setRescheduleModal(false)} title={<Text fw={700} size="lg">Reschedule Appointment</Text>} size="md" radius="xl">
+
+      {/* ══ Reschedule Modal ══ */}
+      <Modal
+        opened={rescheduleModal}
+        onClose={() => setRescheduleModal(false)}
+        title={<Text fw={700} size="lg">Reschedule Appointment</Text>}
+        size={{ base: '100%', sm: 'md' }}
+        radius="xl"
+        styles={{ inner: { padding: '8px' } }}
+      >
         <Stack gap="md">
           {selectedAppointment && (
             <Paper p="md" radius="lg" withBorder bg={THEMED_LIGHT_BG + '30'}>
               <Group gap="sm">
                 <Avatar size={40} color={PRIMARY_BROWN}>{selectedAppointment.clientName[0]}</Avatar>
-                <Box><Text fw={600} size="sm">{selectedAppointment.clientName}</Text><Text size="xs" c="dimmed">Current: {selectedAppointment.scheduledDate}</Text></Box>
+                <Box>
+                  <Text fw={600} size="sm">{selectedAppointment.clientName}</Text>
+                  <Text size="xs" c="dimmed">Current: {selectedAppointment.scheduledDate}</Text>
+                </Box>
               </Group>
             </Paper>
           )}
-          <DatePickerInput label="New Date" placeholder="Select date" value={newDate} onChange={setNewDate} radius="md" size="md" />
-          <Select label="New Time" placeholder="Select time" data={['09:00 AM', '10:00 AM', '11:00 AM', '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM']} value={newTime} onChange={setNewTime} radius="md" size="md" />
-          <Group justify="flex-end" mt="md"><Button variant="subtle" color="gray" fw={600} onClick={() => setRescheduleModal(false)}>Cancel</Button><Button color={PRIMARY_BROWN} radius="md" fw={600} onClick={handleUpdateAppointment} loading={isUpdating}>Save Schedule</Button></Group>
+          <DatePickerInput
+            label="New Date"
+            placeholder="Select date"
+            value={newDate}
+            onChange={setNewDate}
+            radius="md"
+            size="md"
+          />
+          <Select
+            label="New Time"
+            placeholder="Select time"
+            data={['09:00 AM', '10:00 AM', '11:00 AM', '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM']}
+            value={newTime}
+            onChange={setNewTime}
+            radius="md"
+            size="md"
+          />
+          <Group justify="flex-end" mt="md">
+            <Button variant="subtle" color="gray" fw={600} onClick={() => setRescheduleModal(false)}>Cancel</Button>
+            <Button color={PRIMARY_BROWN} radius="md" fw={600} onClick={handleUpdateAppointment} loading={isUpdating}>Save Schedule</Button>
+          </Group>
         </Stack>
       </Modal>
 
-      <Modal opened={editEventModal} onClose={() => setEditEventModal(false)} title={<Text fw={700} size="lg">{selectedEvent ? 'Edit Event' : 'Add New Event'}</Text>} size="lg" radius="xl">
+      {/* ══ Edit / Add Event Modal ══ */}
+      <Modal
+        opened={editEventModal}
+        onClose={() => setEditEventModal(false)}
+        title={<Text fw={700} size="lg">{selectedEvent ? 'Edit Event' : 'Add New Event'}</Text>}
+        size={{ base: '100%', sm: 'lg' }}
+        radius="xl"
+        styles={{ inner: { padding: '8px' } }}
+      >
         <Stack gap="md">
-          <TextInput label="Title" placeholder="Event title" value={eventEditForm.title} onChange={(e) => setEditEventModal({ ...eventEditForm, title: e.target.value })} radius="md" />
-          <Textarea label="Description" placeholder="Notes..." value={eventEditForm.description} onChange={(e) => setEditEventModal({ ...eventEditForm, description: e.target.value })} radius="md" />
-          <Grid><Grid.Col span={6}><DatePickerInput label="Date" placeholder="Select date" value={eventEditForm.eventDate} onChange={(d) => setEditEventModal({ ...eventEditForm, eventDate: d })} radius="md" /></Grid.Col><Grid.Col span={6}><Select label="Type" data={['appointment', 'hearing', 'consultation', 'deadline', 'other']} value={eventEditForm.eventType} onChange={(v) => setEditEventModal({ ...eventEditForm, eventType: v })} radius="md" /></Grid.Col></Grid>
-          <TextInput label="Location" leftSection={<IconMapPin size={16} />} value={eventEditForm.location} onChange={(e) => setEditEventModal({ ...eventEditForm, location: e.target.value })} radius="md" />
-          <Group justify="flex-end" mt="lg"><Button variant="subtle" color="gray" fw={600} onClick={() => setEditEventModal(false)}>Cancel</Button><Button color={PRIMARY_BROWN} radius="md" fw={600} onClick={handleUpdateEvent} loading={isUpdatingEvent}>{selectedEvent ? 'Update Event' : 'Create Event'}</Button></Group>
+          <TextInput
+            label="Title"
+            placeholder="Event title"
+            value={eventEditForm.title}
+            onChange={(e) => setEventEditForm({ ...eventEditForm, title: e.target.value })}
+            radius="md"
+          />
+          <Textarea
+            label="Description"
+            placeholder="Notes..."
+            value={eventEditForm.description}
+            onChange={(e) => setEventEditForm({ ...eventEditForm, description: e.target.value })}
+            radius="md"
+          />
+          {/* ── Fixed: use SimpleGrid for responsive 2-col layout ── */}
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <DatePickerInput
+              label="Date"
+              placeholder="Select date"
+              value={eventEditForm.eventDate}
+              onChange={(d) => setEventEditForm({ ...eventEditForm, eventDate: d })}
+              radius="md"
+            />
+            <Select
+              label="Type"
+              data={['appointment', 'hearing', 'consultation', 'deadline', 'other']}
+              value={eventEditForm.eventType}
+              onChange={(v) => setEventEditForm({ ...eventEditForm, eventType: v })}
+              radius="md"
+            />
+          </SimpleGrid>
+          <TextInput
+            label="Location"
+            leftSection={<IconMapPin size={16} />}
+            value={eventEditForm.location}
+            onChange={(e) => setEventEditForm({ ...eventEditForm, location: e.target.value })}
+            radius="md"
+          />
+          <Group justify="flex-end" mt="lg">
+            <Button variant="subtle" color="gray" fw={600} onClick={() => setEditEventModal(false)}>Cancel</Button>
+            <Button color={PRIMARY_BROWN} radius="md" fw={600} onClick={handleUpdateEvent} loading={isUpdatingEvent}>
+              {selectedEvent ? 'Update Event' : 'Create Event'}
+            </Button>
+          </Group>
         </Stack>
       </Modal>
 
-      <Modal opened={deleteConfirmModal} onClose={() => setDeleteConfirmModal(false)} title="Confirm Delete" centered radius="xl">
+      {/* ══ Delete Event Confirm Modal ══ */}
+      <Modal
+        opened={deleteConfirmModal}
+        onClose={() => setDeleteConfirmModal(false)}
+        title="Confirm Delete"
+        centered
+        radius="xl"
+        size={{ base: '100%', sm: 'sm' }}
+        styles={{ inner: { padding: '8px' } }}
+      >
         <Stack gap="md" align="center" ta="center">
-          <Box p="lg" bg="red.0" style={{ borderRadius: '50%' }}><IconTrash size={40} color="red" /></Box>
-          <Box><Text fw={700} size="lg">Are you absolutely sure?</Text><Text size="sm" c="dimmed">This will permanently delete this event from the calendar.</Text></Box>
-          <Group grow w="100%"><Button variant="outline" color="gray" radius="md" fw={600} onClick={() => setDeleteConfirmModal(false)}>Cancel</Button><Button color="red" radius="md" fw={600} onClick={handleDeleteEvent} loading={isDeletingEvent}>Delete Forever</Button></Group>
+          <Box p="lg" bg="red.0" style={{ borderRadius: '50%' }}>
+            <IconTrash size={40} color="red" />
+          </Box>
+          <Box>
+            <Text fw={700} size="lg">Are you absolutely sure?</Text>
+            <Text size="sm" c="dimmed">This will permanently delete this event from the calendar.</Text>
+          </Box>
+          <Group grow w="100%">
+            <Button variant="outline" color="gray" radius="md" fw={600} onClick={() => setDeleteConfirmModal(false)}>Cancel</Button>
+            <Button color="red" radius="md" fw={600} onClick={handleDeleteEvent} loading={isDeletingEvent}>Delete Forever</Button>
+          </Group>
         </Stack>
       </Modal>
 
-      <Modal opened={deleteAppointmentModal} onClose={() => { setDeleteAppointmentModal(false); setAppointmentToDelete(null); }} title="Delete Appointment" centered radius="xl">
+      {/* ══ Delete Appointment Confirm Modal ══ */}
+      <Modal
+        opened={deleteAppointmentModal}
+        onClose={() => { setDeleteAppointmentModal(false); setAppointmentToDelete(null); }}
+        title="Delete Appointment"
+        centered
+        radius="xl"
+        size={{ base: '100%', sm: 'sm' }}
+        styles={{ inner: { padding: '8px' } }}
+      >
         <Stack gap="md" align="center" ta="center">
-          <Box p="lg" bg="red.0" style={{ borderRadius: '50%' }}><IconTrash size={40} color="red" /></Box>
+          <Box p="lg" bg="red.0" style={{ borderRadius: '50%' }}>
+            <IconTrash size={40} color="red" />
+          </Box>
           <Box>
             <Text fw={700} size="lg">Delete this appointment?</Text>
-            {appointmentToDelete && <Text size="sm" c="dimmed" mt={4}>{appointmentToDelete.clientName} — {appointmentToDelete.scheduledDate}</Text>}
-            <Text size="sm" c="dimmed" mt={4}>This will permanently remove the appointment{appointmentToDelete?.calendarRecorded ? ' and its linked calendar event' : ''}.</Text>
+            {appointmentToDelete && (
+              <Text size="sm" c="dimmed" mt={4}>
+                {appointmentToDelete.clientName} — {appointmentToDelete.scheduledDate}
+              </Text>
+            )}
+            <Text size="sm" c="dimmed" mt={4}>
+              This will permanently remove the appointment
+              {appointmentToDelete?.calendarRecorded ? ' and its linked calendar event' : ''}.
+            </Text>
           </Box>
           <Group grow w="100%">
             <Button variant="outline" color="gray" radius="md" fw={600} onClick={() => { setDeleteAppointmentModal(false); setAppointmentToDelete(null); }}>Cancel</Button>
