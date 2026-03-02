@@ -6,9 +6,13 @@ import {
   IconScale, IconShieldCheck, IconUsers, IconClipboardCheck,
   IconGavel, IconTarget, IconHeart, IconCalendarEvent, IconFileText,
   IconArrowRight, IconCheck, IconBrandLinkedin, IconBrandGithub, IconMail,
-  IconBuildingArch, IconHandStop, IconUserCheck,
+  IconBuildingArch, IconHandStop, IconUserCheck, IconMapPin, IconPhone,
 } from "@tabler/icons-react";
 import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, CHARCOAL } from "@/utils/constants";
+import person1 from "@/assets/images/profiles/person_1.jpg";
+import person2 from "@/assets/images/profiles/person_2.jpg";
+import person3 from "@/assets/images/profiles/person_3.jpg";
+import person4 from "@/assets/images/profiles/person_4.jpg";
 
 /* ───────── smooth-scroll helper ───────── */
 const scrollTo = (id) => {
@@ -46,10 +50,10 @@ const STATS = [
 ];
 
 const TEAM = [
-  { name: "John Leonard O. Nagallo", role: "Lead Developer & Project Manager", initials: "JN", desc: "Full-stack development and system architecture." },
-  { name: "Gwyneth Selwyn Zoe G. Ortiz", role: "UI/UX Designer & Frontend Developer", initials: "GO", desc: "Accessible and intuitive user interface design." },
-  { name: "Jade C. Pis-an", role: "Backend Developer & AI Specialist", initials: "JP", desc: "AI integration, data security, and system reliability." },
-  { name: "Lester I. Sible", role: "Database Admin & Research Lead", initials: "LS", desc: "Data infrastructure and community-centered research." },
+  { name: "John Leonard O. Nagallo", role: "Lead Developer & Project Manager", initials: "JN", desc: "Full-stack development and system architecture.", img: person2 },
+  { name: "Gwyneth Selwyn Zoe G. Ortiz", role: "UI/UX Designer & Frontend Developer", initials: "GO", desc: "Accessible and intuitive user interface design.", img: person1 },
+  { name: "Jade C. Pis-an", role: "Backend Developer & AI Specialist", initials: "JP", desc: "AI integration, data security, and system reliability.", img: person3 },
+  { name: "Lester I. Sible", role: "Database Admin & Research Lead", initials: "LS", desc: "Data infrastructure and community-centered research.", img: person4 },
 ];
 
 /* ───────── section wrapper ───────── */
@@ -254,7 +258,7 @@ export default function LandingPage() {
           <iframe
             width="100%"
             height="100%"
-            src="https://www.youtube.com/embed/YOUR_VIDEO_ID"
+            src="https://www.youtube.com/embed/Pb5Owkez52w"
             title="JustReach Platform Demo"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
@@ -309,6 +313,44 @@ export default function LandingPage() {
             </Text>
           </Card>
         </SimpleGrid>
+
+        {/* Contact Details */}
+        <Card radius="md" padding="xl" withBorder mt="xl" style={{ borderColor: "#f0ede8" }}>
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xl">
+            <Group gap="md" wrap="nowrap" align="flex-start">
+              <ThemeIcon size={40} radius="md" variant="light" color={PRIMARY_BROWN}>
+                <IconMapPin size={20} stroke={1.8} />
+              </ThemeIcon>
+              <Box>
+                <Text fw={600} size="sm" c={CHARCOAL} mb={4}>Location</Text>
+                <Text size="sm" c="dimmed" lh={1.6}>SSC-R Law Building, Recto Ave, Quiapo, Manila, 1001 Metro Manila</Text>
+              </Box>
+            </Group>
+            <Group gap="md" wrap="nowrap" align="flex-start">
+              <ThemeIcon size={40} radius="md" variant="light" color={PRIMARY_BROWN}>
+                <IconPhone size={20} stroke={1.8} />
+              </ThemeIcon>
+              <Box>
+                <Text fw={600} size="sm" c={CHARCOAL} mb={4}>Contact Numbers</Text>
+                <Text size="sm" c="dimmed" lh={1.6}>(02) 8734-8931 loc. 313</Text>
+                <Text size="sm" c="dimmed" lh={1.6}>+63 966-2136-661 (Globe)</Text>
+                <Text size="sm" c="dimmed" lh={1.6}>+63 969-0252-811 (Smart)</Text>
+              </Box>
+            </Group>
+            <Group gap="md" wrap="nowrap" align="flex-start">
+              <ThemeIcon size={40} radius="md" variant="light" color={PRIMARY_BROWN}>
+                <IconMail size={20} stroke={1.8} />
+              </ThemeIcon>
+              <Box>
+                <Text fw={600} size="sm" c={CHARCOAL} mb={4}>Email</Text>
+                <Text component="a" href="mailto:sola@sscrrnl.edu.ph" size="sm" c={PRIMARY_BROWN} fw={500}
+                  style={{ textDecoration: "none" }}>
+                  sola@sscrrnl.edu.ph
+                </Text>
+              </Box>
+            </Group>
+          </SimpleGrid>
+        </Card>
       </Section>
 
       {/* ─── TEAM ─── */}
@@ -323,8 +365,8 @@ export default function LandingPage() {
         <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="xl">
           {TEAM.map((m) => (
             <Card key={m.initials} radius="md" padding="xl" withBorder style={{ borderColor: "#f0ede8", textAlign: "center" }}>
-              <Avatar size={64} radius="xl" mx="auto" mb="md"
-                style={{ background: `linear-gradient(135deg, ${PRIMARY_GOLD}, ${PRIMARY_BROWN})`, border: `2px solid ${PRIMARY_GOLD}40` }}>
+              <Avatar size={80} radius="xl" mx="auto" mb="md" src={m.img}
+                style={{ border: `2px solid ${PRIMARY_GOLD}40` }}>
                 <Text fw={700} c="white" size="md">{m.initials}</Text>
               </Avatar>
               <Text fw={600} size="md" c={CHARCOAL}>{m.name}</Text>
@@ -364,7 +406,7 @@ export default function LandingPage() {
       {/* ─── FOOTER ─── */}
       <Box component="footer" style={{ borderTop: `2px solid`, borderImage: `linear-gradient(90deg, ${PRIMARY_GOLD}, ${PRIMARY_BROWN}) 1`, backgroundColor: "white" }}>
         <Container size="lg" py="xl">
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xl">
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="xl">
             <Box>
               <Group gap="xs" mb="md">
                 <Image src="/sola_logo.png" alt="Logo" w={40} h={40} fit="contain" />
@@ -387,6 +429,23 @@ export default function LandingPage() {
                     {n.label}
                   </Text>
                 ))}
+              </Stack>
+            </Box>
+            <Box>
+              <Text fw={600} mb="sm">Contact</Text>
+              <Stack gap={6}>
+                <Group gap={6} wrap="nowrap" align="flex-start">
+                  <IconMapPin size={13} color={PRIMARY_GOLD} style={{ flexShrink: 0, marginTop: 3 }} />
+                  <Text size="sm" c="dimmed" lh={1.5}>SSC-R Law Building, Recto Ave, Quiapo, Manila, 1001</Text>
+                </Group>
+                <Group gap={6} wrap="nowrap">
+                  <IconPhone size={13} color={PRIMARY_GOLD} style={{ flexShrink: 0 }} />
+                  <Text size="sm" c="dimmed">(02) 8734-8931 loc. 313</Text>
+                </Group>
+                <Group gap={6} wrap="nowrap">
+                  <IconMail size={13} color={PRIMARY_GOLD} style={{ flexShrink: 0 }} />
+                  <Text component="a" href="mailto:sola@sscrrnl.edu.ph" size="sm" c="dimmed" style={{ textDecoration: "none" }}>sola@sscrrnl.edu.ph</Text>
+                </Group>
               </Stack>
             </Box>
             <Box>
