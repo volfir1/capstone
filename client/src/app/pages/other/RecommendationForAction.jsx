@@ -159,17 +159,30 @@ const fetchArrayBufferFromUrl = async (rawUrl, cloudinaryUrl) => {
                 continue;
             }
             const contentType = resp.headers.get('content-type') || '';
-            // If server returned HTML (dev index/404), log snippet and skip it
+            const ab = await resp.arrayBuffer();
+            // If content-type indicates HTML, skip. Also sniff initial bytes for HTML
             if (contentType.includes('text/html')) {
                 try {
-                    const text = await resp.text();
+                    const text = new TextDecoder().decode(new Uint8Array(ab.slice(0, Math.min(ab.byteLength, 1024))));
                     console.warn('Skipped HTML response for', c, 'snippet:', text.slice(0, 300));
                 } catch (e) {
                     console.warn('Skipped HTML response for', c);
                 }
                 continue;
             }
-            const ab = await resp.arrayBuffer();
+            try {
+                const sniffLen = Math.min(ab.byteLength, 512);
+                if (sniffLen > 0) {
+                    const snippet = new TextDecoder().decode(new Uint8Array(ab.slice(0, sniffLen)));
+                    const lowered = snippet.toLowerCase();
+                    if (lowered.includes('<!doctype') || lowered.includes('<html') || lowered.includes('<head') || lowered.includes('doctype html')) {
+                        console.warn('Skipped HTML-like response (sniff) for', c);
+                        continue;
+                    }
+                }
+            } catch (sniffErr) {
+                // ignore sniff errors and proceed
+            }
             console.debug('Successfully fetched binary from', c);
             return ab;
         } catch (err) {
