@@ -1,8 +1,9 @@
-import React, { memo } from 'react';
+import React, { memo, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ImageBackground } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import styles from '@assets/styles/landingStyles';
+import { useAuth } from 'context/authContext';
 
 // Memoized components for better performance
 const FeatureCard = memo(({ icon, title, description }) => (
@@ -48,6 +49,14 @@ const StatCard = memo(({ number, label }) => (
 ));
 
 export default function LandingPage() {
+  const { userLoggedIn, userData } = useAuth();
+
+  useEffect(() => {
+    if (userLoggedIn && userData) {
+      router.replace('/admin');
+    }
+  }, [userLoggedIn, userData]);
+
   const features = [
     {
       icon: "language-outline",

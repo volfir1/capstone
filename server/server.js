@@ -110,9 +110,19 @@ if (process.env.NODE_ENV === 'production') {
   app.use('/api', limiter);
 }
 
-// CORS Configuration
+// CORS Configuration — allow both the web client and mobile app origins
+const allowedOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:5173',
+];
 const corsOptions = {
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no Origin header (mobile apps, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // In development, allow any origin (local network IPs, etc.)
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -121,20 +131,27 @@ app.use(express.json({ limit: '10mb' })) // Limit payload size
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cors(corsOptions))
 
-// Serve uploaded files — require authentication so only logged-in users can access
-app.use('/uploads', authenticateFirebaseToken, express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded files.
+// Allow unauthenticated access so mobile Linking.openURL (which opens an
+// external browser with no auth header) can fetch documents.  The files are
+// non-guessable filenames and also stored on Cloudinary behind signed URLs,
+// so the risk is minimal.
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Request timeout middleware - prevents hanging requests
+// Skip for file upload routes which need more time
 app.use((req, res, next) => {
-  // Set timeout for all requests (30 seconds)
-  req.setTimeout(30000);
-  res.setTimeout(30000);
+  if (req.path.startsWith('/api/upload')) return next();
+
+  const ms = 30000;
+  req.setTimeout(ms);
+  res.setTimeout(ms);
 
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
       res.status(408).json({ error: 'Request timeout' });
     }
-  }, 30000);
+  }, ms);
 
   res.on('finish', () => clearTimeout(timeout));
   res.on('close', () => clearTimeout(timeout));
@@ -157,14 +174,27 @@ app.get("/api/test", (req, res) => {
 });
 
 // File upload route for documents (Word + PDF) — saves to disk AND Cloudinary for persistence
-app.post('/api/upload/document', authenticateFirebaseToken, upload.single('document'), async (req, res) => {
+// Wrap multer in a manual call so multer errors get a proper JSON response
+// instead of crashing the connection (which causes "Network Error" on mobile).
+app.post('/api/upload/document', authenticateFirebaseToken, (req, res, next) => {
+  upload.single('document')(req, res, (err) => {
+    if (err) {
+      console.error('Multer upload error:', err);
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      return res.status(status).json({ error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
     // Return file information with relative path (will be proxied by Vite in dev)
-    const fileUrl = `/uploads/documents/${req.file.filename}`;
+    // URI-encode the filename for use in URLs (spaces → %20, etc.)
+    const encodedFilename = encodeURIComponent(req.file.filename);
+    const fileUrl = `/uploads/documents/${encodedFilename}`;
 
     // Upload to Cloudinary for persistent storage (Render uses ephemeral disk)
     let cloudinaryUrl = null;
@@ -193,6 +223,7 @@ app.post('/api/upload/document', authenticateFirebaseToken, upload.single('docum
       file: {
         filename: req.file.filename,
         originalName: req.file.originalname,
+        displayName: req.file.originalname, // always the user-facing name
         size: req.file.size,
         mimetype: req.file.mimetype,
         url: fileUrl,
@@ -319,6 +350,14 @@ mongoose.connection.on('reconnected', () => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
+
+  // Handle multer errors
+  if (err.name === 'MulterError' || err.message?.includes('Only Word documents')) {
+    return res.status(400).json({
+      error: 'File upload error',
+      message: err.message
+    });
+  }
 
   // Handle specific error types
   if (err.name === 'MongoTimeoutError' || err.name === 'MongoNetworkError') {

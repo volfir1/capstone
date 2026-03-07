@@ -587,6 +587,8 @@ export default function RecommendationForAction() {
     // Build base URL from apiClient (strip /api suffix)
     const { apiUrl } = getEnv();
     const baseUrl = apiUrl.replace(/\/api\/?$/, '');
+    // The relativeUrl should already be URI-encoded from the server;
+    // just concatenate without double-encoding.
     return `${baseUrl}${relativeUrl}`;
   };
 
@@ -622,23 +624,47 @@ export default function RecommendationForAction() {
 
       const formData = new FormData();
       formData.append('document', {
-        uri: file.uri,
+        uri: Platform.OS === 'android' ? file.uri : file.uri.replace('file://', ''),
         name: file.name,
         type: file.mimeType || 'application/octet-stream',
       });
 
-      const response = await apiClient.post('/upload/document', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      // Use raw XMLHttpRequest to bypass Axios 1.x transform pipeline
+      // which can corrupt FormData in React Native 0.81 (new architecture).
+      const { apiUrl: uploadBaseUrl } = getEnv();
+      const { getAuth: getFirebaseAuth } = require('firebase/auth');
+      const firebaseAuth = getFirebaseAuth();
+      const fbUser = firebaseAuth.currentUser;
+      const uploadToken = fbUser ? await fbUser.getIdToken() : null;
+
+      const uploadResult = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${uploadBaseUrl}/upload/document`);
+        if (uploadToken) xhr.setRequestHeader('Authorization', `Bearer ${uploadToken}`);
+        // Do NOT set Content-Type — the native XHR sets multipart/form-data + boundary
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch { reject(new Error('Invalid server response')); }
+          } else {
+            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network request failed — check server connection'));
+        xhr.ontimeout = () => reject(new Error('Upload timed out'));
+        xhr.timeout = 60000;
+        xhr.send(formData);
       });
 
-      if (response.data?.success) {
-        const serverFile = response.data.file;
+      if (uploadResult?.success) {
+        const serverFile = uploadResult.file;
         const uploadedDoc = {
-          fileName: serverFile.originalName || file.name,
+          fileName: serverFile.displayName || serverFile.originalName || file.name,
           fileSize: serverFile.size || file.size,
-          fileUrl: serverFile.url || serverFile.path,
+          fileUrl: serverFile.cloudinaryUrl || serverFile.url || serverFile.path,
           filename: serverFile.filename,
           mimeType: serverFile.mimetype || file.mimeType,
+          cloudinaryUrl: serverFile.cloudinaryUrl || null,
           uploadedBy: userData?.firstName && userData?.lastName
             ? `${userData.firstName} ${userData.lastName}`
             : userData?.username || 'Unknown',
@@ -662,6 +688,16 @@ export default function RecommendationForAction() {
   const handleViewDocument = (doc) => {
     const docData = doc || uploadedFile || interviewInfo.uploadedDocument;
     if (!docData) return;
+
+    // Prefer cloudinaryUrl (signed, no auth needed) for external browser viewing
+    if (docData.cloudinaryUrl) {
+      Linking.openURL(docData.cloudinaryUrl).catch(() => {
+        Alert.alert('Error', 'Cannot open document. The file may not be available.');
+      });
+      return;
+    }
+
+    // Fallback: use the server's static file URL (no auth required for /uploads)
     const url = resolveDocUrl(docData.fileUrl);
     if (url) {
       Linking.openURL(url).catch(() => {
@@ -1264,34 +1300,51 @@ export default function RecommendationForAction() {
       if (normalizedRole === 'supervising_lawyer') {
         if (currentReviewStage === 'supervising_lawyer') {
           return (
-            <View style={styles.actionButtonGroup}>
-              <TouchableOpacity
-                style={[styles.outlineButton, saving && styles.buttonDisabled]}
-                onPress={handleSaveChanges}
-                disabled={saving}
-              >
-                {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
-                  <><Ionicons name="save-outline" size={18} color={PRIMARY_BROWN} /><Text style={styles.outlineButtonText}>Save</Text></>
+            <View style={styles.actionButtonGrid}>
+              {/* Row 1: Save (left) + Approve to Director (right) */}
+              <View style={styles.actionButtonRow}>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.outlineButton, saving && styles.buttonDisabled]}
+                  onPress={handleSaveChanges}
+                  disabled={saving}
+                >
+                  {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
+                    <><Ionicons name="save-outline" size={18} color={PRIMARY_BROWN} /><Text style={styles.outlineButtonText}>Save</Text></>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.orangeButton, saving && styles.buttonDisabled]}
+                  onPress={handleApproveToDirector}
+                  disabled={saving}
+                >
+                  {saving ? <ActivityIndicator size="small" color="white" /> : (
+                    <><Ionicons name="arrow-forward" size={18} color="white" /><Text style={styles.orangeButtonText}>Approve to Director</Text></>
+                  )}
+                </TouchableOpacity>
+              </View>
+              {/* Row 2: Previous (left) + Return to Intern (right) */}
+              <View style={styles.actionButtonRow}>
+                {currentStep > 0 ? (
+                  <TouchableOpacity
+                    style={[styles.gridButton, styles.prevButton]}
+                    onPress={() => setCurrentStep(0)}
+                  >
+                    <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+                    <Text style={styles.secondaryButtonText}>Previous</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.gridButton} />
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.orangeButton, saving && styles.buttonDisabled]}
-                onPress={handleApproveToDirector}
-                disabled={saving}
-              >
-                {saving ? <ActivityIndicator size="small" color="white" /> : (
-                  <><Ionicons name="arrow-forward" size={18} color="white" /><Text style={styles.orangeButtonText}>Approve to Director</Text></>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.redButton, saving && styles.buttonDisabled]}
-                onPress={handleReturnToIntern}
-                disabled={saving}
-              >
-                {saving ? <ActivityIndicator size="small" color="white" /> : (
-                  <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to Intern</Text></>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.redButton, saving && styles.buttonDisabled]}
+                  onPress={handleReturnToIntern}
+                  disabled={saving}
+                >
+                  {saving ? <ActivityIndicator size="small" color="white" /> : (
+                    <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to Intern</Text></>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           );
         }
@@ -1313,34 +1366,51 @@ export default function RecommendationForAction() {
       if (normalizedRole === 'director') {
         if (currentReviewStage === 'director') {
           return (
-            <View style={styles.actionButtonGroup}>
-              <TouchableOpacity
-                style={[styles.outlineButton, (saving || actionInfo.decision !== 'pending') && styles.buttonDisabled]}
-                onPress={handleSaveChanges}
-                disabled={saving || actionInfo.decision !== 'pending'}
-              >
-                {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
-                  <><Ionicons name="save-outline" size={18} color={PRIMARY_BROWN} /><Text style={styles.outlineButtonText}>Save</Text></>
+            <View style={styles.actionButtonGrid}>
+              {/* Row 1: Save (left) + Finalize Record (right) */}
+              <View style={styles.actionButtonRow}>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.outlineButton, (saving || actionInfo.decision !== 'pending') && styles.buttonDisabled]}
+                  onPress={handleSaveChanges}
+                  disabled={saving || actionInfo.decision !== 'pending'}
+                >
+                  {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
+                    <><Ionicons name="save-outline" size={18} color={PRIMARY_BROWN} /><Text style={styles.outlineButtonText}>Save</Text></>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.primaryButton, (saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')) && styles.buttonDisabled]}
+                  onPress={handleSubmit}
+                  disabled={saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')}
+                >
+                  {saving ? <ActivityIndicator size="small" color="white" /> : (
+                    <><Ionicons name="checkmark-circle" size={18} color="white" /><Text style={styles.primaryButtonText}>Finalize Record</Text></>
+                  )}
+                </TouchableOpacity>
+              </View>
+              {/* Row 2: Previous (left) + Return to SL (right) */}
+              <View style={styles.actionButtonRow}>
+                {currentStep > 0 ? (
+                  <TouchableOpacity
+                    style={[styles.gridButton, styles.prevButton]}
+                    onPress={() => setCurrentStep(0)}
+                  >
+                    <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+                    <Text style={styles.secondaryButtonText}>Previous</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.gridButton} />
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.primaryButton, (saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')) && styles.buttonDisabled]}
-                onPress={handleSubmit}
-                disabled={saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')}
-              >
-                {saving ? <ActivityIndicator size="small" color="white" /> : (
-                  <><Ionicons name="checkmark-circle" size={18} color="white" /><Text style={styles.primaryButtonText}>Finalize Record</Text></>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.redButton, (saving || !!actionInfo.decision) && styles.buttonDisabled]}
-                onPress={handleReturnToSupervisingLawyer}
-                disabled={saving || !!actionInfo.decision}
-              >
-                {saving ? <ActivityIndicator size="small" color="white" /> : (
-                  <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to SL</Text></>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.redButton, (saving || !!actionInfo.decision) && styles.buttonDisabled]}
+                  onPress={handleReturnToSupervisingLawyer}
+                  disabled={saving || !!actionInfo.decision}
+                >
+                  {saving ? <ActivityIndicator size="small" color="white" /> : (
+                    <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to SL</Text></>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           );
         }
@@ -1492,18 +1562,19 @@ export default function RecommendationForAction() {
 
       {/* Navigation & Action Buttons */}
       <View style={styles.buttonContainer}>
-        {currentStep > 0 && (
-          <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
-            <Ionicons name="chevron-back" size={20} color={PRIMARY_BROWN} />
-            <Text style={styles.secondaryButtonText}>Previous</Text>
-          </TouchableOpacity>
-        )}
-
         {currentStep < steps.length - 1 ? (
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setCurrentStep(currentStep + 1)}>
-            <Text style={styles.primaryButtonText}>Next Step</Text>
-            <Ionicons name="chevron-forward" size={20} color="white" />
-          </TouchableOpacity>
+          <>
+            {currentStep > 0 && (
+              <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
+                <Ionicons name="chevron-back" size={20} color={PRIMARY_BROWN} />
+                <Text style={styles.secondaryButtonText}>Previous</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.primaryButton} onPress={() => setCurrentStep(currentStep + 1)}>
+              <Text style={styles.primaryButtonText}>Next Step</Text>
+              <Ionicons name="chevron-forward" size={20} color="white" />
+            </TouchableOpacity>
+          </>
         ) : (
           renderActionButtons()
         )}
@@ -1899,6 +1970,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  actionButtonGrid: {
+    flex: 1,
+    gap: 10,
+  },
+  actionButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  gridButton: {
+    flex: 1,
+    minWidth: 0,
   },
   viewOnlyContainer: {
     flex: 1,
