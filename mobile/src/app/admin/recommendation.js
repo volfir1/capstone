@@ -42,9 +42,10 @@ export default function RecommendationForAction() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const caseIdParam = params.caseId;
+  const reviewIdParam = params.reviewId || null;
   const isViewOnly = params.viewOnly === 'true' || params.mode === 'view';
 
-  // Parse review from params if passed
+  // Parse review from params if passed (legacy support)
   const passedReview = (() => {
     if (!params.review) return null;
     try { return JSON.parse(params.review); } catch { return null; }
@@ -124,8 +125,10 @@ export default function RecommendationForAction() {
   // Assignment & Signature read-only for interns/SL, and when director stage
   const assignmentReadOnly = isIntern || normalizedRole === 'supervising_lawyer' || currentReviewStage === 'director';
 
-  // ─── Load existing review from passedReview ───
+  // ─── Load existing review from passedReview (legacy) ───
   useEffect(() => {
+    // If reviewId param is provided, skip passedReview and use API loading instead
+    if (reviewIdParam) return;
     if (passedReview && passedReview.content) {
       setReviewId(passedReview._id || passedReview.id);
       setCurrentReviewStage(passedReview.reviewStage || 'supervising_lawyer');
@@ -159,9 +162,9 @@ export default function RecommendationForAction() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Load existing review from API (when no passedReview) ───
+  // ─── Load existing review from API (when no passedReview, or reviewId param provided) ───
   useEffect(() => {
-    if (derivedCaseId && derivedCaseId !== 'new-case' && !passedReview) {
+    if (derivedCaseId && derivedCaseId !== 'new-case' && (!passedReview || reviewIdParam)) {
       loadExistingReview();
       loadClientInfo();
     } else if (!passedReview) {
@@ -239,7 +242,7 @@ export default function RecommendationForAction() {
       const reviews = Array.isArray(response.data) ? response.data : response.data?.data || [];
 
       if (reviews.length > 0) {
-        const review = reviews[0];
+        const review = (reviewIdParam ? reviews.find(r => (r._id || r.id) === reviewIdParam) : null) || reviews[0];
         setReviewId(review._id || review.id);
         setCurrentReviewStage(review.reviewStage || 'supervising_lawyer');
         setIsViewingExistingReview(true);
@@ -309,7 +312,7 @@ export default function RecommendationForAction() {
   // Matches website handleSubmit exactly
   // ──────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (isViewOnly) return;
+    if (isViewOnly || saving) return;
     setSaving(true);
     try {
       const completeInterviewInfo = buildCompleteInterviewInfo();
@@ -1265,6 +1268,12 @@ export default function RecommendationForAction() {
         if (currentReviewStage === 'returned_to_intern') {
           return (
             <View style={styles.actionButtonGroup}>
+              {currentStep > 0 && (
+                <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
+                  <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+                  <Text style={styles.secondaryButtonText}>Previous</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[styles.outlineButton, saving && styles.buttonDisabled]}
                 onPress={handleSaveChanges}
@@ -1288,10 +1297,18 @@ export default function RecommendationForAction() {
         }
         // Other stages: view only for interns
         return (
-          <View style={styles.viewOnlyContainer}>
-            <Text style={styles.viewOnlyText}>
-              View only — Pending review by {currentReviewStage === 'supervising_lawyer' ? 'supervising lawyer' : 'director'}
-            </Text>
+          <View style={styles.actionButtonGroup}>
+            {currentStep > 0 && (
+              <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
+                <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+                <Text style={styles.secondaryButtonText}>Previous</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.viewOnlyContainer}>
+              <Text style={styles.viewOnlyText}>
+                View only — Pending review by {currentReviewStage === 'supervising_lawyer' ? 'supervising lawyer' : 'director'}
+              </Text>
+            </View>
           </View>
         );
       }
@@ -1456,15 +1473,23 @@ export default function RecommendationForAction() {
     // ── Creating new review ──
     if (isIntern) {
       return (
-        <TouchableOpacity
-          style={[styles.goldButton, saving && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={saving}
-        >
-          {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
-            <><Ionicons name="send" size={18} color={PRIMARY_BROWN} /><Text style={styles.goldButtonText}>Submit for Review</Text></>
+        <View style={styles.actionButtonGroup}>
+          {currentStep > 0 && (
+            <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
+              <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+              <Text style={styles.secondaryButtonText}>Previous</Text>
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.goldButton, saving && styles.buttonDisabled]}
+            onPress={handleSubmit}
+            disabled={saving}
+          >
+            {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
+              <><Ionicons name="send" size={18} color={PRIMARY_BROWN} /><Text style={styles.goldButtonText}>Submit for Review</Text></>
+            )}
+          </TouchableOpacity>
+        </View>
       );
     }
 

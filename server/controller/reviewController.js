@@ -27,6 +27,27 @@ export const createReview = async (req, res) => {
       console.warn('Could not copy case.assignedTo into review:', err.message);
     }
 
+    // Prevent duplicate reviews for the same caseId — update existing instead of creating new
+    if (toCreate.caseId) {
+      const existing = await Review.findOne({ caseId: toCreate.caseId })
+      if (existing) {
+        const updated = await Review.findByIdAndUpdate(existing._id, toCreate, { new: true })
+        return res.status(200).json({
+          _id: updated._id,
+          caseId: updated.caseId,
+          caseTitle: updated.caseTitle,
+          clientName: updated.clientName,
+          reviewerId: updated.reviewerId,
+          reviewerRole: updated.reviewerRole,
+          step: updated.step,
+          reviewStage: updated.reviewStage,
+          createdAt: updated.createdAt,
+          updatedAt: updated.updatedAt,
+          success: true
+        })
+      }
+    }
+
     const review = await Review.create(toCreate)
     
     // Return only essential fields to avoid serialization issues with large content

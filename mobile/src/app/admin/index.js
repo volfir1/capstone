@@ -257,8 +257,7 @@ export default function AdminDashboard() {
                 key={review._id || review.caseId}
                 style={s.reviewCard}
                 onPress={() => {
-                  const reviewParam = encodeURIComponent(JSON.stringify(review));
-                  router.push(`/admin/recommendation?caseId=${review.caseId || ''}&review=${reviewParam}`);
+                  router.push(`/admin/recommendation?caseId=${review.caseId || ''}&reviewId=${review._id || ''}`);
                 }}
               >
                 <View style={s.reviewIcon}>

@@ -147,6 +147,7 @@ const initialState = {
     employerTelephone: '',
     spouseSourceOfIncome: '',
     spouseMonthlyIncome: '',
+    spouseNatureOfWork: '',
     spouseEmployerAddress: '',
     totalCombinedIncome: '',
     partyRepresented: '',
@@ -549,6 +550,7 @@ export default function FinalizedCases() {
     employerTelephone: details?.employerTelephone || '',
     spouseSourceOfIncome: details?.spouseSourceOfIncome || '',
     spouseMonthlyIncome: details?.spouseMonthlyIncome !== undefined && details?.spouseMonthlyIncome !== null ? String(details.spouseMonthlyIncome) : '',
+    spouseNatureOfWork: details?.spouseNatureOfWork || '',
     spouseEmployerAddress: details?.spouseEmployerAddress || '',
     totalCombinedIncome: details?.totalCombinedIncome !== undefined && details?.totalCombinedIncome !== null ? String(details.totalCombinedIncome) : '',
     partyRepresented: details?.partyRepresented || '',
@@ -1710,6 +1712,7 @@ export default function FinalizedCases() {
       relationshipToClient: state.appointmentForm.relationshipToClient || undefined,
       spouseSourceOfIncome: state.appointmentForm.spouseSourceOfIncome || undefined,
       spouseMonthlyIncome: state.appointmentForm.spouseMonthlyIncome ? Number(state.appointmentForm.spouseMonthlyIncome) : undefined,
+      spouseNatureOfWork: state.appointmentForm.spouseNatureOfWork || undefined,
       spouseEmployerAddress: state.appointmentForm.spouseEmployerAddress || undefined,
       totalCombinedIncome: state.appointmentForm.totalCombinedIncome ? Number(state.appointmentForm.totalCombinedIncome) : undefined,
       partyRepresented: state.appointmentForm.partyRepresented || undefined,
@@ -3193,6 +3196,14 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseMonthlyIncome ? `â‚±${Number(state.appointmentDetails.spouseMonthlyIncome).toLocaleString()}` : 'N/A'}</Text>
                     )}
                   </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work / Business</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.spouseNatureOfWork} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseNatureOfWork: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseNatureOfWork || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse Employer Address</Text>
                     {state.appointmentEditMode ? (
@@ -3939,6 +3950,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 
   const spouseSourceOfIncome = txt(a.spouseSourceOfIncome);
   const spouseMonthlyIncome = money(a.spouseMonthlyIncome);
+  const spouseNatureOfWork = txt(a.spouseNatureOfWork);
   const spouseEmployerAddress = txt(a.spouseEmployerAddress);
   const totalCombinedIncome = money(a.totalCombinedIncome);
 
@@ -4139,9 +4151,8 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   y += field({ labelText: "Employer / Business Address:", value: employerAddress, x: leftX, y, labelW: 52, lineToX: finFullEndX });
 
   {
-    const h1 = field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
-    const h2 = field({ labelText: "Telephone:", value: employerTelephone, x: finSplitX, y, labelW: 18, lineToX: finFullEndX });
-    y += Math.max(h1, h2);
+    const h1 = field({ labelText: "Telephone:", value: employerTelephone, x: leftX, y, labelW: 18, lineToX: finFullEndX });
+    y += h1;
   }
 
   {
@@ -4149,6 +4160,8 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
     const h2 = field({ labelText: "Income / Month:", value: spouseMonthlyIncome, x: finSplitX, y, labelW: 24, lineToX: finFullEndX });
     y += Math.max(h1, h2);
   }
+
+  y += field({ labelText: "Spouse's Nature of Work / Business:", value: spouseNatureOfWork, x: leftX, y, labelW: 60, lineToX: finFullEndX });
 
   y += field({ labelText: "Spouse's Employer / Business Address:", value: spouseEmployerAddress, x: leftX, y, labelW: 60, lineToX: finFullEndX });
 

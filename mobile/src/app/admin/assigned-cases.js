@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, ActivityIndicator, Alert, TextInput, Modal
+  RefreshControl, ActivityIndicator, Alert, TextInput, Modal,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -53,7 +54,11 @@ export default function AssignedCases() {
   // Case History Modal State
   const [caseHistoryModalVisible, setCaseHistoryModalVisible] = useState(false);
   const [caseHistoryLoading, setCaseHistoryLoading] = useState(false);
-  const [caseHistoryData, setCaseHistoryData] = useState({});
+  const [caseRecordData, setCaseRecordData] = useState({});
+  const [originalCaseRecordData, setOriginalCaseRecordData] = useState({});
+  const [caseRecordEditMode, setCaseRecordEditMode] = useState(false);
+  const [savingCaseRecord, setSavingCaseRecord] = useState(false);
+  const [selectedFinalizeId, setSelectedFinalizeId] = useState(null);
 
   const isAssigner = ['director', 'secretary'].includes(userData?.role);
 
@@ -184,23 +189,94 @@ export default function AssignedCases() {
   };
 
   // View Case History (matching web)
+  const normalizeCaseRecordData = (data = {}) => {
+    const n = { ...data };
+    if (n.caseTitle && !n.title) n.title = n.caseTitle;
+    if (n.caseType && !n.nature) n.nature = n.caseType;
+    if (n.summary && !n.caseHistory) n.caseHistory = n.summary;
+    return n;
+  };
+
   const handleViewCaseHistory = async (assignment) => {
     setCaseHistoryModalVisible(true);
     setCaseHistoryLoading(true);
-    setCaseHistoryData({});
+    setCaseRecordData({});
+    setOriginalCaseRecordData({});
+    setCaseRecordEditMode(false);
+    setSelectedFinalizeId(assignment.finalizeId);
     try {
       const resp = await apiClient.get(`/caserecords/finalize/${assignment.finalizeId}`);
-      if (resp.data) setCaseHistoryData(resp.data);
+      if (resp.data && Object.keys(resp.data).length > 0) {
+        const normalized = normalizeCaseRecordData(resp.data);
+        setCaseRecordData(normalized);
+        setOriginalCaseRecordData(normalized);
+      } else {
+        const fRes = await apiClient.get(`/finalize/detail/${assignment.finalizeId}`);
+        const fallback = normalizeCaseRecordData(fRes.data?.content?.caseInfo || {});
+        setCaseRecordData(fallback);
+        setOriginalCaseRecordData(fallback);
+      }
     } catch {
       try {
         const fRes = await apiClient.get(`/finalize/detail/${assignment.finalizeId}`);
-        setCaseHistoryData(fRes.data?.content?.caseInfo || {});
+        const fallback = normalizeCaseRecordData(fRes.data?.content?.caseInfo || {});
+        setCaseRecordData(fallback);
+        setOriginalCaseRecordData(fallback);
       } catch {
-        setCaseHistoryData({});
+        setCaseRecordData({});
+        setOriginalCaseRecordData({});
       }
     } finally {
       setCaseHistoryLoading(false);
     }
+  };
+
+  const handleSaveCaseRecord = async () => {
+    if (!selectedFinalizeId) { Alert.alert('Error', 'No case selected'); return; }
+    setSavingCaseRecord(true);
+    try {
+      const resp = await apiClient.put(`/caserecords/finalize/${selectedFinalizeId}`, caseRecordData || {});
+      if (resp.data) {
+        Alert.alert('Saved', 'Case record saved successfully');
+        const updated = normalizeCaseRecordData(resp.data || caseRecordData);
+        setCaseRecordData(updated);
+        setOriginalCaseRecordData(updated);
+        setCaseRecordEditMode(false);
+      }
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to save case record');
+    } finally {
+      setSavingCaseRecord(false);
+    }
+  };
+
+  const handleCancelCaseRecordEdit = () => {
+    setCaseRecordData(originalCaseRecordData || {});
+    setCaseRecordEditMode(false);
+  };
+
+  const renderCaseRecordField = (label, field, options = {}) => {
+    const value = caseRecordData?.[field] || '';
+    const multiline = options.multiline;
+    return (
+      <View style={s.crFieldWrap}>
+        <Text style={s.crFieldLabel}>{label}</Text>
+        {caseRecordEditMode ? (
+          <TextInput
+            style={[s.crInput, multiline && s.crTextarea]}
+            value={value}
+            onChangeText={text => setCaseRecordData(prev => ({ ...(prev || {}), [field]: text }))}
+            editable={!savingCaseRecord}
+            placeholder={options.placeholder}
+            multiline={multiline}
+            numberOfLines={multiline ? 4 : 1}
+            textAlignVertical={multiline ? 'top' : 'center'}
+          />
+        ) : (
+          <Text style={s.crFieldValue}>{value || 'N/A'}</Text>
+        )}
+      </View>
+    );
   };
 
   // Filter helper (matching web)
@@ -335,7 +411,7 @@ export default function AssignedCases() {
           {isCourtCase(assignment) && (
             <TouchableOpacity style={s.menuBtn} onPress={() => handleViewCaseHistory(assignment)}>
               <Ionicons name="document-text-outline" size={15} color={PRIMARY_BROWN} />
-              <Text style={s.menuBtnText}>History</Text>
+              <Text style={s.menuBtnText}>Case Record</Text>
             </TouchableOpacity>
           )}
           {canComplete && assignment.status === 'pending' && (
@@ -683,80 +759,80 @@ export default function AssignedCases() {
     );
   };
 
-  // ── Case History Modal Content ──
+  // ── Case Record Modal (reuses finalized case record form) ──
   const renderCaseHistoryModal = () => {
-    const d = caseHistoryData;
-
-    const renderField = (label, value) => (
-      <View style={s.receiptField}>
-        <Text style={s.receiptFieldLabel}>{label}</Text>
-        <Text style={s.receiptFieldValue}>{value || 'N/A'}</Text>
-      </View>
-    );
-
     return (
       <Modal visible={caseHistoryModalVisible} animationType="slide" onRequestClose={() => setCaseHistoryModalVisible(false)}>
-        <View style={s.modalContainer}>
-          <View style={s.modalHeader}>
-            <TouchableOpacity onPress={() => setCaseHistoryModalVisible(false)} style={s.modalBackBtn}>
-              <Ionicons name="arrow-back" size={22} color={CHARCOAL} />
-            </TouchableOpacity>
-            <Text style={s.modalTitle}>Case Record</Text>
-            <View style={{ width: 32 }} />
-          </View>
-
-          {caseHistoryLoading ? (
-            <View style={s.centerContainer}><ActivityIndicator size="large" color={PRIMARY_BROWN} /></View>
-          ) : d && Object.keys(d).length > 0 ? (
-            <ScrollView style={s.modalScrollContent} showsVerticalScrollIndicator={false}>
-              <View style={s.receiptSectionCard}>
-                <Text style={s.receiptSectionTitle}>Case Information</Text>
-                <View style={s.receiptDivider} />
-                {renderField('Case Number', d.caseNumber)}
-                {renderField('Case Title', d.caseTitle)}
-                {renderField('Court/Branch', d.courtBranch || d.court)}
-                {renderField('Nature of Case', d.natureOfCase)}
-                {renderField('Case Type', d.caseType)}
-                {renderField('Date Filed', d.dateFiled ? new Date(d.dateFiled).toLocaleDateString() : null)}
-                {renderField('Status', d.status)}
-                {renderField('Client Name', d.clientName)}
-                {renderField('Opposing Party', d.opposingParty)}
-                {renderField('Opposing Counsel', d.opposingCounsel)}
-                {renderField('Judge', d.judge || d.presidingJudge)}
-                {renderField('Summary', d.summary || d.caseSummary)}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={s.modalContainer}>
+            <View style={s.modalHeader}>
+              <TouchableOpacity onPress={() => setCaseHistoryModalVisible(false)} style={s.modalBackBtn}>
+                <Ionicons name="arrow-back" size={22} color={CHARCOAL} />
+              </TouchableOpacity>
+              <Text style={s.modalTitle}>Case Record</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {caseRecordEditMode ? (
+                  <>
+                    <TouchableOpacity style={s.crChipOutline} onPress={handleCancelCaseRecordEdit} disabled={savingCaseRecord}>
+                      <Text style={s.crChipOutlineText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.crChipFilled, savingCaseRecord && { opacity: 0.6 }]} onPress={handleSaveCaseRecord} disabled={savingCaseRecord}>
+                      {savingCaseRecord ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.crChipFilledText}>Save</Text>}
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <TouchableOpacity style={s.crChipOutline} onPress={() => setCaseRecordEditMode(true)} disabled={caseHistoryLoading}>
+                    <Text style={s.crChipOutlineText}>Edit</Text>
+                  </TouchableOpacity>
+                )}
               </View>
+            </View>
 
-              {/* Hearing History */}
-              {d.hearings && d.hearings.length > 0 && (
-                <View style={s.receiptSectionCard}>
-                  <Text style={s.receiptSectionTitle}>Hearing History</Text>
-                  <View style={s.receiptDivider} />
-                  {d.hearings.map((h, idx) => (
-                    <View key={idx} style={s.evidenceCard}>
-                      {renderField('Date', h.date ? new Date(h.date).toLocaleDateString() : null)}
-                      {renderField('Type', h.type)}
-                      {renderField('Notes', h.notes || h.remarks)}
-                      {renderField('Status', h.status)}
-                    </View>
-                  ))}
-                </View>
+            <ScrollView style={s.modalScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              {caseHistoryLoading ? (
+                <View style={s.centerContainer}><ActivityIndicator size="large" color={PRIMARY_BROWN} /></View>
+              ) : (
+                <>
+                  <View style={s.crSectionCard}>
+                    <Text style={s.receiptSectionTitle}>Case Information</Text>
+                    <View style={s.receiptDivider} />
+                    {renderCaseRecordField('Title', 'title', { placeholder: 'Case title' })}
+                    {renderCaseRecordField('Nature of the Case', 'nature', { placeholder: 'Nature' })}
+                    {renderCaseRecordField('Tribunal', 'tribunal', { placeholder: 'Tribunal' })}
+                    {renderCaseRecordField('Branch', 'branch', { placeholder: 'Branch' })}
+                    {renderCaseRecordField('Presiding Judge', 'presidingJudge', { placeholder: 'Presiding judge' })}
+                    {renderCaseRecordField('Tel/Email of Clerk of Court', 'telEmail', { placeholder: 'Contact details' })}
+                  </View>
+
+                  <View style={s.crSectionCard}>
+                    <Text style={s.receiptSectionTitle}>Contacts</Text>
+                    <View style={s.receiptDivider} />
+                    {renderCaseRecordField('Contact Details (Case)', 'contactDetails', { placeholder: 'Phone or email' })}
+                    {renderCaseRecordField('Counsel/s on Record', 'counsels', { placeholder: 'Counsel names' })}
+                    {renderCaseRecordField('Public Prosecutor', 'publicProsecutor', { placeholder: 'Prosecutor' })}
+                    {renderCaseRecordField('Opposing Counsel', 'opposingCounsel', { placeholder: 'Opposing counsel' })}
+                    {renderCaseRecordField('Client/s Address', 'clientAddress', { placeholder: 'Client address', multiline: true })}
+                    {renderCaseRecordField('Others (Contact Details)', 'others', { placeholder: 'Other contacts', multiline: true })}
+                  </View>
+
+                  <View style={s.crSectionCard}>
+                    <Text style={s.receiptSectionTitle}>Parties</Text>
+                    <View style={s.receiptDivider} />
+                    {renderCaseRecordField('Party/ies', 'parties', { placeholder: 'List parties involved', multiline: true })}
+                  </View>
+
+                  <View style={s.crSectionCard}>
+                    <Text style={s.receiptSectionTitle}>Case History & Notes</Text>
+                    <View style={s.receiptDivider} />
+                    {renderCaseRecordField('Case History (reverse chronological)', 'caseHistory', { placeholder: 'Important events and filings', multiline: true })}
+                    {renderCaseRecordField('Remarks / Reminders / Notes', 'remarks', { placeholder: 'Deadlines, reminders', multiline: true })}
+                  </View>
+                  <View style={{ height: 40 }} />
+                </>
               )}
-
-              {/* Notes */}
-              {d.notes && (
-                <View style={s.receiptSectionCard}>
-                  <Text style={s.receiptSectionTitle}>Notes</Text>
-                  <View style={s.receiptDivider} />
-                  <Text style={s.reviewFieldValue}>{d.notes}</Text>
-                </View>
-              )}
-
-              <View style={{ height: 30 }} />
             </ScrollView>
-          ) : (
-            <View style={s.centerContainer}><Text style={{ color: MUTED_OLIVE }}>No case record available</Text></View>
-          )}
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     );
   };
@@ -1002,4 +1078,28 @@ const s = StyleSheet.create({
   receiptField: { marginBottom: 10 },
   receiptFieldLabel: { fontSize: 11, color: MUTED_OLIVE, textTransform: 'uppercase', fontWeight: '600', marginBottom: 2 },
   receiptFieldValue: { fontSize: 14, color: CHARCOAL, fontWeight: '500' },
+
+  // Case Record
+  crSectionCard: {
+    backgroundColor: '#FAFAFA', borderRadius: 12, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: '#f0f0f0',
+  },
+  crFieldWrap: { marginBottom: 12 },
+  crFieldLabel: { fontSize: 11, color: MUTED_OLIVE, textTransform: 'uppercase', fontWeight: '600', marginBottom: 4 },
+  crFieldValue: { fontSize: 14, color: CHARCOAL },
+  crInput: {
+    borderWidth: 1, borderColor: '#D8D0C4', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: CHARCOAL, backgroundColor: '#fff',
+  },
+  crTextarea: { minHeight: 90 },
+  crChipOutline: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+    borderWidth: 1, borderColor: PRIMARY_BROWN,
+  },
+  crChipOutlineText: { fontSize: 13, fontWeight: '600', color: PRIMARY_BROWN },
+  crChipFilled: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: PRIMARY_BROWN,
+  },
+  crChipFilledText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 });

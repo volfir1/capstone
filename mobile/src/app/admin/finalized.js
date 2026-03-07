@@ -10,6 +10,7 @@ import { useAuth } from 'context/authContext';
 import apiClient from '../../api/apiClient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const PRIMARY_BROWN = '#8B4513';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -91,6 +92,7 @@ export default function FinalizedCases() {
   const [assignForm, setAssignForm] = useState({ assigneeId: '', deadline: '', message: '' });
   const [assignLoading, setAssignLoading] = useState(false);
   const [showStaffPicker, setShowStaffPicker] = useState(false);
+  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
 
   // Action Menu
   const [menuVisible, setMenuVisible] = useState(false);
@@ -257,17 +259,21 @@ export default function FinalizedCases() {
   const openCaseRecord = async (caseData) => {
     setMenuVisible(false);
     setCaseRecordLoading(true);
-    setCaseRecordData(null);
-    setOriginalCaseRecordData(null);
+    setCaseRecordData({});
+    setOriginalCaseRecordData({});
     setCaseRecordEditMode(false);
     const caseId = caseData._id || caseData.id;
     setSelectedCaseId(caseId);
     try {
       const resp = await apiClient.get(`/caserecords/finalize/${caseId}`);
-      if (resp.data) {
+      if (resp.data && Object.keys(resp.data).length > 0) {
         const normalized = normalizeCaseRecordData(resp.data);
         setCaseRecordData(normalized);
         setOriginalCaseRecordData(normalized);
+      } else {
+        const fallback = normalizeCaseRecordData(caseData.content?.caseInfo || {});
+        setCaseRecordData(fallback);
+        setOriginalCaseRecordData(fallback);
       }
     } catch {
       const fallback = normalizeCaseRecordData(caseData.content?.caseInfo || {});
@@ -658,7 +664,9 @@ export default function FinalizedCases() {
         .sig-col { flex: 1; }
         .sig-line { border-bottom: 1px solid #000; min-height: 14px; padding: 2px; font-size: 10pt; }
         .sig-label { font-size: 10pt; margin-bottom: 2px; }
+        .timestamp { text-align: right; font-size: 7pt; color: #888; margin-bottom: 4px; }
       </style></head><body>
+      <div class="timestamp">Generated: ${new Date().toLocaleString()}</div>
       <div style="font-size:9pt;">SOLA FORM<br>Revised September 2020</div>
       <div class="header-row" style="margin-top:6px;">
         <div class="header-left">San Sebastian Office of Legal Aid (SOLA)<br>College of Law<br>San Sebastian College - Recoletos, Manila</div>
@@ -721,7 +729,9 @@ export default function FinalizedCases() {
         .section-head { text-align: center; font-size: 10pt; font-weight: bold; margin-bottom: 2px; }
         .section-sub { text-align: center; font-size: 8pt; margin-bottom: 6px; }
         .section-content { white-space: pre-wrap; font-size: 9pt; }
+        .timestamp { text-align: right; font-size: 7pt; color: #888; margin-bottom: 4px; }
       </style></head><body>
+      <div class="timestamp">Generated: ${new Date().toLocaleString()}</div>
       <div class="header-grid">
         <div class="header-col">
           <div class="field-row"><span class="field-label">Title of the Case:</span> <span class="field-line">${escapeHtml(cr.title || '')}</span></div>
@@ -777,7 +787,9 @@ export default function FinalizedCases() {
         .two-col { display: flex; gap: 12px; }
         .col { flex: 1; }
         .privacy-box { border: 1px solid #000; padding: 4px 6px; font-size: 7pt; margin-top: 16px; }
+        .timestamp { text-align: right; font-size: 7pt; color: #888; margin-bottom: 4px; }
       </style></head><body>
+      <div class="timestamp">Generated: ${new Date().toLocaleString()}</div>
       <div class="form-header">SOLA FORM 3<br>Revised September 2020</div>
       <div class="title-box">CLIENT'S INFORMATION SHEET</div>
       <div class="org-box">Sebastinian Office of Legal Aid (SOLA)<br>College of Law<br>San Sebastian College - Recoletos, Manila</div>
@@ -807,8 +819,9 @@ export default function FinalizedCases() {
       ${fieldRow('Nature of Work / Business:', a.natureOfWork)}
       ${fieldRow("Employer / Business Owner's Name:", a.employerName)}
       ${fieldRow('Employer / Business Address:', a.employerAddress)}
-      <div style="display:flex; gap:8px;">${fieldRow('Nature of Work / Business:', a.natureOfWork)}${fieldRow('Telephone:', a.employerTelephone)}</div>
+      <div style="display:flex; gap:8px;">${fieldRow('Telephone:', a.employerTelephone)}</div>
       <div style="display:flex; gap:8px;">${fieldRow("Spouse's Source of Income:", a.spouseSourceOfIncome)}${fieldRow('Income / Month:', money(a.spouseMonthlyIncome))}</div>
+      ${fieldRow("Spouse's Nature of Work / Business:", a.spouseNatureOfWork)}
       ${fieldRow("Spouse's Employer / Business Address:", a.spouseEmployerAddress)}
       ${fieldRow('Total Combined Monthly Income:', money(a.totalCombinedIncome))}
       <p class="section-title">CASE DETAILS</p>
@@ -1071,6 +1084,7 @@ export default function FinalizedCases() {
                 <View style={st.receiptDivider} />
                 {renderField('Source of Income', d.spouseSourceOfIncome)}
                 {renderField('Monthly Income', d.spouseMonthlyIncome ? `₱${Number(d.spouseMonthlyIncome).toLocaleString()}` : null)}
+                {renderField('Nature of Work / Business', d.spouseNatureOfWork)}
                 {renderField('Spouse Employer Address', d.spouseEmployerAddress)}
                 {renderField('Total Combined Income', d.totalCombinedIncome ? `₱${Number(d.totalCombinedIncome).toLocaleString()}` : null)}
               </View>
@@ -1111,7 +1125,7 @@ export default function FinalizedCases() {
   // ── Case Record Modal ──
   const renderCaseRecordModal = () => (
     <Modal visible={caseRecordModalVisible} animationType="slide" onRequestClose={() => setCaseRecordModalVisible(false)}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={st.modalContainer}>
           <View style={st.modalHeader}>
             <TouchableOpacity onPress={() => setCaseRecordModalVisible(false)} style={st.modalBackBtn}>
@@ -1133,7 +1147,7 @@ export default function FinalizedCases() {
                   </TouchableOpacity>
                 </>
               ) : (
-                <TouchableOpacity style={st.crChipOutline} onPress={() => setCaseRecordEditMode(true)} disabled={!caseRecordData || caseRecordLoading}>
+                <TouchableOpacity style={st.crChipOutline} onPress={() => setCaseRecordEditMode(true)} disabled={caseRecordLoading}>
                   <Text style={st.crChipOutlineText}>Edit</Text>
                 </TouchableOpacity>
               )}
@@ -1143,7 +1157,7 @@ export default function FinalizedCases() {
           <ScrollView style={st.modalScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {caseRecordLoading ? (
               <View style={st.centerContainer}><ActivityIndicator size="large" color={PRIMARY_BROWN} /></View>
-            ) : caseRecordData ? (
+            ) : (
               <>
                 <View style={st.crSectionCard}>
                   <Text style={st.receiptSectionTitle}>Case Information</Text>
@@ -1181,8 +1195,6 @@ export default function FinalizedCases() {
                 </View>
                 <View style={{ height: 40 }} />
               </>
-            ) : (
-              <View style={st.centerContainer}><Text style={{ color: MUTED_OLIVE }}>No case record data available.</Text></View>
             )}
           </ScrollView>
         </View>
@@ -1297,7 +1309,7 @@ export default function FinalizedCases() {
 
     return (
       <Modal visible={assignModalVisible} animationType="slide" onRequestClose={() => setAssignModalVisible(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={st.modalContainer}>
             <View style={st.modalHeader}>
               <TouchableOpacity onPress={() => setAssignModalVisible(false)} style={st.modalBackBtn}>
@@ -1358,13 +1370,52 @@ export default function FinalizedCases() {
 
               {/* Deadline */}
               <Text style={st.assignLabel}>Deadline</Text>
-              <TextInput
-                style={st.assignInput}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#999"
-                value={assignForm.deadline}
-                onChangeText={text => setAssignForm(prev => ({ ...prev, deadline: text }))}
-              />
+              <TouchableOpacity style={st.assignPickerBtn} onPress={() => setShowDeadlinePicker(true)}>
+                <Text style={assignForm.deadline ? st.assignPickerText : st.assignPickerPlaceholder}>
+                  {assignForm.deadline || 'Select deadline...'}
+                </Text>
+                <Ionicons name="calendar-outline" size={18} color={MUTED_OLIVE} />
+              </TouchableOpacity>
+              {showDeadlinePicker && (
+                Platform.OS === 'ios' ? (
+                  <Modal transparent animationType="slide">
+                    <View style={st.dateModalOverlay}>
+                      <View style={st.dateModalContent}>
+                        <View style={st.dateModalHeader}>
+                          <Text style={st.dateModalTitle}>Select Deadline</Text>
+                          <TouchableOpacity onPress={() => setShowDeadlinePicker(false)}>
+                            <Text style={st.dateModalDone}>Done</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <DateTimePicker
+                          value={assignForm.deadline ? new Date(assignForm.deadline) : new Date()}
+                          mode="date"
+                          display="spinner"
+                          minimumDate={new Date()}
+                          onChange={(event, selectedDate) => {
+                            if (selectedDate) {
+                              setAssignForm(prev => ({ ...prev, deadline: selectedDate.toISOString().split('T')[0] }));
+                            }
+                          }}
+                        />
+                      </View>
+                    </View>
+                  </Modal>
+                ) : (
+                  <DateTimePicker
+                    value={assignForm.deadline ? new Date(assignForm.deadline) : new Date()}
+                    mode="date"
+                    display="default"
+                    minimumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowDeadlinePicker(false);
+                      if (event.type === 'set' && selectedDate) {
+                        setAssignForm(prev => ({ ...prev, deadline: selectedDate.toISOString().split('T')[0] }));
+                      }
+                    }}
+                  />
+                )
+              )}
 
               {/* Message */}
               <Text style={st.assignLabel}>Message / Instructions</Text>
@@ -1711,6 +1762,13 @@ const st = StyleSheet.create({
     alignItems: 'center', marginTop: 20,
   },
   assignSubmitText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+
+  // Date Picker Modal
+  dateModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  dateModalContent: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 30 },
+  dateModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  dateModalTitle: { fontSize: 16, fontWeight: '600', color: CHARCOAL },
+  dateModalDone: { fontSize: 16, fontWeight: '600', color: PRIMARY_BROWN },
 
   // Staff Picker
   staffPickerSheet: {

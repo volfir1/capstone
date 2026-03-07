@@ -318,6 +318,7 @@ export default function ClientInfoView() {
         employerTelephone: data?.employerTelephone || '',
         spouseSourceOfIncome: data?.spouseSourceOfIncome || '',
         spouseMonthlyIncome: data?.spouseMonthlyIncome !== undefined && data?.spouseMonthlyIncome !== null ? String(data.spouseMonthlyIncome) : '',
+        spouseNatureOfWork: data?.spouseNatureOfWork || '',
         spouseEmployerAddress: data?.spouseEmployerAddress || '',
         totalCombinedIncome: data?.totalCombinedIncome !== undefined && data?.totalCombinedIncome !== null ? String(data.totalCombinedIncome) : '',
         // Case
@@ -377,6 +378,7 @@ export default function ClientInfoView() {
     employerTelephone: values.employerTelephone || undefined,
     spouseSourceOfIncome: values.spouseSourceOfIncome || undefined,
     spouseMonthlyIncome: values.spouseMonthlyIncome || undefined,
+    spouseNatureOfWork: values.spouseNatureOfWork || undefined,
     spouseEmployerAddress: values.spouseEmployerAddress || undefined,
     totalCombinedIncome: values.totalCombinedIncome || undefined,
     partyRepresented: values.partyRepresented || undefined,
@@ -658,6 +660,7 @@ export default function ClientInfoView() {
 
         <InfoRow label="Spouse's Source of Income" value={editData.spouseSourceOfIncome} field="spouseSourceOfIncome" />
         <InfoRow label="Spouse's Income / Month (₱)" value={editData.spouseMonthlyIncome} field="spouseMonthlyIncome" keyboardType="numeric" />
+        <InfoRow label="Spouse's Nature of Work / Business" value={editData.spouseNatureOfWork} field="spouseNatureOfWork" />
         <InfoRow label="Spouse's Employer / Business Address" value={editData.spouseEmployerAddress} field="spouseEmployerAddress" />
       </View>
 

@@ -176,6 +176,17 @@ export default function FinancialDetailsForm({ register, errors, watch, setValue
           </Grid>
 
           <Box>
+            <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Spouse's Nature of Work / Business</Text>
+            <TextInput
+              placeholder="Sales, IT, Retail, etc."
+              size="sm"
+              {...register('spouseNatureOfWork')}
+              error={errors.spouseNatureOfWork?.message}
+              styles={{ input: { borderColor: errors.spouseNatureOfWork ? '#E74C3C' : '#E0E0E0' } }}
+            />
+          </Box>
+
+          <Box>
             <Text size="sm" fw={600} c={CHARCOAL} mb={6}>Spouse's Employer / Business Address</Text>
             <TextInput
               placeholder="789 Work Ave, City"
