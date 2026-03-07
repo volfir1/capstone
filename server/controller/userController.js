@@ -473,3 +473,56 @@ export const getUserById = async (req, res) => {
         res.status(500).json({ success: false, message: safeErrorMessage(error)})
     }
 }
+
+// ── Push notification token management ──
+
+export const registerPushToken = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' });
+        }
+        const decodedToken = await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
+
+        const { token } = req.body;
+        if (!token || typeof token !== 'string') {
+            return res.status(400).json({ success: false, message: 'Push token is required' });
+        }
+
+        // Add token only if not already present
+        await User.updateOne(
+            { firebaseUid: decodedToken.uid },
+            { $addToSet: { pushTokens: token } }
+        );
+
+        res.json({ success: true, message: 'Push token registered' });
+    } catch (error) {
+        console.error('registerPushToken error:', error);
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
+    }
+};
+
+export const unregisterPushToken = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: 'No token provided' });
+        }
+        const decodedToken = await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
+
+        const { token } = req.body;
+        if (!token || typeof token !== 'string') {
+            return res.status(400).json({ success: false, message: 'Push token is required' });
+        }
+
+        await User.updateOne(
+            { firebaseUid: decodedToken.uid },
+            { $pull: { pushTokens: token } }
+        );
+
+        res.json({ success: true, message: 'Push token removed' });
+    } catch (error) {
+        console.error('unregisterPushToken error:', error);
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
+    }
+};

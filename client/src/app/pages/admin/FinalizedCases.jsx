@@ -769,7 +769,6 @@ export default function FinalizedCases() {
         clientName: formatText(d.clientName || interview.clientName),
         dateSubmitted: formatDate(action.signatureDate || d.updatedAt || d.createdAt),
         interviewingInterns: formatText(interview.interviewingInterns || interview.interviewingIntern || interview.internName),
-        dutyDay: formatText(interview.dutyDay),
 
         // --- fillable areas ---
         fastFacts: formatText(interview.fastFacts),
@@ -1008,7 +1007,6 @@ export default function FinalizedCases() {
 
     doc.text("Date Submitted:", midX + 2, y + 6);
     doc.text("Interviewing Intern/s:", midX + 2, y + 14);
-    doc.text("Duty Day:", midX + 2, y + 20);
 
     // Values
     setFont(10, "normal");
@@ -1016,7 +1014,6 @@ export default function FinalizedCases() {
     if (data.clientName) doc.text(safeText(data.clientName), infoX + 32, y + 14);
     if (data.dateSubmitted) doc.text(safeText(data.dateSubmitted), midX + 34, y + 6);
     if (data.interviewingInterns) doc.text(safeText(data.interviewingInterns), midX + 44, y + 14);
-    if (data.dutyDay) doc.text(safeText(data.dutyDay), midX + 18, y + 20);
 
     y += infoH + GAP_MD;
 

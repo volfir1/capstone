@@ -12,11 +12,58 @@ const getUidFromHeader = async (req) => {
   return decoded.uid;
 };
 
+// ── Helper: send FCM push notification to a user's registered devices ──
+const sendPushToUser = async (recipientFirebaseUid, title, body, data = {}) => {
+  try {
+    const user = await User.findOne({ firebaseUid: recipientFirebaseUid }).select('pushTokens').lean();
+    if (!user?.pushTokens?.length) return;
+
+    const payload = {
+      notification: { title, body },
+      data: { ...data, title, body },
+    };
+
+    const results = await Promise.allSettled(
+      user.pushTokens.map(token =>
+        admin.messaging().send({ ...payload, token })
+      )
+    );
+
+    // Remove any invalid/expired tokens
+    const invalidTokens = [];
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        const code = r.reason?.code || r.reason?.errorInfo?.code || '';
+        if (
+          code === 'messaging/registration-token-not-registered' ||
+          code === 'messaging/invalid-registration-token' ||
+          code === 'messaging/invalid-argument'
+        ) {
+          invalidTokens.push(user.pushTokens[i]);
+        }
+      }
+    });
+
+    if (invalidTokens.length) {
+      await User.updateOne(
+        { firebaseUid: recipientFirebaseUid },
+        { $pull: { pushTokens: { $in: invalidTokens } } }
+      );
+    }
+  } catch (err) {
+    console.error('FCM push error (non-fatal):', err.message);
+  }
+};
+
 // ── Helper: create a notification (used by other controllers) ──
 export const createNotification = async ({ recipientId, title, message, type = 'general', referenceId = null }) => {
   try {
     if (!recipientId || !title || !message) return null;
     const notification = await Notification.create({ recipientId, title, message, type, referenceId });
+
+    // Send FCM push notification (fire-and-forget)
+    sendPushToUser(recipientId, title, message, { type, referenceId: referenceId || '' });
+
     return notification;
   } catch (error) {
     console.error('Create notification error:', error.message);

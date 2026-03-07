@@ -63,6 +63,17 @@ export const clearAllNotifications = async () => {
   return response.data;
 };
 
+// ============== PUSH NOTIFICATIONS ==============
+export const registerPushToken = async (token) => {
+  const response = await apiClient.post('/users/push-token', { token });
+  return response.data;
+};
+
+export const unregisterPushToken = async (token) => {
+  const response = await apiClient.delete('/users/push-token', { data: { token } });
+  return response.data;
+};
+
 // ============== AUTH ==============
 export const getEmailFromUsername = async (username) => {
   const response = await apiClient.post('/auth/get-email-from-username', { username });

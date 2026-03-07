@@ -10,7 +10,6 @@ import { useAuth } from 'context/authContext';
 import apiClient from '../../api/apiClient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
 
 const PRIMARY_BROWN = '#8B4513';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -608,9 +607,11 @@ export default function FinalizedCases() {
   const generateAndSharePdf = async (htmlContent, fileName) => {
     try {
       const { uri } = await Print.printToFileAsync({ html: htmlContent, base64: false });
+      // Rename the temp file so the shared PDF has a readable filename
+      const FileSystem = require('expo-file-system/legacy');
       const newUri = `${FileSystem.cacheDirectory}${fileName}`;
       await FileSystem.moveAsync({ from: uri, to: newUri });
-      await Sharing.shareAsync(newUri, { mimeType: 'application/pdf', dialogTitle: fileName });
+      await Sharing.shareAsync(newUri, { mimeType: 'application/pdf', dialogTitle: fileName, UTI: 'com.adobe.pdf' });
     } catch (err) {
       console.error('PDF export error:', err);
       Alert.alert('Error', 'Failed to export PDF');
@@ -666,7 +667,7 @@ export default function FinalizedCases() {
       <table style="width:100%; border-collapse:collapse; border:1px solid #000; margin-top:4px;">
         <tr>
           <td style="border:1px solid #000; padding:3px 6px; width:50%;">Date of Interview: ${escapeHtml(formatText(interview.dateOfInterview || interview.dateInterview))}<br>Client's Name: ${escapeHtml(formatText(d.clientName || interview.clientName))}</td>
-          <td style="border:1px solid #000; padding:3px 6px; width:50%;">Date Submitted: ${escapeHtml(formatText(action.signatureDate || d.updatedAt))}<br>Interviewing Intern/s: ${escapeHtml(formatText(interview.interviewingInterns || interview.interviewingIntern || interview.internName))}<br>Duty Day: ${escapeHtml(formatText(interview.dutyDay))}</td>
+          <td style="border:1px solid #000; padding:3px 6px; width:50%;">Date Submitted: ${escapeHtml(formatText(action.signatureDate || d.updatedAt))}<br>Interviewing Intern/s: ${escapeHtml(formatText(interview.interviewingInterns || interview.interviewingIntern || interview.internName))}</td>
         </tr>
       </table>
       <p class="section-title">Fast Facts</p>
@@ -806,7 +807,7 @@ export default function FinalizedCases() {
       ${fieldRow('Nature of Work / Business:', a.natureOfWork)}
       ${fieldRow("Employer / Business Owner's Name:", a.employerName)}
       ${fieldRow('Employer / Business Address:', a.employerAddress)}
-      ${fieldRow('Telephone:', a.employerTelephone)}
+      <div style="display:flex; gap:8px;">${fieldRow('Nature of Work / Business:', a.natureOfWork)}${fieldRow('Telephone:', a.employerTelephone)}</div>
       <div style="display:flex; gap:8px;">${fieldRow("Spouse's Source of Income:", a.spouseSourceOfIncome)}${fieldRow('Income / Month:', money(a.spouseMonthlyIncome))}</div>
       ${fieldRow("Spouse's Employer / Business Address:", a.spouseEmployerAddress)}
       ${fieldRow('Total Combined Monthly Income:', money(a.totalCombinedIncome))}
