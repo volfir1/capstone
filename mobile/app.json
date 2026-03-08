@@ -17,6 +17,12 @@
           "color": "#8B4513",
           "defaultChannel": "default"
         }
+      ],
+      [
+        "expo-router",
+        {
+          "root": "./src/app"
+        }
       ]
     ],
     "splash": {
