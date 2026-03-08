@@ -17,7 +17,7 @@ const PRIMARY_BROWN = '#5C4033';
 export const CaseInformationSection = React.memo(({ value = {}, onChange = () => {}, readOnly = false }) => (
     <Paper shadow="md" p="xl" radius="lg" bg="white">
         <Stack gap="xl">
-            <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Reconstructed Case Record Table</Title>
+            <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center' }}>Case Record</Title>
             
             <Divider />
 
