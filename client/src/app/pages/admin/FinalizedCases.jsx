@@ -792,47 +792,6 @@ export default function FinalizedCases() {
         signatureDate: formatDate(action.signatureDate),
       }, endY);
 
-      // Page 3 (landscape Case Record form layout) - only for court representation cases
-      const caseType = d.content?.interviewInfo?.caseType;
-      const isCaseWithRecord = caseType !== 'legal-advice' && caseType !== 'legal-document';
-
-      if (isCaseWithRecord) {
-        let caseRecord = state.caseRecordData;
-        const hasCaseRecordLoaded = caseRecord && Object.keys(caseRecord).length > 0;
-        const isSameFinalizeId = state.selectedCaseId && finalizeId && state.selectedCaseId === finalizeId;
-
-        if (!hasCaseRecordLoaded || !isSameFinalizeId) {
-          try {
-            if (finalizeId) {
-              const resp = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
-              caseRecord = resp?.data || resp?.data?.data || caseRecord;
-            }
-          } catch (err) {
-            console.warn('No case record found for third page:', err);
-          }
-        }
-
-        doc.addPage('a4', 'landscape');
-        drawCaseRecordHistoryRemarksPage(doc, {
-          title: formatText(caseRecord?.title || d.content?.caseInfo?.title || d.title),
-          caseId: formatText(caseRecord?.caseId || d.caseId),
-          nature: formatText(caseRecord?.nature || d.content?.caseInfo?.nature || d.category),
-          tribunal: formatText(caseRecord?.tribunal),
-          branch: formatText(caseRecord?.branch),
-          presidingJudge: formatText(caseRecord?.presidingJudge),
-          telEmail: formatText(caseRecord?.contactDetails || caseRecord?.telEmail || d.content?.interviewInfo?.contactNumber || d.content?.interviewInfo?.email),
-          parties: formatText(caseRecord?.parties),
-          contactDetails: formatText(caseRecord?.contactDetails || caseRecord?.telEmail),
-          counsels: formatText(caseRecord?.counsels),
-          publicProsecutor: formatText(caseRecord?.publicProsecutor),
-          opposingCounsel: formatText(caseRecord?.opposingCounsel),
-          clientAddress: formatText(caseRecord?.clientAddress || d.content?.interviewInfo?.presentAddress || d.content?.interviewInfo?.permanentAddress),
-          others: formatText(caseRecord?.others),
-          caseHistory: formatText(caseRecord?.caseHistory),
-          remarks: formatText(caseRecord?.remarks),
-        });
-      }
-
       addDateTimeHeaderToAllPages(doc);
       doc.save('Recommendation_For_Action.pdf');
     } catch (err) {

@@ -19,14 +19,20 @@ function NotificationHandler() {
       }
     );
 
-    // User tapped on a notification
+    // User tapped on a notification — navigate based on type
     responseListener.current = addNotificationResponseListener((response) => {
       const data = response.notification.request.content.data;
       console.log("Notification tapped, data:", data);
 
-      // Navigate based on notification type if needed
-      if (data?.type === "appointment_created" || data?.type === "appointment_updated") {
-        router.push("/admin/calendar");
+      const { type, referenceId } = data || {};
+      if (type === 'case_assigned') {
+        router.push('/admin/assigned-cases');
+      } else if (type === 'appointment_created' || type === 'appointment_updated') {
+        router.push('/admin/clientformstatus');
+      } else if ((type === 'review_pending' || type === 'review_returned' || type === 'review_resubmitted') && referenceId) {
+        router.push(`/admin/recommendation?caseId=${referenceId}`);
+      } else if (referenceId) {
+        router.push(`/admin/recommendation?caseId=${referenceId}`);
       }
     });
 

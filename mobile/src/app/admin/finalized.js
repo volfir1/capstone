@@ -11,6 +11,7 @@ import apiClient from '../../api/apiClient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import ThemedToast, { useToast } from '../../components/ThemedToast';
 
 const PRIMARY_BROWN = '#8B4513';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -51,6 +52,7 @@ export default function FinalizedCases() {
   const router = useRouter();
   const { userData } = useAuth();
   const canAssignCases = ['director', 'secretary'].includes(userData?.role);
+  const { toast, showToast, hideToast } = useToast();
 
   // Core data
   const [finalized, setFinalized] = useState([]);
@@ -232,7 +234,7 @@ export default function FinalizedCases() {
       const res = await apiClient.get(`/finalize/detail/${caseData._id || caseData.id}`);
       setReviewData(res.data);
     } catch {
-      Alert.alert('Error', 'Could not load review data');
+      showToast('error', 'Error', 'Could not load review data');
       setReviewModalVisible(false);
     } finally {
       setReviewLoading(false);
@@ -250,7 +252,7 @@ export default function FinalizedCases() {
       const res = await apiClient.get(`/clientsinfo/${clientInfoId}`);
       setReceiptDetails(res.data);
     } catch {
-      Alert.alert('Error', 'Failed to load appointment receipt');
+      showToast('error', 'Error', 'Failed to load appointment receipt');
     } finally {
       setReceiptLoading(false);
     }
@@ -294,20 +296,20 @@ export default function FinalizedCases() {
   };
 
   const handleSaveCaseRecord = async () => {
-    if (!selectedCaseId) { Alert.alert('Error', 'No case selected'); return; }
+    if (!selectedCaseId) { showToast('error', 'Error', 'No case selected'); return; }
     setSavingCaseRecord(true);
     try {
       const resp = await apiClient.put(`/caserecords/finalize/${selectedCaseId}`, caseRecordData || {});
       if (resp.data) {
-        Alert.alert('Saved', 'Case record saved successfully');
-        const updated = normalizeCaseRecordData(resp.data || caseRecordData);
+        const updated = normalizeCaseRecordData(resp.data?.data || caseRecordData);
         setCaseRecordData(updated);
         setOriginalCaseRecordData(updated);
         setCaseRecordEditMode(false);
+        showToast('success', 'Saved', 'Case record saved successfully');
         fetchFinalized(true);
       }
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to save case record');
+      showToast('error', 'Error', err.response?.data?.error || 'Failed to save case record');
     } finally {
       setSavingCaseRecord(false);
     }
@@ -328,7 +330,7 @@ export default function FinalizedCases() {
     if (!documentData) return;
     const url = documentData.cloudinaryUrl || documentData.fileUrl || documentData.fileData;
     if (!url) {
-      Alert.alert('Error', 'No file URL available');
+      showToast('error', 'Error', 'No file URL available');
       return;
     }
     try {
@@ -337,11 +339,11 @@ export default function FinalizedCases() {
       if (supported) {
         await Linking.openURL(fullUrl);
       } else {
-        Alert.alert('Cannot Open', 'Unable to open this document on your device.');
+        showToast('warning', 'Cannot Open', 'Unable to open this document on your device.');
       }
     } catch (err) {
       console.error('Error opening document:', err);
-      Alert.alert('Error', 'Failed to open document');
+      showToast('error', 'Error', 'Failed to open document');
     }
   };
 
@@ -386,10 +388,10 @@ export default function FinalizedCases() {
             // Refresh finalized list
             fetchFinalized(true);
 
-            Alert.alert('Deleted', 'Version deleted successfully.');
+            showToast('success', 'Deleted', 'Version deleted successfully.');
           } catch (err) {
             console.error('Error deleting version:', err);
-            Alert.alert('Error', 'Failed to delete version.');
+            showToast('error', 'Error', 'Failed to delete version.');
           }
         },
       },
@@ -405,7 +407,7 @@ export default function FinalizedCases() {
 
   const handleAssignCase = async () => {
     if (!assignForm.assigneeId || !assignForm.deadline || !assignForm.message) {
-      Alert.alert('Missing Fields', 'Please fill in all fields');
+      showToast('warning', 'Missing Fields', 'Please fill in all fields');
       return;
     }
     setAssignLoading(true);
@@ -416,11 +418,11 @@ export default function FinalizedCases() {
         deadline: assignForm.deadline,
         message: assignForm.message,
       });
-      Alert.alert('Success', 'Case assigned successfully');
+      showToast('success', 'Success', 'Case assigned successfully');
       setAssignModalVisible(false);
       setAssignTargetCase(null);
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to assign case');
+      showToast('error', 'Error', err.response?.data?.error || 'Failed to assign case');
     } finally {
       setAssignLoading(false);
     }
@@ -437,9 +439,9 @@ export default function FinalizedCases() {
           try {
             await apiClient.delete(`/finalize/${recordId}`);
             setFinalized(prev => prev.filter(f => (f._id || f.id) !== recordId));
-            Alert.alert('Deleted', 'Finalized record has been deleted.');
+            showToast('success', 'Deleted', 'Finalized record has been deleted.');
           } catch {
-            Alert.alert('Error', 'Failed to delete finalized record.');
+            showToast('error', 'Error', 'Failed to delete finalized record.');
           }
         },
       },
@@ -620,7 +622,7 @@ export default function FinalizedCases() {
       await Sharing.shareAsync(newUri, { mimeType: 'application/pdf', dialogTitle: fileName, UTI: 'com.adobe.pdf' });
     } catch (err) {
       console.error('PDF export error:', err);
-      Alert.alert('Error', 'Failed to export PDF');
+      showToast('error', 'Error', 'Failed to export PDF');
     }
   };
 
@@ -842,45 +844,21 @@ export default function FinalizedCases() {
 
   const exportRecommendationPdf = async () => {
     if (!reviewData) {
-      Alert.alert('Nothing to export', 'No review data loaded.');
+      showToast('warning', 'Nothing to export', 'No review data loaded.');
       return;
     }
     try {
-      let htmlContent = buildRecommendationHtml(reviewData);
-
-      // Add case record page for court representation cases
-      const caseType = reviewData.content?.interviewInfo?.caseType;
-      const isCaseWithRecord = caseType !== 'legal-advice' && caseType !== 'legal-document';
-      if (isCaseWithRecord) {
-        const finalizeId = reviewData._id || reviewData.id;
-        let cr = caseRecordData;
-        if ((!cr || Object.keys(cr).length === 0) && finalizeId) {
-          try {
-            const resp = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
-            cr = resp?.data || resp?.data?.data || {};
-          } catch { cr = {}; }
-        }
-        if (cr && Object.keys(cr).length > 0) {
-          const crHtml = buildCaseRecordHtml(cr);
-          // Append as separate section (expo-print doesn't support mixed orientations in one doc)
-          // We'll add it as a page break in the same document
-          htmlContent = htmlContent.replace('</body></html>',
-            `<div style="page-break-before:always;"></div>
-             <div style="font-size:9pt;">${crHtml.replace(/<!DOCTYPE html>.*?<body>/s, '').replace(/<\/body><\/html>/, '')}</div>
-            </body></html>`);
-        }
-      }
-
+      const htmlContent = buildRecommendationHtml(reviewData);
       await generateAndSharePdf(htmlContent, 'Recommendation_For_Action.pdf');
     } catch (err) {
       console.error('exportRecommendationPdf failed:', err);
-      Alert.alert('Error', 'Failed to export PDF');
+      showToast('error', 'Error', 'Failed to export PDF');
     }
   };
 
   const exportAppointmentPdf = async () => {
     if (!receiptDetails) {
-      Alert.alert('Nothing to export', 'No appointment details loaded.');
+      showToast('warning', 'Nothing to export', 'No appointment details loaded.');
       return;
     }
     const htmlContent = buildAppointmentHtml(receiptDetails);
@@ -889,7 +867,7 @@ export default function FinalizedCases() {
 
   const exportCaseRecordPdf = async () => {
     if (!caseRecordData || Object.keys(caseRecordData).length === 0) {
-      Alert.alert('Nothing to export', 'No case record data loaded.');
+      showToast('warning', 'Nothing to export', 'No case record data loaded.');
       return;
     }
     const htmlContent = buildCaseRecordHtml(caseRecordData);
@@ -1560,6 +1538,7 @@ export default function FinalizedCases() {
       {renderCaseRecordModal()}
       {renderVersionHistoryModal()}
       {renderAssignModal()}
+      <ThemedToast toast={toast} onHide={hideToast} />
     </View>
   );
 }

@@ -308,8 +308,8 @@ export const getDashboardStats = async (req, res) => {
 
     for (const f of acceptedFinalized) {
       const flag = f.content?.interviewInfo?.forLegalAdvice;
-      const isLA = flag === true || flag === 'true' || flag === 1 || flag === '1';
       const caseType = f.content?.interviewInfo?.caseType;
+      const isLA = flag === true || flag === 'true' || flag === 1 || flag === '1' || caseType === 'legal-advice';
       const isDoc = caseType === 'legal-document';
 
       if (isLA) legalAdviceCount++;

@@ -75,20 +75,21 @@ export default function AdminLayout() {
         }}
       />
       <Tabs.Screen
+        name="analytics"
+        options={{
+          title: 'Analytics',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
-        }}
-      />
-      
-      {/* Hidden screens */}
-      <Tabs.Screen
-        name="analytics"
-        options={{
-          href: null,
         }}
       />
       <Tabs.Screen

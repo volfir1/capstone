@@ -27,13 +27,27 @@ export const updateProfileImage = async (imageUrl) => {
   return response.data;
 };
 
+export const uploadProfileImageFile = async (uri) => {
+  const filename = uri.split('/').pop() || 'photo.jpg';
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+  const formData = new FormData();
+  formData.append('image', { uri, name: filename, type });
+
+  const response = await apiClient.post('/users/profile/image/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
 export const updateAdminProfile = async (data) => {
-  const response = await apiClient.put('/admin/profile', data);
+  const response = await apiClient.put('/users/profile', data);
   return response.data;
 };
 
 export const updateAttorneyProfile = async (data) => {
-  const response = await apiClient.put('/attorney/profile', data);
+  const response = await apiClient.put('/users/profile', data);
   return response.data;
 };
 

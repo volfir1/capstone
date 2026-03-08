@@ -8,6 +8,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { fetchClientInfoById, updateClientInfo } from '../../api/adminApi';
 import { useAuth } from '../../context/authContext';
+import ThemedToast, { useToast } from '../../components/ThemedToast';
 
 const PRIMARY_BROWN = '#8B4513';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -267,6 +268,7 @@ export default function ClientInfoView() {
   const [clientInfo, setClientInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast, hideToast } = useToast();
   const [activeStep, setActiveStep] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
@@ -346,7 +348,7 @@ export default function ClientInfoView() {
       setEditData(mapped);
     } catch (error) {
       console.error('Failed to load client info:', error);
-      Alert.alert('Error', 'Failed to load client information.');
+      showToast('error', 'Error', 'Failed to load client information.');
     } finally {
       setLoading(false);
     }
@@ -404,12 +406,12 @@ export default function ClientInfoView() {
     try {
       setSaving(true);
       await updateClientInfo(id, buildPayload(editData));
-      Alert.alert('Success', 'Client information updated successfully.');
+      showToast('success', 'Success', 'Client information updated successfully.');
       setIsEditing(false);
       await loadClientInfo();
     } catch (error) {
       console.error('Failed to save:', error);
-      Alert.alert('Error', 'Failed to update client information.');
+      showToast('error', 'Error', 'Failed to update client information.');
     } finally {
       setSaving(false);
     }
@@ -419,11 +421,11 @@ export default function ClientInfoView() {
     try {
       setSaving(true);
       await updateClientInfo(id, buildPayload(editData));
-      Alert.alert('Saved', 'Client information saved. Proceeding to interview...');
+      showToast('success', 'Saved', 'Client information saved. Proceeding to interview...');
       router.push({ pathname: '/admin/recommendation', params: { caseId: id, showClientInfo: 'true' } });
     } catch (error) {
       console.error('Error saving before interview:', error);
-      Alert.alert('Error', 'Failed to save client information.');
+      showToast('error', 'Error', 'Failed to save client information.');
     } finally {
       setSaving(false);
     }
@@ -989,6 +991,7 @@ export default function ClientInfoView() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      <ThemedToast toast={toast} onHide={hideToast} />
     </KeyboardAvoidingView>
   );
 }

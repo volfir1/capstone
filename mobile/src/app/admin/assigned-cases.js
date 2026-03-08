@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from 'context/authContext';
 import apiClient from '../../api/apiClient';
+import ThemedToast, { useToast } from '../../components/ThemedToast';
 
 const PRIMARY_BROWN = '#8B4513';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -44,12 +45,18 @@ export default function AssignedCases() {
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewData, setReviewData] = useState(null);
+  const [editedReviewData, setEditedReviewData] = useState(null);
+  const [reviewEditMode, setReviewEditMode] = useState(false);
+  const [reviewSaving, setReviewSaving] = useState(false);
   const [reviewStep, setReviewStep] = useState(0);
 
   // Receipt Modal State
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [receiptDetails, setReceiptDetails] = useState(null);
+  const [receiptEditMode, setReceiptEditMode] = useState(false);
+  const [receiptForm, setReceiptForm] = useState({});
+  const [receiptSaving, setReceiptSaving] = useState(false);
 
   // Case History Modal State
   const [caseHistoryModalVisible, setCaseHistoryModalVisible] = useState(false);
@@ -61,6 +68,7 @@ export default function AssignedCases() {
   const [selectedFinalizeId, setSelectedFinalizeId] = useState(null);
 
   const isAssigner = ['director', 'secretary'].includes(userData?.role);
+  const { toast, showToast, hideToast } = useToast();
 
   // Fetch data using the correct separate endpoints (matching web)
   const fetchAll = useCallback(async (silent = false) => {
@@ -114,9 +122,9 @@ export default function AssignedCases() {
               setMyAssignments(prev =>
                 prev.map(a => a._id === assignmentId ? { ...a, status: 'done', completedAt: new Date().toISOString() } : a)
               );
-              Alert.alert('Success', 'Assignment marked as completed.');
+              showToast('success', 'Success', 'Assignment marked as completed.');
             } catch (error) {
-              Alert.alert('Error', 'Failed to update assignment status.');
+              showToast('error', 'Error', 'Failed to update assignment status.');
             } finally {
               setActionLoading(null);
             }
@@ -142,9 +150,9 @@ export default function AssignedCases() {
               setMyAssignments(prev =>
                 prev.map(a => a._id === assignmentId ? { ...a, status: 'pending', completedAt: null } : a)
               );
-              Alert.alert('Success', 'Assignment reverted to pending.');
+              showToast('success', 'Success', 'Assignment reverted to pending.');
             } catch (error) {
-              Alert.alert('Error', 'Failed to undo completion.');
+              showToast('error', 'Error', 'Failed to undo completion.');
             } finally {
               setActionLoading(null);
             }
@@ -159,15 +167,48 @@ export default function AssignedCases() {
     setReviewModalVisible(true);
     setReviewLoading(true);
     setReviewData(null);
+    setEditedReviewData(null);
+    setReviewEditMode(false);
     setReviewStep(0);
     try {
       const res = await apiClient.get(`/finalize/detail/${assignment.finalizeId}`);
       setReviewData(res.data);
+      setEditedReviewData(JSON.parse(JSON.stringify(res.data)));
     } catch (err) {
-      Alert.alert('Error', 'Could not load review data');
+      showToast('error', 'Error', 'Could not load review data');
       setReviewModalVisible(false);
     } finally {
       setReviewLoading(false);
+    }
+  };
+
+  const updateEditedReview = (path, value) => {
+    const newData = JSON.parse(JSON.stringify(editedReviewData));
+    const keys = path.split('.');
+    let current = newData;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!current[keys[i]]) current[keys[i]] = {};
+      current = current[keys[i]];
+    }
+    current[keys[keys.length - 1]] = value;
+    setEditedReviewData(newData);
+  };
+
+  const handleSaveReview = async () => {
+    try {
+      setReviewSaving(true);
+      const resp = await apiClient.put(`/finalize/${editedReviewData._id || editedReviewData.id}`, editedReviewData);
+      const saved = resp.data;
+      if (saved) {
+        setReviewData(saved);
+        setEditedReviewData(JSON.parse(JSON.stringify(saved)));
+        setReviewEditMode(false);
+        showToast('success', 'Success', 'Review saved successfully');
+      }
+    } catch (err) {
+      showToast('error', 'Error', 'Failed to save review: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setReviewSaving(false);
     }
   };
 
@@ -176,15 +217,108 @@ export default function AssignedCases() {
     setReceiptModalVisible(true);
     setReceiptLoading(true);
     setReceiptDetails(null);
+    setReceiptEditMode(false);
+    setReceiptForm({});
     try {
       const clientInfoId = assignment.caseId;
       if (!clientInfoId) { setReceiptLoading(false); return; }
       const clientRes = await apiClient.get(`/clientsinfo/${clientInfoId}`);
       setReceiptDetails(clientRes.data);
+      setReceiptForm(syncReceiptForm(clientRes.data));
     } catch (err) {
       console.error('Error fetching receipt data:', err);
     } finally {
       setReceiptLoading(false);
+    }
+  };
+
+  const syncReceiptForm = (details) => ({
+    fullName: details?.fullName || details?.name || '',
+    age: details?.age != null ? String(details.age) : '',
+    birthday: details?.birthday || '',
+    sex: details?.sex || '',
+    civilStatus: details?.civilStatus || '',
+    citizenship: details?.citizenship || '',
+    contactNumber: details?.contactNumber || '',
+    email: details?.email || '',
+    presentAddress: details?.presentAddress || '',
+    permanentAddress: details?.permanentAddress || '',
+    spouseName: details?.spouseName || '',
+    relatorName: details?.relatorName || '',
+    relatorContactNumber: details?.relatorContactNumber || '',
+    currentSourceOfIncome: details?.currentSourceOfIncome || '',
+    monthlyIncome: details?.monthlyIncome != null ? String(details.monthlyIncome) : '',
+    natureOfWork: details?.natureOfWork || '',
+    employerName: details?.employerName || '',
+    employerAddress: details?.employerAddress || '',
+    partyRepresented: details?.partyRepresented || '',
+    venue: details?.venue || '',
+    presentStage: details?.presentStage || '',
+    courtDivision: details?.courtDivision || '',
+    courtAddress: details?.courtAddress || '',
+    courtPhoneNumber: details?.courtPhoneNumber || '',
+    presidingOfficer: details?.presidingOfficer || '',
+    adverseParty: details?.adverseParty || '',
+    adversePartyAddress: details?.adversePartyAddress || '',
+    adversePartyPhone: details?.adversePartyPhone || '',
+    adversePartyCounsel: details?.adversePartyCounsel || '',
+    adversePartyCounselAddress: details?.adversePartyCounselAddress || '',
+    adversePartyCounselPhone: details?.adversePartyCounselPhone || '',
+    caseDescription: details?.caseDescription || '',
+    caseNature: details?.caseNature || details?.natureOfCase || '',
+    appointmentType: details?.caseDetails?.appointmentType || details?.appointmentType || details?.personal?.legalMatter || '',
+  });
+
+  const handleSaveReceipt = async () => {
+    if (!receiptDetails?._id) return;
+    setReceiptSaving(true);
+    try {
+      const payload = {
+        fullName: receiptForm.fullName || undefined,
+        name: receiptForm.fullName || undefined,
+        age: receiptForm.age ? Number(receiptForm.age) : undefined,
+        birthday: receiptForm.birthday || undefined,
+        sex: receiptForm.sex || undefined,
+        civilStatus: receiptForm.civilStatus || undefined,
+        citizenship: receiptForm.citizenship || undefined,
+        contactNumber: receiptForm.contactNumber || undefined,
+        email: receiptForm.email || undefined,
+        presentAddress: receiptForm.presentAddress || undefined,
+        permanentAddress: receiptForm.permanentAddress || undefined,
+        spouseName: receiptForm.spouseName || undefined,
+        relatorName: receiptForm.relatorName || undefined,
+        relatorContactNumber: receiptForm.relatorContactNumber || undefined,
+        currentSourceOfIncome: receiptForm.currentSourceOfIncome || undefined,
+        monthlyIncome: receiptForm.monthlyIncome ? Number(receiptForm.monthlyIncome) : undefined,
+        natureOfWork: receiptForm.natureOfWork || undefined,
+        employerName: receiptForm.employerName || undefined,
+        employerAddress: receiptForm.employerAddress || undefined,
+        partyRepresented: receiptForm.partyRepresented || undefined,
+        venue: receiptForm.venue || undefined,
+        presentStage: receiptForm.presentStage || undefined,
+        courtDivision: receiptForm.courtDivision || undefined,
+        courtAddress: receiptForm.courtAddress || undefined,
+        presidingOfficer: receiptForm.presidingOfficer || undefined,
+        adverseParty: receiptForm.adverseParty || undefined,
+        adversePartyAddress: receiptForm.adversePartyAddress || undefined,
+        adversePartyPhone: receiptForm.adversePartyPhone || undefined,
+        adversePartyCounsel: receiptForm.adversePartyCounsel || undefined,
+        adversePartyCounselAddress: receiptForm.adversePartyCounselAddress || undefined,
+        adversePartyCounselPhone: receiptForm.adversePartyCounselPhone || undefined,
+        caseDescription: receiptForm.caseDescription || undefined,
+        caseNature: receiptForm.caseNature || undefined,
+        appointmentType: receiptForm.appointmentType || undefined,
+      };
+      const resp = await apiClient.put(`/clientsinfo/${receiptDetails._id}`, payload);
+      const updated = resp?.data || { ...receiptDetails, ...payload };
+      setReceiptDetails(updated);
+      setReceiptForm(syncReceiptForm(updated));
+      setReceiptEditMode(false);
+      showToast('success', 'Updated', 'Appointment details saved.');
+    } catch (err) {
+      showToast('error', 'Error', 'Failed to save appointment details.');
+    } finally {
+      setReceiptSaving(false);
     }
   };
 
@@ -232,19 +366,19 @@ export default function AssignedCases() {
   };
 
   const handleSaveCaseRecord = async () => {
-    if (!selectedFinalizeId) { Alert.alert('Error', 'No case selected'); return; }
+    if (!selectedFinalizeId) { showToast('error', 'Error', 'No case selected'); return; }
     setSavingCaseRecord(true);
     try {
       const resp = await apiClient.put(`/caserecords/finalize/${selectedFinalizeId}`, caseRecordData || {});
       if (resp.data) {
-        Alert.alert('Saved', 'Case record saved successfully');
-        const updated = normalizeCaseRecordData(resp.data || caseRecordData);
+        const updated = normalizeCaseRecordData(resp.data?.data || caseRecordData);
         setCaseRecordData(updated);
         setOriginalCaseRecordData(updated);
         setCaseRecordEditMode(false);
+        showToast('success', 'Saved', 'Case record saved successfully');
       }
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to save case record');
+      showToast('error', 'Error', err.response?.data?.error || 'Failed to save case record');
     } finally {
       setSavingCaseRecord(false);
     }
@@ -476,20 +610,38 @@ export default function AssignedCases() {
 
   // ── Review Modal Content ──
   const renderReviewModal = () => (
-    <Modal visible={reviewModalVisible} animationType="slide" onRequestClose={() => setReviewModalVisible(false)}>
+    <Modal visible={reviewModalVisible} animationType="slide" onRequestClose={() => { setReviewModalVisible(false); setReviewEditMode(false); }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={s.modalContainer}>
         {/* Modal Header */}
         <View style={s.modalHeader}>
-          <TouchableOpacity onPress={() => setReviewModalVisible(false)} style={s.modalBackBtn}>
+          <TouchableOpacity onPress={() => { setReviewModalVisible(false); setReviewEditMode(false); }} style={s.modalBackBtn}>
             <Ionicons name="arrow-back" size={22} color={CHARCOAL} />
           </TouchableOpacity>
           <Text style={s.modalTitle}>Recommendation for Action</Text>
-          <View style={{ width: 32 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {!reviewEditMode ? (
+              ['director', 'supervising_lawyer', 'secretary'].includes(userData?.role) && (
+                <TouchableOpacity style={s.crChipOutline} onPress={() => setReviewEditMode(true)} disabled={reviewLoading}>
+                  <Text style={s.crChipOutlineText}>Edit</Text>
+                </TouchableOpacity>
+              )
+            ) : (
+              <>
+                <TouchableOpacity style={s.crChipOutline} onPress={() => { setEditedReviewData(JSON.parse(JSON.stringify(reviewData))); setReviewEditMode(false); }} disabled={reviewSaving}>
+                  <Text style={s.crChipOutlineText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.crChipFilled, reviewSaving && { opacity: 0.6 }]} onPress={handleSaveReview} disabled={reviewSaving}>
+                  {reviewSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.crChipFilledText}>Save</Text>}
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </View>
 
         {reviewLoading ? (
           <View style={s.centerContainer}><ActivityIndicator size="large" color={PRIMARY_BROWN} /></View>
-        ) : reviewData ? (
+        ) : editedReviewData ? (
           <>
             {/* Stepper */}
             <View style={s.stepperContainer}>
@@ -509,7 +661,7 @@ export default function AssignedCases() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={s.modalScrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView style={s.modalScrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {reviewStep === 0 ? (
                 <>
                   {/* Interview Info */}
@@ -518,19 +670,19 @@ export default function AssignedCases() {
                     <View style={s.reviewGrid}>
                       <View style={s.reviewField}>
                         <Text style={s.reviewFieldLabel}>Date of Interview</Text>
-                        <Text style={s.reviewFieldValue}>{reviewData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
+                        <Text style={s.reviewFieldValue}>{editedReviewData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
                       </View>
                       <View style={s.reviewField}>
                         <Text style={s.reviewFieldLabel}>Date Submitted</Text>
-                        <Text style={s.reviewFieldValue}>{reviewData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
+                        <Text style={s.reviewFieldValue}>{editedReviewData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
                       </View>
                       <View style={s.reviewField}>
                         <Text style={s.reviewFieldLabel}>Client's Name</Text>
-                        <Text style={s.reviewFieldValue}>{reviewData.content?.interviewInfo?.clientName || '-'}</Text>
+                        <Text style={s.reviewFieldValue}>{editedReviewData.content?.interviewInfo?.clientName || '-'}</Text>
                       </View>
                       <View style={s.reviewField}>
                         <Text style={s.reviewFieldLabel}>Interviewing Intern/s</Text>
-                        <Text style={s.reviewFieldValue}>{reviewData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
+                        <Text style={s.reviewFieldValue}>{editedReviewData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
                       </View>
                     </View>
                   </View>
@@ -538,23 +690,50 @@ export default function AssignedCases() {
                   {/* Fast Facts */}
                   <View style={s.reviewSection}>
                     <Text style={s.reviewSectionTitle}>Fast Facts</Text>
-                    <Text style={s.reviewFieldValue}>{reviewData.content?.interviewInfo?.fastFacts || '-'}</Text>
+                    {reviewEditMode ? (
+                      <TextInput
+                        style={[s.crInput, s.crTextarea]}
+                        value={editedReviewData.content?.interviewInfo?.fastFacts || ''}
+                        onChangeText={text => updateEditedReview('content.interviewInfo.fastFacts', text)}
+                        multiline numberOfLines={4} textAlignVertical="top"
+                      />
+                    ) : (
+                      <Text style={s.reviewFieldValue}>{editedReviewData.content?.interviewInfo?.fastFacts || '-'}</Text>
+                    )}
                   </View>
 
                   {/* Evidence */}
-                  {renderEvidenceSection('Evidence for Client(s)', reviewData.content?.interviewInfo?.clientEvidence)}
-                  {renderEvidenceSection('Evidence for Adverse Party(ies)', reviewData.content?.interviewInfo?.adversePartyEvidence)}
+                  {renderEvidenceSection('Evidence for Client(s)', editedReviewData.content?.interviewInfo?.clientEvidence)}
+                  {renderEvidenceSection('Evidence for Adverse Party(ies)', editedReviewData.content?.interviewInfo?.adversePartyEvidence)}
 
                   {/* Intern's Advice */}
                   <View style={s.reviewSection}>
                     <Text style={s.reviewSectionTitle}>Intern's Initial Advice</Text>
-                    <Text style={s.reviewFieldValue}>{reviewData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                    {reviewEditMode ? (
+                      <TextInput
+                        style={[s.crInput, s.crTextarea]}
+                        value={editedReviewData.content?.interviewInfo?.internAdvice || ''}
+                        onChangeText={text => updateEditedReview('content.interviewInfo.internAdvice', text)}
+                        multiline numberOfLines={3} textAlignVertical="top"
+                      />
+                    ) : (
+                      <Text style={s.reviewFieldValue}>{editedReviewData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                    )}
                   </View>
 
                   {/* Legal Opinion */}
                   <View style={s.reviewSection}>
                     <Text style={s.reviewSectionTitle}>Legal Opinion</Text>
-                    <Text style={s.reviewFieldValue}>{reviewData.content?.interviewInfo?.legalOpinion || '-'}</Text>
+                    {reviewEditMode ? (
+                      <TextInput
+                        style={[s.crInput, s.crTextarea]}
+                        value={editedReviewData.content?.interviewInfo?.legalOpinion || ''}
+                        onChangeText={text => updateEditedReview('content.interviewInfo.legalOpinion', text)}
+                        multiline numberOfLines={5} textAlignVertical="top"
+                      />
+                    ) : (
+                      <Text style={s.reviewFieldValue}>{editedReviewData.content?.interviewInfo?.legalOpinion || '-'}</Text>
+                    )}
                   </View>
                 </>
               ) : (
@@ -563,21 +742,30 @@ export default function AssignedCases() {
                   <View style={s.reviewSection}>
                     <Text style={s.reviewSectionTitle}>Supervising Lawyer & Director Action</Text>
                     <Text style={s.reviewSubLabel}>Supervising Lawyer's Comment</Text>
-                    <Text style={s.reviewFieldValue}>{reviewData.content?.actionInfo?.supervisingComment || '-'}</Text>
+                    {reviewEditMode ? (
+                      <TextInput
+                        style={[s.crInput, s.crTextarea]}
+                        value={editedReviewData.content?.actionInfo?.supervisingComment || ''}
+                        onChangeText={text => updateEditedReview('content.actionInfo.supervisingComment', text)}
+                        multiline numberOfLines={4} textAlignVertical="top"
+                      />
+                    ) : (
+                      <Text style={s.reviewFieldValue}>{editedReviewData.content?.actionInfo?.supervisingComment || '-'}</Text>
+                    )}
                   </View>
 
                   {/* Director's Decision */}
                   <View style={s.reviewSection}>
                     <Text style={s.reviewSubLabel}>Director's Decision</Text>
                     <View style={[s.decisionBadge, {
-                      backgroundColor: reviewData.decision === 'accepted' ? '#DCFCE7'
-                        : reviewData.decision === 'rejected' ? '#FEE2E2' : '#FEF3C7'
+                      backgroundColor: editedReviewData.decision === 'accepted' ? '#DCFCE7'
+                        : editedReviewData.decision === 'rejected' ? '#FEE2E2' : '#FEF3C7'
                     }]}>
                       <Text style={[s.decisionText, {
-                        color: reviewData.decision === 'accepted' ? '#22c55e'
-                          : reviewData.decision === 'rejected' ? '#EF4444' : '#F59E0B'
+                        color: editedReviewData.decision === 'accepted' ? '#22c55e'
+                          : editedReviewData.decision === 'rejected' ? '#EF4444' : '#F59E0B'
                       }]}>
-                        {(reviewData.decision || 'pending').toUpperCase()}
+                        {(editedReviewData.decision || 'pending').toUpperCase()}
                       </Text>
                     </View>
                   </View>
@@ -585,7 +773,16 @@ export default function AssignedCases() {
                   {/* Decision Note */}
                   <View style={s.reviewSection}>
                     <Text style={s.reviewSubLabel}>Decision Note</Text>
-                    <Text style={s.reviewFieldValue}>{reviewData.content?.actionInfo?.decisionNote || '-'}</Text>
+                    {reviewEditMode ? (
+                      <TextInput
+                        style={[s.crInput, s.crTextarea]}
+                        value={editedReviewData.content?.actionInfo?.decisionNote || ''}
+                        onChangeText={text => updateEditedReview('content.actionInfo.decisionNote', text)}
+                        multiline numberOfLines={4} textAlignVertical="top"
+                      />
+                    ) : (
+                      <Text style={s.reviewFieldValue}>{editedReviewData.content?.actionInfo?.decisionNote || '-'}</Text>
+                    )}
                   </View>
 
                   {/* Assignment Details */}
@@ -593,19 +790,19 @@ export default function AssignedCases() {
                     <View style={s.reviewGrid}>
                       <View style={s.reviewField}>
                         <Text style={s.reviewFieldLabel}>Assigned To</Text>
-                        <Text style={s.reviewFieldValue}>{reviewData.content?.actionInfo?.assignedTo || '-'}</Text>
+                        <Text style={s.reviewFieldValue}>{editedReviewData.content?.actionInfo?.assignedTo || '-'}</Text>
                       </View>
                       <View style={s.reviewField}>
                         <Text style={s.reviewFieldLabel}>Supervising Lawyer</Text>
-                        <Text style={s.reviewFieldValue}>{reviewData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
+                        <Text style={s.reviewFieldValue}>{editedReviewData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
                       </View>
                       <View style={s.reviewField}>
                         <Text style={s.reviewFieldLabel}>Director's Signature</Text>
-                        <Text style={s.reviewFieldValue}>{reviewData.content?.actionInfo?.directorSignature || '-'}</Text>
+                        <Text style={s.reviewFieldValue}>{editedReviewData.content?.actionInfo?.directorSignature || '-'}</Text>
                       </View>
                       <View style={s.reviewField}>
                         <Text style={s.reviewFieldLabel}>Signature Date</Text>
-                        <Text style={s.reviewFieldValue}>{reviewData.content?.actionInfo?.signatureDate || '-'}</Text>
+                        <Text style={s.reviewFieldValue}>{editedReviewData.content?.actionInfo?.signatureDate || '-'}</Text>
                       </View>
                     </View>
                   </View>
@@ -635,6 +832,7 @@ export default function AssignedCases() {
           <View style={s.centerContainer}><Text style={{ color: MUTED_OLIVE }}>No review data available</Text></View>
         )}
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 
@@ -645,28 +843,54 @@ export default function AssignedCases() {
       ? d.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
       : 'N/A';
 
-    const renderField = (label, value) => (
+    const renderField = (label, value, formKey) => (
       <View style={s.receiptField}>
         <Text style={s.receiptFieldLabel}>{label}</Text>
-        <Text style={s.receiptFieldValue}>{value || 'N/A'}</Text>
+        {receiptEditMode && formKey ? (
+          <TextInput
+            style={s.crInput}
+            value={receiptForm[formKey] || ''}
+            onChangeText={text => setReceiptForm(prev => ({ ...prev, [formKey]: text }))}
+            editable={!receiptSaving}
+            placeholder={label}
+          />
+        ) : (
+          <Text style={s.receiptFieldValue}>{value || 'N/A'}</Text>
+        )}
       </View>
     );
 
     return (
-      <Modal visible={receiptModalVisible} animationType="slide" onRequestClose={() => setReceiptModalVisible(false)}>
+      <Modal visible={receiptModalVisible} animationType="slide" onRequestClose={() => { setReceiptModalVisible(false); setReceiptEditMode(false); }}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={s.modalContainer}>
           <View style={s.modalHeader}>
-            <TouchableOpacity onPress={() => setReceiptModalVisible(false)} style={s.modalBackBtn}>
+            <TouchableOpacity onPress={() => { setReceiptModalVisible(false); setReceiptEditMode(false); }} style={s.modalBackBtn}>
               <Ionicons name="arrow-back" size={22} color={CHARCOAL} />
             </TouchableOpacity>
             <Text style={s.modalTitle}>Appointment Receipt</Text>
-            <View style={{ width: 32 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {receiptEditMode ? (
+                <>
+                  <TouchableOpacity style={s.crChipOutline} onPress={() => { setReceiptForm(syncReceiptForm(receiptDetails)); setReceiptEditMode(false); }} disabled={receiptSaving}>
+                    <Text style={s.crChipOutlineText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[s.crChipFilled, receiptSaving && { opacity: 0.6 }]} onPress={handleSaveReceipt} disabled={receiptSaving}>
+                    {receiptSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.crChipFilledText}>Save</Text>}
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity style={s.crChipOutline} onPress={() => setReceiptEditMode(true)} disabled={receiptLoading || !receiptDetails}>
+                  <Text style={s.crChipOutlineText}>Edit</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {receiptLoading ? (
             <View style={s.centerContainer}><ActivityIndicator size="large" color={PRIMARY_BROWN} /></View>
           ) : d ? (
-            <ScrollView style={s.modalScrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView style={s.modalScrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* Status Banner */}
               <View style={s.receiptBanner}>
                 <Text style={s.receiptBannerTitle}>
@@ -682,19 +906,19 @@ export default function AssignedCases() {
               <View style={s.receiptSectionCard}>
                 <Text style={s.receiptSectionTitle}>Personal Details</Text>
                 <View style={s.receiptDivider} />
-                {renderField('Name', d.fullName || d.name)}
-                {renderField('Age', d.age != null ? String(d.age) : null)}
-                {renderField('Birthday', d.birthday ? new Date(d.birthday).toLocaleDateString() : null)}
-                {renderField('Sex', d.sex)}
-                {renderField('Civil Status', d.civilStatus)}
-                {renderField('Citizenship', d.citizenship)}
-                {renderField('Contact Number', d.contactNumber)}
-                {renderField('Email', d.email)}
-                {renderField('Present Address', d.presentAddress)}
-                {renderField('Permanent Address', d.permanentAddress)}
-                {renderField('Spouse Name', d.spouseName)}
-                {renderField('Relator Name', d.relatorName)}
-                {renderField('Relator Contact', d.relatorContactNumber)}
+                {renderField('Name', d.fullName || d.name, 'fullName')}
+                {renderField('Age', d.age != null ? String(d.age) : null, 'age')}
+                {renderField('Birthday', d.birthday ? new Date(d.birthday).toLocaleDateString() : null, 'birthday')}
+                {renderField('Sex', d.sex, 'sex')}
+                {renderField('Civil Status', d.civilStatus, 'civilStatus')}
+                {renderField('Citizenship', d.citizenship, 'citizenship')}
+                {renderField('Contact Number', d.contactNumber, 'contactNumber')}
+                {renderField('Email', d.email, 'email')}
+                {renderField('Present Address', d.presentAddress, 'presentAddress')}
+                {renderField('Permanent Address', d.permanentAddress, 'permanentAddress')}
+                {renderField('Spouse Name', d.spouseName, 'spouseName')}
+                {renderField('Relator Name', d.relatorName, 'relatorName')}
+                {renderField('Relator Contact', d.relatorContactNumber, 'relatorContactNumber')}
               </View>
 
               {/* Schedule Details */}
@@ -713,40 +937,40 @@ export default function AssignedCases() {
               <View style={s.receiptSectionCard}>
                 <Text style={s.receiptSectionTitle}>Financial Details</Text>
                 <View style={s.receiptDivider} />
-                {renderField('Income Source', d.currentSourceOfIncome)}
-                {renderField('Monthly Income', d.monthlyIncome ? `₱${Number(d.monthlyIncome).toLocaleString()}` : null)}
-                {renderField('Nature of Work', d.natureOfWork)}
-                {renderField('Employer', d.employerName)}
-                {renderField('Employer Address', d.employerAddress)}
+                {renderField('Income Source', d.currentSourceOfIncome, 'currentSourceOfIncome')}
+                {renderField('Monthly Income', d.monthlyIncome ? `₱${Number(d.monthlyIncome).toLocaleString()}` : null, 'monthlyIncome')}
+                {renderField('Nature of Work', d.natureOfWork, 'natureOfWork')}
+                {renderField('Employer', d.employerName, 'employerName')}
+                {renderField('Employer Address', d.employerAddress, 'employerAddress')}
               </View>
 
               {/* Case Details */}
               <View style={s.receiptSectionCard}>
                 <Text style={s.receiptSectionTitle}>Case Details</Text>
                 <View style={s.receiptDivider} />
-                {renderField('Party Represented', d.partyRepresented)}
+                {renderField('Party Represented', d.partyRepresented, 'partyRepresented')}
                 {renderField('Case Number', d.caseNumber)}
-                {renderField('Case Nature', d.caseNature || d.natureOfCase)}
-                {renderField('Appointment Type', d.caseDetails?.appointmentType || d.personal?.legalMatter || d.appointmentType)}
-                {renderField('Venue', d.venue)}
-                {renderField('Present Stage', d.presentStage)}
-                {renderField('Court Division', d.courtDivision)}
-                {renderField('Court Address', d.courtAddress)}
-                {renderField('Court Phone', d.courtPhoneNumber)}
-                {renderField('Presiding Officer', d.presidingOfficer)}
-                {renderField('Case Description', d.caseDescription)}
+                {renderField('Case Nature', d.caseNature || d.natureOfCase, 'caseNature')}
+                {renderField('Appointment Type', d.caseDetails?.appointmentType || d.personal?.legalMatter || d.appointmentType, 'appointmentType')}
+                {renderField('Venue', d.venue, 'venue')}
+                {renderField('Present Stage', d.presentStage, 'presentStage')}
+                {renderField('Court Division', d.courtDivision, 'courtDivision')}
+                {renderField('Court Address', d.courtAddress, 'courtAddress')}
+                {renderField('Court Phone', d.courtPhoneNumber, 'courtPhoneNumber')}
+                {renderField('Presiding Officer', d.presidingOfficer, 'presidingOfficer')}
+                {renderField('Case Description', d.caseDescription, 'caseDescription')}
               </View>
 
               {/* Adverse Party */}
               <View style={s.receiptSectionCard}>
                 <Text style={s.receiptSectionTitle}>Adverse Party</Text>
                 <View style={s.receiptDivider} />
-                {renderField('Adverse Party(ies)', d.adverseParty)}
-                {renderField('Address', d.adversePartyAddress)}
-                {renderField('Phone Number', d.adversePartyPhone)}
-                {renderField('Counsel', d.adversePartyCounsel)}
-                {renderField('Counsel Address', d.adversePartyCounselAddress)}
-                {renderField('Counsel Phone', d.adversePartyCounselPhone)}
+                {renderField('Adverse Party(ies)', d.adverseParty, 'adverseParty')}
+                {renderField('Address', d.adversePartyAddress, 'adversePartyAddress')}
+                {renderField('Phone Number', d.adversePartyPhone, 'adversePartyPhone')}
+                {renderField('Counsel', d.adversePartyCounsel, 'adversePartyCounsel')}
+                {renderField('Counsel Address', d.adversePartyCounselAddress, 'adversePartyCounselAddress')}
+                {renderField('Counsel Phone', d.adversePartyCounselPhone, 'adversePartyCounselPhone')}
               </View>
 
               <View style={{ height: 30 }} />
@@ -755,6 +979,7 @@ export default function AssignedCases() {
             <View style={s.centerContainer}><Text style={{ color: MUTED_OLIVE }}>No appointment details available</Text></View>
           )}
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     );
   };
@@ -926,6 +1151,7 @@ export default function AssignedCases() {
       {renderReviewModal()}
       {renderReceiptModal()}
       {renderCaseHistoryModal()}
+      <ThemedToast toast={toast} onHide={hideToast} />
     </View>
   );
 }

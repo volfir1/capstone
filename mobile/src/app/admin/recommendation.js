@@ -18,6 +18,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import apiClient from '../../api/apiClient';
 import { useAuth } from '../../context/authContext';
 import getEnv from '../../api/environment';
+import ThemedToast, { useToast } from '../../components/ThemedToast';
 
 // Safe import — prevents "unmatched route" crash when native module isn't linked yet
 let DocumentPicker = null;
@@ -44,6 +45,7 @@ export default function RecommendationForAction() {
   const caseIdParam = params.caseId;
   const reviewIdParam = params.reviewId || null;
   const isViewOnly = params.viewOnly === 'true' || params.mode === 'view';
+  const { toast, showToast, hideToast } = useToast();
 
   // Parse review from params if passed (legacy support)
   const passedReview = (() => {
@@ -184,7 +186,7 @@ export default function RecommendationForAction() {
 
     if (isIntern) {
       if (!actionInfo.assignedTo) {
-        setActionInfo(prev => ({ ...prev, assignedTo: currentUserName, signatureDate: formattedDate }));
+        setActionInfo(prev => ({ ...prev, assignedTo: currentUserName, assignedToId: userData?._id || userData?.id || null, signatureDate: formattedDate }));
       } else if (!actionInfo.assignedTo.includes(currentUserName)) {
         setActionInfo(prev => ({ ...prev, assignedTo: prev.assignedTo + ', ' + currentUserName, signatureDate: formattedDate }));
       } else if (!actionInfo.signatureDate) {
@@ -192,11 +194,11 @@ export default function RecommendationForAction() {
       }
     } else if (normalizedRole === 'supervising_lawyer') {
       if (!actionInfo.supervisingLawyer) {
-        setActionInfo(prev => ({ ...prev, supervisingLawyer: currentUserName }));
+        setActionInfo(prev => ({ ...prev, supervisingLawyer: currentUserName, supervisingLawyerId: userData?._id || userData?.id || null }));
       }
     } else if (normalizedRole === 'director') {
       if (!actionInfo.directorSignature) {
-        setActionInfo(prev => ({ ...prev, directorSignature: currentUserName }));
+        setActionInfo(prev => ({ ...prev, directorSignature: currentUserName, directorId: userData?._id || userData?.id || null }));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,6 +219,7 @@ export default function RecommendationForAction() {
       const currentUserName = userData?.firstName && userData?.lastName
         ? `${userData.firstName} ${userData.lastName}`
         : userData?.username || 'Unknown User';
+      const currentUserId = userData?._id || userData?.id || null;
 
       setInterviewInfo(prev => {
         const updated = {
@@ -227,6 +230,7 @@ export default function RecommendationForAction() {
         };
         if (!prev.interviewingInterns) {
           updated.interviewingInterns = currentUserName;
+          updated.interviewingInternsId = currentUserId;
         }
         return updated;
       });
@@ -334,7 +338,7 @@ export default function RecommendationForAction() {
         // Update status to confirmed
         const statusOk = await updateCaseStatus('confirmed');
         if (!statusOk) {
-          Alert.alert('Error', 'Failed to update case status.');
+          showToast('error', 'Error', 'Failed to update case status.');
           setSaving(false);
           return;
         }
@@ -346,14 +350,14 @@ export default function RecommendationForAction() {
           setReviewId(response.data._id || response.data.id);
         }
 
-        Alert.alert('Submitted', 'Review submitted to the supervising lawyer for review.');
+        showToast('success', 'Submitted', 'Review submitted to the supervising lawyer for review.');
         router.back();
         return;
       }
 
       // ── Director / Attorney finalizing record ──
       if (!derivedCaseId || derivedCaseId === 'new-case') {
-        Alert.alert('Missing Case', 'Cannot finalize without a valid case ID.');
+        showToast('error', 'Missing Case', 'Cannot finalize without a valid case ID.');
         setSaving(false);
         return;
       }
@@ -373,7 +377,7 @@ export default function RecommendationForAction() {
 
       const statusOk = await updateCaseStatus(finalStatus);
       if (!statusOk) {
-        Alert.alert('Error', 'Failed to update final case status.');
+        showToast('error', 'Error', 'Failed to update final case status.');
         setSaving(false);
         return;
       }
@@ -397,11 +401,11 @@ export default function RecommendationForAction() {
         console.error('Error deleting review after finalization:', deleteErr);
       }
 
-      Alert.alert('Finalized', 'Case finalized successfully.');
+      showToast('success', 'Finalized', 'Case finalized successfully.');
       router.back();
     } catch (error) {
       console.error('handleSubmit error:', error);
-      Alert.alert('Error', 'Failed to save recommendation.');
+      showToast('error', 'Error', 'Failed to save recommendation.');
     } finally {
       setSaving(false);
     }
@@ -412,7 +416,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleSaveChanges = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found. Cannot save changes.');
+      showToast('error', 'Error', 'No review ID found. Cannot save changes.');
       return;
     }
     setSaving(true);
@@ -425,10 +429,10 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Saved', 'Changes saved successfully.');
+      showToast('success', 'Saved', 'Changes saved successfully.');
     } catch (err) {
       console.error('handleSaveChanges error:', err);
-      Alert.alert('Error', 'Failed to save changes.');
+      showToast('error', 'Error', 'Failed to save changes.');
     } finally {
       setSaving(false);
     }
@@ -439,7 +443,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleResubmitForReview = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found.');
+      showToast('error', 'Error', 'No review ID found.');
       return;
     }
     setSaving(true);
@@ -453,11 +457,11 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Resubmitted', 'Review resubmitted for supervising lawyer review.');
+      showToast('success', 'Resubmitted', 'Review resubmitted for supervising lawyer review.');
       router.back();
     } catch (err) {
       console.error('handleResubmitForReview error:', err);
-      Alert.alert('Error', 'Failed to resubmit review.');
+      showToast('error', 'Error', 'Failed to resubmit review.');
     } finally {
       setSaving(false);
     }
@@ -468,7 +472,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleReturnToIntern = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found.');
+      showToast('error', 'Error', 'No review ID found.');
       return;
     }
     setSaving(true);
@@ -482,11 +486,11 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Returned', 'Review returned to intern for revision.');
+      showToast('success', 'Returned', 'Review returned to intern for revision.');
       router.back();
     } catch (err) {
       console.error('handleReturnToIntern error:', err);
-      Alert.alert('Error', 'Failed to return review to intern.');
+      showToast('error', 'Error', 'Failed to return review to intern.');
     } finally {
       setSaving(false);
     }
@@ -497,7 +501,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleApproveToDirector = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found.');
+      showToast('error', 'Error', 'No review ID found.');
       return;
     }
     setSaving(true);
@@ -511,11 +515,11 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Approved', 'Review approved and sent to director for review.');
+      showToast('success', 'Approved', 'Review approved and sent to director for review.');
       router.back();
     } catch (err) {
       console.error('handleApproveToDirector error:', err);
-      Alert.alert('Error', 'Failed to approve review to director.');
+      showToast('error', 'Error', 'Failed to approve review to director.');
     } finally {
       setSaving(false);
     }
@@ -526,7 +530,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleReturnToSupervisingLawyer = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found.');
+      showToast('error', 'Error', 'No review ID found.');
       return;
     }
     setSaving(true);
@@ -540,11 +544,11 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Returned', 'Review returned to supervising lawyer.');
+      showToast('success', 'Returned', 'Review returned to supervising lawyer.');
       router.back();
     } catch (err) {
       console.error('handleReturnToSupervisingLawyer error:', err);
-      Alert.alert('Error', 'Failed to return review to supervising lawyer.');
+      showToast('error', 'Error', 'Failed to return review to supervising lawyer.');
     } finally {
       setSaving(false);
     }
@@ -676,13 +680,13 @@ export default function RecommendationForAction() {
         };
         setUploadedFile(uploadedDoc);
         setInterviewInfo(prev => ({ ...prev, uploadedDocument: uploadedDoc }));
-        Alert.alert('Success', 'Document uploaded successfully.');
+        showToast('success', 'Success', 'Document uploaded successfully.');
       } else {
-        Alert.alert('Error', 'Upload failed. Please try again.');
+        showToast('error', 'Error', 'Upload failed. Please try again.');
       }
     } catch (error) {
       console.error('Document pick/upload error:', error);
-      Alert.alert('Error', 'Failed to upload document.');
+      showToast('error', 'Error', 'Failed to upload document.');
     } finally {
       setUploading(false);
     }
@@ -695,7 +699,7 @@ export default function RecommendationForAction() {
     // Prefer cloudinaryUrl (signed, no auth needed) for external browser viewing
     if (docData.cloudinaryUrl) {
       Linking.openURL(docData.cloudinaryUrl).catch(() => {
-        Alert.alert('Error', 'Cannot open document. The file may not be available.');
+        showToast('error', 'Error', 'Cannot open document. The file may not be available.');
       });
       return;
     }
@@ -704,10 +708,10 @@ export default function RecommendationForAction() {
     const url = resolveDocUrl(docData.fileUrl);
     if (url) {
       Linking.openURL(url).catch(() => {
-        Alert.alert('Error', 'Cannot open document. The file may not be available on the server.');
+        showToast('error', 'Error', 'Cannot open document. The file may not be available on the server.');
       });
     } else {
-      Alert.alert('Error', 'No document URL available.');
+      showToast('error', 'Error', 'No document URL available.');
     }
   };
 
@@ -1236,12 +1240,12 @@ export default function RecommendationForAction() {
 
         <Text style={styles.inputLabel}>Date</Text>
         <TextInput
-          style={[styles.input, (isIntern || normalizedRole === 'supervising_lawyer') && styles.disabledInput]}
+          style={[styles.input, styles.disabledInput]}
           value={actionInfo.signatureDate}
           onChangeText={(text) => setActionInfo(prev => ({ ...prev, signatureDate: text }))}
           placeholder="YYYY-MM-DD"
           placeholderTextColor="#999"
-          editable={!(isIntern || normalizedRole === 'supervising_lawyer')}
+          editable={false}
         />
       </View>
     );
@@ -1604,6 +1608,7 @@ export default function RecommendationForAction() {
           renderActionButtons()
         )}
       </View>
+      <ThemedToast toast={toast} onHide={hideToast} />
     </SafeAreaView>
   );
 }

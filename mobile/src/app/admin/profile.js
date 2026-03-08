@@ -6,9 +6,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from 'context/authContext';
-import { updateAdminProfile, updateAttorneyProfile, updateProfileImage, fetchUserProfile } from '../../api/userApi';
-import { uploadToCloudinary } from 'utils/cloudinary';
+import { updateAdminProfile, updateAttorneyProfile, uploadProfileImageFile, fetchUserProfile } from '../../api/userApi';
+import getEnv from '../../api/environment';
 import { PRIMARY_BROWN, PRIMARY_GOLD, CHARCOAL, MUTED_OLIVE, ACCENT_TAN } from 'utils/constants';
+import ThemedToast, { useToast } from '../../components/ThemedToast';
+
+const { apiUrl } = getEnv();
+const SERVER_BASE = apiUrl.replace(/\/api\/?$/, '');
 
 const ATTORNEY_ROLES = ['attorney', 'pao_lawyer', 'legal_volunteer'];
 
@@ -40,6 +44,7 @@ export default function AdminProfile() {
   const [profileImage, setProfileImage] = useState('');
   const [editedData, setEditedData] = useState({});
   const [multiSelectModal, setMultiSelectModal] = useState(null); // 'specializations' | 'languages' | 'consultationMode'
+  const { toast, showToast, hideToast } = useToast();
 
   const isAttorney = ATTORNEY_ROLES.includes(authUserData?.role);
   const userRole = authUserData?.role || 'secretary';
@@ -48,7 +53,10 @@ export default function AdminProfile() {
   useEffect(() => {
     if (!authUserData) return;
     fetchUserProfile().then(data => {
-      if (data?.profileImage) setProfileImage(data.profileImage);
+      if (data?.profileImage) {
+        const img = data.profileImage;
+        setProfileImage(img.startsWith('/') ? `${SERVER_BASE}${img}` : img);
+      }
     }).catch(() => {});
 
     const base = {
@@ -110,11 +118,11 @@ export default function AdminProfile() {
       } else {
         await updateAdminProfile(editedData);
       }
-      Alert.alert('Success', 'Profile updated successfully');
+      showToast('success', 'Success', 'Profile updated successfully');
       setIsEditing(false);
       refreshUserData?.();
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.message || 'Failed to update profile');
+      showToast('error', 'Error', err.response?.data?.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -130,13 +138,13 @@ export default function AdminProfile() {
       });
       if (result.canceled) return;
       setUploadingImage(true);
-      const imageUrl = await uploadToCloudinary(result.assets[0].uri);
-      await updateProfileImage(imageUrl);
-      setProfileImage(imageUrl);
+      const res = await uploadProfileImageFile(result.assets[0].uri);
+      const img = res.data.profileImage;
+      setProfileImage(img.startsWith('/') ? `${SERVER_BASE}${img}` : img);
       refreshUserData?.();
-      Alert.alert('Success', 'Profile photo updated');
+      showToast('success', 'Success', 'Profile photo updated');
     } catch (err) {
-      Alert.alert('Error', 'Failed to upload image');
+      showToast('error', 'Error', err.response?.data?.message || 'Failed to upload image');
     } finally {
       setUploadingImage(false);
     }
@@ -456,6 +464,7 @@ export default function AdminProfile() {
           />
         </View>
       </Modal>
+      <ThemedToast toast={toast} onHide={hideToast} />
     </View>
   );
 

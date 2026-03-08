@@ -9,6 +9,7 @@ import {
   doSignInWithGoogle,
   doSignOut,
 } from "@firebaseApp/auth";
+import apiClient from "../api/apiClient";
 
 export const useNativeLogin = () => {
   const router = useRouter();
@@ -25,11 +26,33 @@ export const useNativeLogin = () => {
   // UI state
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Handle navigation when user data is loaded
   useEffect(() => {
     if (userLoggedIn && userData && !hasNavigated.current) {
-      console.log("User data loaded, navigating by role:", userData.role);
+      if (!userData.isVerified) {
+        Alert.alert(
+          "Email Not Verified",
+          "Please verify your email before logging in. Check your inbox for the verification link."
+        );
+        doSignOut();
+        setLoading(false);
+        return;
+      }
+
+      if (userData.role === 'user') {
+        Alert.alert(
+          "Account Pending",
+          "Your account is pending approval. An administrator will review and assign your role. Please check back later.",
+          [{ text: "OK", onPress: async () => {
+            try { await doSignOut(); } catch (e) {}
+          }}]
+        );
+        setLoading(false);
+        return;
+      }
+
       hasNavigated.current = true;
       navigateByRole(userData.role);
     }
@@ -40,16 +63,11 @@ export const useNativeLogin = () => {
     if (adminLikeRoles.includes(role)) {
       router.replace("/admin");
     } else {
-      // Regular users see pending approval message (matches website behavior)
       Alert.alert(
         "Account Pending",
         "Your account is pending approval. An administrator will review and assign your role. Please check back later.",
         [{ text: "OK", onPress: async () => {
-          try {
-            await doSignOut();
-          } catch (e) {
-            console.log("Sign out error:", e);
-          }
+          try { await doSignOut(); } catch (e) {}
         }}]
       );
     }
@@ -59,15 +77,33 @@ export const useNativeLogin = () => {
   const handleEmailLogin = async (data) => {
     try {
       setLoading(true);
+      setErrorMessage('');
+      hasNavigated.current = false;
 
-      // Sign in with Firebase
-      const userCredential = await doSigninWithEmailAndPassword(
-        data.email,
-        data.password
-      );
+      let emailToUse = data.email;
+
+      // Username-to-email resolution (matches website logic)
+      if (!data.email.includes('@')) {
+        try {
+          const response = await apiClient.post('/auth/get-email-from-username', {
+            username: data.email,
+          });
+          if (response.data.success) {
+            emailToUse = response.data.email;
+          } else {
+            throw new Error('Username not found');
+          }
+        } catch (error) {
+          setErrorMessage('Username not found. Please check your credentials.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      const userCredential = await doSigninWithEmailAndPassword(emailToUse, data.password);
       const user = userCredential.user;
 
-      // Check if email is verified
+      // Check email verification immediately
       if (!user.emailVerified) {
         Alert.alert(
           "Email Not Verified",
@@ -78,36 +114,42 @@ export const useNativeLogin = () => {
               onPress: async () => {
                 try {
                   await sendEmailVerification(user);
-                  Alert.alert(
-                    "Verification Sent",
-                    "A new verification email has been sent to your inbox."
-                  );
+                  Alert.alert("Verification Sent", "A new verification email has been sent to your inbox.");
                 } catch (error) {
-                  Alert.alert(
-                    "Error",
-                    "Failed to send verification email. Please try again."
-                  );
+                  Alert.alert("Error", "Failed to send verification email. Please try again.");
                 }
               },
             },
-            {
-              text: "OK",
-              style: "default",
-            },
+            { text: "OK", style: "default" },
           ]
         );
         await doSignOut();
-    console.trace('doSignOut called from useLogin.handleEmailLogin after unverified email');
         setLoading(false);
         return;
       }
 
-      console.log("Firebase verification passed, login successful");
+      // Check role immediately (matches website logic)
+      try {
+        const profileResp = await apiClient.get('/users/profile');
+        const profile = profileResp?.data?.data || profileResp?.data;
+        if (profile && profile.role === 'user') {
+          Alert.alert(
+            "Account Pending",
+            "Your account is pending approval. An administrator will review and assign your role.",
+            [{ text: "OK" }]
+          );
+          await doSignOut();
+          setLoading(false);
+          return;
+        }
+      } catch (profileErr) {
+        // Fall back to useEffect-based navigation
+      }
+
       // Navigation will happen in useEffect
       setLoading(false);
     } catch (error) {
-      console.error("Login error:", error);
-      Alert.alert("Login Failed", getAuthErrorMessage(error.code));
+      setErrorMessage(getAuthErrorMessage(error.code) || error.message);
       setLoading(false);
     }
   };
@@ -116,46 +158,53 @@ export const useNativeLogin = () => {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
+      setErrorMessage('');
+      hasNavigated.current = false;
 
-  await doSignInWithGoogle();
-  console.trace('doSignInWithGoogle completed in useLogin.handleGoogleSignIn');
-      console.log("Google Sign-In successful");
-      // Navigation will happen in useEffect
+      await doSignInWithGoogle();
+
+      // Check role immediately after Google sign-in
+      try {
+        const profileResp = await apiClient.get('/users/profile');
+        const profile = profileResp?.data?.data || profileResp?.data;
+        if (profile && profile.role === 'user') {
+          Alert.alert(
+            "Account Pending",
+            "Your account is pending approval. An administrator will review and assign your role.",
+            [{ text: "OK" }]
+          );
+          await doSignOut();
+          setLoading(false);
+          return;
+        }
+      } catch (profileErr) {
+        // Fall back to useEffect-based navigation
+      }
 
       setLoading(false);
     } catch (error) {
-      console.error("Google Sign-In error:", error);
-
-      let errorMessage = "An error occurred during Google Sign-In";
-
+      let msg = "An error occurred during Google Sign-In";
       if (error.message?.includes("cancelled") || error.code === "12501") {
-        errorMessage = "Sign-in cancelled";
+        msg = "";
       } else if (error.code === "auth/network-request-failed") {
-        errorMessage = "Network error. Please check your connection.";
+        msg = "Network error. Please check your connection.";
       } else if (error.code === "DEVELOPER_ERROR") {
-        errorMessage = "Configuration error. Please contact support.";
+        msg = "Configuration error. Please contact support.";
       }
-
-      Alert.alert("Google Sign-In Failed", errorMessage);
+      if (msg) setErrorMessage(msg);
       setLoading(false);
     }
   };
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
   return {
-    // Form
     control,
     errors,
     handleSubmit,
-
-    // UI state
     showPassword,
     loading,
-
-    // Actions
+    errorMessage,
     handleEmailLogin,
     handleGoogleSignIn,
     togglePasswordVisibility,
