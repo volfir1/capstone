@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema({
   profileImage: { type: String, default: '' },
   signatureUrl: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  pushTokens: [{ type: String }],
   createdAt: { type: Date, default: Date.now },
   // Google Calendar connection info (optional)
   google: {

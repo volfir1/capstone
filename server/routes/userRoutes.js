@@ -1,5 +1,5 @@
 import express from 'express'
-import { getProfile, fetchUsers, updateUserRole, toggleUserStatus, sendPasswordResetEmail, updateProfileImage, getUserById, updateSignature, uploadSignature } from '../controller/userController.js'
+import { getProfile, updateProfile, fetchUsers, updateUserRole, toggleUserStatus, sendPasswordResetEmail, updateProfileImage, uploadProfileImageFile, profileImageMiddleware, getUserById, updateSignature, uploadSignature, registerPushToken, unregisterPushToken } from '../controller/userController.js'
 import { authenticateFirebaseToken } from '../firebase/authMiddleware.js'
 
 const router = express.Router()
@@ -17,7 +17,9 @@ router.get('/test', (req, res) => {
 });
 
 router.get('/profile', getProfile)
+router.put('/profile', updateProfile)
 router.put('/profile/image', updateProfileImage)
+router.post('/profile/image/upload', profileImageMiddleware, uploadProfileImageFile)
 router.put('/profile/signature', updateSignature)
 router.post('/profile/signature/upload', uploadSignature)
 router.get('/fetchusers', fetchUsers)
@@ -27,6 +29,10 @@ router.get('/:userId', getUserById)
 router.put('/:userId/role', updateUserRole)
 router.put('/:userId/status', toggleUserStatus)
 router.post('/send-password-reset', sendPasswordResetEmail)
+
+// Push notification token management
+router.post('/push-token', registerPushToken)
+router.delete('/push-token', unregisterPushToken)
 
 console.log('userRoutes registered: /profile, /fetchusers, /test, /:userId/role, /:userId/status, /send-password-reset');
 

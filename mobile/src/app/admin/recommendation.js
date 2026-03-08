@@ -18,6 +18,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import apiClient from '../../api/apiClient';
 import { useAuth } from '../../context/authContext';
 import getEnv from '../../api/environment';
+import ThemedToast, { useToast } from '../../components/ThemedToast';
 
 // Safe import — prevents "unmatched route" crash when native module isn't linked yet
 let DocumentPicker = null;
@@ -42,9 +43,11 @@ export default function RecommendationForAction() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const caseIdParam = params.caseId;
+  const reviewIdParam = params.reviewId || null;
   const isViewOnly = params.viewOnly === 'true' || params.mode === 'view';
+  const { toast, showToast, hideToast } = useToast();
 
-  // Parse review from params if passed
+  // Parse review from params if passed (legacy support)
   const passedReview = (() => {
     if (!params.review) return null;
     try { return JSON.parse(params.review); } catch { return null; }
@@ -124,8 +127,10 @@ export default function RecommendationForAction() {
   // Assignment & Signature read-only for interns/SL, and when director stage
   const assignmentReadOnly = isIntern || normalizedRole === 'supervising_lawyer' || currentReviewStage === 'director';
 
-  // ─── Load existing review from passedReview ───
+  // ─── Load existing review from passedReview (legacy) ───
   useEffect(() => {
+    // If reviewId param is provided, skip passedReview and use API loading instead
+    if (reviewIdParam) return;
     if (passedReview && passedReview.content) {
       setReviewId(passedReview._id || passedReview.id);
       setCurrentReviewStage(passedReview.reviewStage || 'supervising_lawyer');
@@ -159,9 +164,9 @@ export default function RecommendationForAction() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Load existing review from API (when no passedReview) ───
+  // ─── Load existing review from API (when no passedReview, or reviewId param provided) ───
   useEffect(() => {
-    if (derivedCaseId && derivedCaseId !== 'new-case' && !passedReview) {
+    if (derivedCaseId && derivedCaseId !== 'new-case' && (!passedReview || reviewIdParam)) {
       loadExistingReview();
       loadClientInfo();
     } else if (!passedReview) {
@@ -181,7 +186,7 @@ export default function RecommendationForAction() {
 
     if (isIntern) {
       if (!actionInfo.assignedTo) {
-        setActionInfo(prev => ({ ...prev, assignedTo: currentUserName, signatureDate: formattedDate }));
+        setActionInfo(prev => ({ ...prev, assignedTo: currentUserName, assignedToId: userData?._id || userData?.id || null, signatureDate: formattedDate }));
       } else if (!actionInfo.assignedTo.includes(currentUserName)) {
         setActionInfo(prev => ({ ...prev, assignedTo: prev.assignedTo + ', ' + currentUserName, signatureDate: formattedDate }));
       } else if (!actionInfo.signatureDate) {
@@ -189,11 +194,11 @@ export default function RecommendationForAction() {
       }
     } else if (normalizedRole === 'supervising_lawyer') {
       if (!actionInfo.supervisingLawyer) {
-        setActionInfo(prev => ({ ...prev, supervisingLawyer: currentUserName }));
+        setActionInfo(prev => ({ ...prev, supervisingLawyer: currentUserName, supervisingLawyerId: userData?._id || userData?.id || null }));
       }
     } else if (normalizedRole === 'director') {
       if (!actionInfo.directorSignature) {
-        setActionInfo(prev => ({ ...prev, directorSignature: currentUserName }));
+        setActionInfo(prev => ({ ...prev, directorSignature: currentUserName, directorId: userData?._id || userData?.id || null }));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,6 +219,7 @@ export default function RecommendationForAction() {
       const currentUserName = userData?.firstName && userData?.lastName
         ? `${userData.firstName} ${userData.lastName}`
         : userData?.username || 'Unknown User';
+      const currentUserId = userData?._id || userData?.id || null;
 
       setInterviewInfo(prev => {
         const updated = {
@@ -224,6 +230,7 @@ export default function RecommendationForAction() {
         };
         if (!prev.interviewingInterns) {
           updated.interviewingInterns = currentUserName;
+          updated.interviewingInternsId = currentUserId;
         }
         return updated;
       });
@@ -239,7 +246,7 @@ export default function RecommendationForAction() {
       const reviews = Array.isArray(response.data) ? response.data : response.data?.data || [];
 
       if (reviews.length > 0) {
-        const review = reviews[0];
+        const review = (reviewIdParam ? reviews.find(r => (r._id || r.id) === reviewIdParam) : null) || reviews[0];
         setReviewId(review._id || review.id);
         setCurrentReviewStage(review.reviewStage || 'supervising_lawyer');
         setIsViewingExistingReview(true);
@@ -309,7 +316,7 @@ export default function RecommendationForAction() {
   // Matches website handleSubmit exactly
   // ──────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (isViewOnly) return;
+    if (isViewOnly || saving) return;
     setSaving(true);
     try {
       const completeInterviewInfo = buildCompleteInterviewInfo();
@@ -331,7 +338,7 @@ export default function RecommendationForAction() {
         // Update status to confirmed
         const statusOk = await updateCaseStatus('confirmed');
         if (!statusOk) {
-          Alert.alert('Error', 'Failed to update case status.');
+          showToast('error', 'Error', 'Failed to update case status.');
           setSaving(false);
           return;
         }
@@ -343,14 +350,14 @@ export default function RecommendationForAction() {
           setReviewId(response.data._id || response.data.id);
         }
 
-        Alert.alert('Submitted', 'Review submitted to the supervising lawyer for review.');
+        showToast('success', 'Submitted', 'Review submitted to the supervising lawyer for review.');
         router.back();
         return;
       }
 
       // ── Director / Attorney finalizing record ──
       if (!derivedCaseId || derivedCaseId === 'new-case') {
-        Alert.alert('Missing Case', 'Cannot finalize without a valid case ID.');
+        showToast('error', 'Missing Case', 'Cannot finalize without a valid case ID.');
         setSaving(false);
         return;
       }
@@ -370,7 +377,7 @@ export default function RecommendationForAction() {
 
       const statusOk = await updateCaseStatus(finalStatus);
       if (!statusOk) {
-        Alert.alert('Error', 'Failed to update final case status.');
+        showToast('error', 'Error', 'Failed to update final case status.');
         setSaving(false);
         return;
       }
@@ -394,11 +401,11 @@ export default function RecommendationForAction() {
         console.error('Error deleting review after finalization:', deleteErr);
       }
 
-      Alert.alert('Finalized', 'Case finalized successfully.');
+      showToast('success', 'Finalized', 'Case finalized successfully.');
       router.back();
     } catch (error) {
       console.error('handleSubmit error:', error);
-      Alert.alert('Error', 'Failed to save recommendation.');
+      showToast('error', 'Error', 'Failed to save recommendation.');
     } finally {
       setSaving(false);
     }
@@ -409,7 +416,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleSaveChanges = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found. Cannot save changes.');
+      showToast('error', 'Error', 'No review ID found. Cannot save changes.');
       return;
     }
     setSaving(true);
@@ -422,10 +429,10 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Saved', 'Changes saved successfully.');
+      showToast('success', 'Saved', 'Changes saved successfully.');
     } catch (err) {
       console.error('handleSaveChanges error:', err);
-      Alert.alert('Error', 'Failed to save changes.');
+      showToast('error', 'Error', 'Failed to save changes.');
     } finally {
       setSaving(false);
     }
@@ -436,7 +443,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleResubmitForReview = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found.');
+      showToast('error', 'Error', 'No review ID found.');
       return;
     }
     setSaving(true);
@@ -450,11 +457,11 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Resubmitted', 'Review resubmitted for supervising lawyer review.');
+      showToast('success', 'Resubmitted', 'Review resubmitted for supervising lawyer review.');
       router.back();
     } catch (err) {
       console.error('handleResubmitForReview error:', err);
-      Alert.alert('Error', 'Failed to resubmit review.');
+      showToast('error', 'Error', 'Failed to resubmit review.');
     } finally {
       setSaving(false);
     }
@@ -465,7 +472,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleReturnToIntern = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found.');
+      showToast('error', 'Error', 'No review ID found.');
       return;
     }
     setSaving(true);
@@ -479,11 +486,11 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Returned', 'Review returned to intern for revision.');
+      showToast('success', 'Returned', 'Review returned to intern for revision.');
       router.back();
     } catch (err) {
       console.error('handleReturnToIntern error:', err);
-      Alert.alert('Error', 'Failed to return review to intern.');
+      showToast('error', 'Error', 'Failed to return review to intern.');
     } finally {
       setSaving(false);
     }
@@ -494,7 +501,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleApproveToDirector = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found.');
+      showToast('error', 'Error', 'No review ID found.');
       return;
     }
     setSaving(true);
@@ -508,11 +515,11 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Approved', 'Review approved and sent to director for review.');
+      showToast('success', 'Approved', 'Review approved and sent to director for review.');
       router.back();
     } catch (err) {
       console.error('handleApproveToDirector error:', err);
-      Alert.alert('Error', 'Failed to approve review to director.');
+      showToast('error', 'Error', 'Failed to approve review to director.');
     } finally {
       setSaving(false);
     }
@@ -523,7 +530,7 @@ export default function RecommendationForAction() {
   // ──────────────────────────────────────────────────
   const handleReturnToSupervisingLawyer = async () => {
     if (!reviewId) {
-      Alert.alert('Error', 'No review ID found.');
+      showToast('error', 'Error', 'No review ID found.');
       return;
     }
     setSaving(true);
@@ -537,11 +544,11 @@ export default function RecommendationForAction() {
         },
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
-      Alert.alert('Returned', 'Review returned to supervising lawyer.');
+      showToast('success', 'Returned', 'Review returned to supervising lawyer.');
       router.back();
     } catch (err) {
       console.error('handleReturnToSupervisingLawyer error:', err);
-      Alert.alert('Error', 'Failed to return review to supervising lawyer.');
+      showToast('error', 'Error', 'Failed to return review to supervising lawyer.');
     } finally {
       setSaving(false);
     }
@@ -587,6 +594,8 @@ export default function RecommendationForAction() {
     // Build base URL from apiClient (strip /api suffix)
     const { apiUrl } = getEnv();
     const baseUrl = apiUrl.replace(/\/api\/?$/, '');
+    // The relativeUrl should already be URI-encoded from the server;
+    // just concatenate without double-encoding.
     return `${baseUrl}${relativeUrl}`;
   };
 
@@ -622,23 +631,47 @@ export default function RecommendationForAction() {
 
       const formData = new FormData();
       formData.append('document', {
-        uri: file.uri,
+        uri: Platform.OS === 'android' ? file.uri : file.uri.replace('file://', ''),
         name: file.name,
         type: file.mimeType || 'application/octet-stream',
       });
 
-      const response = await apiClient.post('/upload/document', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      // Use raw XMLHttpRequest to bypass Axios 1.x transform pipeline
+      // which can corrupt FormData in React Native 0.81 (new architecture).
+      const { apiUrl: uploadBaseUrl } = getEnv();
+      const { getAuth: getFirebaseAuth } = require('firebase/auth');
+      const firebaseAuth = getFirebaseAuth();
+      const fbUser = firebaseAuth.currentUser;
+      const uploadToken = fbUser ? await fbUser.getIdToken() : null;
+
+      const uploadResult = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${uploadBaseUrl}/upload/document`);
+        if (uploadToken) xhr.setRequestHeader('Authorization', `Bearer ${uploadToken}`);
+        // Do NOT set Content-Type — the native XHR sets multipart/form-data + boundary
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch { reject(new Error('Invalid server response')); }
+          } else {
+            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network request failed — check server connection'));
+        xhr.ontimeout = () => reject(new Error('Upload timed out'));
+        xhr.timeout = 60000;
+        xhr.send(formData);
       });
 
-      if (response.data?.success) {
-        const serverFile = response.data.file;
+      if (uploadResult?.success) {
+        const serverFile = uploadResult.file;
         const uploadedDoc = {
-          fileName: serverFile.originalName || file.name,
+          fileName: serverFile.displayName || serverFile.originalName || file.name,
           fileSize: serverFile.size || file.size,
-          fileUrl: serverFile.url || serverFile.path,
+          fileUrl: serverFile.cloudinaryUrl || serverFile.url || serverFile.path,
           filename: serverFile.filename,
           mimeType: serverFile.mimetype || file.mimeType,
+          cloudinaryUrl: serverFile.cloudinaryUrl || null,
           uploadedBy: userData?.firstName && userData?.lastName
             ? `${userData.firstName} ${userData.lastName}`
             : userData?.username || 'Unknown',
@@ -647,13 +680,13 @@ export default function RecommendationForAction() {
         };
         setUploadedFile(uploadedDoc);
         setInterviewInfo(prev => ({ ...prev, uploadedDocument: uploadedDoc }));
-        Alert.alert('Success', 'Document uploaded successfully.');
+        showToast('success', 'Success', 'Document uploaded successfully.');
       } else {
-        Alert.alert('Error', 'Upload failed. Please try again.');
+        showToast('error', 'Error', 'Upload failed. Please try again.');
       }
     } catch (error) {
       console.error('Document pick/upload error:', error);
-      Alert.alert('Error', 'Failed to upload document.');
+      showToast('error', 'Error', 'Failed to upload document.');
     } finally {
       setUploading(false);
     }
@@ -662,13 +695,23 @@ export default function RecommendationForAction() {
   const handleViewDocument = (doc) => {
     const docData = doc || uploadedFile || interviewInfo.uploadedDocument;
     if (!docData) return;
+
+    // Prefer cloudinaryUrl (signed, no auth needed) for external browser viewing
+    if (docData.cloudinaryUrl) {
+      Linking.openURL(docData.cloudinaryUrl).catch(() => {
+        showToast('error', 'Error', 'Cannot open document. The file may not be available.');
+      });
+      return;
+    }
+
+    // Fallback: use the server's static file URL (no auth required for /uploads)
     const url = resolveDocUrl(docData.fileUrl);
     if (url) {
       Linking.openURL(url).catch(() => {
-        Alert.alert('Error', 'Cannot open document. The file may not be available on the server.');
+        showToast('error', 'Error', 'Cannot open document. The file may not be available on the server.');
       });
     } else {
-      Alert.alert('Error', 'No document URL available.');
+      showToast('error', 'Error', 'No document URL available.');
     }
   };
 
@@ -1197,12 +1240,12 @@ export default function RecommendationForAction() {
 
         <Text style={styles.inputLabel}>Date</Text>
         <TextInput
-          style={[styles.input, (isIntern || normalizedRole === 'supervising_lawyer') && styles.disabledInput]}
+          style={[styles.input, styles.disabledInput]}
           value={actionInfo.signatureDate}
           onChangeText={(text) => setActionInfo(prev => ({ ...prev, signatureDate: text }))}
           placeholder="YYYY-MM-DD"
           placeholderTextColor="#999"
-          editable={!(isIntern || normalizedRole === 'supervising_lawyer')}
+          editable={false}
         />
       </View>
     );
@@ -1229,6 +1272,12 @@ export default function RecommendationForAction() {
         if (currentReviewStage === 'returned_to_intern') {
           return (
             <View style={styles.actionButtonGroup}>
+              {currentStep > 0 && (
+                <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
+                  <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+                  <Text style={styles.secondaryButtonText}>Previous</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[styles.outlineButton, saving && styles.buttonDisabled]}
                 onPress={handleSaveChanges}
@@ -1252,10 +1301,18 @@ export default function RecommendationForAction() {
         }
         // Other stages: view only for interns
         return (
-          <View style={styles.viewOnlyContainer}>
-            <Text style={styles.viewOnlyText}>
-              View only — Pending review by {currentReviewStage === 'supervising_lawyer' ? 'supervising lawyer' : 'director'}
-            </Text>
+          <View style={styles.actionButtonGroup}>
+            {currentStep > 0 && (
+              <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
+                <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+                <Text style={styles.secondaryButtonText}>Previous</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.viewOnlyContainer}>
+              <Text style={styles.viewOnlyText}>
+                View only — Pending review by {currentReviewStage === 'supervising_lawyer' ? 'supervising lawyer' : 'director'}
+              </Text>
+            </View>
           </View>
         );
       }
@@ -1264,34 +1321,51 @@ export default function RecommendationForAction() {
       if (normalizedRole === 'supervising_lawyer') {
         if (currentReviewStage === 'supervising_lawyer') {
           return (
-            <View style={styles.actionButtonGroup}>
-              <TouchableOpacity
-                style={[styles.outlineButton, saving && styles.buttonDisabled]}
-                onPress={handleSaveChanges}
-                disabled={saving}
-              >
-                {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
-                  <><Ionicons name="save-outline" size={18} color={PRIMARY_BROWN} /><Text style={styles.outlineButtonText}>Save</Text></>
+            <View style={styles.actionButtonGrid}>
+              {/* Row 1: Save (left) + Approve to Director (right) */}
+              <View style={styles.actionButtonRow}>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.outlineButton, saving && styles.buttonDisabled]}
+                  onPress={handleSaveChanges}
+                  disabled={saving}
+                >
+                  {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
+                    <><Ionicons name="save-outline" size={18} color={PRIMARY_BROWN} /><Text style={styles.outlineButtonText}>Save</Text></>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.orangeButton, saving && styles.buttonDisabled]}
+                  onPress={handleApproveToDirector}
+                  disabled={saving}
+                >
+                  {saving ? <ActivityIndicator size="small" color="white" /> : (
+                    <><Ionicons name="arrow-forward" size={18} color="white" /><Text style={styles.orangeButtonText}>Approve to Director</Text></>
+                  )}
+                </TouchableOpacity>
+              </View>
+              {/* Row 2: Previous (left) + Return to Intern (right) */}
+              <View style={styles.actionButtonRow}>
+                {currentStep > 0 ? (
+                  <TouchableOpacity
+                    style={[styles.gridButton, styles.prevButton]}
+                    onPress={() => setCurrentStep(0)}
+                  >
+                    <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+                    <Text style={styles.secondaryButtonText}>Previous</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.gridButton} />
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.orangeButton, saving && styles.buttonDisabled]}
-                onPress={handleApproveToDirector}
-                disabled={saving}
-              >
-                {saving ? <ActivityIndicator size="small" color="white" /> : (
-                  <><Ionicons name="arrow-forward" size={18} color="white" /><Text style={styles.orangeButtonText}>Approve to Director</Text></>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.redButton, saving && styles.buttonDisabled]}
-                onPress={handleReturnToIntern}
-                disabled={saving}
-              >
-                {saving ? <ActivityIndicator size="small" color="white" /> : (
-                  <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to Intern</Text></>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.redButton, saving && styles.buttonDisabled]}
+                  onPress={handleReturnToIntern}
+                  disabled={saving}
+                >
+                  {saving ? <ActivityIndicator size="small" color="white" /> : (
+                    <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to Intern</Text></>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           );
         }
@@ -1313,34 +1387,51 @@ export default function RecommendationForAction() {
       if (normalizedRole === 'director') {
         if (currentReviewStage === 'director') {
           return (
-            <View style={styles.actionButtonGroup}>
-              <TouchableOpacity
-                style={[styles.outlineButton, (saving || actionInfo.decision !== 'pending') && styles.buttonDisabled]}
-                onPress={handleSaveChanges}
-                disabled={saving || actionInfo.decision !== 'pending'}
-              >
-                {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
-                  <><Ionicons name="save-outline" size={18} color={PRIMARY_BROWN} /><Text style={styles.outlineButtonText}>Save</Text></>
+            <View style={styles.actionButtonGrid}>
+              {/* Row 1: Save (left) + Finalize Record (right) */}
+              <View style={styles.actionButtonRow}>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.outlineButton, (saving || actionInfo.decision !== 'pending') && styles.buttonDisabled]}
+                  onPress={handleSaveChanges}
+                  disabled={saving || actionInfo.decision !== 'pending'}
+                >
+                  {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
+                    <><Ionicons name="save-outline" size={18} color={PRIMARY_BROWN} /><Text style={styles.outlineButtonText}>Save</Text></>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.primaryButton, (saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')) && styles.buttonDisabled]}
+                  onPress={handleSubmit}
+                  disabled={saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')}
+                >
+                  {saving ? <ActivityIndicator size="small" color="white" /> : (
+                    <><Ionicons name="checkmark-circle" size={18} color="white" /><Text style={styles.primaryButtonText}>Finalize Record</Text></>
+                  )}
+                </TouchableOpacity>
+              </View>
+              {/* Row 2: Previous (left) + Return to SL (right) */}
+              <View style={styles.actionButtonRow}>
+                {currentStep > 0 ? (
+                  <TouchableOpacity
+                    style={[styles.gridButton, styles.prevButton]}
+                    onPress={() => setCurrentStep(0)}
+                  >
+                    <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+                    <Text style={styles.secondaryButtonText}>Previous</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.gridButton} />
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.primaryButton, (saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')) && styles.buttonDisabled]}
-                onPress={handleSubmit}
-                disabled={saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')}
-              >
-                {saving ? <ActivityIndicator size="small" color="white" /> : (
-                  <><Ionicons name="checkmark-circle" size={18} color="white" /><Text style={styles.primaryButtonText}>Finalize Record</Text></>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.redButton, (saving || !!actionInfo.decision) && styles.buttonDisabled]}
-                onPress={handleReturnToSupervisingLawyer}
-                disabled={saving || !!actionInfo.decision}
-              >
-                {saving ? <ActivityIndicator size="small" color="white" /> : (
-                  <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to SL</Text></>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.gridButton, styles.redButton, (saving || !!actionInfo.decision) && styles.buttonDisabled]}
+                  onPress={handleReturnToSupervisingLawyer}
+                  disabled={saving || !!actionInfo.decision}
+                >
+                  {saving ? <ActivityIndicator size="small" color="white" /> : (
+                    <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to SL</Text></>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           );
         }
@@ -1386,15 +1477,23 @@ export default function RecommendationForAction() {
     // ── Creating new review ──
     if (isIntern) {
       return (
-        <TouchableOpacity
-          style={[styles.goldButton, saving && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={saving}
-        >
-          {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
-            <><Ionicons name="send" size={18} color={PRIMARY_BROWN} /><Text style={styles.goldButtonText}>Submit for Review</Text></>
+        <View style={styles.actionButtonGroup}>
+          {currentStep > 0 && (
+            <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
+              <Ionicons name="chevron-back" size={18} color={PRIMARY_BROWN} />
+              <Text style={styles.secondaryButtonText}>Previous</Text>
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.goldButton, saving && styles.buttonDisabled]}
+            onPress={handleSubmit}
+            disabled={saving}
+          >
+            {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
+              <><Ionicons name="send" size={18} color={PRIMARY_BROWN} /><Text style={styles.goldButtonText}>Submit for Review</Text></>
+            )}
+          </TouchableOpacity>
+        </View>
       );
     }
 
@@ -1492,22 +1591,24 @@ export default function RecommendationForAction() {
 
       {/* Navigation & Action Buttons */}
       <View style={styles.buttonContainer}>
-        {currentStep > 0 && (
-          <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
-            <Ionicons name="chevron-back" size={20} color={PRIMARY_BROWN} />
-            <Text style={styles.secondaryButtonText}>Previous</Text>
-          </TouchableOpacity>
-        )}
-
         {currentStep < steps.length - 1 ? (
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setCurrentStep(currentStep + 1)}>
-            <Text style={styles.primaryButtonText}>Next Step</Text>
-            <Ionicons name="chevron-forward" size={20} color="white" />
-          </TouchableOpacity>
+          <>
+            {currentStep > 0 && (
+              <TouchableOpacity style={styles.prevButton} onPress={() => setCurrentStep(0)}>
+                <Ionicons name="chevron-back" size={20} color={PRIMARY_BROWN} />
+                <Text style={styles.secondaryButtonText}>Previous</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.primaryButton} onPress={() => setCurrentStep(currentStep + 1)}>
+              <Text style={styles.primaryButtonText}>Next Step</Text>
+              <Ionicons name="chevron-forward" size={20} color="white" />
+            </TouchableOpacity>
+          </>
         ) : (
           renderActionButtons()
         )}
       </View>
+      <ThemedToast toast={toast} onHide={hideToast} />
     </SafeAreaView>
   );
 }
@@ -1899,6 +2000,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  actionButtonGrid: {
+    flex: 1,
+    gap: 10,
+  },
+  actionButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  gridButton: {
+    flex: 1,
+    minWidth: 0,
   },
   viewOnlyContainer: {
     flex: 1,

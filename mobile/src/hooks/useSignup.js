@@ -21,12 +21,25 @@ export const useSignup = () => {
     control,
     formState: { errors },
     watch,
-  } = useForm();
+    trigger,
+    getValues,
+  } = useForm({
+    mode: "onBlur",
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
 
   // UI state
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Watch password for validation
   const watchPassword = watch("password");
@@ -35,24 +48,14 @@ export const useSignup = () => {
   const handleEmailSignup = async (data) => {
     if (!isRegistering) {
       setIsRegistering(true);
+      setErrorMessage("");
       try {
-        // Check if passwords match
-        if (data.password !== data.confirmPassword) {
-          Alert.alert(
-            "Password Mismatch",
-            "Passwords do not match. Please try again."
-          );
-          setIsRegistering(false);
-          return;
-        }
-
-        console.log("Step 1: Creating Firebase user");
         await doCreateUserWithEmailAndPassword(data.email, data.password);
-
-        console.log("Step 2: Sending verification email");
         await doSendEmailVerification();
 
-        console.log("Step 3: Registering user in backend");
+        // Wait for Firebase to sync
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
         try {
           await registerUser(
             data.firstName,
@@ -62,45 +65,21 @@ export const useSignup = () => {
           );
         } catch (registerError) {
           console.error("Backend registration error:", registerError);
-          // Continue even if backend registration fails
         }
 
-        console.log("Step 4: Signing out to prevent auto-login");
-        console.trace('doSignOut called from useSignup.handleEmailSignup');
         await doSignOut();
-
-        // Wait for sign out to complete
         await new Promise((resolve) => setTimeout(resolve, 500));
-
-        console.log("Step 5: Registration complete");
 
         setIsRegistering(false);
         Alert.alert(
           "Account Created Successfully!",
           "A verification email has been sent to your email address. Please verify your email before logging in.",
-          [
-            {
-              text: "OK",
-              onPress: () => router.replace("/auth"),
-            },
-          ]
+          [{ text: "OK", onPress: () => router.replace("/auth") }]
         );
       } catch (error) {
-        console.error("Signup error:", error);
-
-        // Sign out on error
-        try {
-          console.trace('doSignOut called from useSignup.errorHandler (email signup)');
-          await doSignOut();
-        } catch (signOutError) {
-          console.log("Sign out error:", signOutError);
-        }
-
+        try { await doSignOut(); } catch (e) {}
         setIsRegistering(false);
-        Alert.alert(
-          "Signup Failed",
-          getAuthErrorMessage(error.code) || error.message
-        );
+        setErrorMessage(getAuthErrorMessage(error.code) || error.message);
       }
     }
   };
@@ -109,6 +88,7 @@ export const useSignup = () => {
   const handleGoogleSignup = async () => {
     if (!isRegistering) {
       setIsRegistering(true);
+      setErrorMessage("");
       try {
         const result = await doSignInWithGoogle();
         const user = result.user;
@@ -121,68 +101,39 @@ export const useSignup = () => {
           await registerUser(googleFirstName, googleLastName, user.email, null);
         } catch (registerError) {
           console.error("Backend registration error:", registerError);
-          // Continue even if backend registration fails
         }
 
-        // Sign out after registration
-        console.trace('doSignOut called from useSignup.handleGoogleSignup');
         await doSignOut();
-
-        // Wait for sign out to complete
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         setIsRegistering(false);
         Alert.alert(
           "Account Created Successfully!",
           "Your Google account has been registered. Please login to continue.",
-          [
-            {
-              text: "OK",
-              onPress: () => router.replace("/auth"),
-            },
-          ]
+          [{ text: "OK", onPress: () => router.replace("/auth") }]
         );
       } catch (error) {
-        console.error("Google Sign-In error:", error);
-
-        // Sign out on error
-        try {
-          console.trace('doSignOut called from useSignup.errorHandler (google signup)');
-          await doSignOut();
-        } catch (signOutError) {
-          console.log("Sign out error:", signOutError);
-        }
-
+        try { await doSignOut(); } catch (e) {}
         setIsRegistering(false);
-        Alert.alert(
-          "Google Sign-In Failed",
-          getAuthErrorMessage(error.code) || error.message
-        );
+        setErrorMessage(getAuthErrorMessage(error.code) || error.message);
       }
     }
   };
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
-  const toggleConfirmPasswordVisibility = () => {
-    setShowConfirmPassword(!showConfirmPassword);
-  };
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
 
   return {
-    // Form
     control,
     errors,
     handleSubmit,
     watchPassword,
-
-    // UI state
+    trigger,
+    getValues,
     showPassword,
     showConfirmPassword,
     isRegistering,
-
-    // Actions
+    errorMessage,
     handleEmailSignup,
     handleGoogleSignup,
     togglePasswordVisibility,

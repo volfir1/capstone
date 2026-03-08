@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/authContext';
 import apiClient from '../../api/apiClient';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import ThemedToast, { useToast } from '../../components/ThemedToast';
 
 const PRIMARY_BROWN = '#7D5A3B';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -80,6 +81,7 @@ export default function ClientFormStatus() {
   // Date details modal (when clicking a calendar date)
   const [dateDetailsModal, setDateDetailsModal] = useState(false);
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
+  const { toast, showToast, hideToast } = useToast();
 
   // ─── Google Calendar reconnect helper ───
   const isGoogleReconnectError = (err) => {
@@ -211,7 +213,7 @@ export default function ClientFormStatus() {
       setEvents(mappedEvents);
     } catch (err) {
       console.error('Failed to load data:', err);
-      if (!silent) Alert.alert('Error', 'Failed to load data');
+      if (!silent) showToast('error', 'Error', 'Failed to load data');
     } finally {
       if (!silent) setLoading(false);
     }
@@ -279,7 +281,7 @@ export default function ClientFormStatus() {
         },
       });
 
-      Alert.alert('Success', 'Appointment approved and synced to Google Calendar.');
+      showToast('success', 'Success', 'Appointment approved and synced to Google Calendar.');
       setApproveModal(false);
       setAppointmentToApprove(null);
       await loadAllData();
@@ -290,7 +292,7 @@ export default function ClientFormStatus() {
         setAppointmentToApprove(null);
         promptGoogleReconnect();
       } else {
-        Alert.alert('Error', err?.response?.data?.message || 'Failed to approve appointment.');
+        showToast('error', 'Error', err?.response?.data?.message || 'Failed to approve appointment.');
       }
     } finally {
       setUpdating(false);
@@ -300,7 +302,7 @@ export default function ClientFormStatus() {
   // ─── Reschedule handler (matching website logic) ───
   const handleRescheduleSubmit = async () => {
     if (!newDate || !selectedAppointment?.id) {
-      Alert.alert('Error', 'Please select a valid date and time.');
+      showToast('warning', 'Warning', 'Please select a valid date and time.');
       return;
     }
     setUpdating(true);
@@ -325,14 +327,14 @@ export default function ClientFormStatus() {
           newDate: dateWithTime.toISOString(),
           newTime: newTime || '',
         });
-        Alert.alert('Success', 'Appointment rescheduled and Google Calendar updated.');
+        showToast('success', 'Success', 'Appointment rescheduled and Google Calendar updated.');
       } else {
         const iso = newDate.toISOString();
         await apiClient.put(`/clientsinfo/${selectedAppointment.id}`, {
           appointedDate: iso,
           appointmentTime: newTime || '',
         });
-        Alert.alert('Success', 'Appointment updated successfully.');
+        showToast('success', 'Success', 'Appointment updated successfully.');
       }
       setRescheduleModal(false);
       await loadAllData();
@@ -342,7 +344,7 @@ export default function ClientFormStatus() {
         setRescheduleModal(false);
         promptGoogleReconnect();
       } else {
-        Alert.alert('Error', err?.response?.data?.message || 'Failed to update appointment.');
+        showToast('error', 'Error', err?.response?.data?.message || 'Failed to update appointment.');
       }
     } finally {
       setUpdating(false);
@@ -357,13 +359,13 @@ export default function ClientFormStatus() {
       await apiClient.delete(`/clientsinfo/${appointmentToDelete.id}`, {
         data: { firebaseUid: currentUser?.uid },
       });
-      Alert.alert('Deleted', 'Appointment removed successfully.');
+      showToast('success', 'Deleted', 'Appointment removed successfully.');
       setDeleteModal(false);
       setAppointmentToDelete(null);
       await loadAllData();
     } catch (err) {
       console.error('Failed to delete:', err);
-      Alert.alert('Error', 'Failed to delete appointment.');
+      showToast('error', 'Error', 'Failed to delete appointment.');
     } finally {
       setDeleting(false);
     }
@@ -372,7 +374,7 @@ export default function ClientFormStatus() {
   // ─── Create event with Google Calendar sync ───
   const handleCreateEvent = async () => {
     if (!eventForm.title || !eventForm.eventDate) {
-      Alert.alert('Error', 'Title and date are required.');
+      showToast('warning', 'Warning', 'Title and date are required.');
       return;
     }
     setCreatingEvent(true);
@@ -409,7 +411,7 @@ export default function ClientFormStatus() {
         },
       });
 
-      Alert.alert('Success', 'Event created and synced to Google Calendar.');
+      showToast('success', 'Success', 'Event created and synced to Google Calendar.');
       setCreateEventModal(false);
       setEventForm({ title: '', description: '', eventDate: '', eventType: 'appointment', location: '', clientName: '' });
       await loadAllData();
@@ -419,7 +421,7 @@ export default function ClientFormStatus() {
         setCreateEventModal(false);
         promptGoogleReconnect();
       } else {
-        Alert.alert('Error', err?.response?.data?.message || 'Failed to create event.');
+        showToast('error', 'Error', err?.response?.data?.message || 'Failed to create event.');
       }
     } finally {
       setCreatingEvent(false);
@@ -1156,6 +1158,7 @@ export default function ClientFormStatus() {
           </View>
         </View>
       </Modal>
+      <ThemedToast toast={toast} onHide={hideToast} />
     </SafeAreaView>
   );
 }

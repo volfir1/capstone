@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { fetchUsers, updateUserRole, toggleUserStatus, sendPasswordReset } from '../../api/adminApi';
 import { PRIMARY_BROWN, PRIMARY_GOLD, CHARCOAL, MUTED_OLIVE, ADMIN_ROLES, ROLE_DISPLAY } from 'utils/constants';
+import ThemedToast, { useToast } from '../../components/ThemedToast';
 
 const ROLE_TABS = [
   { key: 'user', label: 'Clients' },
@@ -43,9 +44,11 @@ export default function AdminUsers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('user');
   const [roleModal, setRoleModal] = useState(false);
+  const [actionModal, setActionModal] = useState(null); // user object or null
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRole, setSelectedRole] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const { toast, showToast, hideToast } = useToast();
 
   const loadUsers = useCallback(async () => {
     try {
@@ -118,11 +121,11 @@ export default function AdminUsers() {
     try {
       setActionLoading(true);
       await updateUserRole(selectedUser._id, selectedRole);
-      Alert.alert('Success', `Role updated to ${ROLE_DISPLAY[selectedRole] || selectedRole}`);
+      showToast('success', 'Success', `Role updated to ${ROLE_DISPLAY[selectedRole] || selectedRole}`);
       setRoleModal(false);
       await loadUsers();
     } catch (err) {
-      Alert.alert('Error', 'Failed to update role');
+      showToast('error', 'Error', 'Failed to update role');
     } finally {
       setActionLoading(false);
     }
@@ -142,10 +145,10 @@ export default function AdminUsers() {
           onPress: async () => {
             try {
               await toggleUserStatus(user._id, newStatus);
-              Alert.alert('Success', `Account ${newStatus ? 'disabled' : 'enabled'} successfully`);
+              showToast('success', 'Success', `Account ${newStatus ? 'disabled' : 'enabled'} successfully`);
               await loadUsers();
             } catch (err) {
-              Alert.alert('Error', `Failed to ${action} account`);
+              showToast('error', 'Error', `Failed to ${action} account`);
             }
           },
         },
@@ -164,9 +167,9 @@ export default function AdminUsers() {
           onPress: async () => {
             try {
               await sendPasswordReset(user.email);
-              Alert.alert('Success', 'Password reset email sent');
+              showToast('success', 'Success', 'Password reset email sent');
             } catch (err) {
-              Alert.alert('Error', 'Failed to send password reset email');
+              showToast('error', 'Error', 'Failed to send password reset email');
             }
           },
         },
@@ -210,22 +213,7 @@ export default function AdminUsers() {
           </View>
           <TouchableOpacity
             style={s.menuBtn}
-            onPress={() => {
-              Alert.alert(
-                `${user.firstName} ${user.lastName}`,
-                'Choose an action',
-                [
-                  { text: 'Change Role', onPress: () => handleChangeRole(user) },
-                  {
-                    text: user.disabled ? 'Enable Account' : 'Disable Account',
-                    onPress: () => handleToggleStatus(user),
-                    style: user.disabled ? 'default' : 'destructive',
-                  },
-                  { text: 'Send Password Reset', onPress: () => handlePasswordReset(user) },
-                  { text: 'Cancel', style: 'cancel' },
-                ]
-              );
-            }}
+            onPress={() => setActionModal(user)}
           >
             <Ionicons name="ellipsis-vertical" size={20} color={MUTED_OLIVE} />
           </TouchableOpacity>
@@ -358,6 +346,43 @@ export default function AdminUsers() {
           </View>
         </TouchableOpacity>
       </Modal>
+      <ThemedToast toast={toast} onHide={hideToast} />
+
+      {/* Action Bottom Sheet */}
+      <Modal visible={!!actionModal} transparent animationType="slide" onRequestClose={() => setActionModal(null)}>
+        <TouchableOpacity style={s.actionOverlay} activeOpacity={1} onPress={() => setActionModal(null)}>
+          <View style={s.actionSheet} onStartShouldSetResponder={() => true}>
+            {actionModal && (
+              <>
+                <View style={s.actionSheetHandle} />
+                <Text style={s.actionSheetTitle}>{actionModal.firstName} {actionModal.lastName}</Text>
+                <Text style={s.actionSheetSubtitle}>{actionModal.email}</Text>
+
+                <TouchableOpacity style={s.actionItem} onPress={() => { setActionModal(null); handleChangeRole(actionModal); }}>
+                  <Ionicons name="swap-horizontal" size={20} color={PRIMARY_BROWN} />
+                  <Text style={s.actionItemText}>Change Role</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={s.actionItem} onPress={() => { setActionModal(null); handleToggleStatus(actionModal); }}>
+                  <Ionicons name={actionModal.disabled ? 'checkmark-circle' : 'ban'} size={20} color={actionModal.disabled ? '#22c55e' : '#ef4444'} />
+                  <Text style={[s.actionItemText, !actionModal.disabled && { color: '#ef4444' }]}>
+                    {actionModal.disabled ? 'Enable Account' : 'Disable Account'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={s.actionItem} onPress={() => { setActionModal(null); handlePasswordReset(actionModal); }}>
+                  <Ionicons name="key" size={20} color="#F59E0B" />
+                  <Text style={s.actionItemText}>Send Password Reset</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[s.actionItem, s.actionCancel]} onPress={() => setActionModal(null)}>
+                  <Text style={s.actionCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -413,4 +438,14 @@ const s = StyleSheet.create({
   cancelBtnText: { fontSize: 14, color: MUTED_OLIVE, fontWeight: '600' },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: PRIMARY_BROWN, alignItems: 'center' },
   confirmBtnText: { fontSize: 14, color: '#fff', fontWeight: '600' },
+  // Action bottom sheet
+  actionOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  actionSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30, paddingHorizontal: 20 },
+  actionSheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#ddd', alignSelf: 'center', marginTop: 10, marginBottom: 14 },
+  actionSheetTitle: { fontSize: 16, fontWeight: '700', color: CHARCOAL },
+  actionSheetSubtitle: { fontSize: 12, color: MUTED_OLIVE, marginBottom: 16 },
+  actionItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  actionItemText: { fontSize: 15, color: CHARCOAL, fontWeight: '500' },
+  actionCancel: { justifyContent: 'center', borderBottomWidth: 0, marginTop: 6 },
+  actionCancelText: { fontSize: 15, color: MUTED_OLIVE, fontWeight: '600', textAlign: 'center', width: '100%' },
 });

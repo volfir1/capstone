@@ -21,7 +21,7 @@ const PERSISTENT_FIELDS = [
   'presentAddress', 'permanentAddress', 'throughRelator', 'relatorName', 'relationshipToClient',
   'currentSourceOfIncome', 'monthlyIncome', 'natureOfWork',
   'employerName', 'employerAddress', 'employerTelephone',
-  'spouse', 'spouseSourceOfIncome', 'spouseMonthlyIncome', 'spouseEmployerAddress',
+  'spouse', 'spouseSourceOfIncome', 'spouseMonthlyIncome', 'spouseNatureOfWork', 'spouseEmployerAddress',
 ];
 
 // Read saved data synchronously before form init

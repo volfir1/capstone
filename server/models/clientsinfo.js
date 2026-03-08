@@ -59,6 +59,7 @@ const ClientsInfoSchema = new mongoose.Schema({
   employerTelephone: { type: String },
   spouseSourceOfIncome: { type: String },
   spouseMonthlyIncome: { type: Number },
+  spouseNatureOfWork: { type: String },
   spouseEmployerAddress: { type: String },
   totalCombinedIncome: { type: Number },
   dependents: { type: Number },

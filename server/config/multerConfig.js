@@ -12,17 +12,32 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure storage for Word documents only
+// Configure storage — preserve the original filename.
+// Decode URI-encoded names (RN can send "MAQ_GIS%202025.pdf" instead of
+// "MAQ_GIS 2025.pdf") so the file name on disk is always human-readable.
+// If a file with the same name already exists on disk, suffix with a timestamp.
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename: timestamp-originalname
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const nameWithoutExt = path.basename(file.originalname, ext);
-    cb(null, `${nameWithoutExt}-${uniqueSuffix}${ext}`);
+    // Decode any URI-encoded characters (e.g. %20 → space)
+    let originalName;
+    try { originalName = decodeURIComponent(file.originalname); }
+    catch { originalName = file.originalname; }
+    // Also store the decoded name back so req.file.originalname is clean
+    file.originalname = originalName;
+
+    const targetPath = path.join(uploadsDir, originalName);
+
+    // Only add a timestamp suffix when a collision exists
+    if (fs.existsSync(targetPath)) {
+      const ext = path.extname(originalName);
+      const nameWithoutExt = path.basename(originalName, ext);
+      cb(null, `${nameWithoutExt}-${Date.now()}${ext}`);
+    } else {
+      cb(null, originalName);
+    }
   }
 });
 

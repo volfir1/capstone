@@ -153,7 +153,7 @@ export default function Analytics() {
         if (!internCounts[internId]) {
             internCounts[internId] = { 
                 id: internId, 
-                name: internName || (userMap[internId] ? `${userMap[internId].firstName} ${userMap[internId].lastName}` : 'Unknown'), 
+                name: userMap[internId] ? `${userMap[internId].firstName} ${userMap[internId].lastName}` : (internName || 'Unknown'), 
                 profileImage: userMap[internId]?.profileImage,
                 count: 0 
             };
@@ -167,7 +167,7 @@ export default function Analytics() {
         if (!supervisingLawyerCounts[lawyerId]) {
             supervisingLawyerCounts[lawyerId] = { 
                 id: lawyerId, 
-                name: lawyerName || (userMap[lawyerId] ? `${userMap[lawyerId].firstName} ${userMap[lawyerId].lastName}` : 'Unknown'), 
+                name: userMap[lawyerId] ? `${userMap[lawyerId].firstName} ${userMap[lawyerId].lastName}` : (lawyerName || 'Unknown'), 
                 profileImage: userMap[lawyerId]?.profileImage,
                 count: 0 
             };
@@ -181,7 +181,7 @@ export default function Analytics() {
         if (!directorCounts[directorId]) {
             directorCounts[directorId] = { 
                 id: directorId, 
-                name: directorName || (userMap[directorId] ? `${userMap[directorId].firstName} ${userMap[directorId].lastName}` : 'Unknown'), 
+                name: userMap[directorId] ? `${userMap[directorId].firstName} ${userMap[directorId].lastName}` : (directorName || 'Unknown'), 
                 profileImage: userMap[directorId]?.profileImage,
                 count: 0 
             };

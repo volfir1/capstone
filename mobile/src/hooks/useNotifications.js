@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification as deleteNotifApi } from '../api/userApi';
+import { fetchNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification as deleteNotifApi, clearAllNotifications as clearAllApi } from '../api/userApi';
 
 const POLL_INTERVAL = 10000; // 10 seconds
 
@@ -63,6 +63,17 @@ export function useNotifications() {
     }
   }, []);
 
+  const clearAll = useCallback(async () => {
+    try {
+      await clearAllApi();
+      setNotifications([]);
+      setUnreadCount(0);
+      setTotal(0);
+    } catch (err) {
+      console.error('Clear all notifications error:', err);
+    }
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     fetchNotifs();
@@ -82,6 +93,7 @@ export function useNotifications() {
     markAsRead,
     markAllAsRead,
     deleteNotification: deleteNotif,
+    clearAllNotifications: clearAll,
     refresh: fetchNotifs,
   };
 }

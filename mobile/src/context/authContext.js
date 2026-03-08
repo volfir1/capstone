@@ -11,6 +11,7 @@ import {
 import { storeToken, getStoredToken, clearToken } from "utils/secureStore";
 import { getUserData } from "../features/auth/user";
 import { verifyUser } from "../features/auth/auth";
+import { registerForPushNotifications, unregisterPushNotifications } from "../utils/pushNotifications";
 
 const AuthContext = createContext();
 
@@ -30,6 +31,7 @@ export const AuthProvider = ({ children }) => {
   const isLoggingOutRef = useRef(false);
   const [initializing, setInitializing] = useState(true);
   const [userData, setUserData] = useState(null);
+  const pushTokenRef = useRef(null);
 
   // Monitor auth state changes - THIS IS KEY!
   useEffect(() => {
@@ -71,6 +73,11 @@ export const AuthProvider = ({ children }) => {
             // getUserData() returns { data: { ... }, success: true }
             setUserData(backendUserData.data);
             console.log("User data loaded:", backendUserData.data);
+
+            // Register for push notifications after successful login
+            registerForPushNotifications().then(token => {
+              if (token) pushTokenRef.current = token;
+            });
           } catch (userError) {
             console.error("Failed to fetch user data:", userError);
 
@@ -243,6 +250,12 @@ export const AuthProvider = ({ children }) => {
   setIsLoading(true);
 
   try {
+      // Unregister push token before signing out
+      if (pushTokenRef.current) {
+        await unregisterPushNotifications(pushTokenRef.current);
+        pushTokenRef.current = null;
+      }
+
       // Use doSignOut which handles Google and Firebase sign-out
       // but avoid throwing if there's no authenticated user
       if (auth.currentUser) {

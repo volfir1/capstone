@@ -9,7 +9,15 @@
     "userInterfaceStyle": "light",
     "plugins": [
       "@react-native-google-signin/google-signin",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./src/assets/images/logo.png",
+          "color": "#8B4513",
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "splash": {
       "image": "./src/assets/images/logo.png",

@@ -10,14 +10,17 @@ export const authenticateFirebaseToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Also accept token from query string (for browser/Linking.openURL access to files)
+    const idToken = (authHeader && authHeader.startsWith('Bearer '))
+      ? authHeader.split('Bearer ')[1]
+      : req.query?.token || null;
+
+    if (!idToken) {
       return res.status(401).json({ 
         error: 'Unauthorized', 
         message: 'No token provided' 
       });
     }
-
-    const idToken = authHeader.split('Bearer ')[1];
 
     try {
       // Verify the Firebase ID token

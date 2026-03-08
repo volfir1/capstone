@@ -147,6 +147,7 @@ const initialState = {
     employerTelephone: '',
     spouseSourceOfIncome: '',
     spouseMonthlyIncome: '',
+    spouseNatureOfWork: '',
     spouseEmployerAddress: '',
     totalCombinedIncome: '',
     partyRepresented: '',
@@ -549,6 +550,7 @@ export default function FinalizedCases() {
     employerTelephone: details?.employerTelephone || '',
     spouseSourceOfIncome: details?.spouseSourceOfIncome || '',
     spouseMonthlyIncome: details?.spouseMonthlyIncome !== undefined && details?.spouseMonthlyIncome !== null ? String(details.spouseMonthlyIncome) : '',
+    spouseNatureOfWork: details?.spouseNatureOfWork || '',
     spouseEmployerAddress: details?.spouseEmployerAddress || '',
     totalCombinedIncome: details?.totalCombinedIncome !== undefined && details?.totalCombinedIncome !== null ? String(details.totalCombinedIncome) : '',
     partyRepresented: details?.partyRepresented || '',
@@ -769,7 +771,6 @@ export default function FinalizedCases() {
         clientName: formatText(d.clientName || interview.clientName),
         dateSubmitted: formatDate(action.signatureDate || d.updatedAt || d.createdAt),
         interviewingInterns: formatText(interview.interviewingInterns || interview.interviewingIntern || interview.internName),
-        dutyDay: formatText(interview.dutyDay),
 
         // --- fillable areas ---
         fastFacts: formatText(interview.fastFacts),
@@ -790,47 +791,6 @@ export default function FinalizedCases() {
         directorSignature: formatText(action.directorSignature),
         signatureDate: formatDate(action.signatureDate),
       }, endY);
-
-      // Page 3 (landscape Case Record form layout) - only for court representation cases
-      const caseType = d.content?.interviewInfo?.caseType;
-      const isCaseWithRecord = caseType !== 'legal-advice' && caseType !== 'legal-document';
-
-      if (isCaseWithRecord) {
-        let caseRecord = state.caseRecordData;
-        const hasCaseRecordLoaded = caseRecord && Object.keys(caseRecord).length > 0;
-        const isSameFinalizeId = state.selectedCaseId && finalizeId && state.selectedCaseId === finalizeId;
-
-        if (!hasCaseRecordLoaded || !isSameFinalizeId) {
-          try {
-            if (finalizeId) {
-              const resp = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
-              caseRecord = resp?.data || resp?.data?.data || caseRecord;
-            }
-          } catch (err) {
-            console.warn('No case record found for third page:', err);
-          }
-        }
-
-        doc.addPage('a4', 'landscape');
-        drawCaseRecordHistoryRemarksPage(doc, {
-          title: formatText(caseRecord?.title || d.content?.caseInfo?.title || d.title),
-          caseId: formatText(caseRecord?.caseId || d.caseId),
-          nature: formatText(caseRecord?.nature || d.content?.caseInfo?.nature || d.category),
-          tribunal: formatText(caseRecord?.tribunal),
-          branch: formatText(caseRecord?.branch),
-          presidingJudge: formatText(caseRecord?.presidingJudge),
-          telEmail: formatText(caseRecord?.contactDetails || caseRecord?.telEmail || d.content?.interviewInfo?.contactNumber || d.content?.interviewInfo?.email),
-          parties: formatText(caseRecord?.parties),
-          contactDetails: formatText(caseRecord?.contactDetails || caseRecord?.telEmail),
-          counsels: formatText(caseRecord?.counsels),
-          publicProsecutor: formatText(caseRecord?.publicProsecutor),
-          opposingCounsel: formatText(caseRecord?.opposingCounsel),
-          clientAddress: formatText(caseRecord?.clientAddress || d.content?.interviewInfo?.presentAddress || d.content?.interviewInfo?.permanentAddress),
-          others: formatText(caseRecord?.others),
-          caseHistory: formatText(caseRecord?.caseHistory),
-          remarks: formatText(caseRecord?.remarks),
-        });
-      }
 
       addDateTimeHeaderToAllPages(doc);
       doc.save('Recommendation_For_Action.pdf');
@@ -1008,7 +968,6 @@ export default function FinalizedCases() {
 
     doc.text("Date Submitted:", midX + 2, y + 6);
     doc.text("Interviewing Intern/s:", midX + 2, y + 14);
-    doc.text("Duty Day:", midX + 2, y + 20);
 
     // Values
     setFont(10, "normal");
@@ -1016,7 +975,6 @@ export default function FinalizedCases() {
     if (data.clientName) doc.text(safeText(data.clientName), infoX + 32, y + 14);
     if (data.dateSubmitted) doc.text(safeText(data.dateSubmitted), midX + 34, y + 6);
     if (data.interviewingInterns) doc.text(safeText(data.interviewingInterns), midX + 44, y + 14);
-    if (data.dutyDay) doc.text(safeText(data.dutyDay), midX + 18, y + 20);
 
     y += infoH + GAP_MD;
 
@@ -1713,6 +1671,7 @@ export default function FinalizedCases() {
       relationshipToClient: state.appointmentForm.relationshipToClient || undefined,
       spouseSourceOfIncome: state.appointmentForm.spouseSourceOfIncome || undefined,
       spouseMonthlyIncome: state.appointmentForm.spouseMonthlyIncome ? Number(state.appointmentForm.spouseMonthlyIncome) : undefined,
+      spouseNatureOfWork: state.appointmentForm.spouseNatureOfWork || undefined,
       spouseEmployerAddress: state.appointmentForm.spouseEmployerAddress || undefined,
       totalCombinedIncome: state.appointmentForm.totalCombinedIncome ? Number(state.appointmentForm.totalCombinedIncome) : undefined,
       partyRepresented: state.appointmentForm.partyRepresented || undefined,
@@ -3196,6 +3155,14 @@ export default function FinalizedCases() {
                       <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseMonthlyIncome ? `â‚±${Number(state.appointmentDetails.spouseMonthlyIncome).toLocaleString()}` : 'N/A'}</Text>
                     )}
                   </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Nature of Work / Business</Text>
+                    {state.appointmentEditMode ? (
+                      <TextInput size="sm" value={state.appointmentForm.spouseNatureOfWork} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, spouseNatureOfWork: e.target.value } })} />
+                    ) : (
+                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.spouseNatureOfWork || 'N/A'}</Text>
+                    )}
+                  </Grid.Col>
                   <Grid.Col span={12}>
                     <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Spouse Employer Address</Text>
                     {state.appointmentEditMode ? (
@@ -3942,6 +3909,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
 
   const spouseSourceOfIncome = txt(a.spouseSourceOfIncome);
   const spouseMonthlyIncome = money(a.spouseMonthlyIncome);
+  const spouseNatureOfWork = txt(a.spouseNatureOfWork);
   const spouseEmployerAddress = txt(a.spouseEmployerAddress);
   const totalCombinedIncome = money(a.totalCombinedIncome);
 
@@ -4142,9 +4110,8 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   y += field({ labelText: "Employer / Business Address:", value: employerAddress, x: leftX, y, labelW: 52, lineToX: finFullEndX });
 
   {
-    const h1 = field({ labelText: "Nature of Work / Business:", value: natureOfWork, x: leftX, y, labelW: 40, lineToX: finSplitX - 2 });
-    const h2 = field({ labelText: "Telephone:", value: employerTelephone, x: finSplitX, y, labelW: 18, lineToX: finFullEndX });
-    y += Math.max(h1, h2);
+    const h1 = field({ labelText: "Telephone:", value: employerTelephone, x: leftX, y, labelW: 18, lineToX: finFullEndX });
+    y += h1;
   }
 
   {
@@ -4152,6 +4119,8 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
     const h2 = field({ labelText: "Income / Month:", value: spouseMonthlyIncome, x: finSplitX, y, labelW: 24, lineToX: finFullEndX });
     y += Math.max(h1, h2);
   }
+
+  y += field({ labelText: "Spouse's Nature of Work / Business:", value: spouseNatureOfWork, x: leftX, y, labelW: 60, lineToX: finFullEndX });
 
   y += field({ labelText: "Spouse's Employer / Business Address:", value: spouseEmployerAddress, x: leftX, y, labelW: 60, lineToX: finFullEndX });
 
