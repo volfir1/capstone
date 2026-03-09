@@ -169,6 +169,29 @@ export const useLogin = () => {
         }
       }
 
+        // After successful login, log activity
+        try {
+          const user = firebase.auth().currentUser;
+          if (user) {
+            const token = await user.getIdToken();
+            await apiClient.post('/activity-logs', {
+              action: 'login',
+              userEmail: user.email || emailToUse || '',
+              userName:
+                backendUserData?.displayName
+                || backendUserData?.fullName
+                || `${backendUserData?.firstName || ''} ${backendUserData?.lastName || ''}`.trim()
+                || user.displayName
+                || user.email
+                || '',
+              userRole: backendUserData?.role || '',
+            }, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          }
+        } catch (err) {
+          console.error('Activity log error (login):', err);
+        }
       console.log('Attempting Firebase sign in with email:', emailToUse);
       const signInResult = await doSigninWithEmailAndPassword(emailToUse, data.password);
       console.log('Firebase sign in successful', signInResult?.user?.email);
