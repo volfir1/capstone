@@ -271,27 +271,26 @@ export default function AdminDashboard() {
             { title: 'Finalized Decisions', data: finalizeData, total: stats.totalFinalized },
             { title: 'Users by Role', data: userRoleData, total: stats.totalUsers },
           ].map(chart => (
-            <Paper key={chart.title} p={{ base: 'sm', sm: 'md' }} radius="lg" withBorder>
-              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb="sm">{chart.title}</Text>
+            <Paper key={chart.title} p={{ base: 'md', sm: 'lg' }} radius="lg" withBorder>
+              <Text size="sm" c={MUTED_OLIVE} tt="uppercase" fw={700} mb="md" lts={0.5}>{chart.title}</Text>
 
-              {/* Stack vertically on mobile, side-by-side on sm+ */}
-              <Stack gap="sm" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {/* Donut */}
-                <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 110, height: 110, flexShrink: 0 }}>
+              <Stack gap="md" align="center">
+                {/* Donut — enlarged */}
+                <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 180, height: 180, flexShrink: 0 }}>
                   <DonutChart
                     data={chart.data}
-                    size={110}
-                    thickness={16}
+                    size={180}
+                    thickness={24}
                     chartLabel={`${chart.total}`}
                   />
                 </Box>
 
-                {/* Legend */}
+                {/* Legend — full width, larger text */}
                 <Box style={{
                   width: '100%',
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
-                  gap: '6px 12px',
+                  gap: '10px 16px',
                 }}>
                   {chart.title === 'Legal Services' ? (
                     (() => {
@@ -301,18 +300,22 @@ export default function AdminDashboard() {
                       return (
                         <>
                           {otherItems.map(d => (
-                            <Group key={d.name} gap={6} wrap="nowrap">
-                              <Box style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 2, background: d.color, marginTop: 2 }} />
-                              <Text size="xs" c={CHARCOAL} fw={500} style={{ wordBreak: 'break-word' }}>{d.name}: {d.value}</Text>
+                            <Group key={d.name} gap={8} wrap="nowrap">
+                              <Box style={{ width: 10, height: 10, flexShrink: 0, borderRadius: 3, background: d.color, marginTop: 3 }} />
+                              <Text size="sm" c={CHARCOAL} fw={600} style={{ wordBreak: 'break-word' }}>
+                                {d.name}: <Text span fw={700} c={CHARCOAL}>{d.value}</Text>
+                              </Text>
                             </Group>
                           ))}
-                          <Box style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-                            <Text size="xs" fw={700} c={CHARCOAL} mb={4}>Court Representation:</Text>
-                            <Box style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+                          <Box style={{ gridColumn: '1 / -1', marginTop: 6, paddingTop: 8, borderTop: '1px dashed #E9ECEF' }}>
+                            <Text size="xs" fw={700} c={MUTED_OLIVE} mb={6} tt="uppercase" lts={0.3}>Court Representation</Text>
+                            <Box style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
                               {courtItems.map(d => (
-                                <Group key={d.name} gap={6} wrap="nowrap">
-                                  <Box style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 2, background: d.color, marginTop: 2 }} />
-                                  <Text size="xs" c={CHARCOAL} fw={500} style={{ wordBreak: 'break-word' }}>{d.name}: {d.value}</Text>
+                                <Group key={d.name} gap={8} wrap="nowrap">
+                                  <Box style={{ width: 10, height: 10, flexShrink: 0, borderRadius: 3, background: d.color, marginTop: 3 }} />
+                                  <Text size="sm" c={CHARCOAL} fw={600} style={{ wordBreak: 'break-word' }}>
+                                    {d.name}: <Text span fw={700} c={CHARCOAL}>{d.value}</Text>
+                                  </Text>
                                 </Group>
                               ))}
                             </Box>
@@ -322,9 +325,11 @@ export default function AdminDashboard() {
                     })()
                   ) : (
                     chart.data.map(d => (
-                      <Group key={d.name} gap={6} wrap="nowrap">
-                        <Box style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 2, background: d.color, marginTop: 2 }} />
-                        <Text size="xs" c={CHARCOAL} fw={500} style={{ wordBreak: 'break-word' }}>{d.name}: {d.value}</Text>
+                      <Group key={d.name} gap={8} wrap="nowrap">
+                        <Box style={{ width: 10, height: 10, flexShrink: 0, borderRadius: 3, background: d.color, marginTop: 3 }} />
+                        <Text size="sm" c={CHARCOAL} fw={600} style={{ wordBreak: 'break-word' }}>
+                          {d.name}: <Text span fw={700} c={CHARCOAL}>{d.value}</Text>
+                        </Text>
                       </Group>
                     ))
                   )}
