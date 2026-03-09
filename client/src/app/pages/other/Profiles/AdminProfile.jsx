@@ -245,8 +245,7 @@ export default function AdminProfile() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const endpoint = isAttorney ? '/attorney/profile' : '/admin/profile';
-      const response = await apiClient.put(endpoint, editedData);
+      const response = await apiClient.put('/users/profile', editedData);
       if (response.data.success) {
         if (isAttorney) {
           setAttorneyData(editedData);
