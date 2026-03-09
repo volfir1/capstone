@@ -11,6 +11,8 @@ expo-env.d.ts
 # so they get uploaded to EAS Build (unlike .gitignore which excludes them)
 
 # Native
+/android
+/ios
 *.orig.*
 *.jks
 *.p8

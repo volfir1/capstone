@@ -23,7 +23,8 @@
         {
           "root": "./src/app"
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "splash": {
       "image": "./src/assets/images/logo.png",

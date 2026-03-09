@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "474584444679",
+    "project_id": "justreach-eb938",
+    "storage_bucket": "justreach-eb938.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:474584444679:android:40a3991d458d996de31fa2",
+        "android_client_info": {
+          "package_name": "justreach.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "474584444679-dd9r0mfqt7fi7v2prtn3m8drctnotmle.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "justreach.app",
+            "certificate_hash": "ab1430debdd5c5eddb639b768e2536091739763b"
+          }
+        },
+        {
+          "client_id": "474584444679-i53q2d33scdjclpt0ebu3bj4cnt1kvbq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBRWvE91Z3ZhPC8V2NMKG1TZO6cu3kKqxU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "474584444679-i53q2d33scdjclpt0ebu3bj4cnt1kvbq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

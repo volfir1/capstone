@@ -15,6 +15,7 @@ expo-env.d.ts
 .env.test
 
 # Native
+/ios
 *.orig.*
 *.jks
 *.p8
@@ -23,7 +24,6 @@ expo-env.d.ts
 *.mobileprovision
 
 # Firebase config files
-google-services.json
 GoogleService-Info.plist
 
 # Metro
