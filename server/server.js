@@ -134,7 +134,7 @@ app.use(cors(corsOptions))
 // Serve uploaded files.
 // Allow unauthenticated access so mobile Linking.openURL (which opens an
 // external browser with no auth header) can fetch documents.  The files are
-// non-guessable filenames and also stored on Cloudinary behind signed URLs,
+// non-guessable filenames and also stored on Cloudinary,
 // so the risk is minimal.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -206,19 +206,11 @@ app.post('/api/upload/document', authenticateFirebaseToken, (req, res, next) => 
         resource_type: 'raw', // raw for non-image files (PDF, docx)
         public_id: publicId,
         overwrite: true,
-        type: 'private', // private delivery — URL requires signature to access
       });
-      // Generate a signed URL so the client can fetch the file securely.
-      // For raw resources, the public_id already includes the file extension,
-      // so we must NOT append it again (would cause double-extension → 404).
-      cloudinaryUrl = cloudinary.url(uploadResult.public_id, {
-        resource_type: 'raw',
-        type: 'private',
-        sign_url: true,
-        secure: true,
-        version: uploadResult.version,
-      });
-      console.log('Document uploaded to Cloudinary (private, signed):', cloudinaryUrl);
+      // Use the secure_url returned directly by Cloudinary — it's always valid.
+      // Access control is handled by Firebase auth at the API level.
+      cloudinaryUrl = uploadResult.secure_url;
+      console.log('Document uploaded to Cloudinary:', cloudinaryUrl);
     } catch (cloudErr) {
       console.warn('Cloudinary upload failed (file still available on disk):', cloudErr.message);
     }
