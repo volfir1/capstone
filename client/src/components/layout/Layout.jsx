@@ -40,25 +40,30 @@ const Layout = ({ children, headerHeight = 60, navbarWidth = 260 }) => {
   const roleDisplay = ROLE_DISPLAY[role] || ROLE_DISPLAY.secretary;
   const navItems = getNavigationByRole(role, currentPath);
 
-  const handleLogout = async () => {
+const handleLogout = async () => {
+  try {
     try {
-      try {
-        const { default: apiClient } = await import('@config/api/apiClient');
-        await apiClient.post('/activity-logs', {
-          action: 'logout',
-          userEmail: userData?.email || '',
-          userName: userData?.displayName || userData?.fullName || `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim() || '',
-          userRole: role,
-        });
-      } catch (err) {
-        console.error('Logout activity log error:', err);
-      }
-      await doSignOut();
-      navigate('/auth/admin');
-    } catch (error) {
-      console.error('Logout error:', error);
+      const { default: apiClient } = await import('@config/api/apiClient');
+      await apiClient.post('/activity-logs', {
+        action: 'logout',
+        userEmail: userData?.email || '',
+        // ✅ firstName + lastName first since that's what's in MongoDB
+        userName: `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim()
+          || userData?.email
+          || '',
+        userRole: role,
+        firstName: userData?.firstName || '',
+        lastName: userData?.lastName || '',
+      });
+    } catch (err) {
+      console.error('Logout activity log error:', err);
     }
-  };
+    await doSignOut();
+    navigate('/auth/admin');
+  } catch (error) {
+    console.error('Logout error:', error);
+  }
+};
 
   const handleNavNotification = (referenceId, type) => {
     if (type === 'case_assigned') {

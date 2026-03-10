@@ -14,21 +14,21 @@ export function useAuth() {
   return context;
 }
 
-// Roles that have access to the admin panel
 const ADMIN_ROLES = new Set(['secretary', 'supervising_lawyer', 'director', 'intern']);
 
 export default function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser]   = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
-  const [loading, setLoading]           = useState(true);
-  const [userData, setUserData]         = useState(null);
-  const loginLoggedRef                  = useRef(false);
+  const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState(null);
+  const currentUidRef = useRef(null); // ✅ ref to track uid across closure
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(true);
 
       if (user) {
+        currentUidRef.current = user.uid; // ✅ store uid in ref
         setCurrentUser({ ...user });
         setUserLoggedIn(true);
 
@@ -40,7 +40,6 @@ export default function AuthProvider({ children }) {
             return;
           }
 
-          // Sync Firebase verification status with backend
           try {
             await verifyUser();
           } catch (err) {
@@ -48,35 +47,36 @@ export default function AuthProvider({ children }) {
           }
 
           try {
-            // Fetch user data from backend
             const backendUserData = await getUserData();
             setUserData(backendUserData);
 
-            // Register socket for real-time events
             registerSocketUser(user.uid);
 
-            // Log login activity once per session
-            if (!loginLoggedRef.current) {
-              loginLoggedRef.current = true;
+            const sessionKey = `login_logged_${user.uid}`;
+            if (!sessionStorage.getItem(sessionKey)) {
+              sessionStorage.setItem(sessionKey, 'true');
+
+              const userName = `${backendUserData.firstName || ''} ${backendUserData.lastName || ''}`.trim()
+                || user.email;
+
               apiClient.post('/activity-logs', {
                 action: 'login',
                 userEmail: user.email || '',
-                userName: backendUserData.displayName
-                  || backendUserData.fullName
-                  || `${backendUserData.firstName || ''} ${backendUserData.lastName || ''}`.trim()
-                  || user.email,
+                userName,
                 userRole: backendUserData.role || '',
+                firstName: backendUserData.firstName || '',
+                lastName: backendUserData.lastName || '',
               }).catch(err => console.error('Activity log error:', err));
             }
+
           } catch (userError) {
-            // User not found in backend — register as new 'user' (pending) role
             console.log('User not found in backend, registering as new user...');
             try {
-              const displayName  = user.displayName || '';
-              const nameParts    = displayName.split(' ');
-              const firstName    = nameParts[0] || '';
-              const lastName     = nameParts.slice(1).join(' ') || '';
-              const username     = user.email;
+              const displayName = user.displayName || '';
+              const nameParts = displayName.split(' ');
+              const firstName = nameParts[0] || '';
+              const lastName = nameParts.slice(1).join(' ') || '';
+              const username = user.email;
 
               const { registerUser } = await import('@/features/auth/register');
               await registerUser(firstName, lastName, username);
@@ -95,11 +95,16 @@ export default function AuthProvider({ children }) {
           setLoading(false);
         }
       } else {
-        // User signed out — clear all state
+        // ✅ ref always has the real uid, no stale closure issue
+        const lastUid = currentUidRef.current;
+        if (lastUid) {
+          sessionStorage.removeItem(`login_logged_${lastUid}`);
+          currentUidRef.current = null;
+        }
+
         setCurrentUser(null);
         setUserLoggedIn(false);
         setUserData(null);
-        loginLoggedRef.current = false;
         disconnectSocket();
 
         localStorage.removeItem('token');

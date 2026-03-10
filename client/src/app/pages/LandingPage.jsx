@@ -13,6 +13,7 @@ import person1 from "@/assets/images/profiles/person_1.jpg";
 import person2 from "@/assets/images/profiles/person_2.jpg";
 import person3 from "@/assets/images/profiles/person_3.jpg";
 import person4 from "@/assets/images/profiles/person_4.jpg";
+import adviser from "@/assets/images/profiles/mam.png";
 
 /* ───────── smooth-scroll helper ───────── */
 const scrollTo = (id) => {
@@ -50,10 +51,10 @@ const STATS = [
 ];
 
 const TEAM = [
-  { name: "John Leonard O. Nagallo", role: "Lead Developer & Project Manager", initials: "JN", desc: "Full-stack development and system architecture.", img: person2 },
-  { name: "Gwyneth Selwyn Zoe G. Ortiz", role: "UI/UX Designer & Frontend Developer", initials: "GO", desc: "Accessible and intuitive user interface design.", img: person1 },
-  { name: "Jade C. Pis-an", role: "Backend Developer & AI Specialist", initials: "JP", desc: "AI integration, data security, and system reliability.", img: person3 },
-  { name: "Lester I. Sible", role: "Database Admin & Research Lead", initials: "LS", desc: "Data infrastructure and community-centered research.", img: person4 },
+  { name: "John Leonard O. Nagallo", role: "Lead Developer & Project Manager", initials: "JN", img: person2 },
+  { name: "Gwyneth Selwyn Zoe G. Ortiz", role: "Lead Documentation", initials: "GO", img: person1 },
+  { name: "Jade C. Pis-an", role: "Frontend/UI Developer", initials: "JP", img: person3 },
+  { name: "Lester I. Sible", role: "Frontend/UI Developer", initials: "LS", img: person4 },
 ];
 
 /* ───────── section wrapper ───────── */
@@ -355,6 +356,8 @@ export default function LandingPage() {
 
       {/* ─── TEAM ─── */}
       <Section id="team" py={90}>
+
+        {/* ── Section header ── */}
         <Stack align="center" mb={rem(50)}>
           <SectionBadge>The Team</SectionBadge>
           <Title order={2} ta="center" c={CHARCOAL}>The Minds Behind JustReach</Title>
@@ -362,24 +365,88 @@ export default function LandingPage() {
             IT students from the Technological University of the Philippines – Taguig, committed to making a difference through technology.
           </Text>
         </Stack>
+
+        {/* ── Technical Adviser ── */}
+        <Stack align="center" mb={rem(48)}>
+          <Text
+            size="xs"
+            fw={700}
+            tt="uppercase"
+            lts={1.5}
+            c={MUTED_OLIVE}
+            mb={4}
+          >
+            Technical Adviser
+          </Text>
+          <Card
+            radius="md"
+            padding="xl"
+            withBorder
+            style={{
+              borderColor: `${PRIMARY_GOLD}60`,
+              textAlign: "center",
+              width: "100%",
+              maxWidth: 260,
+              background: `linear-gradient(160deg, #fffdf7 0%, #fff8ec 100%)`,
+            }}
+          >
+            <Avatar
+  size={90}
+  radius="xl"
+  mx="auto"
+  mb="md"
+  src={adviser}   // 👈 add this
+  style={{
+    border: `2px solid ${PRIMARY_GOLD}`,
+    background: `linear-gradient(135deg, ${PRIMARY_GOLD}30, ${PRIMARY_BROWN}20)`,
+  }}
+>
+  <Text fw={700} c={PRIMARY_BROWN} size="lg">ML</Text>
+</Avatar>
+            <Text fw={700} size="md" c={CHARCOAL} mb={4}>
+              Maracris M. Lappay
+            </Text>
+            <Text size="xs" c={PRIMARY_BROWN} fw={600} mb={6}>
+              Technical Adviser
+            </Text>
+            <Text size="xs" c="dimmed" lh={1.6}>
+              Faculty adviser guiding the development and technical direction of JustReach.
+            </Text>
+          </Card>
+        </Stack>
+
+        {/* ── Team members ── */}
         <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="xl">
           {TEAM.map((m) => (
-            <Card key={m.initials} radius="md" padding="xl" withBorder style={{ borderColor: "#f0ede8", textAlign: "center" }}>
-              <Avatar size={80} radius="xl" mx="auto" mb="md" src={m.img}
-                style={{ border: `2px solid ${PRIMARY_GOLD}40` }}>
+            <Card
+              key={m.initials}
+              radius="md"
+              padding="xl"
+              withBorder
+              style={{ borderColor: "#f0ede8", textAlign: "center" }}
+            >
+              <Avatar
+                size={80}
+                radius="xl"
+                mx="auto"
+                mb="md"
+                src={m.img}
+                style={{ border: `2px solid ${PRIMARY_GOLD}40` }}
+              >
                 <Text fw={700} c="white" size="md">{m.initials}</Text>
               </Avatar>
-              <Text fw={600} size="md" c={CHARCOAL}>{m.name}</Text>
+
+              {/* Fixed-height name area so all roles line up */}
+              <Box style={{ minHeight: 52, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Text fw={600} size="md" c={CHARCOAL} lh={1.4}>{m.name}</Text>
+              </Box>
+
               <Text size="xs" c={PRIMARY_BROWN} fw={500} mb={6}>{m.role}</Text>
               <Text size="sm" c="dimmed">{m.desc}</Text>
-              <Group justify="center" gap={8} mt="sm">
-                <IconBrandLinkedin size={18} color={MUTED_OLIVE} style={{ cursor: "pointer" }} />
-                <IconBrandGithub size={18} color={MUTED_OLIVE} style={{ cursor: "pointer" }} />
-                <IconMail size={18} color={MUTED_OLIVE} style={{ cursor: "pointer" }} />
-              </Group>
             </Card>
           ))}
         </SimpleGrid>
+
       </Section>
 
       {/* ─── CTA ─── */}

@@ -593,7 +593,9 @@ export default function AdminDashboard() {
                                   {config.label}
                                 </Badge>
                                 <Box style={{ minWidth: 0 }}>
-                                  <Text size="sm" fw={600} c={CHARCOAL} truncate>{log.userName || log.userEmail || 'Unknown User'}</Text>
+                                  <Text size="sm" fw={600} c={CHARCOAL} truncate>{
+                                    (log.firstName || '') + (log.lastName ? ' ' + log.lastName : '') || log.userName || log.userEmail || 'Unknown User'
+                                  }</Text>
                                   <Text size={10} fw={400} c="dimmed" truncate>{log.userEmail}</Text>
                                 </Box>
                               </Group>
@@ -626,7 +628,9 @@ export default function AdminDashboard() {
                               </Badge>
                             </Box>
                             <Box style={{ flex: 1, minWidth: 0 }}>
-                              <Text size="sm" fw={600} c={CHARCOAL} truncate>{log.userName || log.userEmail || 'Unknown User'}</Text>
+                              <Text size="sm" fw={600} c={CHARCOAL} truncate>{
+                                (log.firstName || '') + (log.lastName ? ' ' + log.lastName : '') || log.userName || log.userEmail || 'Unknown User'
+                              }</Text>
                               <Text size={10} fw={400} c="dimmed" truncate>{log.userEmail}</Text>
                             </Box>
                             <Box style={{ width: 120, textAlign: 'center', flexShrink: 0 }}>
