@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 //Store token securely in device keychain/keystore
 export const storeToken = async (token) =>{
@@ -82,3 +83,30 @@ export const clearSecureData = async (key) =>{
         throw error
     }
 }
+
+// Cache user data using AsyncStorage (no size limit unlike SecureStore)
+export const storeUserData = async (data) => {
+    try {
+        await AsyncStorage.setItem('cachedUserData', JSON.stringify(data));
+    } catch (error) {
+        console.error('Failed to cache user data:', error);
+    }
+};
+
+export const getStoredUserData = async () => {
+    try {
+        const data = await AsyncStorage.getItem('cachedUserData');
+        return data ? JSON.parse(data) : null;
+    } catch (error) {
+        console.error('Failed to get cached user data:', error);
+        return null;
+    }
+};
+
+export const clearUserData = async () => {
+    try {
+        await AsyncStorage.removeItem('cachedUserData');
+    } catch (error) {
+        console.error('Failed to clear cached user data:', error);
+    }
+};

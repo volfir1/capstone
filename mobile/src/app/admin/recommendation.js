@@ -177,7 +177,7 @@ export default function RecommendationForAction() {
 
   // ─── Auto-populate fields based on user role (matches website) ───
   useEffect(() => {
-    if (!userData) return;
+    if (!userData || loading) return;
     const currentUserName = userData.firstName && userData.lastName
       ? `${userData.firstName} ${userData.lastName}`
       : userData.username || userData.displayName || 'Unknown User';
@@ -202,7 +202,7 @@ export default function RecommendationForAction() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [normalizedRole, userData]);
+  }, [normalizedRole, userData, loading]);
 
   // ──────────────────────────────────────────────────
   // API helpers
@@ -351,7 +351,11 @@ export default function RecommendationForAction() {
         }
 
         showToast('success', 'Submitted', 'Review submitted to the supervising lawyer for review.');
-        router.back();
+        Alert.alert(
+          'Review Submitted',
+          'The initial interview review has been submitted to the Supervising Lawyer for review.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
         return;
       }
 
@@ -402,7 +406,11 @@ export default function RecommendationForAction() {
       }
 
       showToast('success', 'Finalized', 'Case finalized successfully.');
-      router.back();
+      Alert.alert(
+        'Case Finalized',
+        'The case has been finalized by the Director.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (error) {
       console.error('handleSubmit error:', error);
       showToast('error', 'Error', 'Failed to save recommendation.');
@@ -458,7 +466,11 @@ export default function RecommendationForAction() {
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
       showToast('success', 'Resubmitted', 'Review resubmitted for supervising lawyer review.');
-      router.back();
+      Alert.alert(
+        'Review Resubmitted',
+        'The review has been resubmitted to the Supervising Lawyer for review.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (err) {
       console.error('handleResubmitForReview error:', err);
       showToast('error', 'Error', 'Failed to resubmit review.');
@@ -487,7 +499,11 @@ export default function RecommendationForAction() {
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
       showToast('success', 'Returned', 'Review returned to intern for revision.');
-      router.back();
+      Alert.alert(
+        'Review Returned',
+        'The review has been returned to the Secretary/Intern for revision.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (err) {
       console.error('handleReturnToIntern error:', err);
       showToast('error', 'Error', 'Failed to return review to intern.');
@@ -516,7 +532,11 @@ export default function RecommendationForAction() {
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
       showToast('success', 'Approved', 'Review approved and sent to director for review.');
-      router.back();
+      Alert.alert(
+        'Review Forwarded',
+        'The review has been forwarded from the Supervising Lawyer to the Director for approval.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (err) {
       console.error('handleApproveToDirector error:', err);
       showToast('error', 'Error', 'Failed to approve review to director.');
@@ -545,7 +565,11 @@ export default function RecommendationForAction() {
       };
       await apiClient.put(`/reviews/${reviewId}`, updatePayload);
       showToast('success', 'Returned', 'Review returned to supervising lawyer.');
-      router.back();
+      Alert.alert(
+        'Review Returned',
+        'The review has been returned from the Director to the Supervising Lawyer for further review.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (err) {
       console.error('handleReturnToSupervisingLawyer error:', err);
       showToast('error', 'Error', 'Failed to return review to supervising lawyer.');

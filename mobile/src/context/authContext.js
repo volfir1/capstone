@@ -8,7 +8,7 @@ import {
   doSignOut,
   doSendEmailVerification,
 } from "../firebaseApp/auth";
-import { storeToken, getStoredToken, clearToken } from "utils/secureStore";
+import { storeToken, getStoredToken, clearToken, storeUserData, getStoredUserData, clearUserData } from "utils/secureStore";
 import { getUserData } from "../features/auth/user";
 import { verifyUser } from "../features/auth/auth";
 import { registerForPushNotifications, unregisterPushNotifications } from "../utils/pushNotifications";
@@ -48,6 +48,17 @@ export const AuthProvider = ({ children }) => {
       setCurrentUser({ ...user });
       setUserLoggedIn(true);
 
+      // Try to load cached user data immediately for instant redirect
+      try {
+        const cachedData = await getStoredUserData();
+        if (cachedData) {
+          console.log("Loaded cached user data for instant redirect");
+          setUserData(cachedData);
+        }
+      } catch (cacheErr) {
+        console.warn('Failed to load cached user data:', cacheErr);
+      }
+
       try {
         await user.reload();
 
@@ -72,7 +83,8 @@ export const AuthProvider = ({ children }) => {
             const backendUserData = await getUserData();
             // getUserData() returns { data: { ... }, success: true }
             setUserData(backendUserData.data);
-            console.log("User data loaded:", backendUserData.data);
+            await storeUserData(backendUserData.data);
+            console.log("User data loaded and cached:", backendUserData.data);
 
             // Register for push notifications after successful login
             registerForPushNotifications().then(token => {
@@ -111,6 +123,7 @@ export const AuthProvider = ({ children }) => {
 
                 const newUserData = await getUserData();
                 setUserData(newUserData.data);
+                await storeUserData(newUserData.data);
                 console.log("New user created and loaded:", newUserData.data);
               } catch (registerError) {
                 console.log("Registration attempt failed (this may be expected):", registerError.response?.status);
@@ -121,6 +134,7 @@ export const AuthProvider = ({ children }) => {
                   try {
                     const retryUserData = await getUserData();
                     setUserData(retryUserData.data);
+                    await storeUserData(retryUserData.data);
                     console.log("User data loaded on retry:", retryUserData.data);
                   } catch (retryError) {
                     console.error(
@@ -144,12 +158,20 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error("Failed to fetch user data:", error);
-        setUserData(null);
+        // If network failed but we have cached data, keep using it
+        const cachedFallback = await getStoredUserData();
+        if (cachedFallback) {
+          console.log("Using cached user data after network failure");
+          setUserData(cachedFallback);
+        } else {
+          setUserData(null);
+        }
       }
     } else {
       // Clear secure storage and any auth headers when there's no user
       try {
         await clearToken();
+        await clearUserData();
       } catch (e) {
         console.warn('Failed clearing token during initializeUser:', e);
       }
@@ -264,9 +286,10 @@ export const AuthProvider = ({ children }) => {
         console.log('No Firebase user found, skipping signOut()');
       }
 
-      // Clear stored token
+      // Clear stored token and cached user data
       try {
         await clearToken();
+        await clearUserData();
       } catch (e) {
         console.warn('Failed to clear token on logout:', e);
       }
