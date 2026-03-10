@@ -208,11 +208,16 @@ app.post('/api/upload/document', authenticateFirebaseToken, (req, res, next) => 
         overwrite: true,
         type: 'private', // private delivery — URL requires signature to access
       });
-      // Generate a signed URL so the client can fetch the file securely
-      cloudinaryUrl = cloudinary.url(
-        uploadResult.public_id + '.' + (req.file.originalname.split('.').pop() || 'bin'),
-        { resource_type: 'raw', type: 'private', sign_url: true, secure: true }
-      );
+      // Generate a signed URL so the client can fetch the file securely.
+      // For raw resources, the public_id already includes the file extension,
+      // so we must NOT append it again (would cause double-extension → 404).
+      cloudinaryUrl = cloudinary.url(uploadResult.public_id, {
+        resource_type: 'raw',
+        type: 'private',
+        sign_url: true,
+        secure: true,
+        version: uploadResult.version,
+      });
       console.log('Document uploaded to Cloudinary (private, signed):', cloudinaryUrl);
     } catch (cloudErr) {
       console.warn('Cloudinary upload failed (file still available on disk):', cloudErr.message);
