@@ -70,6 +70,30 @@ const getServerFileUrl = (pathOrUrl) => {
   return `${apiHost}/${pathOrUrl}`;
 };
 
+const loadImageAsDataUrl = (pathOrUrl) => new Promise((resolve, reject) => {
+  if (!pathOrUrl) {
+    resolve(null);
+    return;
+  }
+
+  const image = new Image();
+  image.crossOrigin = 'anonymous';
+  image.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(image, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    } catch (error) {
+      reject(error);
+    }
+  };
+  image.onerror = () => reject(new Error(`Failed to load image: ${pathOrUrl}`));
+  image.src = getServerFileUrl(pathOrUrl);
+});
+
 const APPOINTMENT_STATUS_OPTIONS = [
   { value: 'auto-scheduled', label: 'Auto-scheduled' },
   { value: 'confirmed', label: 'Confirmed' },
@@ -764,6 +788,24 @@ export default function FinalizedCases() {
       const finalizeId = d._id || d.id;
 
       const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      let supervisingLawyerSignatureImage = null;
+      let directorSignatureImage = null;
+
+      try {
+        if (action.supervisingLawyerSignatureUrl) {
+          supervisingLawyerSignatureImage = await loadImageAsDataUrl(action.supervisingLawyerSignatureUrl);
+        }
+      } catch (imageErr) {
+        console.warn('Could not load supervising lawyer signature for PDF export:', imageErr);
+      }
+
+      try {
+        if (action.directorSignatureUrl) {
+          directorSignatureImage = await loadImageAsDataUrl(action.directorSignatureUrl);
+        }
+      } catch (imageErr) {
+        console.warn('Could not load director signature for PDF export:', imageErr);
+      }
 
       // Page 1
       const endY = drawRecommendationForActionTemplate(doc, {
@@ -788,7 +830,9 @@ export default function FinalizedCases() {
         decisionNote: formatText(action.decisionNote),
         assignedTo: formatText(action.assignedTo),
         supervisingLawyer: formatText(action.supervisingLawyer),
+        supervisingLawyerSignatureImage,
         directorSignature: formatText(action.directorSignature),
+        directorSignatureImage,
         signatureDate: formatDate(action.signatureDate),
       }, endY);
 
@@ -934,18 +978,13 @@ export default function FinalizedCases() {
     doc.rect(margin, y, leftBoxW, headerH);
     doc.rect(margin + leftBoxW, y, rightBoxW, headerH);
 
-    setFont(10, "normal");
-    doc.text(
-      [
-        "San Sebastian Office of Legal Aid (SOLA)",
-        "College of Law",
-        "San Sebastian College - Recoletos, Manila",
-      ],
-      margin + 2,
-      y + 6
-    );
-
     setFont(10, "bold");
+    doc.text("San Sebastian Office of Legal Aid (SOLA)", margin + 2, y + 6);
+    setFont(10, "normal");
+    doc.text("College of Law", margin + 2, y + 10);
+    doc.text("San Sebastian College - Recoletos, Manila", margin + 2, y + 14);
+
+    setFont(8.5, "bold");
     doc.text("RECOMMENDATION FOR ACTION", margin + leftBoxW + rightBoxW / 2, y + 10, {
       align: "center",
       maxWidth: rightBoxW - 4,
@@ -1143,6 +1182,76 @@ export default function FinalizedCases() {
       return lineX;
     };
 
+    const drawCenteredValueUnderLine = (label, value, x, y, w, options = {}) => {
+      const {
+        fontSize = 9,
+        topOffset = 5.2,
+        minLineWidth = 24,
+      } = options;
+      const lineStartX = drawLabelLine(label, x, y, w);
+      const contentX = lineStartX + 2;
+      const contentW = Math.max(minLineWidth, x + w - contentX);
+      const centerX = contentX + (contentW / 2);
+      setFont(fontSize, 'normal');
+      doc.text(safeText(value), centerX, y + topOffset, { align: 'center' });
+      return { lineStartX, contentX, contentW, centerX };
+    };
+
+    const drawCenteredValueNearLine = (label, value, x, y, w, options = {}) => {
+      const {
+        fontSize = 9,
+        topOffset = 4.1,
+        minLineWidth = 24,
+      } = options;
+      const lineStartX = drawLabelLine(label, x, y, w);
+      const contentX = lineStartX + 2;
+      const contentW = Math.max(minLineWidth, x + w - contentX);
+      const centerX = contentX + (contentW / 2);
+      setFont(fontSize, 'normal');
+      doc.text(safeText(value), centerX, y + topOffset, { align: 'center' });
+      return { lineStartX, contentX, contentW, centerX };
+    };
+
+    const drawSignatureBlock = (label, printedName, signatureImage, x, y, w) => {
+      const { contentX: availableX, contentW: availableW, centerX } = drawCenteredValueUnderLine(
+        label,
+        printedName,
+        x,
+        y,
+        w,
+        { topOffset: 4.9, minLineWidth: 34 },
+      );
+
+      if (signatureImage) {
+        try {
+          let imageWidth = Math.min(availableW * 0.78, 42);
+          let imageHeight = 14;
+          try {
+            const props = doc.getImageProperties(signatureImage);
+            if (props?.width && props?.height) {
+              imageHeight = imageWidth * (props.height / props.width);
+            }
+          } catch (sizeErr) {
+            // Fallback to default dimensions when image metadata is unavailable.
+          }
+
+          const maxHeight = 16;
+          if (imageHeight > maxHeight) {
+            const scale = maxHeight / imageHeight;
+            imageHeight *= scale;
+            imageWidth *= scale;
+          }
+
+          const imageX = centerX - (imageWidth / 2);
+          const imageY = y - (imageHeight * 0.82);
+          doc.addImage(signatureImage, 'PNG', imageX, imageY, imageWidth, imageHeight);
+        } catch (imageErr) {
+          console.warn(`Failed to draw ${label} image in recommendation PDF:`, imageErr);
+        }
+      }
+      return y + 14;
+    };
+
     const decision = safeText(data.decision).toLowerCase();
     const isAccepted = decision.includes('accept');
     const isRejected = decision.includes('reject');
@@ -1166,7 +1275,7 @@ export default function FinalizedCases() {
     // Estimate total height needed for the director section
     const commentH = measureTextHeight(data.supervisingComment, fullW, 10, 30);
     const actionH = measureTextHeight(data.decisionNote, fullW, 10, 30);
-    const totalNeeded = 6 + commentH + 10 + 6 + 5 + 5 + actionH + 12 + 10 + 36; // approx
+    const totalNeeded = 6 + commentH + 10 + 6 + 5 + 5 + actionH + 12 + 10 + 52;
 
     // Determine starting y: continue on current page if there's enough space, otherwise new page
     let y;
@@ -1231,21 +1340,28 @@ export default function FinalizedCases() {
 
     // Left: Law Interns
     setFont(10, 'normal');
-    doc.text('Law Interns:', leftX, y);
-    doc.line(leftX, y + 6, leftX + colW, y + 6);
-    drawMultilineInRect(data.assignedTo, leftX, y + 1, colW, 18, 10);
+    drawCenteredValueNearLine('Law Interns:', data.assignedTo, leftX, y, colW, { topOffset: -0.2 });
 
     // Right: Supervising Lawyer / Director's Signature / Date
-    drawLabelLine('Supervising Lawyer:', rightX, y, colW);
-    drawMultilineInRect(data.supervisingLawyer, rightX + 40, y - 4, colW - 40, 10, 10);
-
-    y += 12;
-    drawLabelLine("Director's Signature:", rightX, y, colW);
-    drawMultilineInRect(data.directorSignature, rightX + 42, y - 4, colW - 42, 10, 10);
-
-    y += 12;
-    drawLabelLine('Date:', rightX, y, colW);
-    drawMultilineInRect(data.signatureDate, rightX + 12, y - 4, colW - 12, 10, 10);
+    y = drawSignatureBlock(
+      'Supervising Lawyer:',
+      data.supervisingLawyer,
+      data.supervisingLawyerSignatureImage,
+      rightX,
+      y,
+      colW,
+    );
+    y += 2;
+    y = drawSignatureBlock(
+      "Director's Signature:",
+      data.directorSignature,
+      data.directorSignatureImage,
+      rightX,
+      y,
+      colW,
+    );
+    y += 4;
+    drawCenteredValueNearLine('Date:', data.signatureDate, rightX, y, colW, { topOffset: -0.2 });
 
     // Defensive: keep within page
     if (y > pageH - margin) return;

@@ -300,6 +300,52 @@ export default function AdminProfile() {
     }
   };
 
+  const handleSignatureSave = async (dataUrl) => {
+    try {
+      notifications.show({
+        id: 'signature-uploading',
+        title: 'Uploading',
+        message: 'Uploading signature...',
+        autoClose: false,
+      });
+
+      const res = await apiClient.post('/users/profile/signature/upload', { dataUrl });
+      const signatureUrl = res?.data?.data?.signatureUrl;
+
+      if (!signatureUrl) {
+        throw new Error('Signature upload did not return a URL');
+      }
+
+      if (isAttorney) {
+        setAttorneyData((prev) => ({ ...prev, signatureUrl }));
+      } else {
+        setUserData((prev) => ({ ...prev, signatureUrl }));
+      }
+      setEditedData((prev) => ({ ...prev, signatureUrl }));
+
+      notifications.update({
+        id: 'signature-uploading',
+        title: 'Uploaded',
+        message: 'Signature saved to your profile.',
+        color: 'green',
+        autoClose: 4000,
+      });
+
+      refreshUserData().catch(() => {});
+      return signatureUrl;
+    } catch (err) {
+      console.error('Signature upload failed', err);
+      notifications.update({
+        id: 'signature-uploading',
+        title: 'Upload Failed',
+        message: err.response?.data?.message || err.message || 'Failed to upload signature',
+        color: 'red',
+        autoClose: 4000,
+      });
+      throw err;
+    }
+  };
+
   if (authLoading) {
     return <ProfileSkeleton />;
   }
@@ -634,24 +680,16 @@ export default function AdminProfile() {
               </Paper>
 
               {/* ── Attorney-only sections below ── */}
-              {/* <Paper shadow="xs" p="xl" radius="lg" bg="white">
+              <Paper shadow="xs" p="xl" radius="lg" bg="white">
                 <Group mb="md" gap={8}>
                   <IconEdit size={18} color={ACCENT_TAN} stroke={2} />
                   <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase">Signature</Text>
                 </Group>
-                <Signature initialUrl={displayData.signatureUrl} onSave={async (dataUrl) => {
-                  try {
-                    notifications.show({ id: 'signature-uploading', title: 'Uploading', message: 'Uploading signature...', autoClose: false });
-                    const res = await apiClient.post('/users/profile/signature/upload', { dataUrl });
-                    const signatureUrl = res?.data?.data?.signatureUrl;
-                    notifications.update({ id: 'signature-uploading', title: 'Uploaded', message: 'Signature saved to your profile.', color: 'green', autoClose: 4000 });
-                    refreshUserData().catch(() => {});
-                    return signatureUrl;
-                  } catch (err) {
-                    console.error('Signature upload failed', err);
-                    notifications.update({ id: 'signature-uploading', title: 'Upload Failed', message: err.message || 'Failed to upload signature', color: 'red', autoClose: 4000 });
-                  }
-                }} />
+                <Signature
+                  initialUrl={displayData.signatureUrl}
+                  defaultTypedName={`${displayData.firstName || ''} ${displayData.lastName || ''}`.trim()}
+                  onSave={handleSignatureSave}
+                />
 
                 {displayData.signatureUrl && (
                   <Box mt="md">
@@ -665,7 +703,7 @@ export default function AdminProfile() {
                     </Box>
                   </Box>
                 )}
-              </Paper> */}
+              </Paper>
 
               {isAttorney && (
                 <>

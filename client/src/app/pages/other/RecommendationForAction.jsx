@@ -27,6 +27,7 @@ import {
     Loader,
     Center
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconArrowLeft, IconUpload, IconFile, IconX, IconDownload, IconEye, IconClock, IconCheck } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
@@ -210,6 +211,65 @@ import {
     approvedToDirectorNotif, approveToDirectorFailedNotif,
     noReviewIdNotif, fileRequiredNotif, fileNotUploadedNotif, fileUploadFailedNotif,
 } from '@utils/notification';
+import Signature from '@/features/auth/signature/Signature';
+
+const buildUserDisplayName = (user = {}) => {
+    if (user?.firstName && user?.lastName) {
+        return `${user.firstName} ${user.lastName}`;
+    }
+    return user?.username || user?.displayName || 'Unknown User';
+};
+
+const getTodayIsoDate = () => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+};
+
+const enrichActionInfoForRole = (value = {}, userRole = '', userData = null) => {
+    if (!userData) return value;
+
+    const currentUserName = buildUserDisplayName(userData);
+    const currentUserId = userData?._id || userData?.id || null;
+    const currentSignatureUrl = userData?.signatureUrl || '';
+    const nextValue = { ...value };
+
+    if (userRole === 'intern' || userRole === 'secretary') {
+        if (!nextValue.assignedTo) {
+            nextValue.assignedTo = currentUserName;
+        } else if (!nextValue.assignedTo.includes(currentUserName)) {
+            nextValue.assignedTo = `${nextValue.assignedTo}, ${currentUserName}`;
+        }
+
+        if (!nextValue.assignedToId && currentUserId) {
+            nextValue.assignedToId = currentUserId;
+        }
+        if (!nextValue.signatureDate) {
+            nextValue.signatureDate = getTodayIsoDate();
+        }
+    } else if (userRole === 'supervising_lawyer') {
+        if (!nextValue.supervisingLawyer) {
+            nextValue.supervisingLawyer = currentUserName;
+        }
+        if (!nextValue.supervisingLawyerId && currentUserId) {
+            nextValue.supervisingLawyerId = currentUserId;
+        }
+        if (!nextValue.supervisingLawyerSignatureUrl && currentSignatureUrl) {
+            nextValue.supervisingLawyerSignatureUrl = currentSignatureUrl;
+        }
+    } else if (userRole === 'director') {
+        if (!nextValue.directorSignature) {
+            nextValue.directorSignature = currentUserName;
+        }
+        if (!nextValue.directorId && currentUserId) {
+            nextValue.directorId = currentUserId;
+        }
+        if (!nextValue.directorSignatureUrl && currentSignatureUrl) {
+            nextValue.directorSignatureUrl = currentSignatureUrl;
+        }
+    }
+
+    return nextValue;
+};
 
 // --- Consolidated Constants ---
 const PRIMARY_GOLD = '#FFD700';
@@ -777,36 +837,29 @@ ClientInterviewSection.displayName = 'ClientInterviewSection';
 export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange = () => {}, forLegalAdvice = false, userRole = '', userData = null, currentReviewStage = '' }) => {
     // Auto-populate fields based on role
     React.useEffect(() => {
-        const currentUserName = userData?.firstName && userData?.lastName 
-            ? `${userData.firstName} ${userData.lastName}` 
-            : userData?.username || userData?.displayName || 'Unknown User';
-        const currentUserId = userData?._id || userData?.id || null;
-        
-        const today = new Date();
-        const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        
-        if ((userRole === 'intern' || userRole === 'secretary') && userData) {
-            // For interns/secretary: Append name to assignedTo if not already present
-            if (!value.assignedTo) {
-                onChange({ ...value, assignedTo: currentUserName, assignedToId: currentUserId, signatureDate: formattedDate });
-            } else if (!value.assignedTo.includes(currentUserName)) {
-                // Append name if different intern/secretary is editing
-                onChange({ ...value, assignedTo: value.assignedTo + ', ' + currentUserName, signatureDate: formattedDate });
-            } else if (!value.signatureDate) {
-                onChange({ ...value, signatureDate: formattedDate });
-            }
-        } else if (userRole === 'supervising_lawyer' && userData) {
-            // For supervising lawyers: Set supervisingLawyer name and ID if not already set
-            if (!value.supervisingLawyer) {
-                onChange({ ...value, supervisingLawyer: currentUserName, supervisingLawyerId: currentUserId });
-            }
-        } else if (userRole === 'director' && userData) {
-            // For directors: Set directorSignature and ID if not already set
-            if (!value.directorSignature) {
-                onChange({ ...value, directorSignature: currentUserName, directorId: currentUserId });
-            }
+        const nextValue = enrichActionInfoForRole(value, userRole, userData);
+        const changedKeys = [
+            'assignedTo',
+            'assignedToId',
+            'signatureDate',
+            'supervisingLawyer',
+            'supervisingLawyerId',
+            'supervisingLawyerSignatureUrl',
+            'directorSignature',
+            'directorId',
+            'directorSignatureUrl',
+        ];
+
+        const hasChanges = changedKeys.some((key) => nextValue[key] !== value[key]);
+        if (hasChanges) {
+            onChange(nextValue);
         }
-    }, [userRole, userData]);
+    }, [
+        onChange,
+        userData,
+        userRole,
+        value,
+    ]);
 
     // Determine if supervising lawyer section should be disabled
     const supervisingLawyerDisabled = userRole === 'intern' || userRole === 'secretary' || userRole === 'director' || currentReviewStage === 'director';
@@ -822,6 +875,36 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
       } else {
         onChange({ ...value, decision: val });
       }
+    };
+
+    const renderSignaturePreview = (label, url) => {
+        if (!url) return null;
+
+        return (
+            <Box>
+                <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                    {label}
+                </Text>
+                <Box
+                    style={{
+                        minHeight: 72,
+                        border: '1px solid #E5E0D8',
+                        borderRadius: 8,
+                        backgroundColor: '#FAFAF7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 8,
+                    }}
+                >
+                    <img
+                        src={url}
+                        alt={label}
+                        style={{ maxWidth: '100%', maxHeight: 56, objectFit: 'contain' }}
+                    />
+                </Box>
+            </Box>
+        );
     };
 
     return (
@@ -912,6 +995,7 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, md: 6 }}>
                     <Stack>
+                        {renderSignaturePreview('Supervising Lawyer Signature', value.supervisingLawyerSignatureUrl)}
                         <TextInput 
                             label="Supervising Lawyer" 
                             placeholder="Signature/Name of Supervising Lawyer" 
@@ -926,6 +1010,7 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                                 },
                             }}
                         />
+                        {renderSignaturePreview("Director's Signature", value.directorSignatureUrl)}
                         <TextInput 
                             label="Director's Signature" 
                             placeholder="Signature/Name of Director" 
@@ -970,7 +1055,7 @@ SupervisingLawyerActionSection.displayName = 'SupervisingLawyerActionSection';
 const totalSteps = 2;
 
 export default function CaseRecordFormsDisplay() {
-    const { userData } = useAuth();
+    const { userData, refreshUserData } = useAuth();
     const [active, setActive] = useState(0);
     const isIntern = userData?.role === 'intern' || userData?.role === 'secretary';
     const [reviews, setReviews] = useState([])
@@ -989,6 +1074,7 @@ export default function CaseRecordFormsDisplay() {
     const [currentViewingDoc, setCurrentViewingDoc] = useState(null);
     const [wordDocHtml, setWordDocHtml] = useState(null);
     const [wordDocLoading, setWordDocLoading] = useState(false);
+    const [signatureRequiredModalOpened, setSignatureRequiredModalOpened] = useState(false);
     
     const [fileInputKey, setFileInputKey] = useState(Date.now()); // Key to reset file input
     const location = useLocation();
@@ -1016,6 +1102,78 @@ export default function CaseRecordFormsDisplay() {
         const possibleCaseId = pathParts[pathParts.length - 1];
         return possibleCaseId && possibleCaseId !== 'recommendation' ? possibleCaseId : 'new-case';
     };
+
+    const directorNeedsSignature = userData?.role === 'director' && !userData?.signatureUrl;
+
+    const handleApprovalSignatureSave = async (dataUrl) => {
+        try {
+            notifications.show({
+                id: 'approval-signature-uploading',
+                title: 'Saving signature',
+                message: 'Saving your signature before approval...',
+                autoClose: false,
+            });
+
+            const response = await apiClient.post('/users/profile/signature/upload', { dataUrl });
+            const signatureUrl = response?.data?.data?.signatureUrl;
+
+            if (!signatureUrl) {
+                throw new Error('Signature upload did not return a URL');
+            }
+
+            await refreshUserData?.();
+
+            notifications.update({
+                id: 'approval-signature-uploading',
+                title: 'Signature saved',
+                message: 'Your profile signature is ready. You can approve the case now.',
+                color: 'green',
+                autoClose: 4000,
+            });
+
+            setSignatureRequiredModalOpened(false);
+            return signatureUrl;
+        } catch (error) {
+            notifications.update({
+                id: 'approval-signature-uploading',
+                title: 'Signature save failed',
+                message: error.response?.data?.message || error.message || 'Failed to save signature.',
+                color: 'red',
+                autoClose: 4000,
+            });
+            throw error;
+        }
+    };
+
+    const hydrateActionInfoMetadata = React.useCallback(async (baseActionInfo = {}) => {
+        let nextActionInfo = enrichActionInfoForRole(baseActionInfo, userData?.role, userData);
+        const signerKeys = [
+            { idKey: 'supervisingLawyerId', nameKey: 'supervisingLawyer', urlKey: 'supervisingLawyerSignatureUrl' },
+            { idKey: 'directorId', nameKey: 'directorSignature', urlKey: 'directorSignatureUrl' },
+        ];
+
+        for (const { idKey, nameKey, urlKey } of signerKeys) {
+            const signerId = nextActionInfo[idKey];
+            if (!signerId || (nextActionInfo[nameKey] && nextActionInfo[urlKey])) continue;
+
+            try {
+                const response = await apiClient.get(`/users/${signerId}`);
+                const profile = response?.data?.data;
+                if (!profile) continue;
+
+                if (!nextActionInfo[nameKey]) {
+                    nextActionInfo[nameKey] = buildUserDisplayName(profile);
+                }
+                if (!nextActionInfo[urlKey] && profile.signatureUrl) {
+                    nextActionInfo[urlKey] = profile.signatureUrl;
+                }
+            } catch (error) {
+                console.warn(`Unable to hydrate signer metadata for ${idKey}:`, error?.message || error);
+            }
+        }
+
+        return nextActionInfo;
+    }, [userData]);
 
     useEffect(() => {
         const review = location?.state?.review;
@@ -1116,6 +1274,51 @@ export default function CaseRecordFormsDisplay() {
             setUploadedFile(null); // Reset file
         }
     }, [location]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const hydrateActionInfo = async () => {
+            if (!actionInfo || Object.keys(actionInfo).length === 0) return;
+
+            const hydrated = await hydrateActionInfoMetadata(actionInfo);
+            if (cancelled) return;
+
+            const changedKeys = [
+                'assignedTo',
+                'assignedToId',
+                'signatureDate',
+                'supervisingLawyer',
+                'supervisingLawyerId',
+                'supervisingLawyerSignatureUrl',
+                'directorSignature',
+                'directorId',
+                'directorSignatureUrl',
+            ];
+
+            const hasChanges = changedKeys.some((key) => hydrated[key] !== actionInfo[key]);
+            if (hasChanges) {
+                setActionInfo((prev) => ({ ...prev, ...hydrated }));
+            }
+        };
+
+        hydrateActionInfo();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        actionInfo.assignedTo,
+        actionInfo.assignedToId,
+        actionInfo.signatureDate,
+        actionInfo.supervisingLawyer,
+        actionInfo.supervisingLawyerId,
+        actionInfo.supervisingLawyerSignatureUrl,
+        actionInfo.directorSignature,
+        actionInfo.directorId,
+        actionInfo.directorSignatureUrl,
+        hydrateActionInfoMetadata,
+    ]);
 
     // When navigating from notification click (caseId in URL but no review in state),
     // fetch the latest review for this caseId and load it into the form.
@@ -1700,6 +1903,20 @@ export default function CaseRecordFormsDisplay() {
             document.activeElement.blur();
             await new Promise(r => setTimeout(r, 0));
         }
+
+        const directorIsFinalizingDecision = userData?.role === 'director'
+            && active === totalSteps - 1
+            && (actionInfo.decision === 'accepted' || actionInfo.decision === 'rejected');
+
+        if (directorIsFinalizingDecision && !userData?.signatureUrl) {
+            setSignatureRequiredModalOpened(true);
+            notifications.show({
+                title: 'Signature required',
+                message: 'Directors need a saved signature before approving or rejecting a case.',
+                color: 'yellow',
+            });
+            return;
+        }
         
         // Check if file is required but not uploaded
         if (interviewInfo.caseType === 'legal-document' && !uploadedFile) {
@@ -1753,6 +1970,9 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
+        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        setActionInfo(preparedActionInfo);
+
         const reviewPayload = {
             caseId: caseId,
             reviewerId: userData?.id || userData?._id || null,
@@ -1761,7 +1981,7 @@ export default function CaseRecordFormsDisplay() {
             reviewStage: 'supervising_lawyer', // Start with supervising lawyer review
             content: { 
                 interviewInfo: completeInterviewInfo,
-                actionInfo: actionInfo 
+                actionInfo: preparedActionInfo
             }
         };
 
@@ -1923,7 +2143,7 @@ export default function CaseRecordFormsDisplay() {
                     decision: finalDecision,
                     content: { 
                         interviewInfo: completeInterviewInfo, 
-                        actionInfo: { ...actionInfo, decision: finalDecision }
+                        actionInfo: { ...preparedActionInfo, decision: finalDecision }
                     }
                 }
                 const resFinalize = await apiClient.post('/finalize', finalizePayload)
@@ -2054,10 +2274,13 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
+        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        setActionInfo(preparedActionInfo);
+
         const updatePayload = {
             content: { 
                 interviewInfo: completeInterviewInfo,
-                actionInfo 
+                actionInfo: preparedActionInfo
             }
         };
 
@@ -2110,11 +2333,14 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
+        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        setActionInfo(preparedActionInfo);
+
         const updatePayload = {
             reviewStage: 'supervising_lawyer', // Resubmit to supervising lawyer
             content: { 
                 interviewInfo: completeInterviewInfo,
-                actionInfo 
+                actionInfo: preparedActionInfo
             }
         };
 
@@ -2170,11 +2396,14 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
+        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        setActionInfo(preparedActionInfo);
+
         const updatePayload = {
             reviewStage: 'returned_to_intern', // Move back to intern
             content: { 
                 interviewInfo: completeInterviewInfo,
-                actionInfo 
+                actionInfo: preparedActionInfo
             }
         };
 
@@ -2230,11 +2459,14 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
+        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        setActionInfo(preparedActionInfo);
+
         const updatePayload = {
             reviewStage: 'supervising_lawyer', // Move back to supervising lawyer
             content: { 
                 interviewInfo: completeInterviewInfo,
-                actionInfo 
+                actionInfo: preparedActionInfo
             }
         };
 
@@ -2290,11 +2522,14 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
+        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        setActionInfo(preparedActionInfo);
+
         const updatePayload = {
             reviewStage: 'director', // Move to director review stage
             content: { 
                 interviewInfo: completeInterviewInfo,
-                actionInfo 
+                actionInfo: preparedActionInfo
             }
         };
 
@@ -2639,6 +2874,14 @@ export default function CaseRecordFormsDisplay() {
                         </Stepper>
                         
                         <Divider />
+
+                        {directorNeedsSignature && userData?.role === 'director' && currentReviewStage === 'director' && (
+                            <Alert color="yellow" title="Signature required before final approval">
+                                <Text size="sm">
+                                    Save a profile signature first before approving or rejecting this case. The saved signature will be used in the recommendation record and exported PDF.
+                                </Text>
+                            </Alert>
+                        )}
                         
                         {/* Current Step Content */}
                         {renderStepContent()}
@@ -2882,6 +3125,32 @@ export default function CaseRecordFormsDisplay() {
             ) : (
                 mainContent
             )}
+
+            <Modal
+                opened={signatureRequiredModalOpened}
+                onClose={() => setSignatureRequiredModalOpened(false)}
+                title="Director Signature Required"
+                centered
+                size="lg"
+            >
+                <Stack gap="md">
+                    <Alert color="yellow" title="Approval is paused">
+                        <Text size="sm">
+                            Before a director can approve or reject a case, the profile must have a saved signature. Create one below using draw, typed signature, or image upload.
+                        </Text>
+                    </Alert>
+
+                    <Signature
+                        initialUrl={userData?.signatureUrl || null}
+                        defaultTypedName={buildUserDisplayName(userData)}
+                        onSave={handleApprovalSignatureSave}
+                    />
+
+                    <Text size="xs" c="dimmed">
+                        After saving, the modal will close and you can click the approval button again.
+                    </Text>
+                </Stack>
+            </Modal>
             
             {/* Document Viewer Modal */}
             <Modal
