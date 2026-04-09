@@ -27,10 +27,9 @@ import {
   ACCENT_TAN,
   BG
 } from '@utils/constants';
-import { generateGoogleCalendarUrl } from '@utils/googleCalendar';
 
 export default function StaffAppointmentManager() {
-  const { userData, currentUser, refreshUserData } = useAuth();
+  const { userData, refreshUserData } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarFilter, setCalendarFilter] = useState('All');
   const [selectedFilterDate, setSelectedFilterDate] = useState(null);
@@ -71,6 +70,7 @@ export default function StaffAppointmentManager() {
   const [appointmentToApprove, setAppointmentToApprove] = useState(null);
   const [activeTab, setActiveTab] = useState('pending');
   const [isGoogleConnected, setIsGoogleConnected] = useState(userData?.google?.connected || false);
+  const [googleConnectedEmail, setGoogleConnectedEmail] = useState(userData?.google?.connectedEmail || '');
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -79,8 +79,9 @@ export default function StaffAppointmentManager() {
   useEffect(() => {
     if (userData?.google?.connected !== undefined) {
       setIsGoogleConnected(userData.google.connected);
+      setGoogleConnectedEmail(userData.google.connectedEmail || '');
     }
-  }, [userData?.google?.connected]);
+  }, [userData?.google?.connected, userData?.google?.connectedEmail]);
 
   // Handle ?google=connected redirect from OAuth callback
   useEffect(() => {
@@ -91,12 +92,20 @@ export default function StaffAppointmentManager() {
       const newSearch = params.toString();
       navigate(location.pathname + (newSearch ? `?${newSearch}` : ''), { replace: true });
       // Refresh user data to pick up the new google.connected status
-      refreshUserData().then((freshData) => {
-        if (freshData?.google?.connected) {
-          setIsGoogleConnected(true);
-          notifications.show({ title: 'Connected!', message: 'Google Calendar is now connected.', color: 'green', icon: <IconCheck size={18} /> });
-        }
-      }).catch(() => { /* ignore */ });
+        refreshUserData().then((freshData) => {
+          if (freshData?.google?.connected) {
+            setIsGoogleConnected(true);
+            setGoogleConnectedEmail(freshData?.google?.connectedEmail || '');
+            notifications.show({
+              title: 'Connected!',
+              message: freshData?.google?.connectedEmail
+                ? `Google Calendar is now connected for this profile as ${freshData.google.connectedEmail}.`
+                : 'Google Calendar is now connected for this profile.',
+              color: 'green',
+              icon: <IconCheck size={18} />,
+            });
+          }
+        }).catch(() => { /* ignore */ });
     }
   }, [location.search]);
 
@@ -104,32 +113,146 @@ export default function StaffAppointmentManager() {
   const isGoogleReconnectError = (err) => {
     const errData = err?.response?.data;
     return errData?.error === 'google_reconnect_required' ||
-           errData?.error === 'User has not connected Google Calendar';
+           errData?.error === 'User has not connected Google Calendar' ||
+           errData?.error === 'profile_google_not_connected';
   };
 
   const handleConnectGoogleCalendar = async () => {
     try {
       setIsConnectingGoogle(true);
+      const wasConnected = !!isGoogleConnected;
+      const previousConnectedEmail = String(googleConnectedEmail || '').trim().toLowerCase();
       const { default: apiClient } = await import('@config/api/apiClient');
-      const { data } = await apiClient.post('/google/connect', { firebaseUid: currentUser.uid });
+      const { data } = await apiClient.post('/google/connect');
       if (data?.url) {
-        window.open(data.url, '_blank', 'width=600,height=700');
-        notifications.show({ title: 'Google Calendar', message: 'Complete authorization in the new window. Come back here when done.', color: 'blue', autoClose: 8000 });
-        const pollInterval = setInterval(async () => {
+        const popup = window.open(data.url, '_blank', 'width=600,height=700');
+        if (!popup) {
+          window.location.assign(data.url);
+          return;
+        }
+
+        notifications.show({
+          title: 'Google Calendar',
+          message: 'Complete authorization for this selected profile in the new window. Come back here when done.',
+          color: 'blue',
+          autoClose: 8000,
+        });
+        let finished = false;
+        const finishConnectionFlow = async (completed) => {
+          if (finished) return;
+          finished = true;
+          clearInterval(pollInterval);
+          clearTimeout(timeoutId);
+
           try {
             const freshData = await refreshUserData();
-            if (freshData?.google?.connected) {
-              clearInterval(pollInterval);
+            const connected = !!freshData?.google?.connected;
+            const connectedEmail = freshData?.google?.connectedEmail || '';
+            const normalizedConnectedEmail = connectedEmail.trim().toLowerCase();
+            const switchedAccount =
+              !!normalizedConnectedEmail &&
+              normalizedConnectedEmail !== previousConnectedEmail;
+
+            if ((completed && connected) || (!completed && connected && (!wasConnected || switchedAccount))) {
               setIsGoogleConnected(true);
-              notifications.show({ title: 'Connected!', message: 'Google Calendar is now connected.', color: 'green', icon: <IconCheck size={18} /> });
+              setGoogleConnectedEmail(connectedEmail);
+              notifications.show({
+                title: 'Connected!',
+                message: connectedEmail
+                  ? `This profile is now using ${connectedEmail} for Google Calendar.`
+                  : 'Google Calendar is now connected for this profile.',
+                color: 'green',
+                icon: <IconCheck size={18} />,
+              });
+            } else if (!completed) {
+              notifications.show({
+                title: 'Connection Cancelled',
+                message: 'Google Calendar connection was not completed for this profile.',
+                color: 'yellow',
+              });
             }
-          } catch (_) { /* ignore polling errors */ }
-        }, 3000);
-        setTimeout(() => clearInterval(pollInterval), 120000);
+          } catch (_) {
+            if (completed) {
+              notifications.show({
+                title: 'Connected',
+                message: 'Google Calendar authorization finished. Refresh the page if the status does not update.',
+                color: 'blue',
+              });
+            }
+          } finally {
+            setIsConnectingGoogle(false);
+          }
+        };
+
+        const pollInterval = setInterval(async () => {
+          if (popup.closed) {
+            await finishConnectionFlow(false);
+            return;
+          }
+
+          try {
+            const popupUrl = popup.location?.href || '';
+            if (!popupUrl || !popupUrl.startsWith(window.location.origin)) {
+              return;
+            }
+
+            const popupLocation = new URL(popupUrl);
+            if (popupLocation.searchParams.get('google') !== 'connected') {
+              return;
+            }
+
+            try {
+              popup.close();
+            } catch (_) {
+              // ignore popup close issues
+            }
+
+            await finishConnectionFlow(true);
+          } catch (_) {
+            // Cross-origin access is expected until Google redirects back to our app.
+          }
+        }, 1500);
+
+        const timeoutId = setTimeout(async () => {
+          if (finished) return;
+          try {
+            popup.close();
+          } catch (_) {
+            // ignore popup close issues
+          }
+          await finishConnectionFlow(false);
+        }, 120000);
+      } else {
+        throw new Error('Missing Google OAuth URL');
       }
     } catch (err) {
       console.error('handleConnectGoogleCalendar error:', err);
       notifications.show({ title: 'Error', message: 'Failed to start Google Calendar connection.', color: 'red' });
+      setIsConnectingGoogle(false);
+    }
+  };
+
+  const handleDisconnectGoogleCalendar = async () => {
+    try {
+      setIsConnectingGoogle(true);
+      const { default: apiClient } = await import('@config/api/apiClient');
+      await apiClient.post('/google/disconnect');
+      await refreshUserData();
+      setIsGoogleConnected(false);
+      setGoogleConnectedEmail('');
+      notifications.show({
+        title: 'Disconnected',
+        message: 'Google Calendar was disconnected from this profile.',
+        color: 'green',
+        icon: <IconCheck size={18} />,
+      });
+    } catch (err) {
+      console.error('handleDisconnectGoogleCalendar error:', err);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to disconnect Google Calendar from this profile.',
+        color: 'red',
+      });
     } finally {
       setIsConnectingGoogle(false);
     }
@@ -138,11 +261,12 @@ export default function StaffAppointmentManager() {
   const promptGoogleReconnect = () => {
     notifications.show({
       title: 'Google Calendar Not Connected',
-      message: 'Click "Connect Google Calendar" in the header to authorize access, then try again.',
+      message: 'Use the Google Calendar control in the header to connect a calendar for this profile, then try again.',
       color: 'orange',
       autoClose: 8000,
     });
     setIsGoogleConnected(false);
+    setGoogleConnectedEmail('');
   };
 
   // ─── Filtered lists ───
@@ -323,7 +447,6 @@ export default function StaffAppointmentManager() {
           }
         }
         await apiClient.post('/google/events/reschedule', {
-          firebaseUid: currentUser.uid,
           eventId,
           appointmentId: selectedAppointment.id,
           newDate: dateWithTime.toISOString(),
@@ -354,9 +477,7 @@ export default function StaffAppointmentManager() {
     setIsDeletingAppointment(true);
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
-      await apiClient.delete(`/clientsinfo/${appointmentToDelete.id}`, {
-        data: { firebaseUid: currentUser?.uid }
-      });
+      await apiClient.delete(`/clientsinfo/${appointmentToDelete.id}`);
       notifications.show({ title: 'Deleted', message: 'Appointment removed successfully.', color: 'green', icon: <IconCheck size={18} /> });
       setDeleteAppointmentModal(false);
       setAppointmentToDelete(null);
@@ -411,7 +532,6 @@ export default function StaffAppointmentManager() {
         end: { dateTime: endDateTime, timeZone: 'Asia/Manila' },
       };
       await apiClient.post('/google/events/atomic', {
-        firebaseUid: currentUser.uid,
         event: googleEvent,
         meta: {
           appointmentId: appointment.id,
@@ -592,7 +712,61 @@ export default function StaffAppointmentManager() {
           <Group gap="xs" align="center" wrap="wrap">
 
             {/* Google Calendar pill */}
-            <Tooltip label={isGoogleConnected ? 'Google Calendar connected' : 'Click to connect your Google Calendar'}>
+            {isGoogleConnected ? (
+              <Menu shadow="md" width={260} position="bottom-end">
+                <Menu.Target>
+                  <Paper
+                    shadow="xs"
+                    radius="xl"
+                    withBorder
+                    bg="white"
+                    px="sm"
+                    py={6}
+                    style={{
+                      cursor: isConnectingGoogle ? 'wait' : 'pointer',
+                      opacity: isConnectingGoogle ? 0.7 : 1,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Group gap="xs" align="center" wrap="nowrap">
+                      <IconBrandGoogle size={20} color="#34A853" />
+                      <Stack gap={0} visibleFrom="xs" style={{ minWidth: 0 }}>
+                        <Text size="xs" c={MUTED_OLIVE} fw={500} lh={1.2}>Profile Google Calendar</Text>
+                        <Text size="xs" fw={700} c="green" lh={1.2}>
+                          {isConnectingGoogle ? 'Updating...' : 'Connected'}
+                        </Text>
+                        {googleConnectedEmail ? (
+                          <Text size="10px" c={MUTED_OLIVE} lh={1.2} truncate>
+                            {googleConnectedEmail}
+                          </Text>
+                        ) : null}
+                      </Stack>
+                    </Group>
+                  </Paper>
+                </Menu.Target>
+
+                <Menu.Dropdown>
+                  <Menu.Label>Google Calendar for this profile</Menu.Label>
+                  {googleConnectedEmail ? <Menu.Item disabled>{googleConnectedEmail}</Menu.Item> : null}
+                  <Menu.Item
+                    leftSection={<IconRefresh size={16} />}
+                    onClick={handleConnectGoogleCalendar}
+                    disabled={isConnectingGoogle}
+                  >
+                    Switch Google Account
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconX size={16} />}
+                    color="red"
+                    onClick={handleDisconnectGoogleCalendar}
+                    disabled={isConnectingGoogle}
+                  >
+                    Disconnect From Profile
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            ) : (
+            <Tooltip label="Connect a Google Calendar for this selected profile">
               <Paper
                 shadow="xs"
                 radius="xl"
@@ -601,24 +775,28 @@ export default function StaffAppointmentManager() {
                 px="sm"
                 py={6}
                 style={{
-                  cursor: isGoogleConnected ? 'default' : (isConnectingGoogle ? 'wait' : 'pointer'),
+                  cursor: isConnectingGoogle ? 'wait' : 'pointer',
                   opacity: isConnectingGoogle ? 0.7 : 1,
                   flexShrink: 0,
                 }}
-                onClick={!isGoogleConnected && !isConnectingGoogle ? handleConnectGoogleCalendar : undefined}
+                onClick={!isConnectingGoogle ? handleConnectGoogleCalendar : undefined}
               >
                 <Group gap="xs" align="center" wrap="nowrap">
-                  <IconBrandGoogle size={20} color={isGoogleConnected ? '#34A853' : '#EA4335'} />
+                  <IconBrandGoogle size={20} color="#EA4335" />
                   {/* Label: hidden on very small screens, visible on sm+ */}
                   <Stack gap={0} visibleFrom="xs">
-                    <Text size="xs" c={MUTED_OLIVE} fw={500} lh={1.2}>Google Calendar</Text>
-                    <Text size="xs" fw={700} c={isGoogleConnected ? 'green' : 'red'} lh={1.2}>
+                    <Text size="xs" c={MUTED_OLIVE} fw={500} lh={1.2}>Profile Google Calendar</Text>
+                    <Text size="xs" fw={700} c="red" lh={1.2} style={{ display: 'none' }}>
                       {isConnectingGoogle ? 'Connecting…' : isGoogleConnected ? 'Connected' : 'Connect'}
+                    </Text>
+                    <Text size="xs" fw={700} c="red" lh={1.2}>
+                      {isConnectingGoogle ? 'Connecting...' : 'Connect'}
                     </Text>
                   </Stack>
                 </Group>
               </Paper>
             </Tooltip>
+            )}
 
             {/* Stats pill */}
             <Paper shadow="xs" radius="xl" withBorder bg="white" px="sm" py={6}>

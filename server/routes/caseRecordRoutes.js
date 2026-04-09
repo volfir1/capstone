@@ -8,12 +8,13 @@ import {
   getCaseRecordByFinalizeId,
   getBulkCaseRecordsByFinalizeIds
 } from '../controller/caseRecordController.js'
-import { authenticateFirebaseToken } from '../firebase/authMiddleware.js'
+import { authenticateFirebaseToken, requireProfilePin } from '../firebase/authMiddleware.js'
 
 const router = express.Router()
 
 // All case record routes require authentication
 router.use(authenticateFirebaseToken)
+router.use(requireProfilePin)
 
 // Create or Update Case Record (by finalizeId)
 router.put('/finalize/:finalizeId', upsertCaseRecord)

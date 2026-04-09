@@ -1,26 +1,26 @@
-import client from '@config/api/apiClient'
+import client from "@config/api/apiClient";
 
-export const registerUser = async (firstName, lastName, email, username = null) => {
-    try {
-        console.log("registering...")
-        
-        // Log what we're sending
-        const payload = {
-            firstName,
+export const registerUser = async (payloadOrFirstName, lastName, email, username = null, role = "") => {
+  try {
+    const payload =
+      typeof payloadOrFirstName === "object" && payloadOrFirstName !== null
+        ? payloadOrFirstName
+        : {
+            firstName: payloadOrFirstName,
             lastName,
             email,
-            username: username || email
-        };
-        
-        console.log("Sending to backend:", payload);
-        
-        const response = await client.post('/auth/register', payload);
-        
-        console.log('Registration successful', response.data)
-        return response.data
+            username,
+            role,
+          };
 
-    } catch (error) {
-        console.error('Registration failed', error.response?.data)
-        throw error
-    }
-}
+    const cleanedPayload = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== "")
+    );
+
+    const response = await client.post("/auth/register", cleanedPayload);
+    return response.data;
+  } catch (error) {
+    console.error("Registration failed", error.response?.data || error.message);
+    throw error;
+  }
+};

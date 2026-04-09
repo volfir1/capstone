@@ -2,7 +2,7 @@ import CaseRecord from '../models/caserecord.js'
 import CaseAssignment from '../models/caseAssignment.js'
 import Finalize from '../models/finalize.js'
 import { safeErrorMessage } from '../utils/errorResponse.js'
-import { getIO } from '../socket.js'
+import { emitSocketEventToProfile } from './notificationController.js'
 
 // Create or Update Case Record
 export const upsertCaseRecord = async (req, res) => {
@@ -66,15 +66,13 @@ export const upsertCaseRecord = async (req, res) => {
         { caseTitle: payload.title || payload.caseTitle }
       )
       // Notify all involved users so their lists auto-refresh
-      const io = getIO()
-      if (io && affected.length) {
-        const uids = new Set()
+      if (affected.length) {
+        const profileIds = new Set()
         affected.forEach(a => {
-          if (a.assignedTo?.firebaseUid) uids.add(a.assignedTo.firebaseUid)
-          else if (a.assignedTo?.id) uids.add(a.assignedTo.id)
-          if (a.assignedBy?.id) uids.add(a.assignedBy.id)
+          if (a.assignedTo?.id) profileIds.add(a.assignedTo.id)
+          if (a.assignedBy?.id) profileIds.add(a.assignedBy.id)
         })
-        uids.forEach(uid => io.to(uid).emit('assignment-updated'))
+        profileIds.forEach((profileId) => emitSocketEventToProfile(profileId, 'assignment-updated'))
       }
     }
 

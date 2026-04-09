@@ -12,10 +12,11 @@ import { Layout } from "../components/layout/Layout";
 import { Loaders } from "../components/ui/Loader";
 
 // Auth
-const Login          = lazy(() => import("./pages/auth/Login/Login"));
 const Signup         = lazy(() => import("./pages/auth/Signup/Signup"));
 const ForgotPassword = lazy(() => import("./pages/other/ForgotPassword"));
 const AdminLogin     = lazy(() => import("./pages/auth/Login/AdminLogin"));
+const ProfileSelection = lazy(() => import("./pages/auth/ProfileSelection"));
+const ProfilePin = lazy(() => import("./pages/auth/ProfilePin"));
 // Public pages
 const LandingPage  = lazy(() => import("./pages/LandingPage"));
 const Appointment  = lazy(() => import("./pages/Appointment"));
@@ -41,18 +42,116 @@ const AdminProfile            = lazy(() => import("./pages/other/Profiles/AdminP
 //   'director'          — admin access
 //   'intern'            — admin access
 const ADMIN_ROLES = new Set(['secretary', 'supervising_lawyer', 'director', 'intern']);
+const PROFILE_MANAGER_ROLES = new Set(['secretary', 'director']);
 
 const theme = createTheme({ fontFamily: "Montserrat, sans-serif" });
 
 function ProtectedRoute({ children }) {
-  const { userLoggedIn, userData, loading } = useAuth();
+  const {
+    userLoggedIn,
+    userData,
+    loading,
+    isVerified,
+    requiresProfileSelection,
+    activeProfileId,
+    requiresPinSetup,
+    requiresPinVerification,
+  } = useAuth();
 
-  if (loading || (userLoggedIn && !userData)) return <Loaders height={window.innerHeight} />;
-  if (!userLoggedIn)         return <Navigate to="/auth/admin" replace />;
-  if (!userData?.isVerified) return <Navigate to="/auth/admin" replace />;
+  if (loading) return <Loaders height={window.innerHeight} />;
+  if (!userLoggedIn) return <Navigate to="/auth/admin" replace />;
+  if (!isVerified) return <Navigate to="/auth/admin" replace />;
+  if (requiresProfileSelection || !activeProfileId) {
+    return <Navigate to="/auth/profiles" replace />;
+  }
+  if (requiresPinSetup || requiresPinVerification || !userData) {
+    return <Navigate to="/auth/profile-pin" replace />;
+  }
 
-  // 'user' role = pending — hold at login until an admin promotes them
   if (!ADMIN_ROLES.has(userData?.role)) return <Navigate to="/auth/admin" replace />;
+
+  return children;
+}
+
+function RoleProtectedRoute({ children, allowedRoles }) {
+  const { loading, userData } = useAuth();
+
+  if (loading) return <Loaders height={window.innerHeight} />;
+  if (!allowedRoles.has(userData?.role)) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
+}
+
+function AuthEntryRoute({ children }) {
+  const {
+    userLoggedIn,
+    userData,
+    loading,
+    isVerified,
+    requiresProfileSelection,
+    activeProfileId,
+    requiresPinSetup,
+    requiresPinVerification,
+  } = useAuth();
+
+  if (loading) return <Loaders height={window.innerHeight} />;
+  if (!userLoggedIn || !isVerified) return children;
+  if (requiresProfileSelection || !activeProfileId) {
+    return <Navigate to="/auth/profiles" replace />;
+  }
+  if (requiresPinSetup || requiresPinVerification || !userData) {
+    return <Navigate to="/auth/profile-pin" replace />;
+  }
+
+  return <Navigate to="/admin" replace />;
+}
+
+function ProfileSelectionRoute({ children }) {
+  const {
+    userLoggedIn,
+    userData,
+    loading,
+    isVerified,
+    requiresProfileSelection,
+    activeProfileId,
+    requiresPinSetup,
+    requiresPinVerification,
+  } = useAuth();
+
+  if (loading) return <Loaders height={window.innerHeight} />;
+  if (!userLoggedIn || !isVerified) return <Navigate to="/auth/admin" replace />;
+  if (!requiresProfileSelection && activeProfileId) {
+    if (requiresPinSetup || requiresPinVerification || !userData) {
+      return <Navigate to="/auth/profile-pin" replace />;
+    }
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
+}
+
+function ProfilePinRoute({ children }) {
+  const {
+    userLoggedIn,
+    userData,
+    loading,
+    isVerified,
+    requiresProfileSelection,
+    activeProfileId,
+    requiresPinSetup,
+    requiresPinVerification,
+  } = useAuth();
+
+  if (loading) return <Loaders height={window.innerHeight} />;
+  if (!userLoggedIn || !isVerified) return <Navigate to="/auth/admin" replace />;
+  if (requiresProfileSelection || !activeProfileId) {
+    return <Navigate to="/auth/profiles" replace />;
+  }
+  if (!requiresPinSetup && !requiresPinVerification && userData) {
+    return <Navigate to="/admin" replace />;
+  }
 
   return children;
 }
@@ -78,8 +177,38 @@ function AppRoutes() {
         {/* Auth */}
         <Route path="auth">
           {/* <Route path="login"  element={<Login />} /> */}
-          <Route path="signup" element={<Signup />} />
-          <Route path="admin" element={<AdminLogin />} />
+          <Route
+            path="signup"
+            element={
+              <AuthEntryRoute>
+                <Signup />
+              </AuthEntryRoute>
+            }
+          />
+          <Route
+            path="admin"
+            element={
+              <AuthEntryRoute>
+                <AdminLogin />
+              </AuthEntryRoute>
+            }
+          />
+          <Route
+            path="profiles"
+            element={
+              <ProfileSelectionRoute>
+                <ProfileSelection />
+              </ProfileSelectionRoute>
+            }
+          />
+          <Route
+            path="profile-pin"
+            element={
+              <ProfilePinRoute>
+                <ProfilePin />
+              </ProfilePinRoute>
+            }
+          />
         </Route>
 
         {/* Convenience redirects */}
@@ -96,7 +225,14 @@ function AppRoutes() {
           }
         >
           <Route index                          element={<AdminDashboard />} />
-          <Route path="users"                   element={<UserManagement />} />
+          <Route
+            path="users"
+            element={
+              <RoleProtectedRoute allowedRoles={PROFILE_MANAGER_ROLES}>
+                <UserManagement />
+              </RoleProtectedRoute>
+            }
+          />
           <Route path="recommendation/:caseId?" element={<RecommendationForAction />} />
           <Route path="assigned-cases"          element={<AssignedCases />} />
           <Route path="finalized"               element={<FinalizedCases />} />
@@ -123,11 +259,11 @@ function App() {
         limit={4}
       />
       <DatesProvider settings={{ locale: 'en', firstDayOfWeek: 0, weekendDays: [0, 6] }}>
-        <AuthProvider>
-          <Router>
+        <Router>
+          <AuthProvider>
             <AppRoutes />
-          </Router>
-        </AuthProvider>
+          </AuthProvider>
+        </Router>
       </DatesProvider>
     </MantineProvider>
   );

@@ -11,8 +11,6 @@ export default function Signup() {
     errorMessage,
     onSubmit,
     onGoogleSignup,
-    trigger,
-    getValues,
   } = useSignup();
 
   return (
@@ -25,8 +23,6 @@ export default function Signup() {
       errorMessage={errorMessage}
       onSubmit={onSubmit}
       onGoogleSignup={onGoogleSignup}
-      trigger={trigger}
-      getValues={getValues}
     />
   );
 }

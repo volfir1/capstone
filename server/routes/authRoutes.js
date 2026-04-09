@@ -1,6 +1,6 @@
 import express from "express"
-import { register, verifyUser, checkEmailExists, registerAttorney, verifyAttorney, getAllAttorneys, activateAttorney, createClientAccount, getEmailFromUsername, verifyClientAccount } from "../controller/authController.js"
-import { authenticateFirebaseToken, requireRole } from '../firebase/authMiddleware.js'
+import { register, verifyUser, checkEmailExists, registerAttorney, verifyAttorney, getAllAttorneys, activateAttorney, createClientAccount, getEmailFromUsername, verifyClientAccount, getAccountContext } from "../controller/authController.js"
+import { authenticateFirebaseToken, requireProfilePin, requireRole } from '../firebase/authMiddleware.js'
 
 const router = express.Router()
 
@@ -11,11 +11,12 @@ router.post('/verify-attorney', verifyAttorney)
 router.put('/verify-user', verifyUser)
 router.post('/check-email', checkEmailExists)
 router.post('/get-email-from-username', getEmailFromUsername)
+router.get('/context', authenticateFirebaseToken, getAccountContext)
 
 // ── Admin routes (require auth + admin roles) ──
-router.get('/all-attorneys', authenticateFirebaseToken, requireRole('director', 'secretary', 'supervising_lawyer'), getAllAttorneys)
-router.put('/activate-attorney/:attorneyId', authenticateFirebaseToken, requireRole('director', 'secretary'), activateAttorney)
-router.post('/create-client-account', authenticateFirebaseToken, requireRole('director', 'secretary', 'intern', 'supervising_lawyer'), createClientAccount)
-router.post('/verify-client-account', authenticateFirebaseToken, requireRole('director', 'secretary', 'intern', 'supervising_lawyer'), verifyClientAccount)
+router.get('/all-attorneys', authenticateFirebaseToken, requireProfilePin, requireRole('director', 'secretary', 'supervising_lawyer'), getAllAttorneys)
+router.put('/activate-attorney/:attorneyId', authenticateFirebaseToken, requireProfilePin, requireRole('director', 'secretary'), activateAttorney)
+router.post('/create-client-account', authenticateFirebaseToken, requireProfilePin, requireRole('director', 'secretary', 'intern', 'supervising_lawyer'), createClientAccount)
+router.post('/verify-client-account', authenticateFirebaseToken, requireProfilePin, requireRole('director', 'secretary', 'intern', 'supervising_lawyer'), verifyClientAccount)
 
 export default router

@@ -28,7 +28,7 @@ const UserAvatar = ({ src, firstName, size = 36, border = `2px solid ${PRIMARY_G
 const Layout = ({ children, headerHeight = 60, navbarWidth = 260 }) => {
   const [opened, setOpened] = useState(false);
   const navigate = useNavigate();
-  const { userData } = useAuth();
+  const { userData, clearSelectedProfile } = useAuth();
   const {
     notifications: notifList, unreadCount, loading: notifLoading,
     markAsRead, markAllAsRead, deleteNotification,
@@ -47,7 +47,7 @@ const handleLogout = async () => {
       await apiClient.post('/activity-logs', {
         action: 'logout',
         userEmail: userData?.email || '',
-        // ✅ firstName + lastName first since that's what's in MongoDB
+        //  firstName + lastName first since that's what's in MongoDB
         userName: `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim()
           || userData?.email
           || '',
@@ -64,6 +64,11 @@ const handleLogout = async () => {
     console.error('Logout error:', error);
   }
 };
+
+  const handleSwitchProfile = () => {
+    clearSelectedProfile();
+    navigate('/auth/profiles', { replace: true });
+  };
 
   const handleNavNotification = (referenceId, type) => {
     if (type === 'case_assigned') {
@@ -176,6 +181,9 @@ const handleLogout = async () => {
                 </Menu.Label>
                 <Menu.Item leftSection={<IconUserCircle size={16} />} onClick={() => navigate('/admin/profile')} styles={MENU_ITEM_STYLES}>
                   Profile
+                </Menu.Item>
+                <Menu.Item leftSection={<IconUserCircle size={16} />} onClick={handleSwitchProfile} styles={MENU_ITEM_STYLES}>
+                  Switch Profile
                 </Menu.Item>
                 <Menu.Divider />
                 <Menu.Item leftSection={<IconLogout size={16} />} color="red" onClick={handleLogout} styles={MENU_ITEM_STYLES}>

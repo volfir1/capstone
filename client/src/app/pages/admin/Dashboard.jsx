@@ -78,7 +78,7 @@ export default function AdminDashboard() {
   const [reviewTab, setReviewTab] = useState('supervising');
   const [reviewPage, setReviewPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
-  const { userData, loading: authLoading } = useAuth();
+  const { userData, profiles, loading: authLoading } = useAuth();
   const location = useLocation();
 
   const [reviewSearch, setReviewSearch] = useState('');
@@ -200,12 +200,24 @@ export default function AdminDashboard() {
     { name: 'Pending', value: stats.finalizeBreakdown?.pending || 0, color: '#FCC419' },
   ].filter(d => d.value > 0);
 
+  const accountProfiles = useMemo(() => profiles, [profiles]);
+
+  const profileRoleBreakdown = useMemo(() => {
+    return accountProfiles.reduce(
+      (acc, profile) => {
+        const roleKey = profile.role || 'unknown';
+        acc[roleKey] = (acc[roleKey] || 0) + 1;
+        return acc;
+      },
+      {}
+    );
+  }, [accountProfiles]);
+
   const userRoleData = [
-    { name: 'Clients', value: stats.roleBreakdown?.user || 0, color: PRIMARY_GOLD },
-    { name: 'Interns', value: stats.roleBreakdown?.intern || 0, color: '#4DABF7' },
-    { name: 'Sup. Lawyers', value: stats.roleBreakdown?.supervising_lawyer || 0, color: MUTED_OLIVE },
-    { name: 'Directors', value: stats.roleBreakdown?.director || 0, color: '#7950F2' },
-    { name: 'Secretaries', value: stats.roleBreakdown?.secretary || 0, color: ACCENT_TAN },
+    { name: 'Interns', value: profileRoleBreakdown?.intern || 0, color: '#4DABF7' },
+    { name: 'Sup. Lawyers', value: profileRoleBreakdown?.supervising_lawyer || 0, color: MUTED_OLIVE },
+    { name: 'Directors', value: profileRoleBreakdown?.director || 0, color: '#7950F2' },
+    { name: 'Secretaries', value: profileRoleBreakdown?.secretary || 0, color: ACCENT_TAN },
   ].filter(d => d.value > 0);
 
   if (authLoading || (loading && stats.totalCases === 0)) return <DashboardSkeleton />;
@@ -234,7 +246,7 @@ export default function AdminDashboard() {
         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing={{ base: 'sm', sm: 'md' }} mb="md">
           {[
             { label: 'Total Cases', value: stats.totalCases, icon: IconFiles, color: PRIMARY_BROWN },
-            { label: 'Total Users', value: stats.totalUsers, icon: IconUsers, color: PRIMARY_GOLD },
+            { label: 'Staff Profiles', value: accountProfiles.length, icon: IconUsers, color: PRIMARY_GOLD },
             { label: 'Pending Reviews', value: stats.pendingReviews, icon: IconScale, color: '#F59F00' },
             { label: 'Finalized', value: stats.totalFinalized, icon: IconClipboardCheck, color: MUTED_OLIVE },
           ].map((card) => (
@@ -269,7 +281,7 @@ export default function AdminDashboard() {
             { title: 'Legal Services', data: serviceData, total: serviceData.reduce((s, d) => s + d.value, 0) },
             { title: 'Review Pipeline', data: reviewStageData, total: stats.totalReviews },
             { title: 'Finalized Decisions', data: finalizeData, total: stats.totalFinalized },
-            { title: 'Users by Role', data: userRoleData, total: stats.totalUsers },
+            { title: 'Profiles by Role', data: userRoleData, total: accountProfiles.length },
           ].map(chart => (
             <Paper key={chart.title} p={{ base: 'md', sm: 'lg' }} radius="lg" withBorder>
               <Text size="sm" c={MUTED_OLIVE} tt="uppercase" fw={700} mb="md" lts={0.5}>{chart.title}</Text>

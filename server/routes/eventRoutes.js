@@ -7,12 +7,13 @@ import {
   deleteEvent,
   getEventsByDateRange,
 } from '../controller/eventController.js';
-import { authenticateFirebaseToken } from '../firebase/authMiddleware.js';
+import { authenticateFirebaseToken, requireProfilePin } from '../firebase/authMiddleware.js';
 
 const router = express.Router();
 
 // Apply Firebase authentication middleware to all routes.
 router.use(authenticateFirebaseToken);
+router.use(requireProfilePin);
 
 // Event routes
 router.post('/', createEvent);

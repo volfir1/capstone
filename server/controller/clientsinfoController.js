@@ -2,12 +2,17 @@ import ClientsInfo from '../models/clientsinfo.js'
 import admin from 'firebase-admin'
 import User from '../models/user.js'
 import Event from '../models/events.js'
-import { createNotification } from './notificationController.js'
-import { getIO } from '../socket.js'
+import {
+  createNotification,
+  emitNotificationToProfile,
+  listActiveProfilesByRoles,
+} from './notificationController.js'
 import { deleteEventWithRefreshToken } from '../utils/googleCalendar.js'
+import { STAFF_ROLES } from '../utils/accountContext.js'
+import { resolveGoogleCalendarOwnerForEvent } from '../utils/googleProfile.js'
 
-// Helper: notify all users with a given role about a new appointment request
-const notifyRoleAboutNewAppointment = async (doc) => {
+// Helper: notify intake staff about a new appointment request
+const notifyRoleAboutNewAppointment = async (doc, accountId = null) => {
   try {
     const clientName = doc.fullName || doc.name || 'A client';
     const dateStr = doc.appointedDate
@@ -15,23 +20,19 @@ const notifyRoleAboutNewAppointment = async (doc) => {
       : 'TBD';
     const timeStr = doc.appointmentTime || '';
 
-    // Notify all secretaries about the new appointment request
-    const secretaries = await User.find({ role: 'secretary' }).select('firebaseUid').lean();
-    const io = getIO();
+    // Notify all intake staff about the new appointment request
+    const intakeStaff = await listActiveProfilesByRoles(['secretary', 'intern'], { accountId });
 
-    for (const sec of secretaries) {
-      if (sec.firebaseUid) {
-        const notification = await createNotification({
-          recipientId: sec.firebaseUid,
+    for (const staffProfile of intakeStaff) {
+      const notification = await createNotification({
+          recipientId: staffProfile._id.toString(),
           title: 'New Appointment Request',
           message: `${clientName} has requested an appointment on ${dateStr}${timeStr ? ` at ${timeStr}` : ''}. Pending your approval.`,
           type: 'appointment_created',
           referenceId: doc._id.toString(),
         });
-        // Real-time push via Socket.IO
-        if (io && notification) {
-          io.to(sec.firebaseUid).emit('new-notification', notification);
-        }
+      if (notification) {
+        emitNotificationToProfile(staffProfile._id.toString(), notification);
       }
     }
   } catch (err) {
@@ -68,20 +69,8 @@ export const createClientsInfo = async (req, res) => {
     const payload = req.body || {}
     
     // Get authenticated user info
-    let userId = null;
-    let firebaseUid = null;
-    
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      try {
-        const idToken = req.headers.authorization.split(' ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        firebaseUid = decodedToken.uid;
-        const user = await User.findOne({ firebaseUid });
-        if (user) userId = user._id;
-      } catch (authErr) {
-        console.log('Auth token verification failed:', authErr.message);
-      }
-    }
+    const userId = req.activeProfile?._id || null;
+    const firebaseUid = req.account?.firebaseUid || null;
 
     const appointedDateRaw =
       payload.appointedDate ||
@@ -171,7 +160,7 @@ export const createClientsInfo = async (req, res) => {
     const saved = await doc.save()
 
     // Notify secretaries about new appointment request
-    notifyRoleAboutNewAppointment(saved);
+    notifyRoleAboutNewAppointment(saved, req.account?._id || null);
 
     return res.status(201).json(saved)
   } catch (err) {
@@ -259,25 +248,14 @@ export const listPublicSchedules = async (req, res) => {
 export const listClientsInfo = async (req, res) => {
   try {
     // Get authenticated user info
-    let currentUser = null;
-    let firebaseUid = null;
-    
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      try {
-        const idToken = req.headers.authorization.split(' ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        firebaseUid = decodedToken.uid;
-        currentUser = await User.findOne({ firebaseUid });
-      } catch (authErr) {
-        console.log('Auth token verification failed:', authErr.message);
-      }
-    }
+    const currentUser = req.activeProfile || null;
+    const firebaseUid = req.account?.firebaseUid || null;
     
     // Build query based on user role
     let query = {};
     
     // Admin roles (secretary, attorney, intern, etc.) can see all appointments
-    const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
+    const adminRoles = STAFF_ROLES;
     
     if (currentUser && !adminRoles.includes(currentUser.role)) {
       // Regular clients can only see their own appointments
@@ -487,7 +465,6 @@ export const updateClientsInfo = async (req, res) => {
 export const deleteClientsInfo = async (req, res) => {
   try {
     const { id } = req.params;
-    const { firebaseUid } = req.body || {};
 
     const doc = await ClientsInfo.findById(id);
     if (!doc) {
@@ -501,13 +478,13 @@ export const deleteClientsInfo = async (req, res) => {
         if (linkedEvent) {
           // Try to delete from Google Calendar if linked
           const googleEventId = linkedEvent.externalIds?.google;
-          if (googleEventId && firebaseUid) {
+          if (googleEventId) {
             try {
-              const user = await User.findOne({ firebaseUid });
-              if (user?.google?.refreshToken) {
+              const ownerConnection = await resolveGoogleCalendarOwnerForEvent(req, linkedEvent);
+              if (ownerConnection?.refreshToken) {
                 await deleteEventWithRefreshToken(
-                  user.google.refreshToken,
-                  user.google.primaryCalendarId || 'primary',
+                  ownerConnection.refreshToken,
+                  ownerConnection.primaryCalendarId || 'primary',
                   googleEventId
                 );
               }

@@ -1,7 +1,8 @@
+import mongoose from 'mongoose';
 import Event from '../models/events.js';
 import User from '../models/user.js';
 import Attorney from '../models/attorney.js';
-import { createNotification } from './notificationController.js';
+import { createNotification, emitNotificationToProfile } from './notificationController.js';
 
 import { safeErrorMessage } from '../utils/errorResponse.js';
 // Create a new event
@@ -33,17 +34,20 @@ export const createEvent = async (req, res) => {
     if (assignedTo) {
       const q = assignedTo.trim();
       let person = await Attorney.findOne({ email: q }).select('firebaseUid').lean();
-      if (!person) person = await User.findOne({ email: q }).select('firebaseUid').lean();
+      if (!person) person = await User.findOne({ email: q }).select('_id firebaseUid').lean();
       if (!person) person = await Attorney.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('firebaseUid').lean();
-      if (!person) person = await User.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('firebaseUid').lean();
-      if (person?.firebaseUid) {
-        createNotification({
-          recipientId: person.firebaseUid,
+      if (!person) person = await User.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('_id firebaseUid').lean();
+      if (person?._id) {
+        const notification = await createNotification({
+          recipientId: person._id.toString(),
           title: 'New Appointment Scheduled',
           message: `"${title}" on ${new Date(eventDate).toLocaleDateString()}.${location ? ` Location: ${location}` : ''}`,
           type: 'appointment_created',
           referenceId: savedEvent._id.toString(),
         });
+        if (notification) {
+          emitNotificationToProfile(person._id.toString(), notification);
+        }
       }
     }
 
@@ -149,10 +153,10 @@ export const updateEvent = async (req, res) => {
         const q = nameOrEmail.trim();
         // Try exact email first, then first+last name match
         let person = await Attorney.findOne({ email: q }).select('firebaseUid').lean();
-        if (!person) person = await User.findOne({ email: q }).select('firebaseUid').lean();
+        if (!person) person = await User.findOne({ email: q }).select('_id firebaseUid').lean();
         if (!person) person = await Attorney.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('firebaseUid').lean();
-        if (!person) person = await User.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('firebaseUid').lean();
-        return person?.firebaseUid || null;
+        if (!person) person = await User.findOne({ $expr: { $eq: [{ $toLower: { $concat: ['$firstName', ' ', '$lastName'] } }, q.toLowerCase()] } }).select('_id firebaseUid').lean();
+        return person?._id?.toString?.() || person?.firebaseUid || null;
       };
 
       const assigneeUid = await findPerson(updatedEvent.assignedTo);
@@ -161,14 +165,17 @@ export const updateEvent = async (req, res) => {
       const clientUid = await findPerson(updatedEvent.clientName);
       if (clientUid && !notifyTargets.includes(clientUid)) notifyTargets.push(clientUid);
 
-      for (const uid of notifyTargets) {
-        createNotification({
-          recipientId: uid,
+      for (const recipientId of notifyTargets) {
+        const notification = await createNotification({
+          recipientId,
           title: notifTitle,
           message: `"${updatedEvent.title}"${clientInfo}${locationInfo} ${changeDesc}.`,
           type: 'appointment_updated',
           referenceId: id,
         });
+        if (notification && mongoose.Types.ObjectId.isValid(recipientId)) {
+          emitNotificationToProfile(recipientId, notification);
+        }
       }
     }
 

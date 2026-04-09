@@ -18,67 +18,152 @@ import {
   Pagination,
   ScrollArea,
   Divider,
+  TextInput,
+  Card,
+  SimpleGrid,
 } from "@mantine/core";
 import {
+  IconCircleFilled,
   IconDots,
-  IconUsers,
-  IconUserPlus,
-  IconShield,
-  IconMail,
+  IconEdit,
+  IconKey,
   IconLock,
   IconLockOpen,
+  IconMail,
+  IconPlus,
   IconRefresh,
-  IconCircleFilled,
+  IconTrash,
+  IconUsers,
 } from "@tabler/icons-react";
-import { useState } from "react";
-import { useUsers } from "@/hooks/admin/users";
-import { filterUsers } from "@/utils/userManagementUtils";
-import { useSearch } from "@/utils/userManagementUtils";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
+import { notifications } from "@mantine/notifications";
+
+import { useProfiles } from "@/hooks/admin/users";
+import { useAuth } from "@/context/authContext";
 import UserManagementSkeleton from "@/components/skeleton/UserManagementSkeleton";
 import UserSearchFilter from "@/components/search/userSearch";
 import {
-  PRIMARY_GOLD,
+  createManagedProfile,
+  deleteManagedProfile,
+  resetManagedProfilePin,
+  sendPasswordReset,
+  toggleUserStatus,
+  updateManagedProfile,
+} from "@/api/admin/userManagement";
+import {
   PRIMARY_BROWN,
   MUTED_OLIVE,
   BG,
   CHARCOAL,
   ACCENT_TAN,
 } from "@/utils/constants";
-import {
-  updateUserRole,
-  toggleUserStatus,
-  sendPasswordReset,
-} from "@/api/admin/userManagement";
-import { notifications } from "@mantine/notifications";
 
-// ── Shared helpers ──────────────────────────────────────────────────────────
-const getRoleBadgeStyle = (role) => ({
-  backgroundColor: role === "secretary" ? `${PRIMARY_BROWN}15` : `${MUTED_OLIVE}15`,
-  color: role === "secretary" ? PRIMARY_BROWN : MUTED_OLIVE,
-  fontWeight: 600,
-  textTransform: "capitalize",
-  border: `1px solid ${role === "secretary" ? `${PRIMARY_BROWN}30` : `${MUTED_OLIVE}30`}`,
-});
+const ROLE_OPTIONS = [
+  { value: "secretary", label: "Secretary" },
+  { value: "intern", label: "Legal Intern" },
+  { value: "supervising_lawyer", label: "Supervising Lawyer" },
+  { value: "director", label: "Director" },
+];
 
-const formatRole = (role) =>
-  role === "supervising_lawyer" ? "Sup. Lawyer" : role;
+const ROLE_LABELS = {
+  secretary: "Secretary",
+  intern: "Legal Intern",
+  supervising_lawyer: "Supervising Lawyer",
+  director: "Director",
+};
 
-// ── Mobile Card Row ─────────────────────────────────────────────────────────
-function UserCard({ row, onOpenRoleModal, onSendPasswordReset, onToggleStatus }) {
+const ROLE_STYLES = {
+  secretary: { backgroundColor: `${PRIMARY_BROWN}12`, color: PRIMARY_BROWN, border: `${PRIMARY_BROWN}30` },
+  intern: { backgroundColor: "#E7F5FF", color: "#1864AB", border: "#74C0FC" },
+  supervising_lawyer: { backgroundColor: "#E6FCF5", color: "#087F5B", border: "#63E6BE" },
+  director: { backgroundColor: "#FFF4E6", color: "#C16A00", border: "#FFD8A8" },
+};
+
+const EMPTY_FORM = {
+  firstName: "",
+  lastName: "",
+  role: "",
+};
+
+const formatRole = (role) => ROLE_LABELS[role] || "Profile";
+
+const getRoleBadgeStyle = (role) => {
+  const style = ROLE_STYLES[role] || {
+    backgroundColor: `${ACCENT_TAN}25`,
+    color: CHARCOAL,
+    border: `${ACCENT_TAN}70`,
+  };
+
+  return {
+    backgroundColor: style.backgroundColor,
+    color: style.color,
+    border: `1px solid ${style.border}`,
+    fontWeight: 600,
+  };
+};
+
+const normalizeProfileValue = (value) => String(value || "").trim().toLowerCase();
+
+const validateProfileDraft = (draft, profiles, editingId = "") => {
+  const firstName = String(draft.firstName || "").trim();
+  const lastName = String(draft.lastName || "").trim();
+  const role = String(draft.role || "").trim();
+
+  if (!firstName || !lastName || !role) {
+    return "Please enter a first name, last name, and role.";
+  }
+
+  const duplicate = profiles.some((profile) => {
+    if (profile.id === editingId) return false;
+
+    return (
+      normalizeProfileValue(profile.firstName) === normalizeProfileValue(firstName) &&
+      normalizeProfileValue(profile.lastName) === normalizeProfileValue(lastName) &&
+      normalizeProfileValue(profile.role) === normalizeProfileValue(role)
+    );
+  });
+
+  if (duplicate) {
+    return "A profile with the same name and role already exists for this shared account.";
+  }
+
+  return "";
+};
+
+function ProfileCard({ row, onEdit, onResetPin, onToggleStatus, onDelete }) {
   return (
     <Box
       px="md"
       py="sm"
       style={{
         backgroundColor: row.disabled ? "#FEF2F2" : "white",
-        opacity: row.disabled ? 0.7 : 1,
+        opacity: row.disabled ? 0.74 : 1,
       }}
     >
-      {/* Top: name + email + action menu */}
       <Group justify="space-between" align="flex-start" wrap="nowrap" mb={8}>
         <Box style={{ minWidth: 0 }}>
-          <Text fw={600} size="sm" c={CHARCOAL} truncate>{row.name}</Text>
-          <Text size="xs" c={MUTED_OLIVE} truncate mt={2}>{row.email}</Text>
+          <Group gap={8} wrap="wrap" mb={2}>
+            <Text fw={600} size="sm" c={CHARCOAL} truncate>
+              {row.name}
+            </Text>
+            {row.isCurrent && (
+              <Badge size="xs" radius="xl" variant="light" color="green">
+                Current Session
+              </Badge>
+            )}
+            {!row.isCurrent && row.isLastUsed && (
+              <Badge size="xs" radius="xl" variant="light" color="yellow">
+                Last Used
+              </Badge>
+            )}
+          </Group>
+          <Text size="xs" c={MUTED_OLIVE} truncate>
+            {formatRole(row.role)}
+          </Text>
+          <Text size="xs" c={MUTED_OLIVE} truncate mt={2}>
+            {row.email}
+          </Text>
         </Box>
 
         <Menu shadow="md" width={220} position="bottom-end">
@@ -94,26 +179,27 @@ function UserCard({ row, onOpenRoleModal, onSendPasswordReset, onToggleStatus })
             </ActionIcon>
           </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Label>User Actions</Menu.Label>
-            <Menu.Item leftSection={<IconShield size={16} />} onClick={() => onOpenRoleModal(row)}>
-              Change Role
+            <Menu.Label>Profile Actions</Menu.Label>
+            <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => onEdit(row)}>
+              Edit Profile
             </Menu.Item>
-            <Menu.Item leftSection={<IconMail size={16} />} onClick={() => onSendPasswordReset(row.email, row.name)}>
-              Send Password Reset
+            <Menu.Item leftSection={<IconKey size={16} />} onClick={() => onResetPin(row)}>
+              Reset PIN
             </Menu.Item>
-            <Menu.Divider />
             <Menu.Item
               leftSection={row.disabled ? <IconLockOpen size={16} /> : <IconLock size={16} />}
-              color={row.disabled ? "green" : "red"}
-              onClick={() => onToggleStatus(row.id, row.name, row.disabled, row.role)}
+              onClick={() => onToggleStatus(row)}
             >
-              {row.disabled ? "Enable Account" : "Disable Account"}
+              {row.disabled ? "Enable Profile" : "Disable Profile"}
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => onDelete(row)}>
+              Delete Profile
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>
       </Group>
 
-      {/* Bottom: role badge + status dot + joined date */}
       <Group gap="sm" wrap="wrap">
         <Badge size="sm" radius="sm" variant="light" style={getRoleBadgeStyle(row.role)}>
           {formatRole(row.role)}
@@ -129,103 +215,312 @@ function UserCard({ row, onOpenRoleModal, onSendPasswordReset, onToggleStatus })
           </Text>
         </Group>
 
-        <Text size="xs" c={MUTED_OLIVE}>Joined {row.date}</Text>
+        <Text size="xs" c={MUTED_OLIVE}>
+          Joined {row.date}
+        </Text>
+        <Text size="xs" c={row.pinStatus === "PIN ready" ? "#2F6B3E" : MUTED_OLIVE}>
+          {row.pinStatus}
+        </Text>
       </Group>
     </Box>
   );
 }
 
-// ── Main Component ──────────────────────────────────────────────────────────
 export default function UserManagementTable() {
-  const { users, isLoading, error, refetch } = useUsers();
-  const { searchQuery, setSearchQuery } = useSearch();
-  const [actionLoading, setActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("user");
+  const navigate = useNavigate();
+  const { profiles, isLoading, error, refetch } = useProfiles();
+  const {
+    accountData,
+    activeProfileId,
+    refreshProfiles,
+    refreshUserData,
+    clearSelectedProfile,
+    markActiveProfilePinReset,
+  } = useAuth();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState("10");
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const [roleModalOpened, setRoleModalOpened] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [selectedRole, setSelectedRole] = useState(null);
+  const [profileModalOpened, setProfileModalOpened] = useState(false);
+  const [profileModalMode, setProfileModalMode] = useState("create");
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [profileForm, setProfileForm] = useState(EMPTY_FORM);
 
-  const handleOpenRoleModal = (user) => {
-    setSelectedUser(user);
-    setSelectedRole(user.role);
-    setRoleModalOpened(true);
+  const [deleteModalOpened, setDeleteModalOpened] = useState(false);
+  const [profileToDelete, setProfileToDelete] = useState(null);
+  const [pinResetModalOpened, setPinResetModalOpened] = useState(false);
+  const [profileToResetPin, setProfileToResetPin] = useState(null);
+
+  const tableData = useMemo(
+    () =>
+      profiles.map((profile) => ({
+        id: profile.id,
+        name: `${profile.firstName} ${profile.lastName}`.trim(),
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        email: profile.email,
+        role: profile.role,
+        status: profile.disabled ? "Inactive" : "Active",
+        disabled: profile.disabled || false,
+        isCurrent: activeProfileId === profile.id,
+        isLastUsed: accountData?.lastSelectedProfileId === profile.id,
+        pinStatus: !profile.pinEnabled || profile.pinResetRequired ? "PIN setup needed" : "PIN ready",
+        date: new Date(profile.createdAt).toLocaleDateString("en-US", {
+          month: "numeric",
+          day: "numeric",
+          year: "numeric",
+        }),
+      })),
+    [profiles, activeProfileId, accountData?.lastSelectedProfileId]
+  );
+
+  const filteredData = useMemo(() => {
+    const searchFiltered = tableData.filter((item) => {
+      const haystack = `${item.name} ${item.email} ${formatRole(item.role)}`.toLowerCase();
+      return haystack.includes(searchQuery.toLowerCase());
+    });
+
+    return searchFiltered.filter((item) => {
+      if (activeTab === "all") return true;
+      if (activeTab === "inactive") return item.disabled === true;
+      return item.role === activeTab && item.disabled === false;
+    });
+  }, [tableData, searchQuery, activeTab]);
+
+  const perPage = parseInt(rowsPerPage, 10);
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / perPage));
+  const safePage = Math.min(page, totalPages);
+  const paginatedData = filteredData.slice((safePage - 1) * perPage, safePage * perPage);
+
+  const tabDefs = [
+    { value: "all", shortLabel: "All", fullLabel: "All Profiles", count: tableData.length },
+    { value: "secretary", shortLabel: "Sec.", fullLabel: "Secretaries", count: tableData.filter((p) => p.role === "secretary" && !p.disabled).length },
+    { value: "intern", shortLabel: "Interns", fullLabel: "Interns", count: tableData.filter((p) => p.role === "intern" && !p.disabled).length },
+    { value: "supervising_lawyer", shortLabel: "Sup.", fullLabel: "Sup. Lawyers", count: tableData.filter((p) => p.role === "supervising_lawyer" && !p.disabled).length },
+    { value: "director", shortLabel: "Dir.", fullLabel: "Directors", count: tableData.filter((p) => p.role === "director" && !p.disabled).length },
+    { value: "inactive", shortLabel: "Inactive", fullLabel: "Inactive", count: tableData.filter((p) => p.disabled).length },
+  ];
+
+  const syncProfileViews = async () => {
+    await Promise.all([refetch(), refreshProfiles()]);
   };
 
-  const handleChangeRole = async () => {
-    if (!selectedUser || !selectedRole) return;
+  const resetProfileModal = () => {
+    setProfileModalOpened(false);
+    setProfileModalMode("create");
+    setSelectedProfile(null);
+    setProfileForm(EMPTY_FORM);
+  };
+
+  const handleOpenCreateModal = () => {
+    setProfileModalMode("create");
+    setSelectedProfile(null);
+    setProfileForm(EMPTY_FORM);
+    setProfileModalOpened(true);
+  };
+
+  const handleOpenEditModal = (profile) => {
+    setProfileModalMode("edit");
+    setSelectedProfile(profile);
+    setProfileForm({
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      role: profile.role,
+    });
+    setProfileModalOpened(true);
+  };
+
+  const handleSaveProfile = async () => {
+    const validationMessage = validateProfileDraft(
+      profileForm,
+      profiles,
+      profileModalMode === "edit" ? selectedProfile?.id : ""
+    );
+
+    if (validationMessage) {
+      notifications.show({
+        title: "Profile details needed",
+        message: validationMessage,
+        color: "yellow",
+      });
+      return;
+    }
+
     setActionLoading(true);
     try {
-      await updateUserRole(selectedUser.id, selectedRole);
-      notifications.show({ title: "Success", message: `User role updated to ${selectedRole}`, color: "green" });
-      setRoleModalOpened(false);
-      refetch();
-    } catch (error) {
-      notifications.show({ title: "Error", message: error.message || "Failed to update user role", color: "red" });
+      if (profileModalMode === "create") {
+        await createManagedProfile(profileForm);
+        notifications.show({
+          title: "Profile created",
+          message: "The new profile is ready for future logins and profile selection.",
+          color: "green",
+        });
+      } else if (selectedProfile) {
+        await updateManagedProfile(selectedProfile.id, profileForm);
+        notifications.show({
+          title: "Profile updated",
+          message: "Profile details were updated successfully.",
+          color: "green",
+        });
+
+        if (selectedProfile.isCurrent) {
+          await refreshUserData();
+        }
+      }
+
+      await syncProfileViews();
+      resetProfileModal();
+    } catch (saveError) {
+      notifications.show({
+        title: profileModalMode === "create" ? "Create failed" : "Update failed",
+        message: saveError.message || "We couldn't save the profile right now.",
+        color: "red",
+      });
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleSendPasswordReset = async (email, name) => {
+  const handleToggleStatus = async (profile) => {
+    const isDisabling = !profile.disabled;
+    setActionLoading(true);
     try {
-      await sendPasswordReset(email);
-      notifications.show({ title: "Success", message: `Password reset email sent to ${name}`, color: "green" });
-    } catch (error) {
-      notifications.show({ title: "Error", message: error.message || "Failed to send password reset", color: "red" });
+      await toggleUserStatus(profile.id, isDisabling);
+      notifications.show({
+        title: isDisabling ? "Profile disabled" : "Profile enabled",
+        message: `${profile.name} is now ${isDisabling ? "inactive" : "active"}.`,
+        color: "green",
+      });
+
+      if (profile.isCurrent && isDisabling) {
+        clearSelectedProfile();
+        await refreshProfiles();
+        navigate("/auth/profiles", { replace: true });
+        return;
+      }
+
+      await syncProfileViews();
+    } catch (toggleError) {
+      notifications.show({
+        title: "Status update failed",
+        message: toggleError.message || "We couldn't update this profile's status.",
+        color: "red",
+      });
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const handleToggleStatus = async (userId, name, currentlyDisabled, userRole) => {
-    const action = currentlyDisabled ? "enable" : "disable";
+  const handleConfirmDelete = (profile) => {
+    setProfileToDelete(profile);
+    setDeleteModalOpened(true);
+  };
+
+  const handleConfirmResetPin = (profile) => {
+    setProfileToResetPin(profile);
+    setPinResetModalOpened(true);
+  };
+
+  const handleResetProfilePin = async () => {
+    if (!profileToResetPin) return;
+
+    setActionLoading(true);
     try {
-      await toggleUserStatus(userId, !currentlyDisabled);
-      notifications.show({ title: "Success", message: `${name}'s account has been ${action}d`, color: "green" });
-      // After disabling → switch to inactive tab
-      // After enabling → switch back to the user's role tab
-      setActiveTab(currentlyDisabled ? (userRole || "user") : "inactive");
-      setPage(1);
-      refetch();
-    } catch (error) {
-      notifications.show({ title: "Error", message: error.message || `Failed to ${action} account`, color: "red" });
+      await resetManagedProfilePin(profileToResetPin.id);
+      notifications.show({
+        title: "Profile PIN reset",
+        message: `${profileToResetPin.name} will need to create a new PIN on the next access.`,
+        color: "green",
+      });
+
+      const wasCurrentProfile = profileToResetPin.isCurrent;
+      setPinResetModalOpened(false);
+      setProfileToResetPin(null);
+
+      if (wasCurrentProfile) {
+        await syncProfileViews();
+        markActiveProfilePinReset();
+        navigate("/auth/profile-pin", { replace: true });
+        return;
+      }
+
+      await syncProfileViews();
+    } catch (resetError) {
+      notifications.show({
+        title: "PIN reset failed",
+        message: resetError.message || "We couldn't reset this profile PIN.",
+        color: "red",
+      });
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const tableData = users.map((user) => ({
-    id: user._id,
-    name: `${user.firstName} ${user.lastName}`,
-    email: user.email,
-    role: user.role,
-    // Disabled flag is the single source of truth — isVerified does not gate role tabs
-    status: user.disabled ? "Inactive" : "Active",
-    disabled: user.disabled || false,
-    date: new Date(user.createdAt).toLocaleDateString("en-US", {
-      month: "numeric",
-      day: "numeric",
-      year: "numeric",
-    }),
-  }));
+  const handleDeleteProfile = async () => {
+    if (!profileToDelete) return;
 
-  const searchFiltered = tableData.filter(
-    (item) =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    setActionLoading(true);
+    try {
+      await deleteManagedProfile(profileToDelete.id);
+      notifications.show({
+        title: "Profile deleted",
+        message: `${profileToDelete.name} has been removed from this shared account.`,
+        color: "green",
+      });
 
-  const filteredData = searchFiltered.filter((item) => {
-    if (activeTab === "inactive") return item.disabled === true;
-    // Role tabs show only non-disabled users with matching role
-    return item.role === activeTab && item.disabled === false;
-  });
+      const wasCurrentProfile = profileToDelete.isCurrent;
+      setDeleteModalOpened(false);
+      setProfileToDelete(null);
 
-  const perPage = parseInt(rowsPerPage);
-  const totalPages = Math.ceil(filteredData.length / perPage);
-  const paginatedData = filteredData.slice((page - 1) * perPage, page * perPage);
+      if (wasCurrentProfile) {
+        clearSelectedProfile();
+        await refreshProfiles();
+        navigate("/auth/profiles", { replace: true });
+        return;
+      }
 
-  const handleDelete = (id) => {
-    alert(`(Demo) Deleting user with ID: ${id}`);
+      await syncProfileViews();
+    } catch (deleteError) {
+      notifications.show({
+        title: "Delete failed",
+        message: deleteError.message || "We couldn't delete this profile.",
+        color: "red",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResetSharedPassword = async () => {
+    if (!accountData?.email) {
+      notifications.show({
+        title: "Missing account email",
+        message: "We couldn't find the shared login email for this account.",
+        color: "yellow",
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await sendPasswordReset(accountData.email);
+      notifications.show({
+        title: "Password reset sent",
+        message: `A reset link was sent to ${accountData.email}.`,
+        color: "green",
+      });
+    } catch (resetError) {
+      notifications.show({
+        title: "Reset failed",
+        message: resetError.message || "We couldn't send the password reset email.",
+        color: "red",
+      });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (isLoading) return <UserManagementSkeleton />;
@@ -233,12 +528,13 @@ export default function UserManagementTable() {
   if (error) {
     return (
       <Box style={{ textAlign: "center", padding: "40px" }}>
-        <Text c="red" fw={500}>Error: {error}</Text>
+        <Text c="red" fw={500}>
+          Error: {error}
+        </Text>
       </Box>
     );
   }
 
-  // ── Desktop table rows ────────────────────────────────────────────────────
   const rows = paginatedData.map((row) => (
     <Table.Tr
       key={row.id}
@@ -246,14 +542,18 @@ export default function UserManagementTable() {
       style={{
         backgroundColor: row.disabled ? "#FEF2F2" : "white",
         borderBottom: "1px solid #E5E7EB",
-        opacity: row.disabled ? 0.7 : 1,
+        opacity: row.disabled ? 0.74 : 1,
       }}
     >
-      <Table.Td fw={500} style={{ color: CHARCOAL, fontSize: "14px", padding: "14px 20px" }}>
-        {row.name}
-      </Table.Td>
-      <Table.Td style={{ color: MUTED_OLIVE, fontSize: "14px", padding: "14px 20px" }}>
-        {row.email}
+      <Table.Td style={{ padding: "14px 20px" }}>
+        <Stack gap={4}>
+          <Text fw={600} style={{ color: CHARCOAL, fontSize: "14px" }}>
+            {row.name}
+          </Text>
+          <Text size="xs" c={MUTED_OLIVE}>
+            {row.email}
+          </Text>
+        </Stack>
       </Table.Td>
       <Table.Td style={{ padding: "14px 20px" }}>
         <Badge size="sm" radius="sm" variant="light" style={getRoleBadgeStyle(row.role)}>
@@ -261,11 +561,23 @@ export default function UserManagementTable() {
         </Badge>
       </Table.Td>
       <Table.Td style={{ padding: "14px 20px" }}>
-        <Group gap={6} wrap="nowrap">
-          <IconCircleFilled size={8} style={{ color: row.status === "Active" ? "#22C55E" : "#9CA3AF" }} />
-          <Text size="sm" fw={500} c={row.status === "Active" ? "#16A34A" : "#6B7280"}>
+        <Group gap={6} wrap="wrap">
+          <Badge size="sm" radius="xl" variant="light" color={row.disabled ? "gray" : "green"}>
             {row.status}
-          </Text>
+          </Badge>
+          {row.isCurrent && (
+            <Badge size="sm" radius="xl" variant="light" color="green">
+              Current Session
+            </Badge>
+          )}
+          {!row.isCurrent && row.isLastUsed && (
+            <Badge size="sm" radius="xl" variant="light" color="yellow">
+              Last Used
+            </Badge>
+          )}
+          <Badge size="sm" radius="xl" variant="light" color={row.pinStatus === "PIN ready" ? "teal" : "yellow"}>
+            {row.pinStatus}
+          </Badge>
         </Group>
       </Table.Td>
       <Table.Td style={{ color: MUTED_OLIVE, fontSize: "14px", padding: "14px 20px" }}>
@@ -280,20 +592,22 @@ export default function UserManagementTable() {
               </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Label>User Actions</Menu.Label>
-              <Menu.Item leftSection={<IconShield size={16} />} onClick={() => handleOpenRoleModal(row)}>
-                Change Role
+              <Menu.Label>Profile Actions</Menu.Label>
+              <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => handleOpenEditModal(row)}>
+                Edit Profile
               </Menu.Item>
-              <Menu.Item leftSection={<IconMail size={16} />} onClick={() => handleSendPasswordReset(row.email, row.name)}>
-                Send Password Reset
+              <Menu.Item leftSection={<IconKey size={16} />} onClick={() => handleConfirmResetPin(row)}>
+                Reset PIN
               </Menu.Item>
-              <Menu.Divider />
               <Menu.Item
                 leftSection={row.disabled ? <IconLockOpen size={16} /> : <IconLock size={16} />}
-                color={row.disabled ? "green" : "red"}
-                onClick={() => handleToggleStatus(row.id, row.name, row.disabled, row.role)}
+                onClick={() => handleToggleStatus(row)}
               >
-                {row.disabled ? "Enable Account" : "Disable Account"}
+                {row.disabled ? "Enable Profile" : "Disable Profile"}
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => handleConfirmDelete(row)}>
+                Delete Profile
               </Menu.Item>
             </Menu.Dropdown>
           </Menu>
@@ -302,43 +616,136 @@ export default function UserManagementTable() {
     </Table.Tr>
   ));
 
-  // ── Tab definitions ───────────────────────────────────────────────────────
-  const tabDefs = [
-    { value: "user",               shortLabel: "Clients",  fullLabel: "Clients",          count: tableData.filter((u) => u.role === "user"               && !u.disabled).length },
-    { value: "secretary",          shortLabel: "Sec.",     fullLabel: "Secretaries",       count: tableData.filter((u) => u.role === "secretary"          && !u.disabled).length },
-    { value: "intern",             shortLabel: "Interns",  fullLabel: "Interns",           count: tableData.filter((u) => u.role === "intern"             && !u.disabled).length },
-    { value: "director",           shortLabel: "Dir.",     fullLabel: "Directors",         count: tableData.filter((u) => u.role === "director"           && !u.disabled).length },
-    { value: "supervising_lawyer", shortLabel: "Sup.",     fullLabel: "Sup. Lawyers",      count: tableData.filter((u) => u.role === "supervising_lawyer" && !u.disabled).length },
-    { value: "inactive",           shortLabel: "Inactive", fullLabel: "Inactive",          count: tableData.filter((u) => u.disabled === true).length },
-  ];
-
   return (
     <>
-      {/* ── Role Change Modal ── */}
-      <Modal opened={roleModalOpened} onClose={() => setRoleModalOpened(false)} title="Change User Role" centered>
+      <Modal
+        opened={profileModalOpened}
+        onClose={resetProfileModal}
+        title={profileModalMode === "create" ? "Add Profile" : "Edit Profile"}
+        centered
+      >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Change role for: <strong>{selectedUser?.name}</strong>
+            {profileModalMode === "create"
+              ? "Create another staff profile under this shared account."
+              : `Update the details for ${selectedProfile?.name || "this profile"}.`}
           </Text>
+          <TextInput
+            label="First Name"
+            placeholder="Enter first name"
+            value={profileForm.firstName}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setProfileForm((current) => ({
+                ...current,
+                firstName: nextValue,
+              }))
+            }}
+          />
+          <TextInput
+            label="Last Name"
+            placeholder="Enter last name"
+            value={profileForm.lastName}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setProfileForm((current) => ({
+                ...current,
+                lastName: nextValue,
+              }))
+            }}
+          />
           <Select
-            label="New Role"
-            placeholder="Select role"
-            data={[
-              { value: "user", label: "User (Client)" },
-              { value: "secretary", label: "Secretary" },
-              { value: "intern", label: "Intern" },
-              { value: "director", label: "Director" },
-              { value: "supervising_lawyer", label: "Supervising Lawyer" },
-            ]}
-            value={selectedRole}
-            onChange={setSelectedRole}
+            label="Assigned Role"
+            placeholder="Choose a role"
+            data={ROLE_OPTIONS}
+            value={profileForm.role}
+            onChange={(value) =>
+              setProfileForm((current) => ({
+                ...current,
+                role: value || "",
+              }))
+            }
+            allowDeselect={false}
           />
           <Group justify="flex-end" mt="md">
-            <Button variant="outline" onClick={() => setRoleModalOpened(false)} disabled={actionLoading}>
+            <Button variant="outline" onClick={resetProfileModal} disabled={actionLoading}>
               Cancel
             </Button>
-            <Button onClick={handleChangeRole} loading={actionLoading} style={{ backgroundColor: PRIMARY_BROWN }}>
-              Update Role
+            <Button onClick={handleSaveProfile} loading={actionLoading} style={{ backgroundColor: PRIMARY_BROWN }}>
+              {profileModalMode === "create" ? "Create Profile" : "Save Changes"}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={pinResetModalOpened}
+        onClose={() => {
+          if (actionLoading) return;
+          setPinResetModalOpened(false);
+          setProfileToResetPin(null);
+        }}
+        title="Reset Profile PIN"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Reset the PIN for <strong>{profileToResetPin?.name}</strong>?
+          </Text>
+          <Text size="sm" c="dimmed">
+            The next time this profile is selected, it will be asked to create a new PIN before entering the dashboard.
+          </Text>
+          {profileToResetPin?.isCurrent && (
+            <Text size="sm" c="red">
+              This is the profile currently being used. Resetting it will immediately send this session to the PIN setup screen.
+            </Text>
+          )}
+          <Group justify="flex-end" mt="md">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPinResetModalOpened(false);
+                setProfileToResetPin(null);
+              }}
+              disabled={actionLoading}
+            >
+              Cancel
+            </Button>
+            <Button leftSection={<IconKey size={16} />} loading={actionLoading} onClick={handleResetProfilePin}>
+              Reset PIN
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={deleteModalOpened}
+        onClose={() => {
+          if (actionLoading) return;
+          setDeleteModalOpened(false);
+          setProfileToDelete(null);
+        }}
+        title="Delete Profile"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Remove <strong>{profileToDelete?.name}</strong> from this shared account?
+          </Text>
+          <Text size="sm" c="dimmed">
+            This removes the profile from future profile selection and login sessions.
+          </Text>
+          {profileToDelete?.isCurrent && (
+            <Text size="sm" c="red">
+              This is the profile currently being used. Deleting it will send this session back to profile selection.
+            </Text>
+          )}
+          <Group justify="flex-end" mt="md">
+            <Button variant="outline" onClick={() => setDeleteModalOpened(false)} disabled={actionLoading}>
+              Cancel
+            </Button>
+            <Button color="red" loading={actionLoading} onClick={handleDeleteProfile}>
+              Delete Profile
             </Button>
           </Group>
         </Stack>
@@ -354,35 +761,101 @@ export default function UserManagementTable() {
           .user-row:hover { background: #F9FAFB !important; }
         `}</style>
 
-        <Container size="xl" px={{ base: 'md', sm: 'xl' }}>
-
-          {/* ── A. Page Header ── */}
-          <Group justify="space-between" align="center" mb="lg">
+        <Container size="xl" px={{ base: "md", sm: "xl" }}>
+          <Group justify="space-between" align="center" mb="lg" wrap="wrap">
             <Box>
-              <Title order={3} c={CHARCOAL} lh={1.2}>Users Management</Title>
-              <Text size="sm" c={MUTED_OLIVE} mt={2}>Manage and view all users in your system</Text>
+              <Title order={3} c={CHARCOAL} lh={1.2}>
+                Manage Profiles
+              </Title>
+              <Text size="sm" c={MUTED_OLIVE} mt={2}>
+                Add, update, disable, and remove role-based profiles under the shared SOLA login.
+              </Text>
             </Box>
-            <Tooltip label="Refresh users">
-              <ActionIcon size="md" variant="subtle" color="gray" onClick={() => refetch()} loading={isLoading} radius="md">
-                <IconRefresh size={18} />
-              </ActionIcon>
-            </Tooltip>
+
+            <Group gap="sm" wrap="wrap">
+              <Button
+                variant="outline"
+                leftSection={<IconMail size={16} />}
+                onClick={handleResetSharedPassword}
+                loading={actionLoading}
+              >
+                Reset Login Password
+              </Button>
+              <Button
+                leftSection={<IconPlus size={16} />}
+                onClick={handleOpenCreateModal}
+                style={{ backgroundColor: PRIMARY_BROWN }}
+              >
+                Add Profile
+              </Button>
+              <Tooltip label="Refresh profiles">
+                <ActionIcon size="md" variant="subtle" color="gray" onClick={() => refetch()} radius="md">
+                  <IconRefresh size={18} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
           </Group>
 
-          {/* ── B. Controls: Search + Tabs ── */}
-          <Paper shadow="xs" p={{ base: 'md', sm: 'lg' }} mb="lg" radius="lg" bg="white" style={{ border: "1px solid #F0F0F0" }}>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md" mb="lg">
+            <Card radius="lg" p="lg" style={{ border: "1px solid #EDE7DD" }}>
+              <Group justify="space-between" align="flex-start">
+                <Box>
+                  <Text size="xs" fw={700} tt="uppercase" c={MUTED_OLIVE}>
+                    Shared Login
+                  </Text>
+                  <Text fw={600} c={CHARCOAL} mt={6}>
+                    {accountData?.email || "Signed-in account"}
+                  </Text>
+                </Box>
+                <IconUsers size={20} color={PRIMARY_BROWN} />
+              </Group>
+            </Card>
+
+            <Card radius="lg" p="lg" style={{ border: "1px solid #EDE7DD" }}>
+              <Text size="xs" fw={700} tt="uppercase" c={MUTED_OLIVE}>
+                Total Profiles
+              </Text>
+              <Title order={3} c={CHARCOAL} mt={8}>
+                {tableData.length}
+              </Title>
+            </Card>
+
+            <Card radius="lg" p="lg" style={{ border: "1px solid #EDE7DD" }}>
+              <Text size="xs" fw={700} tt="uppercase" c={MUTED_OLIVE}>
+                Active Profiles
+              </Text>
+              <Title order={3} c={CHARCOAL} mt={8}>
+                {tableData.filter((profile) => !profile.disabled).length}
+              </Title>
+            </Card>
+
+            <Card radius="lg" p="lg" style={{ border: "1px solid #EDE7DD" }}>
+              <Text size="xs" fw={700} tt="uppercase" c={MUTED_OLIVE}>
+                Current Session
+              </Text>
+              <Text fw={600} c={CHARCOAL} mt={8}>
+                {tableData.find((profile) => profile.isCurrent)?.name || "No profile selected"}
+              </Text>
+            </Card>
+          </SimpleGrid>
+
+          <Paper shadow="xs" p={{ base: "md", sm: "lg" }} mb="lg" radius="lg" bg="white" style={{ border: "1px solid #F0F0F0" }}>
             <Stack gap="md">
-              {/* B1. Search — full width, no maxWidth cap */}
               <UserSearchFilter
                 value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setPage(1);
+                }}
               />
 
-              {/* B2. Tabs — scrollable on mobile, no wrap */}
               <ScrollArea type="scroll" scrollbarSize={0} offsetScrollbars={false}>
                 <Tabs
                   value={activeTab}
-                  onChange={(val) => { setActiveTab(val); setPage(1); }}
+                  onChange={(value) => {
+                    setActiveTab(value || "all");
+                    setPage(1);
+                  }}
                   styles={{
                     tab: {
                       fontSize: "13px",
@@ -392,18 +865,21 @@ export default function UserManagementTable() {
                   }}
                 >
                   <Tabs.List style={{ flexWrap: "nowrap" }}>
-                    {tabDefs.map((t) => (
+                    {tabDefs.map((tab) => (
                       <Tabs.Tab
-                        key={t.value}
-                        value={t.value}
+                        key={tab.value}
+                        value={tab.value}
                         style={{
-                          color: activeTab === t.value ? PRIMARY_BROWN : MUTED_OLIVE,
-                          fontWeight: activeTab === t.value ? 600 : 400,
+                          color: activeTab === tab.value ? PRIMARY_BROWN : MUTED_OLIVE,
+                          fontWeight: activeTab === tab.value ? 600 : 400,
                         }}
                       >
-                        {/* Short label on mobile, full label on sm+ */}
-                        <Text component="span" hiddenFrom="sm">{t.shortLabel} ({t.count})</Text>
-                        <Text component="span" visibleFrom="sm">{t.fullLabel} ({t.count})</Text>
+                        <Text component="span" hiddenFrom="sm">
+                          {tab.shortLabel} ({tab.count})
+                        </Text>
+                        <Text component="span" visibleFrom="sm">
+                          {tab.fullLabel} ({tab.count})
+                        </Text>
                       </Tabs.Tab>
                     ))}
                   </Tabs.List>
@@ -412,9 +888,6 @@ export default function UserManagementTable() {
             </Stack>
           </Paper>
 
-          {/* ── C. Table (desktop) / Cards (mobile) ── */}
-
-          {/* DESKTOP: full table, sm and above */}
           <Paper
             shadow="xs"
             radius="lg"
@@ -425,9 +898,9 @@ export default function UserManagementTable() {
               <Table>
                 <Table.Thead>
                   <Table.Tr style={{ backgroundColor: "#F9FAFB" }}>
-                    {["Name", "Email", "Role", "Status", "Date Joined", "Actions"].map((h, i) => (
+                    {["Profile", "Assigned Role", "Status", "Created", "Actions"].map((heading, index) => (
                       <Table.Th
-                        key={h}
+                        key={heading}
                         style={{
                           color: MUTED_OLIVE,
                           fontWeight: 600,
@@ -436,10 +909,10 @@ export default function UserManagementTable() {
                           letterSpacing: "0.5px",
                           padding: "12px 20px",
                           borderBottom: "1px solid #E5E7EB",
-                          textAlign: i === 5 ? "right" : "left",
+                          textAlign: index === 4 ? "right" : "left",
                         }}
                       >
-                        {h}
+                        {heading}
                       </Table.Th>
                     ))}
                   </Table.Tr>
@@ -447,14 +920,13 @@ export default function UserManagementTable() {
                 <Table.Tbody>{rows}</Table.Tbody>
               </Table>
             </Box>
-            {filteredData.length === 0 && !isLoading && (
+            {filteredData.length === 0 && (
               <Box ta="center" py={60} style={{ color: MUTED_OLIVE, fontSize: "14px" }}>
-                No users found
+                No profiles match this view
               </Box>
             )}
           </Paper>
 
-          {/* MOBILE: card list, below sm */}
           <Paper
             shadow="xs"
             radius="lg"
@@ -463,50 +935,50 @@ export default function UserManagementTable() {
           >
             {paginatedData.length > 0 ? (
               <Stack gap={0}>
-                {paginatedData.map((row, idx) => (
+                {paginatedData.map((row, index) => (
                   <Box key={row.id}>
-                    <UserCard
+                    <ProfileCard
                       row={row}
-                      onOpenRoleModal={handleOpenRoleModal}
-                      onSendPasswordReset={handleSendPasswordReset}
+                      onEdit={handleOpenEditModal}
+                      onResetPin={handleConfirmResetPin}
                       onToggleStatus={handleToggleStatus}
+                      onDelete={handleConfirmDelete}
                     />
-                    {idx < paginatedData.length - 1 && <Divider color="#F3F4F6" />}
+                    {index < paginatedData.length - 1 && <Divider color="#F3F4F6" />}
                   </Box>
                 ))}
               </Stack>
             ) : (
               <Box ta="center" py={60} style={{ color: MUTED_OLIVE, fontSize: "14px" }}>
-                No users found
+                No profiles match this view
               </Box>
             )}
           </Paper>
 
-          {/* ── D. Footer / Pagination ── */}
           <Paper
             shadow="xs"
-            p={{ base: 'md', sm: 'sm' }}
-            px={{ base: 'md', sm: 'lg' }}
+            p={{ base: "md", sm: "sm" }}
+            px={{ base: "md", sm: "lg" }}
             mt="lg"
             radius="lg"
             bg="white"
             style={{ border: "1px solid #F0F0F0" }}
           >
             <Stack gap="xs">
-              {/* Count + rows-per-page: side by side, wraps if needed */}
               <Group justify="space-between" align="center" wrap="wrap" gap="sm">
                 <Text size="sm" c={MUTED_OLIVE}>
                   Showing{" "}
-                  {filteredData.length === 0
-                    ? 0
-                    : Math.min((page - 1) * perPage + 1, filteredData.length)}
-                  –{Math.min(page * perPage, filteredData.length)} of {filteredData.length} users
+                  {filteredData.length === 0 ? 0 : Math.min((safePage - 1) * perPage + 1, filteredData.length)}
+                  –{Math.min(safePage * perPage, filteredData.length)} of {filteredData.length} profiles
                 </Text>
                 <Select
                   size="xs"
                   radius="md"
                   value={rowsPerPage}
-                  onChange={(val) => { setRowsPerPage(val || "10"); setPage(1); }}
+                  onChange={(value) => {
+                    setRowsPerPage(value || "10");
+                    setPage(1);
+                  }}
                   data={[
                     { value: "10", label: "10 / page" },
                     { value: "25", label: "25 / page" },
@@ -518,12 +990,11 @@ export default function UserManagementTable() {
                 />
               </Group>
 
-              {/* Pagination: centered on mobile, right-aligned on desktop */}
               {totalPages > 1 && (
-                <Group justify={{ base: "center", sm: "flex-end" }}>
+                <Group justify="flex-end">
                   <Pagination
                     total={totalPages}
-                    value={page}
+                    value={safePage}
                     onChange={setPage}
                     size="sm"
                     radius="md"
@@ -534,7 +1005,6 @@ export default function UserManagementTable() {
               )}
             </Stack>
           </Paper>
-
         </Container>
       </Box>
     </>

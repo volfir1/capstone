@@ -1,39 +1,30 @@
 import {
-  Title,
-  Text,
-  Button,
+  Anchor,
   Box,
-  TextInput,
+  Button,
+  Divider,
   PasswordInput,
   Stack,
-  Divider,
-  Group,
-  Anchor,
+  Text,
+  TextInput,
 } from "@mantine/core";
 import {
-  IconMail,
-  IconLock,
-  IconUser,
-  IconUserPlus,
-  IconArrowRight,
   IconArrowLeft,
+  IconLock,
+  IconMail,
   IconShieldCheck,
 } from "@tabler/icons-react";
-import { useState } from "react";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from "react-router-dom";
+
 import { SocialLoginButton } from "../buttons/SocialLoginButton";
 import { signupValidationRules } from "@/utils/validation";
-import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, THEMED_LIGHT_BG, CHARCOAL, ACCENT_TAN } from "@utils/constants";
-import { Loaders } from "../ui/Loader";
-import { checkEmailExists } from "@/features/auth/auth";
-import { verificationNotif, pendingRoleNotif, showError } from "@utils/notification";
-
-const STEPS = [
-  { title: "Create Account",     subtitle: "Let's start with your name" },
-  { title: "Your Email",         subtitle: "Enter your email address" },
-  { title: "Choose Username",    subtitle: "Pick a unique username (optional)" },
-  { title: "Secure Your Account", subtitle: "Create a strong password" },
-];
+import {
+  ACCENT_TAN,
+  CHARCOAL,
+  MUTED_OLIVE,
+  PRIMARY_BROWN,
+  PRIMARY_GOLD,
+} from "@utils/constants";
 
 export const SignupForm = ({
   register,
@@ -44,74 +35,13 @@ export const SignupForm = ({
   errorMessage,
   onSubmit,
   onGoogleSignup,
-  trigger,
-  getValues,
 }) => {
-  const [step, setStep] = useState(1);
-  const [isValidating, setIsValidating] = useState(false);
   const navigate = useNavigate();
 
-  const handleNext = async (e) => {
-    e.preventDefault();
-    if (!trigger) return;
-    setIsValidating(true);
-    try {
-      let isValid = false;
-      if (step === 1) {
-        isValid = await trigger(["firstName", "lastName"]);
-      } else if (step === 2) {
-        isValid = await trigger("email");
-        if (isValid) {
-          try {
-            const response = await checkEmailExists(getValues("email"));
-            if (response.exists) {
-              showError('Email Taken', 'This email is already registered. Please use a different email or log in.');
-              isValid = false;
-            }
-          } catch {
-            showError('Verification Failed', 'Unable to verify email. Please try again.');
-            isValid = false;
-          }
-        }
-      } else if (step === 3) {
-        const username = getValues("username");
-        isValid = username?.trim() ? await trigger("username") : true;
-      }
-      if (isValid) setStep(s => s + 1);
-    } catch (err) {
-      console.error("Validation error:", err);
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
-  const handleBack = () => setStep(s => s - 1);
-
-  const handleEmailSubmit = handleSubmit(async (values) => {
-    try {
-      const res = await onSubmit(values);
-      if (res !== false) { verificationNotif(); navigate('/'); }
-    } catch (err) {
-      console.error('Signup submit error:', err);
-    }
-  });
-
-  const handleGoogleSignupClick = async (e) => {
-    try {
-      await onGoogleSignup(e);
-      pendingRoleNotif();
-      navigate('/');
-    } catch (err) {
-      console.error('Google signup error:', err);
-    }
-  };
-
-  const currentStep = STEPS[step - 1];
-
   return (
-    <Box style={{ minHeight: '100vh', display: 'flex', overflow: 'hidden' }}>
+    <Box style={{ minHeight: "100vh", display: "flex", overflow: "hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
 
         .signup-form * { font-family: 'DM Sans', sans-serif; }
 
@@ -133,383 +63,179 @@ export const SignupForm = ({
           font-size: 15px !important;
           color: ${CHARCOAL} !important;
           background: #FDFBF8 !important;
-          transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
         }
+
         .form-input .mantine-TextInput-input:focus,
         .form-input .mantine-PasswordInput-input:focus {
           border-color: ${PRIMARY_BROWN} !important;
           box-shadow: 0 0 0 3px rgba(139,69,19,0.09) !important;
           background: #fff !important;
         }
-        .form-input .mantine-PasswordInput-innerInput { height: 100% !important; font-size: 15px !important; }
-        .form-input .mantine-InputWrapper-description { font-size: 11px !important; color: ${MUTED_OLIVE} !important; }
 
-        .next-btn {
+        .signup-btn {
           background: ${PRIMARY_BROWN} !important;
           height: 54px !important;
           font-size: 13px !important;
-          font-weight: 500 !important;
-          letter-spacing: 1.4px !important;
+          font-weight: 600 !important;
+          letter-spacing: 1.3px !important;
           text-transform: uppercase !important;
           border-radius: 4px !important;
           border: none !important;
-          transition: opacity 0.18s !important;
-        }
-        .next-btn:hover:not(:disabled) { opacity: 0.86 !important; }
-
-        .back-btn {
-          height: 54px !important;
-          font-size: 13px !important;
-          font-weight: 500 !important;
-          letter-spacing: 1.4px !important;
-          text-transform: uppercase !important;
-          border-radius: 4px !important;
-          border: 1.5px solid #DDD5C8 !important;
-          color: ${MUTED_OLIVE} !important;
-          background: transparent !important;
-          transition: border-color 0.18s, background 0.18s !important;
-        }
-        .back-btn:hover { border-color: ${PRIMARY_BROWN} !important; color: ${PRIMARY_BROWN} !important; }
-
-        /* Progress dots */
-        .step-dots { display: flex; gap: 8px; align-items: center; }
-        .step-dot {
-          width: 8px; height: 8px; border-radius: 50%;
-          background: #E0D8CE;
-          transition: all 0.25s ease;
-        }
-        .step-dot.active { background: ${PRIMARY_BROWN}; width: 24px; border-radius: 4px; }
-        .step-dot.done { background: ${PRIMARY_GOLD}; }
-
-        .left-panel-fade { animation: panelIn 0.6s ease both; }
-        .form-fade { animation: formIn 0.5s 0.1s ease both; }
-        .step-fade { animation: stepIn 0.3s ease both; }
-
-        @keyframes panelIn {
-          from { opacity: 0; transform: translateX(-20px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes formIn {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes stepIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* ── Mobile Brand Bar (hidden on desktop) ── */
-        .mobile-brand { display: none; }
-
-        /* ── Mobile Responsive ── */
         @media (max-width: 768px) {
-          .signup-left-panel { display: none !important; }
-
-          .mobile-brand {
-            display: flex !important;
-            align-items: center;
-            gap: 10px;
-            background: linear-gradient(135deg, ${PRIMARY_BROWN} 0%, #5C2D0A 100%);
-            padding: 14px 20px;
-            flex-shrink: 0;
-          }
-
-          .signup-content-area {
-            align-items: flex-start !important;
-            justify-content: flex-start !important;
-            padding: 56px 20px 40px !important;
-            overflow-y: auto !important;
-          }
-
-          .signup-back-btn {
-            top: 14px !important;
-            left: 16px !important;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .signup-content-area {
-            padding: 52px 16px 32px !important;
-          }
+          .signup-side { display: none !important; }
+          .signup-main { padding: 56px 20px 40px !important; }
+          .signup-back-btn { top: 16px !important; left: 16px !important; }
         }
       `}</style>
 
-      {/* ── Left Panel ── */}
       <Box
-        className="signup-left-panel left-panel-fade"
+        className="signup-side"
         style={{
-          width: '42%',
+          width: "42%",
           background: `linear-gradient(160deg, ${PRIMARY_BROWN} 0%, #5C2D0A 100%)`,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '48px 52px',
-          position: 'relative',
-          overflow: 'hidden',
+          color: "white",
+          padding: "48px 52px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
         }}
       >
-        {/* Decorative rings */}
-        <Box style={{ position: 'absolute', top: -80, right: -80, width: 280, height: 280, borderRadius: '50%', border: `1px solid rgba(196,171,125,0.15)`, pointerEvents: 'none' }} />
-        <Box style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', border: `1px solid rgba(196,171,125,0.1)`, pointerEvents: 'none' }} />
-        <Box style={{ position: 'absolute', bottom: -60, left: -60, width: 240, height: 240, borderRadius: '50%', border: `1px solid rgba(196,171,125,0.12)`, pointerEvents: 'none' }} />
-
-        {/* Brand */}
-        <Box style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src="/sola_logo.png" alt="SOLA Logo" style={{ width: 40, height: 40, objectFit: 'contain' }} />
-          <Box>
-            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>SOLA</Text>
-            <Text style={{ fontSize: 9, color: 'rgba(196,171,125,0.8)', letterSpacing: 2.5, textTransform: 'uppercase' }}>Sebastinian Office of Legal Aid</Text>
-          </Box>
-        </Box>
-
-        {/* Center content */}
         <Box>
-          <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 36, fontWeight: 500, color: '#fff', lineHeight: 1.25, marginBottom: 16 }}>
-            Join<br />SOLA
+          <Box style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 48 }}>
+            <img src="/sola_logo.png" alt="SOLA Logo" style={{ width: 40, height: 40, objectFit: "contain" }} />
+            <Box>
+              <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 600, color: "#fff", lineHeight: 1.1 }}>
+                SOLA
+              </Text>
+              <Text style={{ fontSize: 9, color: "rgba(196,171,125,0.8)", letterSpacing: 2.5, textTransform: "uppercase" }}>
+                Sebastinian Office of Legal Aid
+              </Text>
+            </Box>
+          </Box>
+
+          <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 38, fontWeight: 500, lineHeight: 1.2, marginBottom: 16 }}>
+            Create the shared
+            <br />
+            SOLA account
           </Text>
-          <Text style={{ fontSize: 14, fontWeight: 300, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, maxWidth: 260 }}>
-            Create your account to access free legal aid services from the Sebastinian Office of Legal Aid.
+          <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.68)", lineHeight: 1.75, maxWidth: 290 }}>
+            This sign-up creates the main login only. After signing in, you'll choose or create the staff profiles that act like separate office identities.
           </Text>
 
-          {/* Step indicators */}
-          <Box style={{ marginTop: 40 }}>
-            {STEPS.map((s, i) => (
-              <Box key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, opacity: step === i + 1 ? 1 : 0.4, transition: 'opacity 0.25s' }}>
-                <Box style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: step > i + 1 ? PRIMARY_GOLD : step === i + 1 ? 'rgba(196,171,125,0.3)' : 'rgba(255,255,255,0.1)',
-                  border: `1px solid ${step >= i + 1 ? PRIMARY_GOLD : 'rgba(196,171,125,0.25)'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  {step > i + 1
-                    ? <IconShieldCheck size={14} color="#fff" stroke={2} />
-                    : <Text style={{ fontSize: 11, color: step === i + 1 ? PRIMARY_GOLD : 'rgba(255,255,255,0.4)', fontWeight: 600 }}>{i + 1}</Text>
-                  }
-                </Box>
-                <Text style={{ fontSize: 12, color: step === i + 1 ? '#fff' : 'rgba(255,255,255,0.45)', fontWeight: step === i + 1 ? 500 : 300 }}>
-                  {s.title}
-                </Text>
+          <Stack gap={14} mt={40}>
+            {[
+              "One Gmail or email login for the office",
+              "Multiple staff profiles under the same account",
+              "Each profile keeps its own role and signature",
+            ].map((item) => (
+              <Box key={item} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <IconShieldCheck size={16} color={PRIMARY_GOLD} />
+                <Text size="sm" c="rgba(255,255,255,0.82)">{item}</Text>
               </Box>
             ))}
-          </Box>
+          </Stack>
         </Box>
 
-        <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
-          © {new Date().getFullYear()} SOLA — Sebastinian Office of Legal Aid
+        <Text size="xs" c="rgba(255,255,255,0.35)">
+          © {new Date().getFullYear()} SOLA
         </Text>
       </Box>
 
-      {/* ── Right Panel ── */}
       <Box
-        className="signup-form"
-        style={{ flex: 1, backgroundColor: '#FAF8F5', display: 'flex', flexDirection: 'column', position: 'relative' }}
+        className="signup-form signup-main"
+        style={{
+          flex: 1,
+          backgroundColor: "#FAF8F5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 24px",
+          position: "relative",
+        }}
       >
-        {/* Mobile Brand Bar — visible only on mobile */}
-        <Box className="mobile-brand">
-          <img src="/sola_logo.png" alt="SOLA Logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-          <Box>
-            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>SOLA</Text>
-            <Text style={{ fontSize: 8, color: 'rgba(196,171,125,0.8)', letterSpacing: 2, textTransform: 'uppercase' }}>Sebastinian Office of Legal Aid</Text>
-          </Box>
-        </Box>
-
-        {/* Form Content Area */}
-        <Box
-          className="signup-content-area"
-          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative', overflowY: 'auto' }}
+        <Button
+          variant="subtle"
+          size="xs"
+          className="signup-back-btn"
+          leftSection={<IconArrowLeft size={14} />}
+          onClick={() => navigate("/")}
+          style={{ position: "absolute", top: 24, left: 24, color: MUTED_OLIVE, fontSize: 12 }}
         >
-          <Button
-            variant="subtle"
-            size="xs"
-            className="signup-back-btn"
-            leftSection={<IconArrowLeft size={14} />}
-            onClick={() => navigate('/')}
-            style={{ position: 'absolute', top: 24, left: 24, color: MUTED_OLIVE, fontSize: 12 }}
-          >
-            Back to Home
-          </Button>
+          Back to Home
+        </Button>
 
-        <Box className="form-fade" style={{ width: '100%', maxWidth: 420 }}>
-
-          {/* Step header */}
-          <Box mb={32} className="step-fade" key={step}>
-            {/* Step dots */}
-            <Box className="step-dots" style={{ marginBottom: 20 }}>
-              {STEPS.map((_, i) => (
-                <Box key={i} className={`step-dot${step === i + 1 ? ' active' : step > i + 1 ? ' done' : ''}`} />
-              ))}
+        <Box style={{ width: "100%", maxWidth: 420 }}>
+          <Stack gap={28}>
+            <Box>
+              <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, fontWeight: 500, color: CHARCOAL, marginBottom: 8 }}>
+                Create account
+              </Text>
+              <Text style={{ fontSize: 15, color: MUTED_OLIVE, fontWeight: 300, lineHeight: 1.6 }}>
+                Set up the main login first. Staff profiles can be added right after sign-in.
+              </Text>
             </Box>
-            <Text style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 500, color: CHARCOAL, marginBottom: 6, lineHeight: 1.2 }}>
-              {currentStep.title}
-            </Text>
-            <Text style={{ fontSize: 14, color: MUTED_OLIVE, fontWeight: 300 }}>
-              {currentStep.subtitle}
-            </Text>
-          </Box>
 
-          <form onSubmit={handleEmailSubmit}>
-            <Stack gap={18}>
+            {errorMessage && (
+              <Box style={{ padding: "10px 14px", borderRadius: 4, background: "#FFF0F0", border: "1px solid #FFCDD2" }}>
+                <Text style={{ fontSize: 13, color: "#C62828" }}>{errorMessage}</Text>
+              </Box>
+            )}
 
-              {/* Step 1: Name + Google */}
-              {step === 1 && (
-                <Box className="step-fade" key="step1">
-                  <Stack gap={16}>
-                    <Box className="form-input">
-                      <label className="field-label">First Name</label>
-                      <TextInput
-                        leftSection={<IconUser size={16} color={ACCENT_TAN} />}
-                        placeholder="First name"
-                        autoFocus
-                        error={errors.firstName?.message}
-                        {...register("firstName", signupValidationRules.firstName)}
-                      />
-                    </Box>
-                    <Box className="form-input">
-                      <label className="field-label">Last Name</label>
-                      <TextInput
-                        leftSection={<IconUser size={16} color={ACCENT_TAN} />}
-                        placeholder="Last name"
-                        error={errors.lastName?.message}
-                        {...register("lastName", signupValidationRules.lastName)}
-                      />
-                    </Box>
-
-                    {isValidating
-                      ? <Loaders size="45" speed="1.75" color={PRIMARY_BROWN} height={54} />
-                      : (
-                        <Button rightSection={<IconArrowRight size={16} />} fullWidth onClick={handleNext} type="button" className="next-btn" mt={4}>
-                          Continue
-                        </Button>
-                      )
-                    }
-
-                    <Divider
-                      label={<Text style={{ fontSize: 11, color: MUTED_OLIVE, letterSpacing: 1, textTransform: 'uppercase' }}>or sign up with</Text>}
-                      labelPosition="center"
-                      color="#DDD5C8"
-                    />
-
-                    <SocialLoginButton onClick={handleGoogleSignupClick} loading={isRegistering} variant="signup" />
-                  </Stack>
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <Stack gap={16}>
+                <Box className="form-input">
+                  <label className="field-label">Email Address</label>
+                  <TextInput
+                    leftSection={<IconMail size={16} color={ACCENT_TAN} />}
+                    placeholder="office@gmail.com"
+                    error={errors.email?.message}
+                    {...register("email", signupValidationRules.email)}
+                  />
                 </Box>
-              )}
 
-              {/* Step 2: Email */}
-              {step === 2 && (
-                <Box className="step-fade" key="step2">
-                  <Stack gap={16}>
-                    <Box className="form-input">
-                      <label className="field-label">Email Address</label>
-                      <TextInput
-                        leftSection={<IconMail size={16} color={ACCENT_TAN} />}
-                        placeholder="you@example.com"
-                        autoFocus
-                        error={errors.email?.message}
-                        {...register("email", signupValidationRules.email)}
-                      />
-                    </Box>
-                    {isValidating
-                      ? <Loaders size="45" speed="1.75" color={PRIMARY_BROWN} height={54} />
-                      : (
-                        <Group grow>
-                          <Button leftSection={<IconArrowLeft size={16} />} onClick={handleBack} type="button" className="back-btn">Back</Button>
-                          <Button rightSection={<IconArrowRight size={16} />} onClick={handleNext} type="button" className="next-btn">Continue</Button>
-                        </Group>
-                      )
-                    }
-                  </Stack>
+                <Box className="form-input">
+                  <label className="field-label">Password</label>
+                  <PasswordInput
+                    leftSection={<IconLock size={16} color={ACCENT_TAN} />}
+                    placeholder="Create a strong password"
+                    error={errors.password?.message}
+                    {...register("password", signupValidationRules.password)}
+                  />
                 </Box>
-              )}
 
-              {/* Step 3: Username */}
-              {step === 3 && (
-                <Box className="step-fade" key="step3">
-                  <Stack gap={16}>
-                    <Box className="form-input">
-                      <label className="field-label">Username <Text span style={{ color: MUTED_OLIVE, fontSize: 11, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</Text></label>
-                      <TextInput
-                        leftSection={<IconUser size={16} color={ACCENT_TAN} />}
-                        placeholder="Choose a username"
-                        autoFocus
-                        description="Your email will be used as login if left empty"
-                        error={errors.username?.message}
-                        {...register("username", signupValidationRules.username)}
-                      />
-                    </Box>
-                    {isValidating
-                      ? <Loaders size="45" speed="1.75" color={PRIMARY_BROWN} height={54} />
-                      : (
-                        <Group grow>
-                          <Button leftSection={<IconArrowLeft size={16} />} onClick={handleBack} type="button" className="back-btn">Back</Button>
-                          <Button rightSection={<IconArrowRight size={16} />} onClick={handleNext} type="button" className="next-btn">Continue</Button>
-                        </Group>
-                      )
-                    }
-                  </Stack>
+                <Box className="form-input">
+                  <label className="field-label">Confirm Password</label>
+                  <PasswordInput
+                    leftSection={<IconLock size={16} color={ACCENT_TAN} />}
+                    placeholder="Re-enter your password"
+                    error={errors.confirmPassword?.message}
+                    {...register("confirmPassword", signupValidationRules.confirmPassword(password))}
+                  />
                 </Box>
-              )}
 
-              {/* Step 4: Password */}
-              {step === 4 && (
-                <Box className="step-fade" key="step4">
-                  <Stack gap={16}>
-                    <Box className="form-input">
-                      <label className="field-label">Password</label>
-                      <PasswordInput
-                        leftSection={<IconLock size={16} color={ACCENT_TAN} />}
-                        placeholder="Create a password"
-                        autoFocus
-                        description="Min 6 characters with uppercase, lowercase & number"
-                        error={errors.password?.message}
-                        {...register("password", signupValidationRules.password)}
-                      />
-                    </Box>
-                    <Box className="form-input">
-                      <label className="field-label">Confirm Password</label>
-                      <PasswordInput
-                        leftSection={<IconLock size={16} color={ACCENT_TAN} />}
-                        placeholder="Confirm your password"
-                        error={errors.confirmPassword?.message}
-                        {...register("confirmPassword", signupValidationRules.confirmPassword(password))}
-                      />
-                    </Box>
+                <Button type="submit" loading={isRegistering} className="signup-btn" fullWidth mt={4}>
+                  Create Shared Account
+                </Button>
 
-                    {errorMessage && (
-                      <Box style={{ padding: '10px 14px', borderRadius: 4, background: '#FFF0F0', border: '1px solid #FFCDD2' }}>
-                        <Text style={{ fontSize: 13, color: '#C62828' }}>{errorMessage}</Text>
-                      </Box>
-                    )}
+                <Divider
+                  label={<Text style={{ fontSize: 11, color: MUTED_OLIVE, letterSpacing: 1, textTransform: "uppercase" }}>or continue with</Text>}
+                  labelPosition="center"
+                  color="#DDD5C8"
+                />
 
-                    <Group grow mt={4}>
-                      <Button leftSection={<IconArrowLeft size={16} />} onClick={handleBack} type="button" className="back-btn" disabled={isRegistering}>
-                        Back
-                      </Button>
-                      <Button leftSection={<IconUserPlus size={16} />} type="submit" loading={isRegistering} className="next-btn">
-                        Create Account
-                      </Button>
-                    </Group>
-                  </Stack>
-                </Box>
-              )}
+                <SocialLoginButton onClick={onGoogleSignup} loading={isRegistering} variant="signup" />
 
-            </Stack>
-          </form>
-
-          {/* Footer */}
-          <Text style={{ fontSize: 13, color: MUTED_OLIVE, textAlign: 'center', marginTop: 28 }}>
-            Already have an account?{' '}
-            <Anchor
-              component="button"
-              type="button"
-              onClick={() => navigate('/auth/admin')}
-              style={{ color: PRIMARY_BROWN, fontWeight: 500, textDecoration: 'none' }}
-            >
-              Sign in
-            </Anchor>
-          </Text>
-
-        </Box>
+                <Text size="sm" c={MUTED_OLIVE} ta="center">
+                  Already have the shared account?{" "}
+                  <Anchor href="/auth/admin" fw={600} c={PRIMARY_BROWN} underline="never">
+                    Sign in
+                  </Anchor>
+                </Text>
+              </Stack>
+            </form>
+          </Stack>
         </Box>
       </Box>
     </Box>

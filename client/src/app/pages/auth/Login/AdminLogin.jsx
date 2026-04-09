@@ -240,7 +240,7 @@ export default function AdminLogin() {
                 Welcome back
               </Text>
               <Text style={{ fontSize: 15, color: MUTED_OLIVE, fontWeight: 300, lineHeight: 1.5 }}>
-                Sign in to access the office dashboard
+                Sign in to the shared SOLA account, then choose the staff profile you want to use
               </Text>
             </Box>
 

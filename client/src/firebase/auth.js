@@ -1,4 +1,6 @@
 import { auth } from "./firebase";
+import { clearAllStoredActiveProfileIds } from "@/features/auth/profileSession";
+import { clearAllStoredProfilePinTokens } from "@/features/auth/profilePinSession";
 
 import { createUserWithEmailAndPassword, GoogleAuthProvider, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, updatePassword } from "firebase/auth";
 
@@ -39,6 +41,8 @@ export const doSignInWithGoogle = async () =>{
 }
 
 export const doSignOut = () =>{
+    clearAllStoredActiveProfileIds();
+    clearAllStoredProfilePinTokens();
     // Clear all localStorage items related to authentication
     localStorage.removeItem('token');
     localStorage.removeItem('userId');

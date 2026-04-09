@@ -1,22 +1,45 @@
-import Notification from '../models/notification.js';
-import User from '../models/user.js';
-import Attorney from '../models/attorney.js';
+import mongoose from 'mongoose';
 import admin from 'firebase-admin';
 
+import Notification from '../models/notification.js';
+import Account from '../models/account.js';
+import User from '../models/user.js';
+import { emitToProfileRoom } from '../socket.js';
 import { safeErrorMessage } from '../utils/errorResponse.js';
-// ── Helper: resolve firebaseUid from the Authorization header ──
-const getUidFromHeader = async (req) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const decoded = await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
-  return decoded.uid;
+
+const normalizeRecipientId = (value) => String(value || '').trim();
+const getActiveNotificationRecipientId = (req) =>
+  String(req.activeProfile?._id || '').trim();
+
+const resolvePushTargetUid = async (recipientId) => {
+  const normalizedRecipientId = normalizeRecipientId(recipientId);
+  if (!normalizedRecipientId) return '';
+
+  if (mongoose.Types.ObjectId.isValid(normalizedRecipientId)) {
+    const profile = await User.findById(normalizedRecipientId)
+      .select('firebaseUid accountId')
+      .lean();
+
+    if (profile?.firebaseUid) {
+      return profile.firebaseUid;
+    }
+
+    if (profile?.accountId) {
+      const account = await Account.findById(profile.accountId).select('firebaseUid').lean();
+      return account?.firebaseUid || '';
+    }
+  }
+
+  return normalizedRecipientId;
 };
 
-// ── Helper: send FCM push notification to a user's registered devices ──
+// —— Helper: send FCM push notification to an account's registered devices ——
 const sendPushToUser = async (recipientFirebaseUid, title, body, data = {}) => {
   try {
-    const user = await User.findOne({ firebaseUid: recipientFirebaseUid }).select('pushTokens').lean();
-    if (!user?.pushTokens?.length) return;
+    const account = await Account.findOne({ firebaseUid: recipientFirebaseUid })
+      .select('pushTokens')
+      .lean();
+    if (!account?.pushTokens?.length) return;
 
     const payload = {
       notification: { title, body },
@@ -24,28 +47,28 @@ const sendPushToUser = async (recipientFirebaseUid, title, body, data = {}) => {
     };
 
     const results = await Promise.allSettled(
-      user.pushTokens.map(token =>
+      account.pushTokens.map((token) =>
         admin.messaging().send({ ...payload, token })
       )
     );
 
     // Remove any invalid/expired tokens
     const invalidTokens = [];
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        const code = r.reason?.code || r.reason?.errorInfo?.code || '';
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        const code = result.reason?.code || result.reason?.errorInfo?.code || '';
         if (
           code === 'messaging/registration-token-not-registered' ||
           code === 'messaging/invalid-registration-token' ||
           code === 'messaging/invalid-argument'
         ) {
-          invalidTokens.push(user.pushTokens[i]);
+          invalidTokens.push(account.pushTokens[index]);
         }
       }
     });
 
     if (invalidTokens.length) {
-      await User.updateOne(
+      await Account.updateOne(
         { firebaseUid: recipientFirebaseUid },
         { $pull: { pushTokens: { $in: invalidTokens } } }
       );
@@ -55,14 +78,67 @@ const sendPushToUser = async (recipientFirebaseUid, title, body, data = {}) => {
   }
 };
 
-// ── Helper: create a notification (used by other controllers) ──
-export const createNotification = async ({ recipientId, title, message, type = 'general', referenceId = null }) => {
-  try {
-    if (!recipientId || !title || !message) return null;
-    const notification = await Notification.create({ recipientId, title, message, type, referenceId });
+export const listActiveProfilesByRoles = async (roles, { accountId = null } = {}) => {
+  const normalizedRoles = (Array.isArray(roles) ? roles : [roles])
+    .map((role) => String(role || '').trim())
+    .filter(Boolean);
 
-    // Send FCM push notification (fire-and-forget)
-    sendPushToUser(recipientId, title, message, { type, referenceId: referenceId || '' });
+  if (!normalizedRoles.length) return [];
+
+  const query = {
+    role: { $in: normalizedRoles },
+    disabled: { $ne: true },
+  };
+
+  if (accountId) {
+    query.accountId = accountId;
+  }
+
+  return User.find(query)
+    .select('_id accountId firstName lastName email firebaseUid role disabled')
+    .sort({ createdAt: 1, firstName: 1, lastName: 1 })
+    .lean();
+};
+
+export const emitSocketEventToProfile = (profileId, eventName, payload) => {
+  const normalizedProfileId = normalizeRecipientId(profileId);
+  if (!normalizedProfileId || !eventName) return;
+  emitToProfileRoom(normalizedProfileId, eventName, payload);
+};
+
+export const emitNotificationToProfile = (profileId, notification) => {
+  const normalizedProfileId = normalizeRecipientId(profileId);
+  if (!normalizedProfileId || !notification) return;
+  emitSocketEventToProfile(normalizedProfileId, 'new-notification', notification);
+};
+
+// —— Helper: create a notification (used by other controllers) ——
+export const createNotification = async ({
+  recipientId,
+  title,
+  message,
+  type = 'general',
+  referenceId = null,
+}) => {
+  try {
+    const normalizedRecipientId = normalizeRecipientId(recipientId);
+    if (!normalizedRecipientId || !title || !message) return null;
+
+    const notification = await Notification.create({
+      recipientId: normalizedRecipientId,
+      title,
+      message,
+      type,
+      referenceId,
+    });
+
+    const pushTargetUid = await resolvePushTargetUid(normalizedRecipientId);
+    if (pushTargetUid) {
+      sendPushToUser(pushTargetUid, title, message, {
+        type,
+        referenceId: referenceId || '',
+      });
+    }
 
     return notification;
   } catch (error) {
@@ -71,24 +147,28 @@ export const createNotification = async ({ recipientId, title, message, type = '
   }
 };
 
-// ── GET /notifications — list notifications for the logged-in user ──
+// —— GET /notifications — list notifications for the active profile ——
 export const getNotifications = async (req, res) => {
   try {
-    const uid = await getUidFromHeader(req);
-    if (!uid) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const recipientId = getActiveNotificationRecipientId(req);
+    if (!recipientId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20;
     const skip = (page - 1) * limit;
 
+    const query = { recipientId };
+
     const [notifications, total, unreadCount] = await Promise.all([
-      Notification.find({ recipientId: uid })
+      Notification.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      Notification.countDocuments({ recipientId: uid }),
-      Notification.countDocuments({ recipientId: uid, read: false }),
+      Notification.countDocuments(query),
+      Notification.countDocuments({ ...query, read: false }),
     ]);
 
     res.json({
@@ -101,78 +181,101 @@ export const getNotifications = async (req, res) => {
     });
   } catch (error) {
     console.error('Get notifications error:', error);
-    res.status(500).json({ success: false, message: safeErrorMessage(error)});
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
   }
 };
 
-// ── GET /notifications/unread-count ──
+// —— GET /notifications/unread-count ——
 export const getUnreadCount = async (req, res) => {
   try {
-    const uid = await getUidFromHeader(req);
-    if (!uid) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const recipientId = getActiveNotificationRecipientId(req);
+    if (!recipientId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
-    const unreadCount = await Notification.countDocuments({ recipientId: uid, read: false });
+    const unreadCount = await Notification.countDocuments({
+      recipientId,
+      read: false,
+    });
     res.json({ success: true, unreadCount });
   } catch (error) {
-    res.status(500).json({ success: false, message: safeErrorMessage(error)});
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
   }
 };
 
-// ── PUT /notifications/:id/read — mark one as read ──
+// —— PUT /notifications/:id/read — mark one as read ——
 export const markAsRead = async (req, res) => {
   try {
-    const uid = await getUidFromHeader(req);
-    if (!uid) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const recipientId = getActiveNotificationRecipientId(req);
+    if (!recipientId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, recipientId: uid },
+      { _id: req.params.id, recipientId },
       { read: true },
       { new: true }
     );
 
-    if (!notification) return res.status(404).json({ success: false, message: 'Notification not found' });
+    if (!notification) {
+      return res.status(404).json({ success: false, message: 'Notification not found' });
+    }
+
     res.json({ success: true, data: notification });
   } catch (error) {
-    res.status(500).json({ success: false, message: safeErrorMessage(error)});
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
   }
 };
 
-// ── PUT /notifications/read-all — mark all as read ──
+// —— PUT /notifications/read-all — mark all as read ——
 export const markAllAsRead = async (req, res) => {
   try {
-    const uid = await getUidFromHeader(req);
-    if (!uid) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const recipientId = getActiveNotificationRecipientId(req);
+    if (!recipientId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
-    await Notification.updateMany({ recipientId: uid, read: false }, { read: true });
+    await Notification.updateMany({ recipientId, read: false }, { read: true });
     res.json({ success: true, message: 'All notifications marked as read' });
   } catch (error) {
-    res.status(500).json({ success: false, message: safeErrorMessage(error)});
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
   }
 };
 
-// ── DELETE /notifications — delete all notifications for user ──
+// —— DELETE /notifications — delete all notifications for profile ——
 export const deleteAllNotifications = async (req, res) => {
   try {
-    const uid = await getUidFromHeader(req);
-    if (!uid) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const recipientId = getActiveNotificationRecipientId(req);
+    if (!recipientId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
-    await Notification.deleteMany({ recipientId: uid });
+    await Notification.deleteMany({ recipientId });
     res.json({ success: true, message: 'All notifications deleted' });
   } catch (error) {
-    res.status(500).json({ success: false, message: safeErrorMessage(error)});
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
   }
 };
 
-// ── DELETE /notifications/:id ──
+// —— DELETE /notifications/:id ——
 export const deleteNotification = async (req, res) => {
   try {
-    const uid = await getUidFromHeader(req);
-    if (!uid) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const recipientId = getActiveNotificationRecipientId(req);
+    if (!recipientId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
-    const deleted = await Notification.findOneAndDelete({ _id: req.params.id, recipientId: uid });
-    if (!deleted) return res.status(404).json({ success: false, message: 'Notification not found' });
+    const deleted = await Notification.findOneAndDelete({
+      _id: req.params.id,
+      recipientId,
+    });
+
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Notification not found' });
+    }
+
     res.json({ success: true, message: 'Notification deleted' });
   } catch (error) {
-    res.status(500).json({ success: false, message: safeErrorMessage(error)});
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
   }
 };

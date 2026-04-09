@@ -25,10 +25,10 @@ export default function UserManagementSkeleton() {
 			<Container size="xl">
 				<Group justify="space-between" align="center" mb="lg">
 					<div>
-						<Title order={3} style={{ color: CHARCOAL, lineHeight: 1.2 }}>
+						<Title component="div" order={3} style={{ color: CHARCOAL, lineHeight: 1.2 }}>
 							<Skeleton height={20} width={220} />
 						</Title>
-						<Text size="sm" style={{ color: MUTED_OLIVE, marginTop: 8 }}>
+						<Text component="div" size="sm" style={{ color: MUTED_OLIVE, marginTop: 8 }}>
 							<Skeleton height={12} width={320} />
 						</Text>
 					</div>
@@ -81,7 +81,7 @@ export default function UserManagementSkeleton() {
 				<Paper shadow="xs" p="sm" px="lg" mt="lg" radius="lg" bg="white" style={{ border: '1px solid #F0F0F0' }}>
 					<Group justify="space-between" align="center">
 						<Group gap="sm" align="center">
-							<Text size="sm" style={{ color: MUTED_OLIVE }}>
+							<Text component="div" size="sm" style={{ color: MUTED_OLIVE }}>
 								<Skeleton height={12} width={220} />
 							</Text>
 							<Select data={[]} styles={{ input: { border: '1px solid #E5E7EB' } }} disabled />
