@@ -53,6 +53,7 @@ export default function ProfileSelection() {
     selectProfile,
   } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingProfileId, setSubmittingProfileId] = useState("");
 
   const selectableProfiles = useMemo(
     () => profiles.filter((profile) => !profile.disabled),
@@ -79,6 +80,7 @@ export default function ProfileSelection() {
   const handleSelectProfile = async (profileId) => {
     try {
       setIsSubmitting(true);
+      setSubmittingProfileId(profileId);
       await selectProfile(profileId);
       navigate("/auth/profile-pin", { replace: true });
     } catch (error) {
@@ -89,6 +91,7 @@ export default function ProfileSelection() {
       });
     } finally {
       setIsSubmitting(false);
+      setSubmittingProfileId("");
     }
   };
 
@@ -97,175 +100,216 @@ export default function ProfileSelection() {
       style={{
         minHeight: "100vh",
         background: `linear-gradient(180deg, #F9F5EE 0%, ${BG} 100%)`,
-        padding: "40px 24px",
+        padding: "24px 16px",
       }}
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap');
         .profile-selection * { font-family: 'DM Sans', sans-serif; }
+
+        .profile-selection .profile-menu-card {
+          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .profile-selection .profile-menu-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 26px rgba(36, 22, 10, 0.08);
+          border-color: rgba(139, 69, 19, 0.24);
+        }
+
+        @media (max-width: 768px) {
+          .profile-selection .profile-page-title {
+            font-size: 30px !important;
+          }
+        }
       `}</style>
 
-      <Box className="profile-selection" maw={1120} mx="auto">
-        <Group justify="space-between" align="flex-start" mb={32}>
-          <Stack gap={10}>
+      <Box className="profile-selection" maw={1180} mx="auto">
+        <Group justify="space-between" align="flex-end" mb={18} wrap="wrap" gap="sm">
+          <Group gap="sm" align="flex-start" wrap="nowrap">
             <ActionIcon
               variant="subtle"
               color="gray"
-              size="lg"
+              size="md"
               onClick={handleBackToLogin}
               style={{ width: "fit-content" }}
             >
               <IconArrowLeft size={18} />
             </ActionIcon>
 
-            <Text
-              style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: 36,
-                fontWeight: 600,
-                color: CHARCOAL,
-                lineHeight: 1.1,
-              }}
-            >
-              Choose a staff profile
-            </Text>
+            <Box>
+              <Text
+                className="profile-page-title"
+                style={{
+                  fontFamily: "'Playfair Display', serif",
+                  fontSize: 34,
+                  fontWeight: 600,
+                  color: CHARCOAL,
+                  lineHeight: 1.05,
+                }}
+              >
+                Choose a staff profile
+              </Text>
 
-            <Text size="md" c={MUTED_OLIVE} maw={700}>
-              One SOLA account can hold multiple staff identities. Pick the profile you want to use for this session.
-            </Text>
-          </Stack>
+              <Text size="sm" c={MUTED_OLIVE} maw={680} mt={6}>
+                Pick the profile you want to use in this session.
+              </Text>
+            </Box>
+          </Group>
         </Group>
 
         <Card
-          radius="xl"
-          shadow="sm"
-          p="xl"
-          mb="xl"
+          radius="lg"
+          shadow="xs"
+          p="md"
+          mb="md"
           style={{
             background: "white",
-            border: "1px solid rgba(139, 69, 19, 0.08)",
+            border: "1px solid rgba(139, 69, 19, 0.1)",
           }}
         >
-          <Group justify="space-between" align="center" wrap="wrap" gap="md">
+          <Group justify="space-between" align="center" wrap="wrap" gap="xs">
             <Box>
-              <Text size="sm" fw={700} tt="uppercase" c={MUTED_OLIVE}>
+              <Text size="10px" fw={700} tt="uppercase" c={MUTED_OLIVE} lts={0.6}>
                 Shared Account
               </Text>
-              <Title order={4} mt={4} c={CHARCOAL}>
+              <Text fw={700} size="lg" mt={2} c={CHARCOAL}>
                 {accountData?.email || currentUser?.email || "Signed-in account"}
-              </Title>
-              <Text size="sm" c={MUTED_OLIVE} mt={6}>
-                {accountData?.isVerified ? "Verified" : "Verification pending"}
               </Text>
             </Box>
 
-            {(userData || activeProfile) && activeProfileId ? (
+            <Group gap="xs" wrap="wrap">
               <Badge
                 radius="xl"
-                size="lg"
                 variant="light"
                 style={{
-                  backgroundColor: `${PRIMARY_GOLD}20`,
-                  color: PRIMARY_BROWN,
-                  border: `1px solid ${PRIMARY_GOLD}50`,
+                  backgroundColor: accountData?.isVerified ? "#E8F8EE" : "#FFF4E6",
+                  color: accountData?.isVerified ? "#2F6B3E" : "#A76414",
+                  border: accountData?.isVerified ? "1px solid #B7E4C7" : "1px solid #FFD8A8",
                 }}
               >
-                Current: {userData?.firstName || activeProfile?.firstName} {userData?.lastName || activeProfile?.lastName}
+                {accountData?.isVerified ? "Verified" : "Verification pending"}
               </Badge>
-            ) : (
-              <Badge
-                radius="xl"
-                size="lg"
-                variant="light"
-                style={{
-                  backgroundColor: `${ACCENT_TAN}20`,
-                  color: MUTED_OLIVE,
-                  border: `1px solid ${ACCENT_TAN}50`,
-                }}
-              >
-                No active profile selected
-              </Badge>
-            )}
+
+              {(userData || activeProfile) && activeProfileId ? (
+                <Badge
+                  radius="xl"
+                  variant="light"
+                  style={{
+                    backgroundColor: `${PRIMARY_GOLD}20`,
+                    color: PRIMARY_BROWN,
+                    border: `1px solid ${PRIMARY_GOLD}55`,
+                  }}
+                >
+                  Current: {userData?.firstName || activeProfile?.firstName} {userData?.lastName || activeProfile?.lastName}
+                </Badge>
+              ) : (
+                <Badge
+                  radius="xl"
+                  variant="light"
+                  style={{
+                    backgroundColor: `${ACCENT_TAN}20`,
+                    color: MUTED_OLIVE,
+                    border: `1px solid ${ACCENT_TAN}50`,
+                  }}
+                >
+                  No active profile selected
+                </Badge>
+              )}
+            </Group>
           </Group>
         </Card>
 
-        <Grid gutter="lg">
+        <Grid gutter={{ base: "sm", md: "md" }}>
           {selectableProfiles.map((profile) => (
-            <Grid.Col key={profile.id} span={{ base: 12, md: 6 }}>
+            <Grid.Col key={profile.id} span={{ base: 12, sm: 6, lg: 4, xl: 3 }}>
               <Card
-                radius="xl"
-                shadow="sm"
-                p="xl"
+                className="profile-menu-card"
+                radius="lg"
+                shadow="xs"
+                p="md"
                 style={{
-                  height: "100%",
+                  height: 228,
                   background:
                     activeProfileId === profile.id
-                      ? "linear-gradient(160deg, rgba(139,69,19,0.08) 0%, rgba(196,171,125,0.16) 100%)"
+                      ? "linear-gradient(165deg, rgba(139,69,19,0.07) 0%, rgba(196,171,125,0.14) 100%)"
                       : "white",
                   border:
                     activeProfileId === profile.id
                       ? `1px solid ${PRIMARY_GOLD}`
-                      : "1px solid rgba(139, 69, 19, 0.08)",
+                      : "1px solid rgba(139, 69, 19, 0.1)",
                 }}
               >
-                <Group justify="space-between" align="flex-start" mb="lg">
-                  <Group gap="md" align="flex-start">
-                    <Box
-                      style={{
-                        width: 52,
-                        height: 52,
-                        borderRadius: "50%",
-                        display: "grid",
-                        placeItems: "center",
-                        background: "rgba(196,171,125,0.18)",
-                        color: PRIMARY_BROWN,
-                      }}
-                    >
-                      <IconUserCircle size={28} />
-                    </Box>
+                <Stack h="100%" justify="space-between" gap="sm">
+                  <Stack gap={10}>
+                    <Group justify="space-between" align="flex-start" wrap="nowrap">
+                      <Group gap="xs" align="flex-start" wrap="nowrap" style={{ minWidth: 0 }}>
+                        <Box
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: "10px",
+                            display: "grid",
+                            placeItems: "center",
+                            background: "rgba(196,171,125,0.16)",
+                            color: PRIMARY_BROWN,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <IconUserCircle size={22} />
+                        </Box>
 
-                    <Box>
-                      <Text size="xl" fw={700} c={CHARCOAL}>
-                        {profile.firstName} {profile.lastName}
+                        <Box style={{ minWidth: 0 }}>
+                          <Text fw={700} size="sm" c={CHARCOAL} lh={1.3} truncate>
+                            {profile.firstName} {profile.lastName}
+                          </Text>
+                          <Text size="xs" c={MUTED_OLIVE} mt={2} truncate>
+                            {formatRole(profile.role)}
+                          </Text>
+                        </Box>
+                      </Group>
+
+                      {activeProfileId === profile.id && (
+                        <Badge
+                          radius="xl"
+                          size="xs"
+                          variant="filled"
+                          style={{
+                            backgroundColor: PRIMARY_BROWN,
+                            flexShrink: 0,
+                          }}
+                        >
+                          Active
+                        </Badge>
+                      )}
+                    </Group>
+
+                    <Stack gap={4}>
+                      <Text size="xs" c={MUTED_OLIVE}>
+                        <Text span fw={700} c={CHARCOAL}>Role:</Text> {formatRole(profile.role)}
                       </Text>
-                      <Text size="sm" c={MUTED_OLIVE} mt={4}>
-                        {formatRole(profile.role)}
+                      <Text size="xs" c={MUTED_OLIVE} truncate>
+                        <Text span fw={700} c={CHARCOAL}>Account:</Text> {profile.email}
                       </Text>
-                    </Box>
-                  </Group>
+                    </Stack>
+                  </Stack>
 
-                  {activeProfileId === profile.id && (
-                    <Badge
-                      radius="xl"
-                      variant="filled"
-                      style={{ backgroundColor: PRIMARY_BROWN }}
-                    >
-                      Active
-                    </Badge>
-                  )}
-                </Group>
-
-                <Stack gap={8} mb="xl">
-                  <Text size="sm" c={MUTED_OLIVE}>
-                    <strong style={{ color: CHARCOAL }}>Role:</strong> {formatRole(profile.role)}
-                  </Text>
-                  <Text size="sm" c={MUTED_OLIVE}>
-                    <strong style={{ color: CHARCOAL }}>Account:</strong> {profile.email}
-                  </Text>
+                  <Button
+                    fullWidth
+                    size="sm"
+                    radius="md"
+                    rightSection={<IconChevronRight size={15} />}
+                    loading={isSubmitting && submittingProfileId === profile.id}
+                    disabled={isSubmitting && submittingProfileId !== profile.id}
+                    onClick={() => handleSelectProfile(profile.id)}
+                    style={{
+                      backgroundColor: activeProfileId === profile.id ? PRIMARY_GOLD : PRIMARY_BROWN,
+                      color: activeProfileId === profile.id ? CHARCOAL : "white",
+                    }}
+                  >
+                    {activeProfileId === profile.id ? "Continue" : "Select Profile"}
+                  </Button>
                 </Stack>
-
-                <Button
-                  fullWidth
-                  rightSection={<IconChevronRight size={16} />}
-                  loading={isSubmitting}
-                  onClick={() => handleSelectProfile(profile.id)}
-                  style={{
-                    backgroundColor: activeProfileId === profile.id ? PRIMARY_GOLD : PRIMARY_BROWN,
-                    color: activeProfileId === profile.id ? CHARCOAL : "white",
-                  }}
-                >
-                  {activeProfileId === profile.id ? "Continue with this profile" : "Use this profile"}
-                </Button>
               </Card>
             </Grid.Col>
           ))}
@@ -273,20 +317,20 @@ export default function ProfileSelection() {
           {selectableProfiles.length === 0 && (
             <Grid.Col span={12}>
               <Card
-                radius="xl"
-                shadow="sm"
-                p="xl"
+                radius="lg"
+                shadow="xs"
+                p="lg"
                 style={{
                   background: "white",
                   border: "1px dashed rgba(139, 69, 19, 0.25)",
                 }}
               >
-                <Stack gap="sm" align="center" ta="center">
-                  <IconUserCircle size={42} color={PRIMARY_BROWN} />
+                <Stack gap={6} align="center" ta="center">
+                  <IconUserCircle size={34} color={PRIMARY_BROWN} />
                   <Title order={4} c={CHARCOAL}>
                     No profiles available
                   </Title>
-                  <Text c={MUTED_OLIVE} maw={560}>
+                  <Text c={MUTED_OLIVE} size="sm" maw={560}>
                     This shared account does not have any active profiles yet. Profiles can now be created only from
                     the Manage Profiles page of an existing signed-in profile for this same account.
                   </Text>
