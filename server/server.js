@@ -38,17 +38,6 @@ const hasCloudinaryKeys = Boolean(
 );
 const cloudinaryEnabled = hasCloudinaryUrl || hasCloudinaryKeys;
 
-// Configure Cloudinary when credentials are available.
-if (cloudinaryEnabled) {
-  if (hasCloudinaryUrl) {
-    cloudinary.config({ url: process.env.CLOUDINARY_URL });
-  } else {
-    cloudinary.config({
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-      api_secret: process.env.CLOUDINARY_API_SECRET,
-    });
-
 const isProduction = process.env.NODE_ENV === 'production';
 const isLocalhostUrl = (value = '') =>
   /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(String(value || '').trim());
@@ -70,6 +59,17 @@ const resolveClientOrigin = () => {
 
   return 'http://localhost:5173';
 };
+
+// Configure Cloudinary when credentials are available.
+if (cloudinaryEnabled) {
+  if (hasCloudinaryUrl) {
+    cloudinary.config({ url: process.env.CLOUDINARY_URL });
+  } else {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
   }
 } else {
   console.warn('Cloudinary is not configured. Uploads will continue using local disk storage.');
