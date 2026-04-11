@@ -216,13 +216,29 @@ const PRIMARY_GOLD = '#FFD700';
 const PRIMARY_BROWN = '#5C4033';
 const THEMED_LIGHT_BG = '#F7F7F7';
 const MUTED_OLIVE = '#8A8A5C'; // Re-added for button styling
+const EVIDENCE_ATTACHMENT_ACCEPT = [
+    '.pdf', '.doc', '.docx',
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tif', '.tiff',
+    '.mp4', '.mov', '.avi', '.mkv', '.webm', '.mpeg', '.mpg'
+].join(',');
 // --- End of Consolidated Constants ---
 
 
 // Helper component for Evidence Tables (Memoized)
-const EMPTY_EVIDENCE_ROW = { type: '', author: '', purpose: '', issues: '' };
+const EMPTY_EVIDENCE_ROW = { type: '', author: '', purpose: '', issues: '', attachment: null };
 
-const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly, showPurpose = true }) => {
+const EvidenceRow = React.memo(({
+    row,
+    index,
+    onBlurRow,
+    readOnly,
+    showPurpose = true,
+    onUploadAttachment = () => {},
+    onRemoveAttachment = () => {},
+    onViewAttachment = () => {},
+    onDownloadAttachment = () => {},
+    isUploading = false,
+}) => {
     // Local state per-row so keystrokes never re-render siblings or the parent form
     const [local, setLocal] = React.useState(() => ({ ...EMPTY_EVIDENCE_ROW, ...row }));
 
@@ -257,6 +273,9 @@ const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly, showPurpose =
             cursor: readOnly ? 'not-allowed' : 'text',
         },
     };
+
+    const attachment = row?.attachment || null;
+    const hasAttachment = Boolean(attachment && (attachment.fileUrl || attachment.cloudinaryUrl));
 
     return (
         <Table.Tr>
@@ -293,12 +312,85 @@ const EvidenceRow = React.memo(({ row, index, onBlurRow, readOnly, showPurpose =
                     onBlur={handleBlur('issues')}
                     readOnly={readOnly} styles={inputStyles} />
             </Table.Td>
+
+            <Table.Td>
+                <Stack gap={4}>
+                    {!readOnly && (
+                        <FileButton
+                            onChange={(file) => {
+                                if (file) onUploadAttachment(index, file);
+                            }}
+                            accept={EVIDENCE_ATTACHMENT_ACCEPT}
+                        >
+                            {(props) => (
+                                <Button
+                                    {...props}
+                                    size="xs"
+                                    variant="outline"
+                                    leftSection={<IconUpload size={14} />}
+                                    loading={isUploading}
+                                >
+                                    {hasAttachment ? 'Replace' : 'Upload'}
+                                </Button>
+                            )}
+                        </FileButton>
+                    )}
+
+                    {hasAttachment && (
+                        <>
+                            <Text size="xs" fw={600} lineClamp={1}>{attachment.fileName || 'Attachment'}</Text>
+                            <Group gap={4}>
+                                <Button
+                                    size="xs"
+                                    variant="light"
+                                    color="blue"
+                                    leftSection={<IconEye size={12} />}
+                                    onClick={() => onViewAttachment(attachment)}
+                                >
+                                    View
+                                </Button>
+                                <Button
+                                    size="xs"
+                                    variant="light"
+                                    color="green"
+                                    leftSection={<IconDownload size={12} />}
+                                    onClick={() => onDownloadAttachment(attachment)}
+                                >
+                                    Download
+                                </Button>
+                                {!readOnly && (
+                                    <Button
+                                        size="xs"
+                                        variant="subtle"
+                                        color="red"
+                                        leftSection={<IconX size={12} />}
+                                        onClick={() => onRemoveAttachment(index)}
+                                    >
+                                        Remove
+                                    </Button>
+                                )}
+                            </Group>
+                        </>
+                    )}
+                </Stack>
+            </Table.Td>
         </Table.Tr>
     );
 });
 EvidenceRow.displayName = 'EvidenceRow';
 
-const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, readOnly = false, showPurpose = true }) => {
+const EvidenceTable = React.memo(({
+    title,
+    value = [],
+    onChange = () => {},
+    readOnly = false,
+    showPurpose = true,
+    onUploadAttachment = () => {},
+    onRemoveAttachment = () => {},
+    onViewAttachment = () => {},
+    onDownloadAttachment = () => {},
+    uploadingRowKey = null,
+}) => {
     // Ensure we have at least 3 rows
     const rows = value.length >= 3 ? value : [...value, ...Array(3 - value.length).fill(EMPTY_EVIDENCE_ROW)];
 
@@ -322,7 +414,8 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
                         <Table.Th style={{ width: showPurpose ? '30%' : '35%' }}>Type / Description</Table.Th>
                         <Table.Th style={{ width: showPurpose ? '25%' : '30%' }}>Author / Custodian</Table.Th>
                         {showPurpose && <Table.Th style={{ width: '25%' }}>Purpose</Table.Th>}
-                        <Table.Th style={{ width: showPurpose ? '20%' : '35%' }}>Admissibility Issues</Table.Th>
+                        <Table.Th style={{ width: showPurpose ? '18%' : '28%' }}>Admissibility Issues</Table.Th>
+                        <Table.Th style={{ width: showPurpose ? '22%' : '32%' }}>Attachment</Table.Th>
                     </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -334,6 +427,11 @@ const EvidenceTable = React.memo(({ title, value = [], onChange = () => {}, read
                             onBlurRow={handleBlurRow}
                             readOnly={readOnly}
                             showPurpose={showPurpose}
+                            onUploadAttachment={onUploadAttachment}
+                            onRemoveAttachment={onRemoveAttachment}
+                            onViewAttachment={onViewAttachment}
+                            onDownloadAttachment={onDownloadAttachment}
+                            isUploading={uploadingRowKey === index}
                         />
                     ))}
                 </Table.Tbody>
@@ -427,10 +525,109 @@ const PdfViewer = ({ url, fileData, cloudinaryUrl }) => {
     );
 };
 
+const MediaPreview = ({ doc, kind = 'image' }) => {
+    const [resolvedSrc, setResolvedSrc] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        let cancelled = false;
+        let objectUrl = null;
+
+        const resolveSource = async () => {
+            setLoading(true);
+            const isVideo = kind === 'video';
+
+            const directSrc =
+                (typeof doc?.fileData === 'string' && (doc.fileData.startsWith('data:') || doc.fileData.startsWith('blob:') || doc.fileData.startsWith('http')))
+                    ? doc.fileData
+                    : (typeof doc?.cloudinaryUrl === 'string' && doc.cloudinaryUrl)
+                        ? doc.cloudinaryUrl
+                        : null;
+
+            if (directSrc) {
+                if (!cancelled) {
+                    setResolvedSrc(directSrc);
+                    setLoading(false);
+                }
+                return;
+            }
+
+            const fallbackUrl = doc?.fileUrl ? getServerFileUrl(doc.fileUrl) : null;
+
+            if (!fallbackUrl) {
+                if (!cancelled) {
+                    setResolvedSrc(null);
+                    setLoading(false);
+                }
+                return;
+            }
+
+            try {
+                const arrayBuffer = await fetchArrayBufferFromUrl(fallbackUrl, doc?.cloudinaryUrl || null);
+                const blob = new Blob([arrayBuffer], { type: doc?.fileType || (isVideo ? 'video/mp4' : 'image/jpeg') });
+                objectUrl = URL.createObjectURL(blob);
+                if (!cancelled) setResolvedSrc(objectUrl);
+            } catch (err) {
+                console.warn(`Media preview fallback failed for ${kind}:`, err);
+                if (!cancelled) setResolvedSrc(fallbackUrl);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        resolveSource();
+
+        return () => {
+            cancelled = true;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
+    }, [doc, kind]);
+
+    if (loading) {
+        return (
+            <Box style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Loader size="sm" />
+            </Box>
+        );
+    }
+
+    if (!resolvedSrc) {
+        return (
+            <Box style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Text size="sm" c="dimmed">No preview source available for this {kind}.</Text>
+            </Box>
+        );
+    }
+
+    if (kind === 'video') {
+        return (
+            <Box style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <video
+                    controls
+                    style={{ width: '100%', maxHeight: '100%', borderRadius: 8, backgroundColor: '#000' }}
+                    src={resolvedSrc}
+                >
+                    Your browser does not support video playback.
+                </video>
+            </Box>
+        );
+    }
+
+    return (
+        <Box style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>
+            <img
+                src={resolvedSrc}
+                alt={doc?.fileName || 'Image preview'}
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }}
+            />
+        </Box>
+    );
+};
+
 // ====================================================================================
 // 2. Client Interview and Evidence Section (Based on image_588eb7.png)
 // ====================================================================================
-export const ClientInterviewSection = React.memo(({ value = {}, onChange = () => {}, uploadedFile = null, onFileChange = () => {}, documentVersions = [], onViewDocument = () => {}, onDownloadDocument = () => {}, onRemoveVersion = () => {}, fileInputKey = Date.now(), userRole = '', isViewingExistingReview = false, currentReviewStage = '' }) => {
+export const ClientInterviewSection = React.memo(({ value = {}, onChange = () => {}, uploadedFile = null, onFileChange = () => {}, documentVersions = [], onViewDocument = () => {}, onDownloadDocument = () => {}, onRemoveVersion = () => {}, fileInputKey = Date.now(), userRole = '', isViewingExistingReview = false, currentReviewStage = '', onUploadEvidenceAttachment = () => {}, onRemoveEvidenceAttachment = () => {}, onViewEvidenceAttachment = () => {}, onDownloadEvidenceAttachment = () => {}, uploadingEvidenceKey = null }) => {
     // Determine if the section should be read-only based on:
     // 1. Position mismatch (different role created it) - BUT allow supervising lawyers and directors to edit during their review stages
     // 2. Review stage restrictions (intern can't edit when in review stages, EXCEPT when returned for revision)
@@ -543,6 +740,11 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 value={value.clientEvidence || []}
                 onChange={(evidence) => onChange({ ...value, clientEvidence: evidence })}
                 readOnly={isReadOnly}
+                onUploadAttachment={(rowIndex, file) => onUploadEvidenceAttachment('clientEvidence', rowIndex, file)}
+                onRemoveAttachment={(rowIndex) => onRemoveEvidenceAttachment('clientEvidence', rowIndex)}
+                onViewAttachment={onViewEvidenceAttachment}
+                onDownloadAttachment={onDownloadEvidenceAttachment}
+                uploadingRowKey={uploadingEvidenceKey?.type === 'clientEvidence' ? uploadingEvidenceKey.index : null}
             />
 
             <Divider />
@@ -553,6 +755,11 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
                 onChange={(evidence) => onChange({ ...value, adversePartyEvidence: evidence })}
                 readOnly={isReadOnly}
                 showPurpose={false}
+                onUploadAttachment={(rowIndex, file) => onUploadEvidenceAttachment('adversePartyEvidence', rowIndex, file)}
+                onRemoveAttachment={(rowIndex) => onRemoveEvidenceAttachment('adversePartyEvidence', rowIndex)}
+                onViewAttachment={onViewEvidenceAttachment}
+                onDownloadAttachment={onDownloadEvidenceAttachment}
+                uploadingRowKey={uploadingEvidenceKey?.type === 'adversePartyEvidence' ? uploadingEvidenceKey.index : null}
             />
             
             <Divider />
@@ -985,6 +1192,7 @@ export default function CaseRecordFormsDisplay() {
     const [actionInfo, setActionInfo] = useState({});
     const [uploadedFile, setUploadedFile] = useState(null);
     const [documentVersions, setDocumentVersions] = useState([]);
+    const [uploadingEvidenceKey, setUploadingEvidenceKey] = useState(null);
     const [viewerModalOpened, setViewerModalOpened] = useState(false);
     const [currentViewingDoc, setCurrentViewingDoc] = useState(null);
     const [wordDocHtml, setWordDocHtml] = useState(null);
@@ -1691,6 +1899,121 @@ export default function CaseRecordFormsDisplay() {
             setDocumentVersions(prev => prev.filter((_, i) => i !== index));
         }
     };
+
+    const handleUploadEvidenceAttachment = async (evidenceType, rowIndex, file) => {
+        if (!file) return;
+
+        setUploadingEvidenceKey({ type: evidenceType, index: rowIndex });
+        try {
+            const existingAttachment = interviewInfo?.[evidenceType]?.[rowIndex]?.attachment;
+            if (existingAttachment?.isServerFile && existingAttachment?.filename) {
+                try {
+                    await apiClient.delete(`/upload/document/${encodeURIComponent(existingAttachment.filename)}`, {
+                        params: {
+                            cloudinaryPublicId: existingAttachment.cloudinaryPublicId,
+                            cloudinaryResourceType: existingAttachment.cloudinaryResourceType,
+                        },
+                    });
+                } catch (deleteErr) {
+                    console.warn('Could not delete previous evidence attachment before replacement:', deleteErr);
+                }
+            }
+
+            const formData = new FormData();
+            formData.append('document', file);
+
+            const response = await apiClient.post('/upload/document', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            const serverFile = response?.data?.file;
+            if (!serverFile) throw new Error('Upload did not return file metadata');
+
+            const uploadedBy = userData?.firstName && userData?.lastName
+                ? `${userData.firstName} ${userData.lastName}`
+                : userData?.username || 'Unknown';
+
+            const attachment = {
+                fileName: serverFile.originalName || file.name,
+                fileSize: serverFile.size || file.size,
+                fileType: serverFile.mimetype || file.type,
+                fileUrl: serverFile.url,
+                filename: serverFile.filename,
+                cloudinaryUrl: serverFile.cloudinaryUrl || null,
+                cloudinaryPublicId: serverFile.cloudinaryPublicId || null,
+                cloudinaryResourceType: serverFile.cloudinaryResourceType || null,
+                isServerFile: true,
+                uploadedBy,
+                uploadedByRole: userData?.role || 'Unknown',
+                uploadedAt: new Date().toISOString(),
+            };
+
+            setInterviewInfo((prev) => {
+                const rows = Array.isArray(prev[evidenceType]) ? [...prev[evidenceType]] : [];
+                while (rows.length <= rowIndex) rows.push({ ...EMPTY_EVIDENCE_ROW });
+
+                const existingRow = rows[rowIndex] || { ...EMPTY_EVIDENCE_ROW };
+                rows[rowIndex] = { ...existingRow, attachment };
+
+                return { ...prev, [evidenceType]: rows };
+            });
+        } catch (error) {
+            console.error('Error uploading evidence attachment:', error);
+            fileUploadFailedNotif();
+        } finally {
+            setUploadingEvidenceKey(null);
+        }
+    };
+
+    const handleRemoveEvidenceAttachment = async (evidenceType, rowIndex) => {
+        const row = interviewInfo?.[evidenceType]?.[rowIndex];
+        const attachment = row?.attachment;
+
+        if (attachment?.isServerFile && attachment?.filename) {
+            try {
+                await apiClient.delete(`/upload/document/${encodeURIComponent(attachment.filename)}`, {
+                    params: {
+                        cloudinaryPublicId: attachment.cloudinaryPublicId,
+                        cloudinaryResourceType: attachment.cloudinaryResourceType,
+                    },
+                });
+            } catch (error) {
+                console.error('Error deleting evidence attachment from server:', error);
+            }
+        }
+
+        setInterviewInfo((prev) => {
+            const rows = Array.isArray(prev[evidenceType]) ? [...prev[evidenceType]] : [];
+            if (!rows[rowIndex]) return prev;
+
+            rows[rowIndex] = { ...rows[rowIndex], attachment: null };
+            return { ...prev, [evidenceType]: rows };
+        });
+    };
+
+    const handleViewEvidenceAttachment = (attachment) => {
+        if (!attachment) return;
+        handleViewDocument(null, {
+            fileName: attachment.fileName,
+            fileType: attachment.fileType,
+            fileUrl: attachment.fileUrl,
+            filename: attachment.filename,
+            cloudinaryUrl: attachment.cloudinaryUrl,
+            isServerFile: true,
+        });
+    };
+
+    const handleDownloadEvidenceAttachment = async (attachment) => {
+        if (!attachment) return;
+        await handleDownloadDocument(null, {
+            fileName: attachment.fileName,
+            fileType: attachment.fileType,
+            fileUrl: attachment.fileUrl,
+            filename: attachment.filename,
+            cloudinaryUrl: attachment.cloudinaryUrl,
+            isServerFile: true,
+        });
+    };
     
     const handleSubmit = async () => {
         const caseId = getCaseId();
@@ -1711,7 +2034,7 @@ export default function CaseRecordFormsDisplay() {
         const filterEmptyEvidence = (evidenceArray) => {
             if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
             return evidenceArray.filter(row => 
-                row && (row.type || row.author || row.purpose || row.issues)
+                row && (row.type || row.author || row.purpose || row.issues || row.attachment?.fileUrl || row.attachment?.cloudinaryUrl)
             );
         };
         
@@ -2336,6 +2659,11 @@ export default function CaseRecordFormsDisplay() {
                         onViewDocument={handleViewDocument}
                         onDownloadDocument={handleDownloadDocument}
                         onRemoveVersion={handleRemoveVersion}
+                        onUploadEvidenceAttachment={handleUploadEvidenceAttachment}
+                        onRemoveEvidenceAttachment={handleRemoveEvidenceAttachment}
+                        onViewEvidenceAttachment={handleViewEvidenceAttachment}
+                        onDownloadEvidenceAttachment={handleDownloadEvidenceAttachment}
+                        uploadingEvidenceKey={uploadingEvidenceKey}
                         fileInputKey={fileInputKey}
                         userRole={userData?.role}
                         isViewingExistingReview={isViewingExistingReview}
@@ -2910,6 +3238,14 @@ export default function CaseRecordFormsDisplay() {
             >
                 {currentViewingDoc && (
                     <Stack gap="md" style={{ height: '100%' }}>
+                        {(() => {
+                            const viewName = (currentViewingDoc.fileName || '').toLowerCase();
+                            const viewType = (currentViewingDoc.fileType || '').toLowerCase();
+                            const isImagePreview = viewType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|tiff?)$/i.test(viewName);
+                            const isVideoPreview = viewType.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|mpeg|mpg)$/i.test(viewName);
+
+                            return (
+                                <>
                         <Paper p="sm" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG }}>
                             <Group justify="space-between">
                                 <Box>
@@ -2933,6 +3269,10 @@ export default function CaseRecordFormsDisplay() {
                             {currentViewingDoc.fileType?.includes('pdf') || currentViewingDoc.fileName?.endsWith('.pdf') ? (
                                 // PDF - use PdfViewer for reliable in-app rendering
                                 <PdfViewer url={currentViewingDoc.fileUrl ? getServerFileUrl(currentViewingDoc.fileUrl) : null} fileData={currentViewingDoc.fileData} cloudinaryUrl={currentViewingDoc.cloudinaryUrl || currentViewingDoc.serverFile?.cloudinaryUrl} />
+                            ) : isImagePreview ? (
+                                <MediaPreview doc={currentViewingDoc} kind="image" />
+                            ) : isVideoPreview ? (
+                                <MediaPreview doc={currentViewingDoc} kind="video" />
                             ) : (currentViewingDoc.fileType?.includes('word') || currentViewingDoc.fileName?.endsWith('.docx') || currentViewingDoc.fileName?.endsWith('.doc')) ? (
                                 // Word Document - Render using mammoth.js
                                 <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -3054,6 +3394,9 @@ export default function CaseRecordFormsDisplay() {
                                 </Box>
                             )}
                         </Paper>
+                                </>
+                            );
+                        })()}
                     </Stack>
                 )}
             </Modal>

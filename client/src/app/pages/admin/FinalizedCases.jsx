@@ -16,6 +16,7 @@ import {
   Tabs,
   Modal,
   Button,
+  FileButton,
   Divider,
   Table,
   TextInput,
@@ -30,7 +31,7 @@ import {
   Tooltip,
   Pagination,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash } from '@tabler/icons-react';
+import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash, IconUpload } from '@tabler/icons-react';
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
@@ -185,6 +186,8 @@ const initialState = {
   wordDocLoading: false,
   pdfBlobUrl: null,
   pdfLoading: false,
+  mediaBlobUrl: null,
+  mediaLoading: false,
 
 
   // Pagination
@@ -316,6 +319,8 @@ function stateReducer(state, action) {
         wordDocLoading: false,
         pdfBlobUrl: null,
         pdfLoading: false,
+        mediaBlobUrl: null,
+        mediaLoading: false,
       };
     case 'SET_WORD_DOC_HTML':
       return { ...state, wordDocHtml: action.payload };
@@ -325,6 +330,10 @@ function stateReducer(state, action) {
       return { ...state, pdfBlobUrl: action.payload };
     case 'SET_PDF_LOADING':
       return { ...state, pdfLoading: action.payload };
+    case 'SET_MEDIA_BLOB_URL':
+      return { ...state, mediaBlobUrl: action.payload };
+    case 'SET_MEDIA_LOADING':
+      return { ...state, mediaLoading: action.payload };
 
 
     // Case Record Modal actions
@@ -360,6 +369,7 @@ export default function FinalizedCases() {
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(stateReducer, initialState);
   const { userData } = useAuth();
+  const [uploadingEvidenceKey, setUploadingEvidenceKey] = useState(null);
 
   // â”€â”€ Assign Case Modal State â”€â”€
   const [assignModalOpened, setAssignModalOpened] = useState(false);
@@ -470,8 +480,9 @@ export default function FinalizedCases() {
   useEffect(() => {
     return () => {
       if (state.pdfBlobUrl) URL.revokeObjectURL(state.pdfBlobUrl);
+      if (state.mediaBlobUrl) URL.revokeObjectURL(state.mediaBlobUrl);
     };
-  }, [state.pdfBlobUrl]);
+  }, [state.pdfBlobUrl, state.mediaBlobUrl]);
 
   const formatDate = (value) => {
     if (!value) return '-';
@@ -1714,6 +1725,8 @@ export default function FinalizedCases() {
     dispatch({ type: 'SET_WORD_DOC_LOADING', payload: false });
     dispatch({ type: 'SET_PDF_BLOB_URL', payload: null });
     dispatch({ type: 'SET_PDF_LOADING', payload: false });
+    dispatch({ type: 'SET_MEDIA_BLOB_URL', payload: null });
+    dispatch({ type: 'SET_MEDIA_LOADING', payload: false });
 
     if (!documentData) {
       console.warn('No document to view');
@@ -1746,6 +1759,10 @@ export default function FinalizedCases() {
 
     // If it's a PDF, fetch as blob to bypass X-Frame-Options / CORS restrictions
     const isPdf = docToView.fileType?.includes('pdf') || docToView.fileName?.endsWith('.pdf');
+    const loweredName = (docToView.fileName || '').toLowerCase();
+    const loweredType = (docToView.fileType || '').toLowerCase();
+    const isImage = loweredType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|tiff?)$/i.test(loweredName);
+    const isVideo = loweredType.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|mpeg|mpg)$/i.test(loweredName);
     if (isPdf) {
       dispatch({ type: 'SET_PDF_LOADING', payload: true });
       try {
@@ -1760,6 +1777,22 @@ export default function FinalizedCases() {
         dispatch({ type: 'SET_PDF_BLOB_URL', payload: null });
       } finally {
         dispatch({ type: 'SET_PDF_LOADING', payload: false });
+      }
+    }
+
+    if ((isImage || isVideo) && primaryUrl) {
+      dispatch({ type: 'SET_MEDIA_LOADING', payload: true });
+      try {
+        const arrayBuffer = await fetchArrayBufferFromUrl(primaryUrl, docToView.cloudinaryUrl);
+        const fallbackType = isVideo ? 'video/mp4' : 'image/jpeg';
+        const blob = new Blob([arrayBuffer], { type: docToView.fileType || fallbackType });
+        const blobUrl = URL.createObjectURL(blob);
+        dispatch({ type: 'SET_MEDIA_BLOB_URL', payload: blobUrl });
+      } catch (error) {
+        console.error('Error loading media for preview:', error);
+        dispatch({ type: 'SET_MEDIA_BLOB_URL', payload: null });
+      } finally {
+        dispatch({ type: 'SET_MEDIA_LOADING', payload: false });
       }
     }
 
@@ -2155,6 +2188,124 @@ export default function FinalizedCases() {
     dispatch({ type: 'SET_EDITED_DATA', payload: newData });
   };
 
+  const setEvidenceAttachment = (evidenceType, rowIndex, attachment) => {
+    const newData = JSON.parse(JSON.stringify(state.editedData || {}));
+    if (!newData.content) newData.content = {};
+    if (!newData.content.interviewInfo) newData.content.interviewInfo = {};
+    if (!Array.isArray(newData.content.interviewInfo[evidenceType])) {
+      newData.content.interviewInfo[evidenceType] = [];
+    }
+
+    const rows = [...newData.content.interviewInfo[evidenceType]];
+    while (rows.length <= rowIndex) {
+      rows.push({ type: '', author: '', purpose: '', issues: '', attachment: null });
+    }
+    rows[rowIndex] = { ...(rows[rowIndex] || {}), attachment };
+    newData.content.interviewInfo[evidenceType] = rows;
+
+    dispatch({ type: 'SET_EDITED_DATA', payload: newData });
+  };
+
+  const handleUploadEvidenceAttachment = async (evidenceType, rowIndex, file) => {
+    if (!file || !state.editMode) return;
+
+    setUploadingEvidenceKey({ type: evidenceType, index: rowIndex });
+    try {
+      const existingAttachment = state.editedData?.content?.interviewInfo?.[evidenceType]?.[rowIndex]?.attachment;
+      if (existingAttachment?.isServerFile && existingAttachment?.filename) {
+        try {
+          await apiClient.delete(`/upload/document/${encodeURIComponent(existingAttachment.filename)}`, {
+            params: {
+              cloudinaryPublicId: existingAttachment.cloudinaryPublicId,
+              cloudinaryResourceType: existingAttachment.cloudinaryResourceType,
+            },
+          });
+        } catch (deleteErr) {
+          console.warn('Could not delete previous evidence attachment before replacement:', deleteErr);
+        }
+      }
+
+      const formData = new FormData();
+      formData.append('document', file);
+      const response = await apiClient.post('/upload/document', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const serverFile = response?.data?.file;
+      if (!serverFile) throw new Error('Upload did not return file metadata');
+
+      const uploadedBy = userData?.firstName && userData?.lastName
+        ? `${userData.firstName} ${userData.lastName}`
+        : userData?.username || 'Unknown';
+
+      const attachment = {
+        fileName: serverFile.originalName || file.name,
+        fileSize: serverFile.size || file.size,
+        fileType: serverFile.mimetype || file.type,
+        fileUrl: serverFile.url,
+        filename: serverFile.filename,
+        cloudinaryUrl: serverFile.cloudinaryUrl || null,
+        cloudinaryPublicId: serverFile.cloudinaryPublicId || null,
+        cloudinaryResourceType: serverFile.cloudinaryResourceType || null,
+        isServerFile: true,
+        uploadedBy,
+        uploadedByRole: userData?.role || 'Unknown',
+        uploadedAt: new Date().toISOString(),
+      };
+
+      setEvidenceAttachment(evidenceType, rowIndex, attachment);
+    } catch (error) {
+      console.error('Error uploading evidence attachment:', error);
+      notifications.show({ title: 'Error', message: 'Failed to upload evidence attachment.', color: 'red' });
+    } finally {
+      setUploadingEvidenceKey(null);
+    }
+  };
+
+  const handleRemoveEvidenceAttachment = async (evidenceType, rowIndex) => {
+    if (!state.editMode) return;
+
+    const attachment = state.editedData?.content?.interviewInfo?.[evidenceType]?.[rowIndex]?.attachment;
+    if (attachment?.isServerFile && attachment?.filename) {
+      try {
+        await apiClient.delete(`/upload/document/${encodeURIComponent(attachment.filename)}`, {
+          params: {
+            cloudinaryPublicId: attachment.cloudinaryPublicId,
+            cloudinaryResourceType: attachment.cloudinaryResourceType,
+          },
+        });
+      } catch (error) {
+        console.error('Error deleting evidence attachment from server:', error);
+      }
+    }
+
+    setEvidenceAttachment(evidenceType, rowIndex, null);
+  };
+
+  const handleViewEvidenceAttachment = (attachment) => {
+    if (!attachment) return;
+    handleViewDocument({
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      fileUrl: attachment.fileUrl,
+      filename: attachment.filename,
+      cloudinaryUrl: attachment.cloudinaryUrl,
+      isServerFile: true,
+    });
+  };
+
+  const handleDownloadEvidenceAttachment = async (attachment) => {
+    if (!attachment) return;
+    await handleDownloadDocument({
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      fileUrl: attachment.fileUrl,
+      filename: attachment.filename,
+      cloudinaryUrl: attachment.cloudinaryUrl,
+      isServerFile: true,
+    });
+  };
+
   const renderEvidenceTable = (title, evidence = [], fieldName) => {
     if (!state.editMode && (!evidence || evidence.length === 0)) return null;
 
@@ -2174,6 +2325,7 @@ export default function FinalizedCases() {
               <Table.Th>Author / Custodian</Table.Th>
               {showPurpose && <Table.Th>Purpose</Table.Th>}
               <Table.Th>Admissibility Issues</Table.Th>
+              <Table.Th>Attachment</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -2232,6 +2384,69 @@ export default function FinalizedCases() {
                   ) : (
                     row?.issues || '-'
                   )}
+                </Table.Td>
+                <Table.Td>
+                  <Stack gap={4}>
+                    {state.editMode && (
+                      <FileButton
+                        onChange={(file) => {
+                          if (file) handleUploadEvidenceAttachment(fieldName, idx, file);
+                        }}
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.mp4,.mov,.avi,.mkv,.webm,.mpeg,.mpg"
+                      >
+                        {(props) => (
+                          <Button
+                            {...props}
+                            size="xs"
+                            variant="outline"
+                            leftSection={<IconUpload size={14} />}
+                            loading={uploadingEvidenceKey?.type === fieldName && uploadingEvidenceKey?.index === idx}
+                          >
+                            {row?.attachment?.fileUrl || row?.attachment?.cloudinaryUrl ? 'Replace' : 'Upload'}
+                          </Button>
+                        )}
+                      </FileButton>
+                    )}
+
+                    {(row?.attachment?.fileUrl || row?.attachment?.cloudinaryUrl) ? (
+                      <>
+                        <Text size="xs" fw={600} lineClamp={1}>{row?.attachment?.fileName || 'Attachment'}</Text>
+                        <Group gap={4}>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="blue"
+                            leftSection={<IconEye size={12} />}
+                            onClick={() => handleViewEvidenceAttachment(row.attachment)}
+                          >
+                            View
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="green"
+                            leftSection={<IconDownload size={12} />}
+                            onClick={() => handleDownloadEvidenceAttachment(row.attachment)}
+                          >
+                            Download
+                          </Button>
+                          {state.editMode && (
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              color="red"
+                              leftSection={<IconX size={12} />}
+                              onClick={() => handleRemoveEvidenceAttachment(fieldName, idx)}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </Group>
+                      </>
+                    ) : (
+                      <Text size="xs" c="dimmed">No attachment</Text>
+                    )}
+                  </Stack>
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -2709,6 +2924,7 @@ export default function FinalizedCases() {
           }
           size="calc(95vw)"
           fullScreen
+          zIndex={1000}
           styles={{
             body: { minHeight: '85vh', height: 'calc(100vh - 120px)' },
             content: { height: '95vh' }
@@ -2736,7 +2952,13 @@ export default function FinalizedCases() {
               </Paper>
 
               <Paper p="md" radius="md" style={{ flex: 1, minHeight: '75vh', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column' }}>
-                {state.currentViewingDoc.fileType?.includes('pdf') || state.currentViewingDoc.fileName?.endsWith('.pdf') ? (
+                {(() => {
+                  const viewName = (state.currentViewingDoc.fileName || '').toLowerCase();
+                  const viewType = (state.currentViewingDoc.fileType || '').toLowerCase();
+                  const isImagePreview = viewType.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|tiff?)$/i.test(viewName);
+                  const isVideoPreview = viewType.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|mpeg|mpg)$/i.test(viewName);
+
+                  return state.currentViewingDoc.fileType?.includes('pdf') || state.currentViewingDoc.fileName?.endsWith('.pdf') ? (
                   // PDF - fetched as blob to bypass X-Frame-Options / CORS
                   state.pdfLoading ? (
                     <Box style={{ textAlign: 'center', padding: '40px' }}>
@@ -2756,6 +2978,38 @@ export default function FinalizedCases() {
                       <Text size="sm" c="dimmed" mt="xs" mb="md">{state.currentViewingDoc.fileName}</Text>
                       <Text size="sm" c="dimmed" mb="xl">Unable to preview this PDF. Please download to view.</Text>
                       <Button size="lg" leftSection={<IconDownload size={20} />} onClick={() => handleDownloadDocument(state.currentViewingDoc)} style={{ backgroundColor: PRIMARY_BROWN }}>Download to View</Button>
+                    </Box>
+                  )
+                ) : isImagePreview ? (
+                  state.mediaLoading ? (
+                    <Box style={{ textAlign: 'center', padding: '40px' }}>
+                      <IconFileText size={64} color={PRIMARY_BROWN} />
+                      <Text size="xl" fw={700} mt="md" c={PRIMARY_BROWN}>Loading Image...</Text>
+                    </Box>
+                  ) : (
+                    <Box style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>
+                      <img
+                        src={state.mediaBlobUrl || state.currentViewingDoc.cloudinaryUrl || state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                        alt={state.currentViewingDoc.fileName || 'Image preview'}
+                        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }}
+                      />
+                    </Box>
+                  )
+                ) : isVideoPreview ? (
+                  state.mediaLoading ? (
+                    <Box style={{ textAlign: 'center', padding: '40px' }}>
+                      <IconFileText size={64} color={PRIMARY_BROWN} />
+                      <Text size="xl" fw={700} mt="md" c={PRIMARY_BROWN}>Loading Video...</Text>
+                    </Box>
+                  ) : (
+                    <Box style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <video
+                        controls
+                        style={{ width: '100%', maxHeight: '100%', borderRadius: 8, backgroundColor: '#000' }}
+                        src={state.mediaBlobUrl || state.currentViewingDoc.cloudinaryUrl || state.currentViewingDoc.fileUrl || state.currentViewingDoc.fileData}
+                      >
+                        Your browser does not support video playback.
+                      </video>
                     </Box>
                   )
                 ) : (state.currentViewingDoc.fileType?.includes('word') || state.currentViewingDoc.fileName?.endsWith('.docx') || state.currentViewingDoc.fileName?.endsWith('.doc')) ? (
@@ -2825,7 +3079,8 @@ export default function FinalizedCases() {
                       Download File
                     </Button>
                   </Box>
-                )}
+                );
+                })()}
               </Paper>
             </Stack>
           )}

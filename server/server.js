@@ -29,12 +29,28 @@ import { v2 as cloudinary } from 'cloudinary'
 import { setIO } from './socket.js'
 import { authenticateFirebaseToken } from './firebase/authMiddleware.js'
 
-// Configure Cloudinary for document uploads
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+const hasCloudinaryUrl = Boolean(process.env.CLOUDINARY_URL);
+const hasCloudinaryKeys = Boolean(
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET
+);
+const cloudinaryEnabled = hasCloudinaryUrl || hasCloudinaryKeys;
+
+// Configure Cloudinary when credentials are available.
+if (cloudinaryEnabled) {
+  if (hasCloudinaryUrl) {
+    cloudinary.config({ url: process.env.CLOUDINARY_URL });
+  } else {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+  }
+} else {
+  console.warn('Cloudinary is not configured. Uploads will continue using local disk storage.');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -173,7 +189,47 @@ app.get("/api/test", (req, res) => {
   res.json({ message: "Server is working!" });
 });
 
-// File upload route for documents (Word + PDF) — saves to disk AND Cloudinary for persistence
+const deleteFromCloudinary = async (publicId, resourceTypeHint = 'auto') => {
+  if (!cloudinaryEnabled || !publicId) return;
+
+  const typesToTry = resourceTypeHint && resourceTypeHint !== 'auto'
+    ? [resourceTypeHint]
+    : ['image', 'video', 'raw'];
+
+  for (const rt of typesToTry) {
+    try {
+      const result = await cloudinary.uploader.destroy(publicId, {
+        resource_type: rt,
+        invalidate: true,
+      });
+
+      // `ok` means deleted, `not found` means nothing to delete for that type.
+      if (result?.result === 'ok') {
+        console.log(`Deleted Cloudinary asset ${publicId} (${rt})`);
+        return;
+      }
+    } catch (err) {
+      console.warn(`Cloudinary delete failed for ${publicId} (${rt}):`, err.message);
+    }
+  }
+};
+
+const deleteLocalTempFile = async (filePath) => {
+  if (!filePath) return false;
+
+  try {
+    await fs.promises.unlink(filePath);
+    console.log(`Deleted local temp upload: ${filePath}`);
+    return true;
+  } catch (err) {
+    if (err.code === 'ENOENT') return false;
+    console.warn(`Failed to delete local temp upload ${filePath}:`, err.message);
+    return false;
+  }
+};
+
+// File upload route for documents/images/videos.
+// Multer writes a temp local file first, then Cloudinary stores the persistent copy.
 // Wrap multer in a manual call so multer errors get a proper JSON response
 // instead of crashing the connection (which causes "Network Error" on mobile).
 app.post('/api/upload/document', authenticateFirebaseToken, (req, res, next) => {
@@ -195,25 +251,34 @@ app.post('/api/upload/document', authenticateFirebaseToken, (req, res, next) => 
     // URI-encode the filename for use in URLs (spaces → %20, etc.)
     const encodedFilename = encodeURIComponent(req.file.filename);
     const fileUrl = `/uploads/documents/${encodedFilename}`;
+    const localFilePath = req.file.path || path.join(__dirname, 'uploads/documents', req.file.filename);
 
-    // Upload to Cloudinary for persistent storage (Render uses ephemeral disk)
+    // Upload to Cloudinary for persistent storage when credentials are configured.
     let cloudinaryUrl = null;
-    try {
-      const filePath = path.join(__dirname, 'uploads/documents', req.file.filename);
-      const publicId = req.file.filename.replace(/\.[^.]+$/, ''); // strip extension
-      const uploadResult = await cloudinary.uploader.upload(filePath, {
-        folder: 'capstone_documents',
-        resource_type: 'raw', // raw for non-image files (PDF, docx)
-        public_id: publicId,
-        overwrite: true,
-      });
-      // Use the secure_url returned directly by Cloudinary — it's always valid.
-      // Access control is handled by Firebase auth at the API level.
-      cloudinaryUrl = uploadResult.secure_url;
-      console.log('Document uploaded to Cloudinary:', cloudinaryUrl);
-    } catch (cloudErr) {
-      console.warn('Cloudinary upload failed (file still available on disk):', cloudErr.message);
+    let cloudinaryPublicId = null;
+    let cloudinaryResourceType = null;
+    if (cloudinaryEnabled) {
+      try {
+        const publicId = req.file.filename.replace(/\.[^.]+$/, ''); // strip extension
+        const uploadResult = await cloudinary.uploader.upload(localFilePath, {
+          folder: 'capstone_documents',
+          resource_type: 'auto', // supports docs, images, and videos
+          public_id: publicId,
+          overwrite: true,
+        });
+        // Use the secure_url returned directly by Cloudinary — it's always valid.
+        // Access control is handled by Firebase auth at the API level.
+        cloudinaryUrl = uploadResult.secure_url;
+        cloudinaryPublicId = uploadResult.public_id || publicId;
+        cloudinaryResourceType = uploadResult.resource_type || 'raw';
+        await deleteLocalTempFile(localFilePath);
+        console.log('Document uploaded to Cloudinary:', cloudinaryUrl);
+      } catch (cloudErr) {
+        console.warn('Cloudinary upload failed (file still available on disk):', cloudErr.message);
+      }
     }
+
+    const preferredUrl = cloudinaryUrl || fileUrl;
 
     res.json({
       success: true,
@@ -223,9 +288,11 @@ app.post('/api/upload/document', authenticateFirebaseToken, (req, res, next) => 
         displayName: req.file.originalname, // always the user-facing name
         size: req.file.size,
         mimetype: req.file.mimetype,
-        url: fileUrl,
-        path: fileUrl,
+        url: preferredUrl,
+        path: preferredUrl,
         cloudinaryUrl, // persistent URL (null if Cloudinary upload failed)
+        cloudinaryPublicId,
+        cloudinaryResourceType,
       }
     });
   } catch (error) {
@@ -234,18 +301,24 @@ app.post('/api/upload/document', authenticateFirebaseToken, (req, res, next) => 
   }
 });
 
-// File delete route for Word documents
-app.delete('/api/upload/document/:filename', authenticateFirebaseToken, (req, res) => {
+// File delete route for uploaded documents/images/videos
+app.delete('/api/upload/document/:filename', authenticateFirebaseToken, async (req, res) => {
   try {
-    const filename = path.basename(req.params.filename); // SECURITY: strip path traversal
+    const filename = path.basename(decodeURIComponent(req.params.filename)); // SECURITY: strip path traversal
     const filePath = path.join(__dirname, 'uploads/documents', filename);
 
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      res.json({ success: true, message: 'File deleted successfully' });
-    } else {
-      res.status(404).json({ error: 'File not found' });
-    }
+    const cloudinaryPublicId = req.query.cloudinaryPublicId || filename.replace(/\.[^.]+$/, '');
+    const cloudinaryResourceType = req.query.cloudinaryResourceType || 'auto';
+
+    await deleteFromCloudinary(cloudinaryPublicId, cloudinaryResourceType);
+    const localDeleted = await deleteLocalTempFile(filePath);
+
+    res.json({
+      success: true,
+      message: localDeleted
+        ? 'File deleted successfully'
+        : 'Cloud asset delete requested; local temp file was already absent',
+    });
   } catch (error) {
     console.error('File delete error:', error);
     res.status(500).json({ error: 'File deletion failed', details: error.message });

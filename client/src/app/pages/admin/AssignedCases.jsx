@@ -27,6 +27,7 @@ import {
   Stepper,
   Container,
   ScrollArea,
+  FileButton,
 } from '@mantine/core';
 import {
   IconClipboardCheck,
@@ -44,6 +45,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconRefresh,
+  IconUpload,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '@/context/authContext';
@@ -62,6 +64,11 @@ import {
 } from '@utils/constants';
 
 const ITEMS_PER_PAGE = 10;
+const EVIDENCE_ATTACHMENT_ACCEPT = [
+  '.pdf', '.doc', '.docx',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tif', '.tiff',
+  '.mp4', '.mov', '.avi', '.mkv', '.webm', '.mpeg', '.mpg',
+].join(',');
 
 const ROLE_LABELS = {
   director: 'Director',
@@ -433,6 +440,7 @@ export default function AssignedCases() {
   const [reviewEditMode, setReviewEditMode] = useState(false);
   const [reviewActiveStep, setReviewActiveStep] = useState(0);
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [uploadingEvidenceKey, setUploadingEvidenceKey] = useState(null);
 
   // ── Receipt Modal State ──
   const [receiptModalOpened, setReceiptModalOpened] = useState(false);
@@ -513,6 +521,7 @@ export default function AssignedCases() {
     setEditedReviewData(null);
     setReviewEditMode(false);
     setReviewActiveStep(0);
+    setUploadingEvidenceKey(null);
     try {
       const res = await apiClient.get(`/finalize/detail/${assignment.finalizeId}`);
       const data = res.data;
@@ -546,6 +555,115 @@ export default function AssignedCases() {
     evidence[index] = { ...evidence[index], [field]: value };
     newData.content.interviewInfo[type] = evidence;
     setEditedReviewData(newData);
+  };
+
+  const setEvidenceAttachment = (evidenceType, rowIndex, attachment) => {
+    const newData = JSON.parse(JSON.stringify(editedReviewData || {}));
+    if (!newData.content) newData.content = {};
+    if (!newData.content.interviewInfo) newData.content.interviewInfo = {};
+    if (!Array.isArray(newData.content.interviewInfo[evidenceType])) {
+      newData.content.interviewInfo[evidenceType] = [];
+    }
+
+    const rows = [...newData.content.interviewInfo[evidenceType]];
+    while (rows.length <= rowIndex) {
+      rows.push({ type: '', author: '', purpose: '', issues: '', attachment: null });
+    }
+    rows[rowIndex] = { ...(rows[rowIndex] || {}), attachment };
+    newData.content.interviewInfo[evidenceType] = rows;
+    setEditedReviewData(newData);
+  };
+
+  const handleUploadEvidenceAttachment = async (evidenceType, rowIndex, file) => {
+    if (!file || !reviewEditMode) return;
+
+    setUploadingEvidenceKey({ type: evidenceType, index: rowIndex });
+    try {
+      const existingAttachment = editedReviewData?.content?.interviewInfo?.[evidenceType]?.[rowIndex]?.attachment;
+      if (existingAttachment?.isServerFile && existingAttachment?.filename) {
+        try {
+          await apiClient.delete(`/upload/document/${encodeURIComponent(existingAttachment.filename)}`, {
+            params: {
+              cloudinaryPublicId: existingAttachment.cloudinaryPublicId,
+              cloudinaryResourceType: existingAttachment.cloudinaryResourceType,
+            },
+          });
+        } catch (deleteErr) {
+          console.warn('Could not delete previous evidence attachment before replacement:', deleteErr);
+        }
+      }
+
+      const formData = new FormData();
+      formData.append('document', file);
+      const response = await apiClient.post('/upload/document', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const serverFile = response?.data?.file;
+      if (!serverFile) throw new Error('Upload did not return file metadata');
+
+      const uploadedBy = userData?.firstName && userData?.lastName
+        ? `${userData.firstName} ${userData.lastName}`
+        : userData?.username || 'Unknown';
+
+      const attachment = {
+        fileName: serverFile.originalName || file.name,
+        fileSize: serverFile.size || file.size,
+        fileType: serverFile.mimetype || file.type,
+        fileUrl: serverFile.url,
+        filename: serverFile.filename,
+        cloudinaryUrl: serverFile.cloudinaryUrl || null,
+        cloudinaryPublicId: serverFile.cloudinaryPublicId || null,
+        cloudinaryResourceType: serverFile.cloudinaryResourceType || null,
+        isServerFile: true,
+        uploadedBy,
+        uploadedByRole: userData?.role || 'Unknown',
+        uploadedAt: new Date().toISOString(),
+      };
+
+      setEvidenceAttachment(evidenceType, rowIndex, attachment);
+    } catch (error) {
+      console.error('Error uploading evidence attachment:', error);
+      notifications.show({ title: 'Error', message: 'Failed to upload evidence attachment.', color: 'red' });
+    } finally {
+      setUploadingEvidenceKey(null);
+    }
+  };
+
+  const handleRemoveEvidenceAttachment = async (evidenceType, rowIndex) => {
+    if (!reviewEditMode) return;
+
+    const attachment = editedReviewData?.content?.interviewInfo?.[evidenceType]?.[rowIndex]?.attachment;
+    if (attachment?.isServerFile && attachment?.filename) {
+      try {
+        await apiClient.delete(`/upload/document/${encodeURIComponent(attachment.filename)}`, {
+          params: {
+            cloudinaryPublicId: attachment.cloudinaryPublicId,
+            cloudinaryResourceType: attachment.cloudinaryResourceType,
+          },
+        });
+      } catch (error) {
+        console.error('Error deleting evidence attachment from server:', error);
+      }
+    }
+
+    setEvidenceAttachment(evidenceType, rowIndex, null);
+  };
+
+  const getEvidenceAttachmentUrl = (attachment) => {
+    if (!attachment) return null;
+    const raw = attachment.cloudinaryUrl || attachment.fileUrl;
+    if (!raw) return null;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+    if (!apiBase) return raw;
+    return raw.startsWith('/') ? `${apiBase}${raw}` : `${apiBase}/${raw}`;
+  };
+
+  const handleViewEvidenceAttachment = (attachment) => {
+    const url = getEvidenceAttachmentUrl(attachment);
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleSaveReview = async () => {
@@ -593,6 +711,45 @@ export default function AssignedCases() {
                     )}
                   </Box>
                 ))}
+                <Box>
+                  <Text size="xs" c={MUTED_OLIVE} fw={600} mb={2}>Attachment</Text>
+                  <Stack gap={4}>
+                    {reviewEditMode && (
+                      <FileButton
+                        onChange={(file) => {
+                          if (file) handleUploadEvidenceAttachment(fieldName, idx, file);
+                        }}
+                        accept={EVIDENCE_ATTACHMENT_ACCEPT}
+                      >
+                        {(props) => (
+                          <Button
+                            {...props}
+                            size="xs"
+                            variant="outline"
+                            leftSection={<IconUpload size={14} />}
+                            loading={uploadingEvidenceKey?.type === fieldName && uploadingEvidenceKey?.index === idx}
+                          >
+                            {row?.attachment?.fileUrl || row?.attachment?.cloudinaryUrl ? 'Replace' : 'Upload'}
+                          </Button>
+                        )}
+                      </FileButton>
+                    )}
+                    {(row?.attachment?.fileUrl || row?.attachment?.cloudinaryUrl) ? (
+                      <Group gap={4}>
+                        <Button size="xs" variant="light" color="blue" leftSection={<IconEye size={12} />} onClick={() => handleViewEvidenceAttachment(row.attachment)}>
+                          View
+                        </Button>
+                        {reviewEditMode && (
+                          <Button size="xs" variant="subtle" color="red" leftSection={<IconX size={12} />} onClick={() => handleRemoveEvidenceAttachment(fieldName, idx)}>
+                            Remove
+                          </Button>
+                        )}
+                      </Group>
+                    ) : (
+                      <Text size="xs" c="dimmed">No attachment</Text>
+                    )}
+                  </Stack>
+                </Box>
               </SimpleGrid>
             </Paper>
           ))}
@@ -605,6 +762,7 @@ export default function AssignedCases() {
                 {columns.map(({ label }) => (
                   <Table.Th key={label}>{label}</Table.Th>
                 ))}
+                <Table.Th>Attachment</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -617,6 +775,45 @@ export default function AssignedCases() {
                       ) : (row?.[field] || '-')}
                     </Table.Td>
                   ))}
+                  <Table.Td>
+                    <Stack gap={4}>
+                      {reviewEditMode && (
+                        <FileButton
+                          onChange={(file) => {
+                            if (file) handleUploadEvidenceAttachment(fieldName, idx, file);
+                          }}
+                          accept={EVIDENCE_ATTACHMENT_ACCEPT}
+                        >
+                          {(props) => (
+                            <Button
+                              {...props}
+                              size="xs"
+                              variant="outline"
+                              leftSection={<IconUpload size={14} />}
+                              loading={uploadingEvidenceKey?.type === fieldName && uploadingEvidenceKey?.index === idx}
+                            >
+                              {row?.attachment?.fileUrl || row?.attachment?.cloudinaryUrl ? 'Replace' : 'Upload'}
+                            </Button>
+                          )}
+                        </FileButton>
+                      )}
+
+                      {(row?.attachment?.fileUrl || row?.attachment?.cloudinaryUrl) ? (
+                        <Group gap={4}>
+                          <Button size="xs" variant="light" color="blue" leftSection={<IconEye size={12} />} onClick={() => handleViewEvidenceAttachment(row.attachment)}>
+                            View
+                          </Button>
+                          {reviewEditMode && (
+                            <Button size="xs" variant="subtle" color="red" leftSection={<IconX size={12} />} onClick={() => handleRemoveEvidenceAttachment(fieldName, idx)}>
+                              Remove
+                            </Button>
+                          )}
+                        </Group>
+                      ) : (
+                        <Text size="xs" c="dimmed">No attachment</Text>
+                      )}
+                    </Stack>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>

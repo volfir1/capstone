@@ -41,21 +41,40 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter - accept Word documents and PDFs
+// File filter - accept documents, images, and videos
 const fileFilter = (req, file, cb) => {
   const allowedMimes = [
     'application/msword', // .doc
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-    'application/pdf' // .pdf
+    'application/pdf', // .pdf
+    'image/jpg',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/bmp',
+    'image/tiff',
+    'video/mp4',
+    'video/quicktime', // .mov
+    'video/x-msvideo', // .avi
+    'video/x-matroska', // .mkv
+    'video/webm',
+    'video/mpeg'
   ];
   
-  const allowedExts = ['.doc', '.docx', '.pdf'];
+  const allowedExts = [
+    '.doc', '.docx', '.pdf',
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tif', '.tiff',
+    '.mp4', '.mov', '.avi', '.mkv', '.webm', '.mpeg', '.mpg'
+  ];
   const ext = path.extname(file.originalname).toLowerCase();
+  const mime = (file.mimetype || '').toLowerCase();
+  const isGenericImageOrVideo = mime.startsWith('image/') || mime.startsWith('video/');
   
-  if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
+  if (allowedMimes.includes(mime) || allowedExts.includes(ext) || isGenericImageOrVideo) {
     cb(null, true);
   } else {
-    cb(new Error('Only Word documents (.doc, .docx) and PDF files are allowed'), false);
+    cb(new Error('Only document, image, and video files are allowed'), false);
   }
 };
 
