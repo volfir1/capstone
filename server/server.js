@@ -357,8 +357,8 @@ app.post('/api/upload/document', authenticateFirebaseToken, requireProfilePin, (
   }
 });
 
-// File delete route for Word documents
-app.delete('/api/upload/document/:filename', authenticateFirebaseToken, (req, res) => {
+// File delete route for uploaded documents/images/videos
+app.delete('/api/upload/document/:filename', authenticateFirebaseToken, requireProfilePin, async (req, res) => {
   try {
     const filename = path.basename(decodeURIComponent(req.params.filename)); // SECURITY: strip path traversal
     const filePath = path.join(__dirname, 'uploads/documents', filename);
