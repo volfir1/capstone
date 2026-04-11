@@ -26,8 +26,9 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { v2 as cloudinary } from 'cloudinary'
-import { setIO } from './socket.js'
-import { authenticateFirebaseToken } from './firebase/authMiddleware.js'
+import { getProfileRoom, setIO } from './socket.js'
+import { authenticateFirebaseToken, requireProfilePin } from './firebase/authMiddleware.js'
+import { ensureAccountForDecodedToken, ensureMultiProfileIndexes, resolveActiveProfileForAccount } from './utils/accountContext.js'
 
 const hasCloudinaryUrl = Boolean(process.env.CLOUDINARY_URL);
 const hasCloudinaryKeys = Boolean(
@@ -47,6 +48,28 @@ if (cloudinaryEnabled) {
       api_key: process.env.CLOUDINARY_API_KEY,
       api_secret: process.env.CLOUDINARY_API_SECRET,
     });
+
+const isProduction = process.env.NODE_ENV === 'production';
+const isLocalhostUrl = (value = '') =>
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(String(value || '').trim());
+const resolveClientOrigin = () => {
+  const prodClientUrl = String(process.env.CLIENT_URL || '').trim();
+  const localClientUrl = String(process.env.CLIENT_URL_LOCAL || '').trim();
+
+  if (isProduction) {
+    return prodClientUrl || 'http://localhost:5173';
+  }
+
+  if (localClientUrl) {
+    return localClientUrl;
+  }
+
+  if (isLocalhostUrl(prodClientUrl)) {
+    return prodClientUrl;
+  }
+
+  return 'http://localhost:5173';
+};
   }
 } else {
   console.warn('Cloudinary is not configured. Uploads will continue using local disk storage.');
@@ -73,7 +96,7 @@ app.set('trust proxy', true);
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: resolveClientOrigin(),
     credentials: true,
   },
 });
@@ -82,8 +105,15 @@ setIO(io);
 // Track connected users by their Firebase UID for targeted events
 // SECURITY: Verify Firebase token before allowing socket registration
 io.on('connection', (socket) => {
-  socket.on('register', async (firebaseUid, token) => {
+  socket.on('register', async (payloadOrUid, legacyToken) => {
     try {
+      const payload = typeof payloadOrUid === 'object' && payloadOrUid !== null
+        ? payloadOrUid
+        : { firebaseUid: payloadOrUid, token: legacyToken };
+      const firebaseUid = String(payload?.firebaseUid || '').trim();
+      const token = String(payload?.token || '').trim();
+      const profileId = String(payload?.profileId || '').trim();
+
       // Require a valid Firebase ID token to prove identity
       if (!token) {
         socket.emit('auth-error', 'Token required');
@@ -94,8 +124,34 @@ io.on('connection', (socket) => {
         socket.emit('auth-error', 'UID mismatch');
         return;
       }
+
+      const account = await ensureAccountForDecodedToken(decoded);
       socket.join(firebaseUid); // join a room named after the uid
       socket.firebaseUid = firebaseUid; // store for reference
+
+      if (socket.activeProfileRoom) {
+        socket.leave(socket.activeProfileRoom);
+        socket.activeProfileRoom = null;
+        socket.activeProfileId = null;
+      }
+
+      if (profileId) {
+        const activeProfile = await resolveActiveProfileForAccount(
+          account._id,
+          profileId,
+          { allowFallback: false }
+        );
+
+        if (!activeProfile) {
+          socket.emit('auth-error', 'Profile mismatch');
+          return;
+        }
+
+        const profileRoom = getProfileRoom(activeProfile._id.toString());
+        socket.join(profileRoom);
+        socket.activeProfileRoom = profileRoom;
+        socket.activeProfileId = activeProfile._id.toString();
+      }
     } catch (err) {
       socket.emit('auth-error', 'Invalid token');
     }
@@ -128,7 +184,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // CORS Configuration — allow both the web client and mobile app origins
 const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:5173',
+  resolveClientOrigin(),
 ];
 const corsOptions = {
   origin: (origin, callback) => {
@@ -232,7 +288,7 @@ const deleteLocalTempFile = async (filePath) => {
 // Multer writes a temp local file first, then Cloudinary stores the persistent copy.
 // Wrap multer in a manual call so multer errors get a proper JSON response
 // instead of crashing the connection (which causes "Network Error" on mobile).
-app.post('/api/upload/document', authenticateFirebaseToken, (req, res, next) => {
+app.post('/api/upload/document', authenticateFirebaseToken, requireProfilePin, (req, res, next) => {
   upload.single('document')(req, res, (err) => {
     if (err) {
       console.error('Multer upload error:', err);
@@ -301,8 +357,8 @@ app.post('/api/upload/document', authenticateFirebaseToken, (req, res, next) => 
   }
 });
 
-// File delete route for uploaded documents/images/videos
-app.delete('/api/upload/document/:filename', authenticateFirebaseToken, async (req, res) => {
+// File delete route for Word documents
+app.delete('/api/upload/document/:filename', authenticateFirebaseToken, (req, res) => {
   try {
     const filename = path.basename(decodeURIComponent(req.params.filename)); // SECURITY: strip path traversal
     const filePath = path.join(__dirname, 'uploads/documents', filename);
@@ -326,7 +382,7 @@ app.delete('/api/upload/document/:filename', authenticateFirebaseToken, async (r
 });
 
 // Resolve uploaded filename to an existing file if possible (auth-protected)
-app.get('/api/uploads/resolve', authenticateFirebaseToken, (req, res) => {
+app.get('/api/uploads/resolve', authenticateFirebaseToken, requireProfilePin, (req, res) => {
   try {
     const q = req.query.path || req.query.filename || '';
     if (!q) return res.status(400).json({ error: 'path or filename query required' });
@@ -398,6 +454,9 @@ mongoose.connect(process.env.MONGO_URL, mongoOptions)
   .then(() => {
     console.log('MongoDB connected successfully');
     console.log('Connection pool configured: min 2, max 10 connections');
+    ensureMultiProfileIndexes().catch((error) => {
+      console.error('Failed to sync multi-profile indexes:', error);
+    });
   })
   .catch(err => {
     console.error('MongoDB connection error:', err);

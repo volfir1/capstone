@@ -12,7 +12,7 @@ import { IconSearch } from '@tabler/icons-react';
 export default function UserSearchFilter({ value, onChange }) {
   return (
     <TextInput
-      placeholder="Search by name or email..."
+      placeholder="Search profiles by name, role, or email..."
       leftSection={<IconSearch size={18} stroke={1.5} />}
       value={value}
       onChange={onChange}

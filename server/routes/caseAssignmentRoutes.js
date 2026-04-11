@@ -8,12 +8,13 @@ import {
   deleteCaseAssignment,
   getAdminStaff,
 } from '../controller/caseAssignmentController.js'
-import { authenticateFirebaseToken } from '../firebase/authMiddleware.js'
+import { authenticateFirebaseToken, requireProfilePin } from '../firebase/authMiddleware.js'
 
 const router = express.Router()
 
 // All case assignment routes require authentication
 router.use(authenticateFirebaseToken)
+router.use(requireProfilePin)
 
 router.post('/', createCaseAssignment)
 router.get('/mine', getMyAssignments)

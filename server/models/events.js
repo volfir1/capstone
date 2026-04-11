@@ -49,6 +49,17 @@ const eventSchema = new mongoose.Schema(
     externalIds: {
       google: { type: String },
     },
+    googleCalendarProfileId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    googleCalendarEmail: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     appointmentTime: {
       type: String,
       trim: true,

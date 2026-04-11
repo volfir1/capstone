@@ -7,16 +7,21 @@ import { auth } from '@/firebase/firebase';
 
 let socket = null;
 let registeredUid = null;
+let registeredProfileId = null;
 
 /**
- * Emit 'register' with UID + a fresh Firebase ID token for server verification.
+ * Emit 'register' with UID, active profile, and a fresh Firebase ID token for server verification.
  */
-const emitRegister = async (s, uid) => {
+const emitRegister = async (s, uid, profileId = "") => {
   try {
     const user = auth.currentUser;
     if (!user) return;
     const token = await user.getIdToken();
-    s.emit('register', uid, token);
+    s.emit('register', {
+      firebaseUid: uid,
+      profileId: profileId || "",
+      token,
+    });
   } catch (err) {
     console.warn('[Socket] Could not get token for register:', err.message);
   }
@@ -54,7 +59,7 @@ export const getSocket = () => {
       // Re-register the user's UID on every (re)connect so the server
       // always knows which room this socket belongs to.
       if (registeredUid) {
-        emitRegister(socket, registeredUid);
+        emitRegister(socket, registeredUid, registeredProfileId);
       }
     });
 
@@ -66,13 +71,14 @@ export const getSocket = () => {
 };
 
 /**
- * Register the current user's Firebase UID so the server can target them.
+ * Register the current user's Firebase UID and active profile so the server can target them.
  */
-export const registerUser = (firebaseUid) => {
+export const registerUser = (firebaseUid, profileId = "") => {
   registeredUid = firebaseUid || null;
+  registeredProfileId = profileId || null;
   const s = getSocket();
   if (firebaseUid && s.connected) {
-    emitRegister(s, firebaseUid);
+    emitRegister(s, firebaseUid, profileId);
   }
   // No need for s.once('connect') — the 'connect' handler in getSocket()
   // will emit 'register' automatically on every (re)connect.
@@ -87,4 +93,5 @@ export const disconnectSocket = () => {
     socket = null;
   }
   registeredUid = null;
+  registeredProfileId = null;
 };

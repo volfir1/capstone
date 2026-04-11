@@ -1,6 +1,6 @@
 import express from 'express';
-import { getAuthUrl, oauthCallback, createEvent, createEventAndRecord, rescheduleEvent } from '../controller/googleController.js';
-import { authenticateFirebaseToken } from '../firebase/authMiddleware.js';
+import { getAuthUrl, oauthCallback, createEvent, createEventAndRecord, rescheduleEvent, disconnectGoogleCalendar } from '../controller/googleController.js';
+import { authenticateFirebaseToken, requireProfilePin } from '../firebase/authMiddleware.js';
 
 const router = express.Router();
 
@@ -9,16 +9,17 @@ router.get('/callback', oauthCallback);
 
 // ── Protected routes (auth required) ──
 router.use(authenticateFirebaseToken);
+router.use(requireProfilePin);
 
-// Request an auth URL for the current user (body: { firebaseUid })
+// Request an auth URL for the currently selected profile
 router.post('/connect', getAuthUrl);
+router.post('/disconnect', disconnectGoogleCalendar);
 
-// Create event for user (body: { firebaseUid, event })
-// Create event for user (body: { firebaseUid, event })
+// Create an event for the currently selected profile
 router.post('/events', createEvent);
 // Atomic: create Google event, then create system event and update appointment record
 router.post('/events/atomic', createEventAndRecord);
-// Reschedule an accepted appointment (body: { firebaseUid, eventId, appointmentId, newDate, newTime })
+// Reschedule an accepted appointment for the calendar that owns the linked Google event
 router.post('/events/reschedule', rescheduleEvent);
 
 export default router;

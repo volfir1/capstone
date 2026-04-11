@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema(
   {
     // Who receives this notification
     recipientId: {
-      type: String, // firebaseUid
+      type: String, // profile id for staff notifications (legacy records may still store other identifiers)
       required: true,
       index: true,
     },

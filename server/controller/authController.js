@@ -1,6 +1,17 @@
 import User from "../models/user.js";
 import Attorney from "../models/attorney.js";
+import Account from "../models/account.js";
 import admin from "firebase-admin";
+import {
+  createStaffProfileForAccount,
+  ensureAccountForDecodedToken,
+  getRequestedProfileId,
+  listProfilesForAccount,
+  resolveActiveProfileForAccount,
+  serializeAccount,
+  serializeProfile,
+  updateLastSelectedProfile,
+} from "../utils/accountContext.js";
 
 import { safeErrorMessage } from '../utils/errorResponse.js';
 const getFirebaseUserWithRetry = async (
@@ -28,46 +39,27 @@ const getFirebaseUserWithRetry = async (
 
 export const register = async (req, res) => {
   try {
-    const { idToken, firstName, lastName, username, email, isVerified, role } =
-      req.body;
+    const { idToken, firstName, lastName, username, email, role } = req.body;
+    let decodedToken;
 
-    let userEmail, firebaseUid;
-    let userVerified = false;
-    let isGoogleSignIn = false;
-
-    // verify firebase token
     if (idToken) {
-      const decodedToken = await admin.auth().verifyIdToken(idToken);
-      userEmail = decodedToken.email;
-      firebaseUid = decodedToken.uid;
-   
-      const firebaseUser = await admin.auth().getUser(firebaseUid);
-      isGoogleSignIn = firebaseUser.providerData.some(
-        (provider) => provider.providerId === "google.com"
-      );
-
-      if (isGoogleSignIn) {
-        userVerified = decodedToken.email_verified || false;
-      } else {
-      
-        userVerified = decodedToken.email_verified || false;
-      }
+      decodedToken = await admin.auth().verifyIdToken(idToken);
     } else {
-   
       if (!email) {
         return res.status(400).json({
           success: false,
-          message: "Email is required when no idToken provided",
+          message: "Email is required when no idToken is provided",
         });
       }
-      userEmail = email;
 
-    
       try {
         const firebaseUser = await getFirebaseUserWithRetry(email);
-        firebaseUid = firebaseUser.uid;
-      
-        userVerified = false;
+        decodedToken = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          email_verified: firebaseUser.emailVerified || false,
+          name: firebaseUser.displayName || "",
+        };
       } catch (error) {
         console.error("Firebase lookup error after retries:", error);
         return res.status(400).json({
@@ -77,70 +69,31 @@ export const register = async (req, res) => {
         });
       }
     }
+    console.log("🔥 before ensureAccount");
+const account = await ensureAccountForDecodedToken(decodedToken);
+console.log("✅ after ensureAccount:", account._id);
 
-    // Use the actual passed values
-    let finalFirstName = firstName;
-    let finalLastName = lastName || "N/A";  // Default to "N/A" if not provided
-    let finalUsername = username || userEmail;
 
-    // Validate required fields
-    if (!userEmail || !finalFirstName) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields: firstName, email",
+    let createdProfile = null;
+    if (firstName && lastName && role) {
+      createdProfile = await createStaffProfileForAccount(account, {
+        firstName,
+        lastName,
+        role,
+        username,
       });
+      await updateLastSelectedProfile(account._id, createdProfile._id);
     }
-
-    let userRole = "user";
-    // SECURITY: Never accept role from client during self-registration.
-    // New users are always "user". Role changes require admin action via /users/:userId/role.
-
-    // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [{ email: userEmail }, { firebaseUid }],
-    });
-
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: "User already exists",
-      });
-    }
-
-    // Check if username is taken (only if it's different from email)
-    if (finalUsername !== userEmail) {
-      const usernameExists = await User.findOne({ username: finalUsername });
-      if (usernameExists) {
-        return res.status(400).json({
-          success: false,
-          message: "Username already taken",
-        });
-      }
-    }
-
-    const user = await User.create({
-      email: userEmail,
-      firstName: finalFirstName,
-      lastName: finalLastName,
-      username: finalUsername,
-      firebaseUid,
-      isVerified: userVerified,
-      role: userRole,
-    });
 
     res.status(201).json({
       success: true,
       data: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        username: user.username,
-        role: user.role,
-        isVerified: user.isVerified,
-        createdAt: user.createdAt,
+        account: serializeAccount(account),
+        profile: createdProfile ? serializeProfile(createdProfile, account) : null,
       },
-      message: "User registered successfully",
+      message: createdProfile
+        ? "Account and staff profile created successfully"
+        : "Account registered successfully",
     });
   } catch (error) {
     console.error("Registration error:", error);
@@ -160,7 +113,7 @@ export const checkEmailExists = async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await Account.findOne({ email: String(email).trim().toLowerCase() });
 
     res.status(200).json({
       success: true,
@@ -186,41 +139,67 @@ export const verifyUser = async (req, res) => {
 
     const idToken = authHeader.split(" ")[1];
     const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const account = await ensureAccountForDecodedToken(decodedToken);
+    const firebaseVerified = !!decodedToken.email_verified;
 
-    const firebaseVerified = decodedToken.email_verified || false;
-
-    // Update User first; if not found, try Attorney collection
-    let user = await User.findOneAndUpdate(
-      { firebaseUid: decodedToken.uid },
-      { isVerified: firebaseVerified },
-      { new: true }
+    await User.updateMany(
+      { accountId: account._id },
+      {
+        $set: {
+          isVerified: firebaseVerified,
+          email: account.email,
+          firebaseUid: account.firebaseUid,
+        },
+      }
     );
-
-    if (!user) {
-      user = await Attorney.findOneAndUpdate(
-        { firebaseUid: decodedToken.uid },
-        { isVerified: firebaseVerified },
-        { new: true }
-      );
-    }
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
 
     res.json({
       success: true,
       message: `Verification status updated to ${firebaseVerified}`,
       data: {
-        isVerified: user.isVerified,
+        isVerified: firebaseVerified,
       },
     });
   } catch (error) {
     console.error("Verify user error:", error);
     res.status(500).json({ success: false, message: safeErrorMessage(error)});
+  }
+};
+
+export const getAccountContext = async (req, res) => {
+  try {
+    // Token already verified by authenticateFirebaseToken middleware
+    const account = req.account;
+    if (!account) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const profiles = await listProfilesForAccount(account._id, { includeDisabled: true });
+    const requestedProfileId = getRequestedProfileId(req);
+    const activeProfile = await resolveActiveProfileForAccount(
+      account._id,
+      requestedProfileId,
+      { allowFallback: false, includeDisabled: true }
+    );
+
+    if (activeProfile) {
+      await updateLastSelectedProfile(account._id, activeProfile._id);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        account: serializeAccount(account),
+        profiles: profiles.map((profile) => serializeProfile(profile, account)),
+        activeProfileId: activeProfile?._id?.toString?.() || "",
+      },
+    });
+  } catch (error) {
+    console.error("Get account context error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
   }
 };
 
@@ -525,12 +504,11 @@ export const getEmailFromUsername = async (req, res) => {
       });
     }
 
-    // Try to find attorney by username
-    const attorney = await Attorney.findOne({ username });
-    if (attorney) {
+    const account = await Account.findOne({ email: username.toLowerCase() });
+    if (account) {
       return res.status(200).json({
         success: true,
-        email: attorney.email,
+        email: account.email,
         isEmail: false,
       });
     }

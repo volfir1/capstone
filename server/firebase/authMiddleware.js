@@ -1,5 +1,14 @@
 import admin from 'firebase-admin';
-import User from '../models/user.js';
+import {
+  ensureAccountForDecodedToken,
+  getRequestedProfileId,
+  resolveActiveProfileForAccount,
+  serializeProfile,
+} from '../utils/accountContext.js';
+import {
+  describeProfilePinState,
+  getRequestedProfilePinToken,
+} from '../utils/profilePin.js';
 
 /**
  * Firebase authentication middleware
@@ -25,9 +34,31 @@ export const authenticateFirebaseToken = async (req, res, next) => {
     try {
       // Verify the Firebase ID token
       const decodedToken = await admin.auth().verifyIdToken(idToken);
-      
-      // Look up the full user record so downstream handlers have the role
-      const dbUser = await User.findOne({ firebaseUid: decodedToken.uid }).lean();
+      const account = await ensureAccountForDecodedToken(decodedToken);
+      const requestedProfileId = getRequestedProfileId(req);
+      const activeProfile = await resolveActiveProfileForAccount(
+        account._id,
+        requestedProfileId,
+        { allowFallback: false }
+      );
+      const profilePin = activeProfile
+        ? describeProfilePinState({
+            accountId: account._id,
+            profile: activeProfile,
+            token: getRequestedProfilePinToken(req),
+          })
+        : {
+            hasPin: false,
+            verified: false,
+            requiresSetup: false,
+            requiresUnlock: false,
+            pinResetRequired: false,
+            lockedUntil: null,
+            isLocked: false,
+            remainingAttempts: 0,
+            maxAttempts: 0,
+            sessionExpiresAt: null,
+          };
 
       // Attach user info to request object
       req.user = {
@@ -35,15 +66,20 @@ export const authenticateFirebaseToken = async (req, res, next) => {
         email: decodedToken.email,
         emailVerified: decodedToken.email_verified,
         name: decodedToken.name,
-        // Include MongoDB fields when available
-        ...(dbUser && {
-          _id: dbUser._id,
-          role: dbUser.role,
-          firstName: dbUser.firstName,
-          lastName: dbUser.lastName,
-          isVerified: dbUser.isVerified,
+        accountId: account._id,
+        isVerified: account.isVerified,
+        ...(activeProfile && {
+          _id: activeProfile._id,
+          role: activeProfile.role,
+          firstName: activeProfile.firstName,
+          lastName: activeProfile.lastName,
+          disabled: activeProfile.disabled,
+          profile: serializeProfile(activeProfile, account),
         }),
       };
+      req.account = account;
+      req.activeProfile = activeProfile || null;
+      req.profilePin = profilePin;
 
       next();
     } catch (error) {
@@ -60,6 +96,55 @@ export const authenticateFirebaseToken = async (req, res, next) => {
       message: 'Authentication failed' 
     });
   }
+};
+
+export const requireProfilePin = (req, res, next) => {
+  if (!req.activeProfile) {
+    return res.status(409).json({
+      success: false,
+      code: 'profile-selection-required',
+      message: 'Select a staff profile first.',
+    });
+  }
+
+  if (req.activeProfile.disabled) {
+    return res.status(403).json({
+      success: false,
+      code: 'profile-disabled',
+      message: 'This staff profile is disabled.',
+    });
+  }
+
+  const pinState = req.profilePin || {};
+
+  if (pinState.requiresSetup) {
+    return res.status(428).json({
+      success: false,
+      code: 'profile-pin-setup-required',
+      message: 'Set a PIN for this profile before continuing.',
+      data: pinState,
+    });
+  }
+
+  if (pinState.isLocked) {
+    return res.status(423).json({
+      success: false,
+      code: 'profile-pin-locked',
+      message: 'This profile PIN is temporarily locked after too many failed attempts.',
+      data: pinState,
+    });
+  }
+
+  if (!pinState.verified) {
+    return res.status(428).json({
+      success: false,
+      code: 'profile-pin-required',
+      message: 'Enter the profile PIN before continuing.',
+      data: pinState,
+    });
+  }
+
+  next();
 };
 
 /**

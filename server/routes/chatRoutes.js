@@ -6,12 +6,13 @@ import {
   getChatList,
   getAssignedAttorney,
 } from "../controller/chatController.js";
-import { authenticateFirebaseToken } from '../firebase/authMiddleware.js';
+import { authenticateFirebaseToken, requireProfilePin } from '../firebase/authMiddleware.js';
 
 const router = express.Router();
 
 // All chat routes require authentication
 router.use(authenticateFirebaseToken);
+router.use(requireProfilePin);
 
 // Send a message
 router.post("/send", sendMessage);

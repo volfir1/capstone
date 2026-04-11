@@ -7,12 +7,13 @@ import {
   deleteNotification,
   deleteAllNotifications,
 } from '../controller/notificationController.js';
-import { authenticateFirebaseToken } from '../firebase/authMiddleware.js';
+import { authenticateFirebaseToken, requireProfilePin } from '../firebase/authMiddleware.js';
 
 const router = express.Router();
 
 // All notification routes require authentication
 router.use(authenticateFirebaseToken);
+router.use(requireProfilePin);
 
 router.get('/', getNotifications);
 router.get('/unread-count', getUnreadCount);

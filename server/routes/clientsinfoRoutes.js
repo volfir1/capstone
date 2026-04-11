@@ -1,6 +1,6 @@
 import express from 'express'
 import { createClientsInfo, listClientsInfo, getClientsInfoById, updateClientsInfo, deleteClientsInfo, createPublicAppointment, getAnalytics } from '../controller/clientsinfoController.js'
-import { authenticateFirebaseToken } from '../firebase/authMiddleware.js'
+import { authenticateFirebaseToken, requireProfilePin } from '../firebase/authMiddleware.js'
 
 const router = express.Router()
 
@@ -18,6 +18,7 @@ router.get('/public-schedules', (req, res, next) => {
 
 // ── Protected routes (auth required) ──
 router.use(authenticateFirebaseToken)
+router.use(requireProfilePin)
 
 // POST /api/clientsinfo
 router.post('/', createClientsInfo)

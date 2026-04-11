@@ -1,34 +1,43 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
+import NProgress from "nprogress";
+import "nprogress/nprogress.css";
+import { GoogleAuthProvider } from "firebase/auth";
+
 import { useAuth } from "@/context/authContext";
 import apiClient from "@config/api/apiClient";
-import NProgress from 'nprogress';
-import 'nprogress/nprogress.css';
 import {
-  doSigninWithEmailAndPassword,
   doSignInWithGoogle,
+  doSigninWithEmailAndPassword,
   doSignOut,
 } from "@/firebase/auth";
-import { GoogleAuthProvider } from 'firebase/auth';
 import {
-  successNotif,
   failNotif,
+  successNotif,
   verificationNotif,
-  pendingRoleNotif,
-  welcomeNotif,
 } from "@utils/notification";
+import { clearAllStoredActiveProfileIds } from "@/features/auth/profileSession";
+import { clearAllStoredProfilePinTokens } from "@/features/auth/profilePinSession";
 
 export const useLogin = () => {
-  const { userLoggedIn, userData, loading } = useAuth();
+  const {
+    userLoggedIn,
+    userData,
+    accountData,
+    loading,
+    requiresProfileSelection,
+    requiresPinSetup,
+    requiresPinVerification,
+  } = useAuth();
   const navigate = useNavigate();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [hasNavigated, setHasNavigated] = useState(false);
+
   const notificationShown = useRef(false);
   const verificationNotified = useRef(false);
-  const pendingNotified = useRef(false);
-  
+
   const {
     register,
     handleSubmit,
@@ -42,10 +51,11 @@ export const useLogin = () => {
   });
 
   useEffect(() => {
-    console.log('useEffect triggered:', { userLoggedIn, hasUserData: !!userData, loading, hasNavigated });
+    if (!userLoggedIn || loading || hasNavigated) {
+      return;
+    }
 
-    if (userLoggedIn && !loading && !userData && !hasNavigated) {
-      console.log('Detected logged-in but no backend userData after loading — treating as unverified');
+    if (accountData && !accountData.isVerified) {
       if (!verificationNotified.current) {
         verificationNotif();
         verificationNotified.current = true;
@@ -57,167 +67,128 @@ export const useLogin = () => {
       return;
     }
 
-    if (userLoggedIn && userData && !hasNavigated) {
-      console.log('Inside navigation logic');
-      
-      if (!userData.isVerified) {
-        console.log('User not verified');
-        if (!verificationNotified.current) {
-          verificationNotif();
-          verificationNotified.current = true;
-        }
-        doSignOut();
-        setIsSigningIn(false);
-        setHasNavigated(false);
-        notificationShown.current = false;
-        return;
-      }
-
-      verificationNotified.current = false;
-      pendingNotified.current = false;
-
-      if (userData.role === 'user') {
-        console.log('User role is `user` (pending) — notifying and signing out');
-        if (!pendingNotified.current) {
-          pendingRoleNotif();
-          pendingNotified.current = true;
-        }
-        doSignOut();
-        setIsSigningIn(false);
-        setHasNavigated(false);
-        notificationShown.current = false;
-        return;
-      }
-
+    if (requiresProfileSelection) {
       if (!notificationShown.current) {
-        console.log('Starting 3 second delay...');
         successNotif();
         notificationShown.current = true;
       }
-      
       setHasNavigated(true);
-      
+      setIsSigningIn(false);
+      navigate("/auth/profiles", { replace: true });
+      return;
+    }
+
+    if (requiresPinSetup || requiresPinVerification) {
+      if (!notificationShown.current) {
+        successNotif();
+        notificationShown.current = true;
+      }
+      setHasNavigated(true);
+      setIsSigningIn(false);
+      navigate("/auth/profile-pin", { replace: true });
+      return;
+    }
+
+    if (userData) {
+      if (!notificationShown.current) {
+        successNotif();
+        notificationShown.current = true;
+      }
+
+      setHasNavigated(true);
       NProgress.start();
-      NProgress.set(0.3);
+      NProgress.set(0.4);
 
       const timer = setTimeout(() => {
-        console.log('3 seconds passed, navigating now...');
-        NProgress.set(0.7);
-        welcomeNotif(userData.firstName);
-
-        console.log('Navigating to /admin (global redirect)');
+        NProgress.set(0.8);
         navigate("/admin", { replace: true });
-
         NProgress.done();
         setIsSigningIn(false);
         notificationShown.current = false;
         verificationNotified.current = false;
-        pendingNotified.current = false;
-      }, 3000);
+      }, 1500);
 
       return () => {
-        console.log('Cleanup: clearing timer');
         clearTimeout(timer);
         NProgress.done();
       };
     }
-  }, [userLoggedIn, userData, loading, navigate]);
 
-  // Email/Password Sign In
-  const handleEmailSignIn = async (data) => {
-    if (isSigningIn) return;
+    if (!userData && !requiresProfileSelection && !requiresPinSetup && !requiresPinVerification) {
+      setIsSigningIn(false);
+      if (!errorMessage) {
+        setErrorMessage("We couldn't load the staff profiles for this account yet.");
+      }
+    }
 
+    return undefined;
+  }, [
+    userLoggedIn,
+    userData,
+    accountData,
+    loading,
+    requiresProfileSelection,
+    requiresPinSetup,
+    requiresPinVerification,
+    hasNavigated,
+    navigate,
+    errorMessage,
+  ]);
+
+  const resetLoginState = () => {
+    clearAllStoredActiveProfileIds();
+    clearAllStoredProfilePinTokens();
     setIsSigningIn(true);
     setErrorMessage("");
     setHasNavigated(false);
     notificationShown.current = false;
     verificationNotified.current = false;
-    pendingNotified.current = false;
+  };
+
+  const handleEmailSignIn = async (data) => {
+    if (isSigningIn) return;
+
+    resetLoginState();
 
     try {
       let emailToUse = data.email;
-      console.log('Login attempt with input:', data.email);
 
-      if (!data.email.includes('@')) {
-        console.log('Input is username, fetching email...');
-        try {
-          const response = await apiClient.post('/auth/get-email-from-username', {
-            username: data.email,
-          });
+      if (!data.email.includes("@")) {
+        const response = await apiClient.post("/auth/get-email-from-username", {
+          username: data.email,
+        });
 
-          console.log('Username lookup response:', response.data);
-
-          if (response.data.success) {
-            emailToUse = response.data.email;
-            console.log('Using email:', emailToUse);
-          } else {
-            throw new Error('Username not found');
-          }
-        } catch (error) {
-          console.error('Username lookup error:', error);
-          setErrorMessage('Username not found. Please check your credentials.');
-          setIsSigningIn(false);
-          failNotif();
-          return;
+        if (response.data.success) {
+          emailToUse = response.data.email;
+        } else {
+          throw new Error("Username not found");
         }
       }
 
-      console.log('Attempting Firebase sign in with email:', emailToUse);
       const signInResult = await doSigninWithEmailAndPassword(emailToUse, data.password);
-      console.log('Firebase sign in successful', signInResult?.user?.email);
+      const signedUser = signInResult?.user;
 
-      try {
-        const signedUser = signInResult?.user;
-        if (signedUser && !signedUser.emailVerified) {
-          console.log('Email not verified (immediate check) - notifying and signing out');
-          if (!verificationNotified.current) {
-            verificationNotif();
-            verificationNotified.current = true;
-          }
-          await doSignOut();
-          setIsSigningIn(false);
-          return;
+      if (signedUser && !signedUser.emailVerified) {
+        if (!verificationNotified.current) {
+          verificationNotif();
+          verificationNotified.current = true;
         }
-      } catch (vErr) {
-        console.warn('Error checking emailVerified on sign in result', vErr);
+        await doSignOut();
+        setIsSigningIn(false);
       }
-
-      try {
-        const profileResp = await apiClient.get('/user/profile');
-        const profile = profileResp?.data?.data;
-        if (profile && profile.role === 'user') {
-          console.log('Backend role is `user` (pending) - notifying and signing out');
-          if (!pendingNotified.current) {
-            pendingRoleNotif();
-            pendingNotified.current = true;
-          }
-          await doSignOut();
-          setIsSigningIn(false);
-          return;
-        }
-      } catch (profileErr) {
-        console.warn('Immediate profile fetch failed; will wait for authContext to load userData', profileErr?.message || profileErr);
-      }
-
     } catch (error) {
-      console.error('Sign in error:', error);
-      setErrorMessage(error.message);
+      console.error("Sign in error:", error);
+      setErrorMessage(error.message || "Sign in failed");
       setIsSigningIn(false);
       failNotif();
     }
   };
 
-  // Google Sign In
-  const handleGoogleSignIn = async (e) => {
-    e.preventDefault();
+  const handleGoogleSignIn = async (event) => {
+    event.preventDefault();
     if (isSigningIn) return;
 
-    setIsSigningIn(true);
-    setErrorMessage("");
-    setHasNavigated(false);
-    notificationShown.current = false;
-    verificationNotified.current = false;
-    pendingNotified.current = false;
+    resetLoginState();
 
     try {
       const TIMEOUT_MS = 2000;
@@ -227,7 +198,6 @@ export const useLogin = () => {
       ]);
 
       if (result && result.__timeout) {
-        setErrorMessage("");
         setIsSigningIn(false);
         return;
       }
@@ -236,49 +206,26 @@ export const useLogin = () => {
         const credential = GoogleAuthProvider.credentialFromResult(result);
         const accessToken = credential?.accessToken;
         if (accessToken) {
-          sessionStorage.setItem('googleAccessToken', accessToken);
+          sessionStorage.setItem("googleAccessToken", accessToken);
         }
-      } catch (credErr) {
-        console.warn('Failed to extract Google credential from result', credErr);
+      } catch (credentialError) {
+        console.warn("Failed to extract Google credential from result", credentialError);
       }
 
-      try {
-        const signedUser = result?.user;
-        if (signedUser && !signedUser.emailVerified) {
-          console.log('Google account email not verified (immediate check) - notifying and signing out');
-          if (!verificationNotified.current) {
-            verificationNotif();
-            verificationNotified.current = true;
-          }
-          await doSignOut();
-          setIsSigningIn(false);
-          return;
+      const signedUser = result?.user;
+      if (signedUser && !signedUser.emailVerified) {
+        if (!verificationNotified.current) {
+          verificationNotif();
+          verificationNotified.current = true;
         }
-      } catch (vErr) {
-        console.warn('Error checking emailVerified on Google sign in result', vErr);
+        await doSignOut();
+        setIsSigningIn(false);
       }
-
-      try {
-        const profileResp = await apiClient.get('/user/profile');
-        const profile = profileResp?.data?.data;
-        if (profile && profile.role === 'user') {
-          console.log('Backend role is `user` (pending) after Google sign-in - notifying and signing out');
-          if (!pendingNotified.current) {
-            pendingRoleNotif();
-            pendingNotified.current = true;
-          }
-          await doSignOut();
-          setIsSigningIn(false);
-          return;
-        }
-      } catch (profileErr) {
-        console.warn('Immediate profile fetch failed after Google sign-in; will wait for authContext to load userData', profileErr?.message || profileErr);
-      }
-
-    } catch (err) {
-      console.error("Google sign-in error:", err);
-      const code = err?.code || "";
-      const isPopupCancelled = code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request";
+    } catch (error) {
+      console.error("Google sign-in error:", error);
+      const code = error?.code || "";
+      const isPopupCancelled =
+        code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request";
 
       if (isPopupCancelled) {
         setErrorMessage("");
@@ -286,7 +233,7 @@ export const useLogin = () => {
         return;
       }
 
-      setErrorMessage(err.message || "Google sign-in failed");
+      setErrorMessage(error.message || "Google sign-in failed");
       setIsSigningIn(false);
       failNotif();
     }

@@ -1,11 +1,59 @@
 import { google } from 'googleapis';
 
-const SCOPES = ['https://www.googleapis.com/auth/calendar'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/userinfo.email',
+];
+
+const isProduction = () => process.env.NODE_ENV === 'production';
+
+const isLocalhostUrl = (value = '') =>
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(String(value || '').trim());
+
+function resolveOAuthCredentials() {
+  const prodClientId = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+  const prodClientSecret = String(process.env.GOOGLE_CLIENT_SECRET || '').trim();
+
+  if (!isProduction()) {
+    const localClientId = String(process.env.GOOGLE_CLIENT_ID_LOCAL || '').trim();
+    const localClientSecret = String(process.env.GOOGLE_CLIENT_SECRET_LOCAL || '').trim();
+    if (localClientId && localClientSecret) {
+      return {
+        clientId: localClientId,
+        clientSecret: localClientSecret,
+      };
+    }
+  }
+
+  return {
+    clientId: prodClientId,
+    clientSecret: prodClientSecret,
+  };
+}
+
+function resolveRedirectUri() {
+  const prodRedirect = String(process.env.GOOGLE_REDIRECT_URI || '').trim();
+  const localRedirect = String(process.env.GOOGLE_REDIRECT_URI_LOCAL || '').trim();
+
+  if (isProduction()) {
+    return prodRedirect;
+  }
+
+  if (localRedirect) {
+    return localRedirect;
+  }
+
+  if (isLocalhostUrl(prodRedirect)) {
+    return prodRedirect;
+  }
+
+  const port = String(process.env.PORT || '5000').trim();
+  return `http://localhost:${port}/api/google/callback`;
+}
 
 function getOAuth2Client() {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirect = process.env.GOOGLE_REDIRECT_URI; // e.g. https://your-server.com/api/google/callback
+  const { clientId, clientSecret } = resolveOAuthCredentials();
+  const redirect = resolveRedirectUri(); // e.g. https://your-server.com/api/google/callback
 
   if (!clientId || !clientSecret || !redirect) {
     throw new Error('Google OAuth client credentials are not configured in environment variables');
@@ -14,13 +62,15 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirect);
 }
 
-export function generateAuthUrl(state) {
+export function generateAuthUrl(state, options = {}) {
   const oauth2Client = getOAuth2Client();
+  const { loginHint = '', prompt = 'consent select_account' } = options;
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    prompt: 'consent',
+    prompt,
     scope: SCOPES,
     state,
+    ...(loginHint ? { login_hint: loginHint } : {}),
   });
   return url;
 }
@@ -29,6 +79,17 @@ export async function getTokensFromCode(code) {
   const oauth2Client = getOAuth2Client();
   const { tokens } = await oauth2Client.getToken(code);
   return tokens;
+}
+
+export async function getGoogleAccountEmailFromAccessToken(accessToken) {
+  if (!accessToken) return '';
+
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+
+  const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+  const res = await oauth2.userinfo.get();
+  return res?.data?.email || '';
 }
 
 // Fetch the timezone of the user's calendar so we can send events in their local time

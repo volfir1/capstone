@@ -1,26 +1,43 @@
+import mongoose from "mongoose";
+import admin from "firebase-admin";
+import { v2 as cloudinary } from "cloudinary";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+
 import User from "../models/user.js";
-import Attorney from "../models/attorney.js";
-import admin from 'firebase-admin'
-import { v2 as cloudinary } from 'cloudinary'
+import Account from "../models/account.js";
+import {
+  STAFF_ROLES,
+  assertUniqueStaffProfile,
+  createStaffProfileForAccount,
+  listProfilesForAccount,
+  serializeProfile,
+  updateLastSelectedProfile,
+} from "../utils/accountContext.js";
+import {
+  PROFILE_PIN_LOCK_MINUTES,
+  PROFILE_PIN_MAX_ATTEMPTS,
+  createProfilePinSessionToken,
+  describeProfilePinState,
+  getRequestedProfilePinToken,
+  hashProfilePin,
+  validateProfilePin,
+  verifyProfilePinHash,
+} from "../utils/profilePin.js";
+import { safeErrorMessage } from "../utils/errorResponse.js";
 
-// Configure Cloudinary via env (expects CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { safeErrorMessage } from '../utils/errorResponse.js';
 
 const __userCtrlFilename = fileURLToPath(import.meta.url);
 const __userCtrlDirname = path.dirname(__userCtrlFilename);
 
-// Multer config for profile image uploads
-const profileImagesDir = path.join(__userCtrlDirname, '../uploads/profile-images/');
+const profileImagesDir = path.join(__userCtrlDirname, "../uploads/profile-images/");
 if (!fs.existsSync(profileImagesDir)) {
   fs.mkdirSync(profileImagesDir, { recursive: true });
 }
@@ -28,9 +45,9 @@ if (!fs.existsSync(profileImagesDir)) {
 const profileImageStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, profileImagesDir),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    const uid = req.user?.uid || Date.now();
-    cb(null, `${uid}${ext}`);
+    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+    const profileKey = req.activeProfile?._id?.toString?.() || req.user?._id?.toString?.() || req.user?.uid || Date.now();
+    cb(null, `${profileKey}${ext}`);
   },
 });
 
@@ -38,642 +55,856 @@ const profileImageUpload = multer({
   storage: profileImageStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
     if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Only JPG, PNG, WebP, and GIF images are allowed'), false);
+    else cb(new Error("Only JPG, PNG, WebP, and GIF images are allowed"), false);
   },
 });
 
-export const profileImageMiddleware = profileImageUpload.single('image');
+const ADMIN_ROLES = new Set(STAFF_ROLES);
+const PROFILE_MANAGER_ROLES = new Set(["secretary", "director"]);
+
+const requireAccount = (req, res) => {
+  if (req.account) {
+    return req.account;
+  }
+
+  res.status(401).json({ success: false, message: "Unauthorized" });
+  return null;
+};
+
+const requireActiveProfile = (req, res, { allowDisabled = false } = {}) => {
+  if (!req.activeProfile) {
+    res.status(409).json({
+      success: false,
+      code: "profile-selection-required",
+      message: "Select or create a staff profile first.",
+    });
+    return null;
+  }
+
+  if (!allowDisabled && req.activeProfile.disabled) {
+    res.status(403).json({
+      success: false,
+      message: "This staff profile is disabled.",
+    });
+    return null;
+  }
+
+  return req.activeProfile;
+};
+
+const requireAdminProfile = (req, res) => {
+  const profile = requireActiveProfile(req, res);
+  if (!profile) {
+    return null;
+  }
+
+  if (!ADMIN_ROLES.has(profile.role)) {
+    res.status(403).json({
+      success: false,
+      message: "Forbidden: You do not have permission to perform this action",
+    });
+    return null;
+  }
+
+  return profile;
+};
+
+const requireProfileManager = (req, res) => {
+  const profile = requireActiveProfile(req, res);
+  if (!profile) {
+    return null;
+  }
+
+  if (!PROFILE_MANAGER_ROLES.has(profile.role)) {
+    res.status(403).json({
+      success: false,
+      message: "Only secretaries and directors can manage profiles.",
+    });
+    return null;
+  }
+
+  return profile;
+};
+
+const MANAGED_PROFILE_FIELDS =
+  "accountId email firstName lastName username role isVerified createdAt profileImage signatureUrl disabled";
+const PIN_PROFILE_FIELDS =
+  `${MANAGED_PROFILE_FIELDS} pinEnabled pinResetRequired pinFailedAttempts pinLockedUntil pinLastChangedAt`;
+
+const findProfileInAccount = async (accountId, profileId, select = MANAGED_PROFILE_FIELDS) => {
+  if (!profileId || !mongoose.Types.ObjectId.isValid(profileId)) {
+    return null;
+  }
+
+  return User.findOne({ _id: profileId, accountId }).select(select);
+};
+
+const normalizeProfileText = (value) => String(value || "").trim();
+const describeCurrentProfilePinState = (accountId, profile, req) =>
+  describeProfilePinState({
+    accountId,
+    profile,
+    token: getRequestedProfilePinToken(req),
+  });
+
+const findPinProfileInAccount = async (accountId, profileId) => {
+  if (!profileId || !mongoose.Types.ObjectId.isValid(profileId)) {
+    return null;
+  }
+
+  return User.findOne({ _id: profileId, accountId }).select(`+pinHash ${PIN_PROFILE_FIELDS}`);
+};
+
+export const profileImageMiddleware = profileImageUpload.single("image");
+
+export const getProfiles = async (req, res) => {
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
+
+    const profiles = await listProfilesForAccount(account._id, { includeDisabled: true });
+    res.json({
+      success: true,
+      data: profiles.map((profile) => serializeProfile(profile, account)),
+    });
+  } catch (error) {
+    console.error("Get profiles error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
+export const createProfile = async (req, res) => {
+  try {
+    const managerProfile = requireProfileManager(req, res);
+    if (!managerProfile) return;
+
+    const account = requireAccount(req, res);
+    if (!account) return;
+
+    const profile = await createStaffProfileForAccount(account, req.body || {});
+
+    res.status(201).json({
+      success: true,
+      data: serializeProfile(profile, account),
+      message: "Staff profile created successfully",
+    });
+  } catch (error) {
+    console.error("Create profile error:", error);
+    const errorMessage = String(error.message || "");
+    const status =
+      errorMessage.includes("required") ||
+      errorMessage.includes("Role must") ||
+      errorMessage.includes("already exists")
+        ? 400
+        : 500;
+    res.status(status).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
+export const getProfilePinStatus = async (req, res) => {
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
+
+    const profile = requireActiveProfile(req, res);
+    if (!profile) return;
+
+    const currentState = describeCurrentProfilePinState(account._id, profile, req);
+
+    res.json({
+      success: true,
+      data: {
+        profileId: profile._id.toString(),
+        ...currentState,
+      },
+    });
+  } catch (error) {
+    console.error("Get profile PIN status error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
+export const setupProfilePin = async (req, res) => {
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
+
+    const activeProfile = requireActiveProfile(req, res);
+    if (!activeProfile) return;
+
+    const profile = await findPinProfileInAccount(account._id, activeProfile._id);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    if (profile.disabled) {
+      return res.status(403).json({ success: false, message: "This staff profile is disabled." });
+    }
+
+    if (profile.pinEnabled && !profile.pinResetRequired) {
+      return res.status(400).json({
+        success: false,
+        code: "profile-pin-already-set",
+        message: "This profile already has a PIN.",
+      });
+    }
+
+    const normalizedPin = validateProfilePin(req.body?.pin);
+    profile.pinHash = hashProfilePin(normalizedPin);
+    profile.pinEnabled = true;
+    profile.pinResetRequired = false;
+    profile.pinFailedAttempts = 0;
+    profile.pinLockedUntil = null;
+    profile.pinLastChangedAt = new Date();
+    await profile.save();
+
+    await updateLastSelectedProfile(account._id, profile._id);
+
+    const pinToken = createProfilePinSessionToken({ accountId: account._id, profile });
+    const pinState = describeProfilePinState({
+      accountId: account._id,
+      profile,
+      token: pinToken,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        profile: serializeProfile(profile, account),
+        pinToken,
+        ...pinState,
+      },
+      message: "Profile PIN created successfully",
+    });
+  } catch (error) {
+    console.error("Setup profile PIN error:", error);
+    const status = String(error.message || "").includes("PIN must be") ? 400 : 500;
+    res.status(status).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
+export const verifyProfilePin = async (req, res) => {
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
+
+    const activeProfile = requireActiveProfile(req, res);
+    if (!activeProfile) return;
+
+    const profile = await findPinProfileInAccount(account._id, activeProfile._id);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    if (profile.disabled) {
+      return res.status(403).json({ success: false, message: "This staff profile is disabled." });
+    }
+
+    if (!profile.pinEnabled || !profile.pinLastChangedAt || !profile.pinHash) {
+      return res.status(428).json({
+        success: false,
+        code: "profile-pin-setup-required",
+        message: "Set a PIN for this profile first.",
+        data: {
+          profileId: profile._id.toString(),
+          ...describeProfilePinState({ accountId: account._id, profile, token: "" }),
+        },
+      });
+    }
+
+    const normalizedPin = validateProfilePin(req.body?.pin);
+    const now = Date.now();
+
+    if (profile.pinLockedUntil && new Date(profile.pinLockedUntil).getTime() > now) {
+      return res.status(423).json({
+        success: false,
+        code: "profile-pin-locked",
+        message: "This profile PIN is temporarily locked after too many failed attempts.",
+        data: {
+          profileId: profile._id.toString(),
+          ...describeProfilePinState({ accountId: account._id, profile, token: "" }),
+        },
+      });
+    }
+
+    if (profile.pinLockedUntil && new Date(profile.pinLockedUntil).getTime() <= now) {
+      profile.pinFailedAttempts = 0;
+      profile.pinLockedUntil = null;
+    }
+
+    if (!verifyProfilePinHash(normalizedPin, profile.pinHash)) {
+      const failedAttempts = Number(profile.pinFailedAttempts || 0) + 1;
+      profile.pinFailedAttempts = failedAttempts;
+
+      if (failedAttempts >= PROFILE_PIN_MAX_ATTEMPTS) {
+        profile.pinLockedUntil = new Date(now + PROFILE_PIN_LOCK_MINUTES * 60 * 1000);
+      }
+
+      await profile.save();
+
+      const pinState = describeProfilePinState({ accountId: account._id, profile, token: "" });
+      return res.status(pinState.isLocked ? 423 : 401).json({
+        success: false,
+        code: pinState.isLocked ? "profile-pin-locked" : "invalid-profile-pin",
+        message: pinState.isLocked
+          ? "Too many incorrect PIN attempts. This profile is temporarily locked."
+          : "Incorrect PIN. Please try again.",
+        data: {
+          profileId: profile._id.toString(),
+          ...pinState,
+        },
+      });
+    }
+
+    profile.pinFailedAttempts = 0;
+    profile.pinLockedUntil = null;
+    await profile.save();
+
+    await updateLastSelectedProfile(account._id, profile._id);
+
+    const pinToken = createProfilePinSessionToken({ accountId: account._id, profile });
+    const pinState = describeProfilePinState({
+      accountId: account._id,
+      profile,
+      token: pinToken,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        profile: serializeProfile(profile, account),
+        pinToken,
+        ...pinState,
+      },
+      message: "Profile PIN verified successfully",
+    });
+  } catch (error) {
+    console.error("Verify profile PIN error:", error);
+    const status = String(error.message || "").includes("PIN must be") ? 400 : 500;
+    res.status(status).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
 export const getProfile = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' })
-        }
+    const profile = requireActiveProfile(req, res);
+    if (!profile) return;
 
-        const idToken = authHeader.split(' ')[1]
-        const decodedToken = await admin.auth().verifyIdToken(idToken)
+    await updateLastSelectedProfile(account._id, profile._id);
 
-        // Check both User and Attorney collections so attorneys can load their profile
-        let profile = await User.findOne({ firebaseUid: decodedToken.uid })
-        let isAttorney = false
+    res.json({
+      success: true,
+      data: serializeProfile(profile, account),
+    });
+  } catch (error) {
+    console.error("Get profile error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
 
-        if (!profile) {
-            profile = await Attorney.findOne({ firebaseUid: decodedToken.uid })
-            isAttorney = !!profile
-        }
-
-        if (!profile) {
-            return res.status(404).json({ success: false, message: 'User not found' })
-        }
-
-        res.json({
-            success: true,
-            data: {
-                id: profile._id,
-                email: profile.email,
-                firstName: profile.firstName,
-                lastName: profile.lastName,
-                username: profile.username,
-                role: profile.role,
-                isVerified: profile.isVerified,
-                createdAt: profile.createdAt,
-                accountStatus: isAttorney ? profile.accountStatus : undefined,
-                profileImage: profile.profileImage || '',
-                signatureUrl: profile.signatureUrl || '',
-                google: profile.google ? { connected: !!profile.google.connected } : { connected: false },
-            }
-        })
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: safeErrorMessage(error)})
-    }
-}
-
-// Update user/attorney profile (first name, last name, etc.)
 export const updateProfile = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' });
-        }
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        const idToken = authHeader.split(' ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const profile = requireActiveProfile(req, res);
+    if (!profile) return;
 
-        // Allowed fields for User
-        const userFields = ['firstName', 'lastName'];
-        // Additional fields for Attorney
-        const attorneyFields = [
-            'firstName', 'middleName', 'lastName', 'suffix',
-            'prcLicenseNumber', 'ibrNumber', 'barAdmissionDate',
-            'lawFirm', 'isPAOLawyer', 'paoOffice',
-            'specializations', 'languages', 'consultationMode',
-            'biography', 'isAvailable',
-        ];
-
-        // Try User collection first
-        let profile = await User.findOne({ firebaseUid: decodedToken.uid });
-        let isAttorney = false;
-
-        if (!profile) {
-            profile = await Attorney.findOne({ firebaseUid: decodedToken.uid });
-            isAttorney = true;
-        }
-
-        if (!profile) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
-        const allowed = isAttorney ? attorneyFields : userFields;
-        const updates = {};
-        for (const key of allowed) {
-            if (req.body[key] !== undefined) {
-                updates[key] = req.body[key];
-            }
-        }
-
-        if (Object.keys(updates).length === 0) {
-            return res.status(400).json({ success: false, message: 'No valid fields to update' });
-        }
-
-        Object.assign(profile, updates);
-        await profile.save();
-
-        res.json({ success: true, data: profile, message: 'Profile updated successfully' });
-    } catch (error) {
-        console.error('Update profile error:', error);
-        res.status(500).json({ success: false, message: safeErrorMessage(error) });
+    const allowedFields = ["firstName", "lastName"];
+    for (const field of allowedFields) {
+      if (req.body?.[field] !== undefined) {
+        profile[field] = String(req.body[field] || "").trim();
+      }
     }
+
+    await profile.save();
+
+    res.json({
+      success: true,
+      data: serializeProfile(profile, account),
+      message: "Profile updated successfully",
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
 };
 
 export const fetchUsers = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization
+  try {
+    const adminProfile = requireAdminProfile(req, res);
+    if (!adminProfile) return;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' })
-        }
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        const idToken = authHeader.split(' ')[1]
-        const decodedToken = await admin.auth().verifyIdToken(idToken)
+    const users = await User.find(
+      { accountId: account._id, role: { $in: STAFF_ROLES } },
+      MANAGED_PROFILE_FIELDS
+    )
+      .sort({ role: 1, firstName: 1, lastName: 1 })
+      .lean();
 
-        // Check both User and Attorney collections
-        let authenticatedUser = await User.findOne({ firebaseUid: decodedToken.uid })
-        if (!authenticatedUser) {
-            authenticatedUser = await Attorney.findOne({ firebaseUid: decodedToken.uid })
-        }
+    res.json({
+      success: true,
+      count: users.length,
+      data: users,
+    });
+  } catch (error) {
+    console.error("Fetch users error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
 
-        if (!authenticatedUser) {
-            return res.status(404).json({ success: false, message: 'User not found in User or Attorney collection' })
-        }
+export const updateManagedProfile = async (req, res) => {
+  try {
+    const managerProfile = requireProfileManager(req, res);
+    if (!managerProfile) return;
 
-        // Allow secretary and attorney roles to access user management
-        const allowedRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
-        if (!allowedRoles.includes(authenticatedUser.role)) {
-            return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
-        }
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        const users = await User.find({}, 'email firstName lastName username role isVerified createdAt profileImage disabled')
-
-        res.json({
-            success: true,
-            count: users.length,
-            data: users
-        })
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: safeErrorMessage(error)})
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid profile id" });
     }
 
-}
+    const managedProfile = await findProfileInAccount(account._id, userId);
 
-// Update user role (admin only - secretary/user roles only)
+    if (!managedProfile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    const firstName = normalizeProfileText(req.body?.firstName ?? managedProfile.firstName);
+    const lastName = normalizeProfileText(req.body?.lastName ?? managedProfile.lastName);
+    const role = normalizeProfileText(req.body?.role ?? managedProfile.role).toLowerCase();
+
+    if (!firstName || !lastName || !role) {
+      return res.status(400).json({
+        success: false,
+        message: "firstName, lastName, and role are required",
+      });
+    }
+
+    if (!STAFF_ROLES.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid role. Allowed roles: ${STAFF_ROLES.join(", ")}.`,
+      });
+    }
+
+    await assertUniqueStaffProfile(
+      account._id,
+      { firstName, lastName, role },
+      managedProfile._id
+    );
+
+    managedProfile.firstName = firstName;
+    managedProfile.lastName = lastName;
+    managedProfile.role = role;
+    await managedProfile.save();
+
+    const refreshedProfile = await findProfileInAccount(account._id, managedProfile._id);
+
+    res.json({
+      success: true,
+      data: refreshedProfile,
+      message: "Profile updated successfully",
+    });
+  } catch (error) {
+    console.error("Update managed profile error:", error);
+    const status =
+      String(error.message || "").includes("already exists") ||
+      String(error.message || "").includes("required") ||
+      String(error.message || "").includes("Invalid role")
+        ? 400
+        : 500;
+    res.status(status).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
 export const updateUserRole = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization
+  try {
+    const managerProfile = requireProfileManager(req, res);
+    if (!managerProfile) return;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' })
-        }
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        const idToken = authHeader.split(' ')[1]
-        const decodedToken = await admin.auth().verifyIdToken(idToken)
+    const { userId } = req.params;
+    const { role } = req.body || {};
 
-        // Check both User and Attorney collections
-        let adminUser = await User.findOne({ firebaseUid: decodedToken.uid })
-        if (!adminUser) {
-            adminUser = await Attorney.findOne({ firebaseUid: decodedToken.uid })
-        }
-
-        if (!adminUser) {
-            return res.status(404).json({ success: false, message: 'Admin user not found' })
-        }
-
-        // Only allow admin roles to change user roles
-        const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
-        if (!adminRoles.includes(adminUser.role)) {
-            return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
-        }
-
-        const { userId } = req.params
-        const { role } = req.body
-
-        // Only allow changing to valid roles
-        if (!['user', 'secretary', 'intern', 'director', 'supervising_lawyer'].includes(role)) {
-            return res.status(400).json({ success: false, message: 'Invalid role. Allowed roles: user, secretary, intern, director, supervising_lawyer.' })
-        }
-
-        const updatedUser = await User.findByIdAndUpdate(
-            userId,
-            { role },
-            { new: true, select: 'email firstName lastName username role isVerified createdAt profileImage disabled' }
-        )
-
-        if (!updatedUser) {
-            return res.status(404).json({ success: false, message: 'User not found' })
-        }
-
-        res.json({
-            success: true,
-            data: updatedUser,
-            message: 'User role updated successfully'
-        })
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: safeErrorMessage(error)})
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid profile id" });
     }
-}
 
-// Toggle user account status (disable/enable)
+    if (!STAFF_ROLES.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid role. Allowed roles: ${STAFF_ROLES.join(", ")}.`,
+      });
+    }
+
+    const targetProfile = await findProfileInAccount(account._id, userId);
+    if (!targetProfile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    await assertUniqueStaffProfile(
+      account._id,
+      {
+        firstName: targetProfile.firstName,
+        lastName: targetProfile.lastName,
+        role,
+      },
+      targetProfile._id
+    );
+
+    targetProfile.role = role;
+    await targetProfile.save();
+
+    const updatedUser = await findProfileInAccount(account._id, targetProfile._id);
+
+    res.json({
+      success: true,
+      data: updatedUser,
+      message: "Profile role updated successfully",
+    });
+  } catch (error) {
+    console.error("Update user role error:", error);
+    const status = String(error.message || "").includes("already exists") ? 400 : 500;
+    res.status(status).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
 export const toggleUserStatus = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization
+  try {
+    const managerProfile = requireProfileManager(req, res);
+    if (!managerProfile) return;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' })
-        }
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        const idToken = authHeader.split(' ')[1]
-        const decodedToken = await admin.auth().verifyIdToken(idToken)
+    const { userId } = req.params;
+    const { disabled } = req.body || {};
 
-        // Check both User and Attorney collections
-        let adminUser = await User.findOne({ firebaseUid: decodedToken.uid })
-        if (!adminUser) {
-            adminUser = await Attorney.findOne({ firebaseUid: decodedToken.uid })
-        }
-
-        if (!adminUser) {
-            return res.status(404).json({ success: false, message: 'Admin user not found' })
-        }
-
-        const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
-        if (!adminRoles.includes(adminUser.role)) {
-            return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
-        }
-
-        const { userId } = req.params
-        const { disabled } = req.body
-
-        const updatedUser = await User.findByIdAndUpdate(
-            userId,
-            { disabled: disabled === true },
-            { new: true, select: 'email firstName lastName username role isVerified createdAt profileImage disabled' }
-        )
-
-        if (!updatedUser) {
-            return res.status(404).json({ success: false, message: 'User not found' })
-        }
-
-        // Also disable/enable in Firebase
-        try {
-            await admin.auth().updateUser(updatedUser.firebaseUid, {
-                disabled: disabled === true
-            })
-        } catch (firebaseError) {
-            console.log('Firebase disable/enable failed:', firebaseError.message)
-        }
-
-        res.json({
-            success: true,
-            data: updatedUser,
-            message: `User account ${disabled ? 'disabled' : 'enabled'} successfully`
-        })
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: safeErrorMessage(error)})
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid profile id" });
     }
-}
 
-// Send password reset email
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: userId, accountId: account._id },
+      { disabled: disabled === true },
+      {
+        new: true,
+        select: MANAGED_PROFILE_FIELDS,
+      }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    res.json({
+      success: true,
+      data: updatedUser,
+      message: `Profile ${disabled ? "disabled" : "enabled"} successfully`,
+    });
+  } catch (error) {
+    console.error("Toggle user status error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
+export const resetManagedProfilePin = async (req, res) => {
+  try {
+    const managerProfile = requireProfileManager(req, res);
+    if (!managerProfile) return;
+
+    const account = requireAccount(req, res);
+    if (!account) return;
+
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid profile id" });
+    }
+
+    const targetProfile = await findPinProfileInAccount(account._id, userId);
+    if (!targetProfile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    targetProfile.pinEnabled = false;
+    targetProfile.pinHash = "";
+    targetProfile.pinResetRequired = true;
+    targetProfile.pinFailedAttempts = 0;
+    targetProfile.pinLockedUntil = null;
+    targetProfile.pinLastChangedAt = null;
+    await targetProfile.save();
+
+    res.json({
+      success: true,
+      data: serializeProfile(targetProfile, account),
+      message: "Profile PIN reset successfully",
+    });
+  } catch (error) {
+    console.error("Reset managed profile PIN error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
+export const deleteManagedProfile = async (req, res) => {
+  try {
+    const managerProfile = requireProfileManager(req, res);
+    if (!managerProfile) return;
+
+    const account = requireAccount(req, res);
+    if (!account) return;
+
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid profile id" });
+    }
+
+    const deletedProfile = await User.findOneAndDelete({
+      _id: userId,
+      accountId: account._id,
+    }).select(MANAGED_PROFILE_FIELDS);
+
+    if (!deletedProfile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    if (account.lastSelectedProfileId?.toString?.() === deletedProfile._id.toString()) {
+      await Account.findByIdAndUpdate(account._id, {
+        lastSelectedProfileId: null,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        deletedProfileId: deletedProfile._id.toString(),
+      },
+      message: "Profile deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete managed profile error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
 export const sendPasswordResetEmail = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization
+  try {
+    const managerProfile = requireProfileManager(req, res);
+    if (!managerProfile) return;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' })
-        }
-
-        const idToken = authHeader.split(' ')[1]
-        const decodedToken = await admin.auth().verifyIdToken(idToken)
-
-        // Check both User and Attorney collections
-        let adminUser = await User.findOne({ firebaseUid: decodedToken.uid })
-        if (!adminUser) {
-            adminUser = await Attorney.findOne({ firebaseUid: decodedToken.uid })
-        }
-
-        if (!adminUser) {
-            return res.status(404).json({ success: false, message: 'Admin user not found' })
-        }
-
-        const adminRoles = ['secretary', 'attorney', 'pao_lawyer', 'legal_volunteer', 'intern', 'director', 'supervising_lawyer'];
-        if (!adminRoles.includes(adminUser.role)) {
-            return res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' })
-        }
-
-        const { email } = req.body
-
-        if (!email) {
-            return res.status(400).json({ success: false, message: 'Email is required' })
-        }
-
-        // Generate password reset link using Firebase Admin and send it
-        // generatePasswordResetLink() sends the email automatically via Firebase
-        await admin.auth().generatePasswordResetLink(email);
-
-        // Also trigger the email via Firebase client-side sendPasswordResetEmail
-        // Firebase Admin generatePasswordResetLink by default sends the email when
-        // an SMTP / email action handler is configured. We also attempt the REST API.
-        try {
-            const firebaseApiKey = process.env.FIREBASE_WEB_API_KEY || process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
-            if (firebaseApiKey) {
-                await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${firebaseApiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ requestType: 'PASSWORD_RESET', email }),
-                });
-            }
-        } catch (emailErr) {
-            console.warn('REST password reset email fallback failed:', emailErr.message);
-        }
-
-        res.json({
-            success: true,
-            message: 'Password reset email sent successfully',
-        })
-
-    } catch (error) {
-        console.error('Send password reset error:', error)
-        res.status(500).json({ success: false, message: safeErrorMessage(error)})
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
     }
-}
 
-// Update profile image (saves a Cloudinary URL)
+    await admin.auth().generatePasswordResetLink(email);
+
+    try {
+      const firebaseApiKey = process.env.FIREBASE_WEB_API_KEY || process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+      if (firebaseApiKey) {
+        await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${firebaseApiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestType: "PASSWORD_RESET", email }),
+        });
+      }
+    } catch (emailErr) {
+      console.warn("REST password reset email fallback failed:", emailErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: "Password reset email sent successfully",
+    });
+  } catch (error) {
+    console.error("Send password reset error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
 export const updateProfileImage = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
+  try {
+    const profile = requireActiveProfile(req, res);
+    if (!profile) return;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' });
-        }
-
-        const idToken = authHeader.split(' ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-
-        const { profileImage } = req.body;
-
-        if (!profileImage || typeof profileImage !== 'string') {
-            return res.status(400).json({ success: false, message: 'profileImage URL is required' });
-        }
-
-        // Try User collection first, then Attorney
-        let profile = await User.findOneAndUpdate(
-            { firebaseUid: decodedToken.uid },
-            { profileImage },
-            { new: true }
-        );
-
-        if (!profile) {
-            profile = await Attorney.findOneAndUpdate(
-                { firebaseUid: decodedToken.uid },
-                { profileImage },
-                { new: true }
-            );
-        }
-
-        if (!profile) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
-        res.json({
-            success: true,
-            data: { profileImage: profile.profileImage },
-            message: 'Profile image updated successfully',
-        });
-    } catch (error) {
-        console.error('Update profile image error:', error);
-        res.status(500).json({ success: false, message: safeErrorMessage(error)});
+    const { profileImage } = req.body || {};
+    if (!profileImage || typeof profileImage !== "string") {
+      return res.status(400).json({ success: false, message: "profileImage URL is required" });
     }
+
+    profile.profileImage = profileImage;
+    await profile.save();
+
+    res.json({
+      success: true,
+      data: { profileImage: profile.profileImage },
+      message: "Profile image updated successfully",
+    });
+  } catch (error) {
+    console.error("Update profile image error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
 };
 
-// Upload profile image file via multipart form
 export const uploadProfileImageFile = async (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ success: false, message: 'No image file provided' });
-        }
+  try {
+    const profile = requireActiveProfile(req, res);
+    if (!profile) return;
 
-        const encodedFilename = encodeURIComponent(req.file.filename);
-        const imageUrl = `/uploads/profile-images/${encodedFilename}`;
-
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' });
-        }
-
-        const idToken = authHeader.split(' ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-
-        let profile = await User.findOneAndUpdate(
-            { firebaseUid: decodedToken.uid },
-            { profileImage: imageUrl },
-            { new: true }
-        );
-
-        if (!profile) {
-            profile = await Attorney.findOneAndUpdate(
-                { firebaseUid: decodedToken.uid },
-                { profileImage: imageUrl },
-                { new: true }
-            );
-        }
-
-        if (!profile) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
-        res.json({
-            success: true,
-            data: { profileImage: imageUrl },
-            message: 'Profile image uploaded successfully',
-        });
-    } catch (error) {
-        console.error('Upload profile image file error:', error);
-        res.status(500).json({ success: false, message: safeErrorMessage(error) });
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No image file provided" });
     }
+
+    const encodedFilename = encodeURIComponent(req.file.filename);
+    const imageUrl = `/uploads/profile-images/${encodedFilename}`;
+
+    profile.profileImage = imageUrl;
+    await profile.save();
+
+    res.json({
+      success: true,
+      data: { profileImage: imageUrl },
+      message: "Profile image uploaded successfully",
+    });
+  } catch (error) {
+    console.error("Upload profile image file error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
 };
 
-// Update signature URL (saves Cloudinary URL)
 export const updateSignature = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
+  try {
+    const profile = requireActiveProfile(req, res);
+    if (!profile) return;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' });
-        }
-
-        const idToken = authHeader.split(' ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-
-        const { signatureUrl } = req.body;
-
-        if (!signatureUrl || typeof signatureUrl !== 'string') {
-            return res.status(400).json({ success: false, message: 'signatureUrl is required' });
-        }
-
-        // Try User collection first, then Attorney
-        let profile = await User.findOneAndUpdate(
-            { firebaseUid: decodedToken.uid },
-            { signatureUrl },
-            { new: true }
-        );
-
-        if (!profile) {
-            profile = await Attorney.findOneAndUpdate(
-                { firebaseUid: decodedToken.uid },
-                { signatureUrl },
-                { new: true }
-            );
-        }
-
-        if (!profile) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
-        res.json({
-            success: true,
-            data: { signatureUrl: profile.signatureUrl },
-            message: 'Signature updated successfully',
-        });
-    } catch (error) {
-        console.error('Update signature error:', error);
-        res.status(500).json({ success: false, message: safeErrorMessage(error)});
+    const { signatureUrl } = req.body || {};
+    if (!signatureUrl || typeof signatureUrl !== "string") {
+      return res.status(400).json({ success: false, message: "signatureUrl is required" });
     }
+
+    profile.signatureUrl = signatureUrl;
+    await profile.save();
+
+    res.json({
+      success: true,
+      data: { signatureUrl: profile.signatureUrl },
+      message: "Signature updated successfully",
+    });
+  } catch (error) {
+    console.error("Update signature error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
 };
 
-// Server-side upload of signature (accepts a data URL in `dataUrl`)
 export const uploadSignature = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' });
-        }
+    const profile = requireActiveProfile(req, res);
+    if (!profile) return;
 
-        const idToken = authHeader.split(' ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-
-        const { dataUrl } = req.body;
-        if (!dataUrl || typeof dataUrl !== 'string') {
-            return res.status(400).json({ success: false, message: 'dataUrl (base64) is required' });
-        }
-
-        // Upload to Cloudinary under a user-specific folder
-        // Use a stable public_id per user so uploads overwrite previous signature
-        const publicId = `signature`;
-        const folder = `signatures/${decodedToken.uid}`;
-
-        const uploadResult = await cloudinary.uploader.upload(dataUrl, {
-            folder,
-            public_id: publicId,
-            overwrite: true,
-            resource_type: 'image',
-            format: 'png',
-        });
-
-        const signatureUrl = uploadResult.secure_url;
-
-        // Persist signatureUrl to User or Attorney record
-        let profile = await User.findOneAndUpdate(
-            { firebaseUid: decodedToken.uid },
-            { signatureUrl },
-            { new: true }
-        );
-
-        if (!profile) {
-            profile = await Attorney.findOneAndUpdate(
-                { firebaseUid: decodedToken.uid },
-                { signatureUrl },
-                { new: true }
-            );
-        }
-
-        if (!profile) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
-        res.json({ success: true, data: { signatureUrl }, message: 'Signature uploaded and saved.' });
-    } catch (error) {
-        console.error('uploadSignature error:', error);
-        res.status(500).json({ success: false, message: safeErrorMessage(error)});
+    const { dataUrl } = req.body || {};
+    if (!dataUrl || typeof dataUrl !== "string") {
+      return res.status(400).json({ success: false, message: "dataUrl (base64) is required" });
     }
-}
 
-// Get user by id (returns null data when not found to avoid noisy 404s)
+    const folder = `signatures/${account._id.toString()}/${profile._id.toString()}`;
+    const uploadResult = await cloudinary.uploader.upload(dataUrl, {
+      folder,
+      public_id: "signature",
+      overwrite: true,
+      resource_type: "image",
+      format: "png",
+    });
+
+    profile.signatureUrl = uploadResult.secure_url;
+    await profile.save();
+
+    res.json({
+      success: true,
+      data: { signatureUrl: profile.signatureUrl },
+      message: "Signature uploaded and saved.",
+    });
+  } catch (error) {
+    console.error("Upload signature error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
 export const getUserById = async (req, res) => {
-    try {
-        const { userId } = req.params
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        // Validate ObjectId-ish string (best-effort)
-        if (!userId || typeof userId !== 'string') {
-            return res.status(400).json({ success: false, message: 'Invalid user id' })
-        }
-
-        let user = null
-
-        // Try User collection first
-        try {
-            user = await User.findById(userId).select('-password')
-        } catch (e) {
-            // ignore cast errors
-            user = null
-        }
-
-        // If not found in User, check Attorney
-        if (!user) {
-            try {
-                user = await Attorney.findById(userId).select('-password')
-            } catch (e) {
-                user = null
-            }
-        }
-
-        // Return success with null when missing to match frontend expectations and avoid 404 spam
-        if (!user) {
-            return res.json({ success: true, data: null })
-        }
-
-        // Normalize returned payload
-        const payload = {
-            id: user._id,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            username: user.username,
-            role: user.role,
-            profileImage: user.profileImage || '',
-            signatureUrl: user.signatureUrl || '',
-            createdAt: user.createdAt,
-        }
-
-        res.json({ success: true, data: payload })
-    } catch (error) {
-        res.status(500).json({ success: false, message: safeErrorMessage(error)})
+    const { userId } = req.params;
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid user id" });
     }
-}
 
-// ── Push notification token management ──
+    const user = await User.findOne({ _id: userId, accountId: account._id }).lean();
+    if (!user) {
+      return res.json({ success: true, data: null });
+    }
+
+    const userAccount = user.accountId ? await Account.findById(user.accountId).lean() : null;
+
+    res.json({
+      success: true,
+      data: serializeProfile(user, userAccount),
+    });
+  } catch (error) {
+    console.error("Get user by id error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
 
 export const registerPushToken = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' });
-        }
-        const decodedToken = await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        const { token } = req.body;
-        if (!token || typeof token !== 'string') {
-            return res.status(400).json({ success: false, message: 'Push token is required' });
-        }
-
-        // Add token only if not already present
-        await User.updateOne(
-            { firebaseUid: decodedToken.uid },
-            { $addToSet: { pushTokens: token } }
-        );
-
-        res.json({ success: true, message: 'Push token registered' });
-    } catch (error) {
-        console.error('registerPushToken error:', error);
-        res.status(500).json({ success: false, message: safeErrorMessage(error) });
+    const token = String(req.body?.token || "").trim();
+    if (!token) {
+      return res.status(400).json({ success: false, message: "Push token is required" });
     }
+
+    await Account.updateOne({ _id: account._id }, { $addToSet: { pushTokens: token } });
+
+    res.json({ success: true, message: "Push token registered" });
+  } catch (error) {
+    console.error("Register push token error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
 };
 
 export const unregisterPushToken = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: 'No token provided' });
-        }
-        const decodedToken = await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
+  try {
+    const account = requireAccount(req, res);
+    if (!account) return;
 
-        const { token } = req.body;
-        if (!token || typeof token !== 'string') {
-            return res.status(400).json({ success: false, message: 'Push token is required' });
-        }
-
-        await User.updateOne(
-            { firebaseUid: decodedToken.uid },
-            { $pull: { pushTokens: token } }
-        );
-
-        res.json({ success: true, message: 'Push token removed' });
-    } catch (error) {
-        console.error('unregisterPushToken error:', error);
-        res.status(500).json({ success: false, message: safeErrorMessage(error) });
+    const token = String(req.body?.token || "").trim();
+    if (!token) {
+      return res.status(400).json({ success: false, message: "Push token is required" });
     }
+
+    await Account.updateOne({ _id: account._id }, { $pull: { pushTokens: token } });
+
+    res.json({ success: true, message: "Push token removed" });
+  } catch (error) {
+    console.error("Unregister push token error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
 };

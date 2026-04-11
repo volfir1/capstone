@@ -6,6 +6,7 @@ import Finalize from "../models/finalize.js";
 import CaseRecord from "../models/caserecord.js";
 import admin from "firebase-admin";
 import { createNotification } from "./notificationController.js";
+import { STAFF_ROLES } from "../utils/accountContext.js";
 
 import { safeErrorMessage } from '../utils/errorResponse.js';
 // Submit a new case
@@ -275,15 +276,20 @@ export const assignAttorney = async (req, res) => {
 // Get dashboard stats (Admin)
 export const getDashboardStats = async (req, res) => {
   try {
+    const staffProfileQuery = req.account?._id
+      ? { accountId: req.account._id, role: { $in: STAFF_ROLES } }
+      : { role: { $in: STAFF_ROLES } };
+
     // Core counts
     const totalCases = await Case.countDocuments();
-    const totalUsers = await User.countDocuments();
-    const totalAttorneys = await Attorney.countDocuments({ isVerified: true });
+    const totalUsers = await User.countDocuments(staffProfileQuery);
+    const totalAttorneys = 0;
     const unassignedCases = await Case.countDocuments({ attorneyId: null });
     const assignedCases = totalCases - unassignedCases;
 
-    // User role breakdown
+    // Staff profile role breakdown for the current shared account
     const userRoleCounts = await User.aggregate([
+      { $match: staffProfileQuery },
       { $group: { _id: '$role', count: { $sum: 1 } } }
     ]);
     const roleBreakdown = {};

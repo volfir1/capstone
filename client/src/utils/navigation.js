@@ -10,9 +10,8 @@ import {
   IconClipboardCheck
 } from "@tabler/icons-react";
 
-const ADMIN_NAV = [
+const BASE_ADMIN_NAV = [
   { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
-  { icon: IconUsers, label: "User Management", path: 'users', section: 'main' },
   { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
   { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
   { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
@@ -20,17 +19,22 @@ const ADMIN_NAV = [
   { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
 ];
 
+const PROFILE_MANAGER_ITEM = { icon: IconUsers, label: "Manage Profiles", path: 'users', section: 'main' };
+
+const SECRETARY_NAV = [BASE_ADMIN_NAV[0], PROFILE_MANAGER_ITEM, ...BASE_ADMIN_NAV.slice(1)];
+const DIRECTOR_NAV = [BASE_ADMIN_NAV[0], PROFILE_MANAGER_ITEM, ...BASE_ADMIN_NAV.slice(1)];
+
 export const NAVIGATION_CONFIG = {
-  secretary: ADMIN_NAV,
-  attorney: ADMIN_NAV,
-  intern: ADMIN_NAV,
-  supervising_lawyer: ADMIN_NAV,
-  director: ADMIN_NAV,
+  secretary: SECRETARY_NAV,
+  attorney: BASE_ADMIN_NAV,
+  intern: BASE_ADMIN_NAV,
+  supervising_lawyer: BASE_ADMIN_NAV,
+  director: DIRECTOR_NAV,
 };
 
 // Helper function to get navigation items by role
 export const getNavigationByRole = (role, currentPath) => {
-  const items = NAVIGATION_CONFIG[role] || ADMIN_NAV;
+  const items = NAVIGATION_CONFIG[role] || BASE_ADMIN_NAV;
 
   return items.map(item => {
     const itemPath = item.path.startsWith('/') ? item.path : `/admin/${item.path}`;
