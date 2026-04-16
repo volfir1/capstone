@@ -68,7 +68,7 @@ export default function AssignedCases() {
   const [savingCaseRecord, setSavingCaseRecord] = useState(false);
   const [selectedFinalizeId, setSelectedFinalizeId] = useState(null);
 
-  const isAssigner = ['director', 'secretary'].includes(userData?.role);
+  const isAssigner = ['director', 'secretary', 'supervising_lawyer'].includes(userData?.role);
   const { toast, showToast, hideToast } = useToast();
 
   // Fetch data using the correct separate endpoints (matching web)

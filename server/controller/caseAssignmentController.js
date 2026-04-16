@@ -10,15 +10,15 @@ import { safeErrorMessage } from '../utils/errorResponse.js';
 
 const getUserFromRequest = (req) => req.activeProfile || null;
 
-// —— POST /case-assignments — Create a new assignment (director/secretary only) ——
+// —— POST /case-assignments — Create a new assignment (director/secretary/supervising lawyer only) ——
 export const createCaseAssignment = async (req, res) => {
   try {
     const assigner = getUserFromRequest(req);
     if (!assigner) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Only director and secretary can assign
-    if (!['director', 'secretary'].includes(assigner.role)) {
-      return res.status(403).json({ error: 'Only directors and secretaries can assign cases' });
+    // Only director, secretary, and supervising lawyer can assign
+    if (!['director', 'secretary', 'supervising_lawyer'].includes(assigner.role)) {
+      return res.status(403).json({ error: 'Only directors, secretaries, and supervising lawyers can assign cases' });
     }
 
     const { finalizeId, assigneeId, deadline, message } = req.body;
@@ -282,9 +282,9 @@ export const deleteCaseAssignment = async (req, res) => {
     const user = getUserFromRequest(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Only director and secretary can delete
-    if (!['director', 'secretary'].includes(user.role)) {
-      return res.status(403).json({ error: 'Only directors and secretaries can delete assignments' });
+    // Only director, secretary, and supervising lawyer can delete
+    if (!['director', 'secretary', 'supervising_lawyer'].includes(user.role)) {
+      return res.status(403).json({ error: 'Only directors, secretaries, and supervising lawyers can delete assignments' });
     }
 
     const { id } = req.params;

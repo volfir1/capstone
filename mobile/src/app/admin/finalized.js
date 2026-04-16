@@ -52,7 +52,7 @@ const formatShortDate = (value) => {
 export default function FinalizedCases() {
   const router = useRouter();
   const { userData } = useAuth();
-  const canAssignCases = ['director', 'secretary'].includes(userData?.role);
+  const canAssignCases = ['director', 'secretary', 'supervising_lawyer'].includes(userData?.role);
   const { toast, showToast, hideToast } = useToast();
 
   // Core data

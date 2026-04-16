@@ -402,7 +402,7 @@ export default function FinalizedCases() {
   const [assignForm, setAssignForm] = useState({ assigneeId: '', deadline: '', message: '' });
   const [assignLoading, setAssignLoading] = useState(false);
 
-  const canAssignCases = ['director', 'secretary'].includes(userData?.role);
+  const canAssignCases = ['director', 'secretary', 'supervising_lawyer'].includes(userData?.role);
 
   // Fetch admin staff for the assign dropdown
   useEffect(() => {

@@ -18,7 +18,7 @@ const CaseAssignmentSchema = new mongoose.Schema({
     firebaseUid: { type: String },
   },
 
-  // Who assigned (must be director or secretary)
+  // Who assigned (must be director, secretary, or supervising lawyer)
   assignedBy: {
     id: { type: String, required: true },
     name: { type: String },

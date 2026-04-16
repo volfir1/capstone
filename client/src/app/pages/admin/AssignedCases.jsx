@@ -458,7 +458,7 @@ export default function AssignedCases() {
   const [caseHistoryEditMode, setCaseHistoryEditMode] = useState(false);
   const [caseHistorySaving, setCaseHistorySaving] = useState(false);
 
-  const isAssigner = ['director', 'secretary'].includes(userData?.role);
+  const isAssigner = ['director', 'secretary', 'supervising_lawyer'].includes(userData?.role);
 
   // ── Fetch data ──
   const fetchAll = useCallback(async (silent = false) => {
