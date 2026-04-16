@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, ActivityIndicator, Alert, TextInput, Modal,
+  RefreshControl, ActivityIndicator, Alert, TextInput, Modal, Image,
   KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ThemedToast, { useToast } from '../../components/ThemedToast';
+import AdminSidebarToggle from '../../components/navigation/AdminSidebarToggle';
 
 const PRIMARY_BROWN = '#8B4513';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -646,6 +647,10 @@ export default function FinalizedCases() {
 
     const decision = (action.decision || d.decision || 'pending').toLowerCase();
     const checkMark = (val) => val ? '&#9746;' : '&#9744;';
+    const renderSignatureImage = (url) => {
+      if (!url) return '';
+      return `<div class="sig-image-wrap"><img class="sig-image" src="${escapeHtml(url)}" alt="signature" /></div>`;
+    };
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
       <style>
@@ -666,6 +671,8 @@ export default function FinalizedCases() {
         .sig-col { flex: 1; }
         .sig-line { border-bottom: 1px solid #000; min-height: 14px; padding: 2px; font-size: 10pt; }
         .sig-label { font-size: 10pt; margin-bottom: 2px; }
+        .sig-image-wrap { border: 1px solid #ddd; border-radius: 4px; min-height: 38px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; padding: 3px; }
+        .sig-image { max-width: 100%; max-height: 34px; object-fit: contain; }
         .timestamp { text-align: right; font-size: 7pt; color: #888; margin-bottom: 4px; }
       </style></head><body>
       <div class="timestamp">Generated: ${new Date().toLocaleString()}</div>
@@ -705,8 +712,8 @@ export default function FinalizedCases() {
           <div class="sig-row">
             <div class="sig-col"><p class="sig-label">Law Interns:</p><div class="sig-line">${escapeHtml(formatText(action.assignedTo))}</div></div>
             <div class="sig-col">
-              <p class="sig-label">Supervising Lawyer:</p><div class="sig-line">${escapeHtml(formatText(action.supervisingLawyer))}</div>
-              <p class="sig-label" style="margin-top:10px;">Director's Signature:</p><div class="sig-line">${escapeHtml(formatText(action.directorSignature))}</div>
+              <p class="sig-label">Supervising Lawyer:</p>${renderSignatureImage(action.supervisingLawyerSignatureUrl)}<div class="sig-line">${escapeHtml(formatText(action.supervisingLawyer))}</div>
+              <p class="sig-label" style="margin-top:10px;">Director's Signature:</p>${renderSignatureImage(action.directorSignatureUrl)}<div class="sig-line">${escapeHtml(formatText(action.directorSignature))}</div>
               <p class="sig-label" style="margin-top:10px;">Date:</p><div class="sig-line">${escapeHtml(formatText(action.signatureDate))}</div>
             </div>
           </div>
@@ -945,7 +952,31 @@ export default function FinalizedCases() {
                     <View style={st.reviewGrid}>
                       <View style={st.reviewField}><Text style={st.reviewFieldLabel}>Assigned To</Text><Text style={st.reviewFieldValue}>{reviewData.content?.actionInfo?.assignedTo || '-'}</Text></View>
                       <View style={st.reviewField}><Text style={st.reviewFieldLabel}>Supervising Lawyer</Text><Text style={st.reviewFieldValue}>{reviewData.content?.actionInfo?.supervisingLawyer || '-'}</Text></View>
+                      {reviewData.content?.actionInfo?.supervisingLawyerSignatureUrl ? (
+                        <View style={st.reviewField}>
+                          <Text style={st.reviewFieldLabel}>Supervising Lawyer Signature</Text>
+                          <View style={st.reviewSignaturePreview}>
+                            <Image
+                              source={{ uri: reviewData.content?.actionInfo?.supervisingLawyerSignatureUrl }}
+                              style={st.reviewSignatureImage}
+                              resizeMode="contain"
+                            />
+                          </View>
+                        </View>
+                      ) : null}
                       <View style={st.reviewField}><Text style={st.reviewFieldLabel}>Director's Signature</Text><Text style={st.reviewFieldValue}>{reviewData.content?.actionInfo?.directorSignature || '-'}</Text></View>
+                      {reviewData.content?.actionInfo?.directorSignatureUrl ? (
+                        <View style={st.reviewField}>
+                          <Text style={st.reviewFieldLabel}>Director Signature Image</Text>
+                          <View style={st.reviewSignaturePreview}>
+                            <Image
+                              source={{ uri: reviewData.content?.actionInfo?.directorSignatureUrl }}
+                              style={st.reviewSignatureImage}
+                              resizeMode="contain"
+                            />
+                          </View>
+                        </View>
+                      ) : null}
                       <View style={st.reviewField}><Text style={st.reviewFieldLabel}>Signature Date</Text><Text style={st.reviewFieldValue}>{reviewData.content?.actionInfo?.signatureDate || '-'}</Text></View>
                     </View>
                   </View>
@@ -1430,6 +1461,7 @@ export default function FinalizedCases() {
   // ── Main Render ──
   return (
     <View style={st.container}>
+      <AdminSidebarToggle />
       {/* Header */}
       <View style={st.header}>
         <View>
@@ -1662,6 +1694,22 @@ const st = StyleSheet.create({
   reviewField: { width: '47%', marginBottom: 8 },
   reviewFieldLabel: { fontSize: 11, color: MUTED_OLIVE, textTransform: 'uppercase', fontWeight: '600', marginBottom: 2 },
   reviewFieldValue: { fontSize: 14, color: CHARCOAL },
+  reviewSignaturePreview: {
+    marginTop: 2,
+    minHeight: 64,
+    borderWidth: 1,
+    borderColor: '#E5E0D8',
+    borderRadius: 8,
+    backgroundColor: '#FAFAF7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+    overflow: 'hidden',
+  },
+  reviewSignatureImage: {
+    width: '100%',
+    height: 52,
+  },
   decisionBadge: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 },
   decisionText: { fontSize: 13, fontWeight: '700' },
   stepNavigation: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  ActivityIndicator, RefreshControl, Image, Modal, Animated,
+  ActivityIndicator, RefreshControl, Image, Modal, Animated, Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from 'context/authContext';
 import apiClient from '../../api/apiClient';
 import { fetchDashboardStats, fetchReviews, fetchFinalizedCases, fetchActivityLogs, fetchUsers } from '../../api/adminApi';
@@ -158,7 +158,8 @@ function InAppToast({ notification, onPress, onDismiss }) {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { logout, userData } = useAuth();
+  const navigation = useNavigation();
+  const { logout, userData, clearSelectedProfile } = useAuth();
   const isIntern = userData?.role === 'intern' || userData?.role === 'secretary';
 
   const [loading, setLoading] = useState(true);
@@ -173,6 +174,7 @@ export default function AdminDashboard() {
   const [activityLogs, setActivityLogs] = useState([]);
   const [reviewStage, setReviewStage] = useState('all');
   const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [accountMenuVisible, setAccountMenuVisible] = useState(false);
   const [inAppToast, setInAppToast] = useState(null);
   const prevUnreadRef = useRef(null);
 
@@ -274,7 +276,24 @@ export default function AdminDashboard() {
   };
 
   const handleLogout = async () => {
-    try { await logout(); router.replace('/'); } catch (e) { console.error(e); }
+    setAccountMenuVisible(false);
+    try {
+      await logout();
+      router.replace('/');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSwitchProfile = async () => {
+    setAccountMenuVisible(false);
+
+    try {
+      await clearSelectedProfile();
+      router.replace('/auth/profiles');
+    } catch (error) {
+      console.error('Failed to switch profile:', error);
+    }
   };
 
   // Filter reviews by stage
@@ -333,10 +352,18 @@ export default function AdminDashboard() {
       {/* Header */}
       <View style={s.header}>
         <View style={s.logoRow}>
+          <TouchableOpacity
+            style={s.menuBtn}
+            onPress={() => navigation.openDrawer?.()}
+            accessibilityRole="button"
+            accessibilityLabel="Open sidebar navigation"
+          >
+            <Ionicons name="menu-outline" size={22} color={CHARCOAL} />
+          </TouchableOpacity>
           <Image source={require('../../assets/images/logo.png')} style={s.logo} />
           <Text style={s.appName}>JustReach Admin</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={s.headerActions}>
           <TouchableOpacity
             style={s.headerIconBtn}
             onPress={() => { setNotifModalVisible(true); refreshNotifs(); }}
@@ -348,11 +375,32 @@ export default function AdminDashboard() {
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity style={s.headerIconBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={22} color={CHARCOAL} />
+          <TouchableOpacity style={s.headerIconBtn} onPress={() => setAccountMenuVisible((current) => !current)}>
+            <View style={s.accountTriggerInner}>
+              <Ionicons name="person-circle-outline" size={20} color={CHARCOAL} />
+              <Ionicons name={accountMenuVisible ? 'chevron-up' : 'chevron-down'} size={14} color={MUTED_OLIVE} />
+            </View>
           </TouchableOpacity>
+
+          {accountMenuVisible && (
+            <View style={s.accountMenu}>
+              <TouchableOpacity style={s.accountMenuItem} onPress={handleSwitchProfile}>
+                <Ionicons name="swap-horizontal-outline" size={18} color={CHARCOAL} />
+                <Text style={s.accountMenuItemText}>Switch Profile</Text>
+              </TouchableOpacity>
+              <View style={s.accountMenuDivider} />
+              <TouchableOpacity style={s.accountMenuItem} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={18} color="#B42318" />
+                <Text style={[s.accountMenuItemText, s.accountMenuItemDanger]}>Log Out</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
+
+      {accountMenuVisible && (
+        <Pressable style={s.accountMenuBackdrop} onPress={() => setAccountMenuVisible(false)} />
+      )}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -556,11 +604,79 @@ export default function AdminDashboard() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F8FA' },
   loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    zIndex: 20,
+  },
   logoRow: { flexDirection: 'row', alignItems: 'center' },
+  menuBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
   logo: { width: 36, height: 36, borderRadius: 10, resizeMode: 'contain' },
   appName: { fontSize: 20, fontWeight: '700', color: PRIMARY_BROWN, marginLeft: 10 },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    position: 'relative',
+    zIndex: 30,
+  },
   headerIconBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#f5f5f5', justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  accountTriggerInner: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  accountMenuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
+    backgroundColor: 'transparent',
+  },
+  accountMenu: {
+    position: 'absolute',
+    top: 48,
+    right: 0,
+    width: 188,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ECE6DB',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    zIndex: 40,
+    overflow: 'hidden',
+  },
+  accountMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  accountMenuItemText: {
+    fontSize: 13,
+    color: CHARCOAL,
+    fontWeight: '600',
+  },
+  accountMenuItemDanger: {
+    color: '#B42318',
+  },
+  accountMenuDivider: {
+    height: 1,
+    backgroundColor: '#F0ECE4',
+  },
   notifBadge: { position: 'absolute', top: 4, right: 4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
   notifBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
   logoutBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#f5f5f5', justifyContent: 'center', alignItems: 'center' },

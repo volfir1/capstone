@@ -21,6 +21,10 @@ router.get('/profile/pin/status', getProfilePinStatus)
 router.post('/profile/pin/setup', setupProfilePin)
 router.post('/profile/pin/verify', verifyProfilePin)
 
+// Push notification token management
+router.post('/push-token', registerPushToken)
+router.delete('/push-token', unregisterPushToken)
+
 router.use(requireProfilePin)
 
 router.post('/profiles', createProfile)
@@ -41,10 +45,6 @@ router.delete('/:userId', deleteManagedProfile)
 router.put('/:userId/role', updateUserRole)
 router.put('/:userId/status', toggleUserStatus)
 router.post('/send-password-reset', sendPasswordResetEmail)
-
-// Push notification token management
-router.post('/push-token', registerPushToken)
-router.delete('/push-token', unregisterPushToken)
 
 console.log('userRoutes registered: /profiles, /profile, /fetchusers, /:userId/pin/reset, /test, /:userId/role, /:userId/status, /send-password-reset');
 

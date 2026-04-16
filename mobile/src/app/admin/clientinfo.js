@@ -9,6 +9,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { fetchClientInfoById, updateClientInfo } from '../../api/adminApi';
 import { useAuth } from '../../context/authContext';
 import ThemedToast, { useToast } from '../../components/ThemedToast';
+import AdminSidebarToggle from '../../components/navigation/AdminSidebarToggle';
 
 const PRIMARY_BROWN = '#8B4513';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -878,6 +879,7 @@ export default function ClientInfoView() {
   if (loading) {
     return (
       <View style={[s.container, s.centerContainer]}>
+        <AdminSidebarToggle />
         <ActivityIndicator size="large" color={PRIMARY_BROWN} />
         <Text style={s.loadingText}>Loading client information...</Text>
       </View>
@@ -887,6 +889,7 @@ export default function ClientInfoView() {
   if (!clientInfo) {
     return (
       <View style={[s.container, s.centerContainer]}>
+        <AdminSidebarToggle />
         <Ionicons name="alert-circle-outline" size={48} color="#ccc" />
         <Text style={s.emptyTitle}>Client Not Found</Text>
         <TouchableOpacity style={s.backBtnLarge} onPress={() => router.back()}>
@@ -898,6 +901,7 @@ export default function ClientInfoView() {
 
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <AdminSidebarToggle />
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>

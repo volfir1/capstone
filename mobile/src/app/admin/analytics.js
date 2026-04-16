@@ -11,6 +11,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { fetchFinalizedCases, fetchUsers } from '../../api/adminApi';
 import { PRIMARY_BROWN, PRIMARY_GOLD, CHARCOAL, MUTED_OLIVE } from 'utils/constants';
+import AdminSidebarToggle from '../../components/navigation/AdminSidebarToggle';
 
 const ROLE_COLORS = {
   intern: { primary: '#228BE6', light: '#E7F5FF' },
@@ -369,6 +370,7 @@ export default function Analytics() {
   if (loading) {
     return (
       <SafeAreaView style={s.container}>
+        <AdminSidebarToggle />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color={PRIMARY_BROWN} />
         </View>
@@ -378,6 +380,7 @@ export default function Analytics() {
 
   return (
     <SafeAreaView style={s.container}>
+      <AdminSidebarToggle />
       {/* Header */}
       <View style={s.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

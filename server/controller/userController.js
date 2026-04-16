@@ -895,9 +895,9 @@ export const unregisterPushToken = async (req, res) => {
     const account = requireAccount(req, res);
     if (!account) return;
 
-    const token = String(req.body?.token || "").trim();
+    const token = String(req.body?.token || req.query?.token || req.get("x-push-token") || "").trim();
     if (!token) {
-      return res.status(400).json({ success: false, message: "Push token is required" });
+      return res.json({ success: true, message: "No push token provided; nothing to remove" });
     }
 
     await Account.updateOne({ _id: account._id }, { $pull: { pushTokens: token } });

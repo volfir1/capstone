@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useForm } from "react-hook-form";
+import { GoogleAuthProvider } from "firebase/auth";
 import { useAuth } from "context/authContext";
 import {
   doCreateUserWithEmailAndPassword,
@@ -21,14 +22,9 @@ export const useSignup = () => {
     control,
     formState: { errors },
     watch,
-    trigger,
-    getValues,
   } = useForm({
     mode: "onBlur",
     defaultValues: {
-      firstName: "",
-      lastName: "",
-      username: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -44,79 +40,66 @@ export const useSignup = () => {
   // Watch password for validation
   const watchPassword = watch("password");
 
-  // Email/Password Signup
+  // Email/Password Signup (shared account creation, matching website logic)
   const handleEmailSignup = async (data) => {
-    if (!isRegistering) {
-      setIsRegistering(true);
-      setErrorMessage("");
-      try {
-        await doCreateUserWithEmailAndPassword(data.email, data.password);
-        await doSendEmailVerification();
+    if (isRegistering) return;
 
-        // Wait for Firebase to sync
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+    setIsRegistering(true);
+    setErrorMessage("");
 
-        try {
-          await registerUser(
-            data.firstName,
-            data.lastName,
-            data.email,
-            data.username || null
-          );
-        } catch (registerError) {
-          console.error("Backend registration error:", registerError);
-        }
+    try {
+      await doCreateUserWithEmailAndPassword(data.email, data.password);
+      await doSendEmailVerification();
+      await new Promise((resolve) => setTimeout(resolve, 1200));
 
-        await doSignOut();
-        await new Promise((resolve) => setTimeout(resolve, 500));
+      await registerUser({ email: data.email });
+      await doSignOut();
 
-        setIsRegistering(false);
-        Alert.alert(
-          "Account Created Successfully!",
-          "A verification email has been sent to your email address. Please verify your email before logging in.",
-          [{ text: "OK", onPress: () => router.replace("/auth") }]
-        );
-      } catch (error) {
-        try { await doSignOut(); } catch (e) {}
-        setIsRegistering(false);
-        setErrorMessage(getAuthErrorMessage(error.code) || error.message);
-      }
+      setIsRegistering(false);
+      Alert.alert(
+        "Account Created",
+        "Account created. Verify the email first, then sign in.",
+        [{ text: "OK", onPress: () => router.replace("/auth") }]
+      );
+    } catch (error) {
+      try { await doSignOut(); } catch (e) {}
+      setIsRegistering(false);
+      setErrorMessage(getAuthErrorMessage(error.code) || error.message);
     }
   };
 
-  // Google Sign Up
+  // Google Sign Up (shared account + profile selection flow)
   const handleGoogleSignup = async () => {
-    if (!isRegistering) {
-      setIsRegistering(true);
-      setErrorMessage("");
+    if (isRegistering) return;
+
+    setIsRegistering(true);
+    setErrorMessage("");
+
+    try {
+      const result = await doSignInWithGoogle();
+
       try {
-        const result = await doSignInWithGoogle();
-        const user = result.user;
-        const displayName = user.displayName || "";
-        const nameParts = displayName.split(" ");
-        const googleFirstName = nameParts[0] || "";
-        const googleLastName = nameParts.slice(1).join(" ") || "N/A";
-
-        try {
-          await registerUser(googleFirstName, googleLastName, user.email, null);
-        } catch (registerError) {
-          console.error("Backend registration error:", registerError);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const accessToken = credential?.accessToken;
+        if (accessToken) {
+          // Reserved for future calendar integrations in mobile
         }
-
-        await doSignOut();
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        setIsRegistering(false);
-        Alert.alert(
-          "Account Created Successfully!",
-          "Your Google account has been registered. Please login to continue.",
-          [{ text: "OK", onPress: () => router.replace("/auth") }]
-        );
-      } catch (error) {
-        try { await doSignOut(); } catch (e) {}
-        setIsRegistering(false);
-        setErrorMessage(getAuthErrorMessage(error.code) || error.message);
+      } catch (credentialError) {
+        console.warn("Failed to extract Google credential on signup", credentialError);
       }
+
+      const idToken = await result.user.getIdToken();
+      await registerUser({ idToken });
+
+      setIsRegistering(false);
+      Alert.alert(
+        "Account Created",
+        "Account created. Choose or create a staff profile next.",
+        [{ text: "OK", onPress: () => router.replace("/auth/profiles") }]
+      );
+    } catch (error) {
+      setIsRegistering(false);
+      setErrorMessage(getAuthErrorMessage(error.code) || error.message);
     }
   };
 
@@ -128,8 +111,6 @@ export const useSignup = () => {
     errors,
     handleSubmit,
     watchPassword,
-    trigger,
-    getValues,
     showPassword,
     showConfirmPassword,
     isRegistering,

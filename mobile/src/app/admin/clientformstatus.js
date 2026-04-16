@@ -19,6 +19,7 @@ import { useAuth } from '../../context/authContext';
 import apiClient from '../../api/apiClient';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ThemedToast, { useToast } from '../../components/ThemedToast';
+import AdminSidebarToggle from '../../components/navigation/AdminSidebarToggle';
 
 const PRIMARY_BROWN = '#7D5A3B';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -707,6 +708,7 @@ export default function ClientFormStatus() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
+        <AdminSidebarToggle />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={PRIMARY_BROWN} />
           <Text style={{ marginTop: 12, color: '#999' }}>Loading appointments...</Text>
@@ -718,6 +720,7 @@ export default function ClientFormStatus() {
   // ─── Main render ───
   return (
     <SafeAreaView style={styles.container}>
+      <AdminSidebarToggle />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>

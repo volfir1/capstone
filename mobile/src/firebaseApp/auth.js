@@ -10,10 +10,16 @@ import {
     signInWithCredential
 } from "firebase/auth";
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { clearAllStoredActiveProfileIds } from '../features/auth/profileSession';
+import { clearAllStoredProfilePinTokens } from '../features/auth/profilePinSession';
 
 // Configure Google Sign-In once
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    scopes: [
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/calendar.events',
+    ],
   offlineAccess: true,
   forceCodeForRefreshToken: true,
 });
@@ -74,6 +80,9 @@ export const doSignInWithGoogle = async () => {
 export const doSignOut = async () => {
     try {
         console.trace('doSignOut invoked (firebaseApp/auth.js)');
+        await clearAllStoredActiveProfileIds();
+        await clearAllStoredProfilePinTokens();
+
         // Sign out from Google - use try/catch in case not signed in
         try {
             await GoogleSignin.signOut();

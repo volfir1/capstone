@@ -1,154 +1,307 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  TextInput, ActivityIndicator, Alert, Modal, RefreshControl, FlatList,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchUsers, updateUserRole, toggleUserStatus, sendPasswordReset } from '../../api/adminApi';
-import { PRIMARY_BROWN, PRIMARY_GOLD, CHARCOAL, MUTED_OLIVE, ADMIN_ROLES, ROLE_DISPLAY } from 'utils/constants';
-import ThemedToast, { useToast } from '../../components/ThemedToast';
+import { useRouter } from 'expo-router';
 
-const ROLE_TABS = [
-  { key: 'user', label: 'Clients' },
-  { key: 'secretary', label: 'Secretaries' },
-  { key: 'intern', label: 'Interns' },
-  { key: 'director', label: 'Directors' },
-  { key: 'supervising_lawyer', label: 'Supervisors' },
-  { key: 'inactive', label: 'Inactive' },
-];
+import { useAuth } from 'context/authContext';
+import {
+  createManagedProfile,
+  deleteManagedProfile,
+  resetManagedProfilePin,
+  sendPasswordReset,
+  toggleUserStatus,
+  updateManagedProfile,
+} from '../../api/userManagementApi';
+import ThemedToast, { useToast } from '../../components/ThemedToast';
+import AdminSidebarToggle from '../../components/navigation/AdminSidebarToggle';
+
+const PRIMARY_BROWN = '#8B4513';
+const PRIMARY_GOLD = '#C4AB7D';
+const MUTED_OLIVE = '#6B6B5A';
+const CHARCOAL = '#2C2C2C';
 
 const ROLE_OPTIONS = [
-  { value: 'user', label: 'User (Client)' },
   { value: 'secretary', label: 'Secretary' },
-  { value: 'intern', label: 'Intern' },
-  { value: 'director', label: 'Director' },
+  { value: 'intern', label: 'Legal Intern' },
   { value: 'supervising_lawyer', label: 'Supervising Lawyer' },
+  { value: 'director', label: 'Director' },
 ];
 
+const ROLE_LABELS = {
+  secretary: 'Secretary',
+  intern: 'Legal Intern',
+  supervising_lawyer: 'Supervising Lawyer',
+  director: 'Director',
+};
+
 const ROLE_COLORS = {
-  user: '#4A90D9',
   secretary: '#7B68EE',
   intern: '#20B2AA',
   director: '#E67E22',
   supervising_lawyer: '#9B59B6',
-  pao_lawyer: '#2ECC71',
-  legal_volunteer: '#1ABC9C',
-  attorney: '#E74C3C',
-  admin: '#34495E',
 };
 
-export default function AdminUsers() {
-  const [users, setUsers] = useState([]);
+const TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'secretary', label: 'Secretaries' },
+  { key: 'intern', label: 'Interns' },
+  { key: 'supervising_lawyer', label: 'Supervisors' },
+  { key: 'director', label: 'Directors' },
+  { key: 'inactive', label: 'Inactive' },
+];
+
+const EMPTY_FORM = {
+  firstName: '',
+  lastName: '',
+  role: '',
+};
+
+const formatRole = (role) => ROLE_LABELS[role] || 'Profile';
+const normalizeProfileValue = (value) => String(value || '').trim().toLowerCase();
+
+const validateProfileDraft = (draft, profiles, editingId = '') => {
+  const firstName = String(draft.firstName || '').trim();
+  const lastName = String(draft.lastName || '').trim();
+  const role = String(draft.role || '').trim();
+
+  if (!firstName || !lastName || !role) {
+    return 'Please enter a first name, last name, and role.';
+  }
+
+  const duplicate = profiles.some((profile) => {
+    if (profile.id === editingId) return false;
+
+    return (
+      normalizeProfileValue(profile.firstName) === normalizeProfileValue(firstName) &&
+      normalizeProfileValue(profile.lastName) === normalizeProfileValue(lastName) &&
+      normalizeProfileValue(profile.role) === normalizeProfileValue(role)
+    );
+  });
+
+  if (duplicate) {
+    return 'A profile with the same name and role already exists for this shared account.';
+  }
+
+  return '';
+};
+
+export default function ManageProfilesScreen() {
+  const router = useRouter();
+  const {
+    userData,
+    accountData,
+    profiles,
+    activeProfileId,
+    refreshProfiles,
+    refreshUserData,
+    clearSelectedProfile,
+    markActiveProfilePinReset,
+  } = useAuth();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('user');
-  const [roleModal, setRoleModal] = useState(false);
-  const [actionModal, setActionModal] = useState(null); // user object or null
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [selectedRole, setSelectedRole] = useState('');
+  const [activeTab, setActiveTab] = useState('all');
   const [actionLoading, setActionLoading] = useState(false);
+
+  const [actionModalProfile, setActionModalProfile] = useState(null);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [profileModalMode, setProfileModalMode] = useState('create');
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [profileForm, setProfileForm] = useState(EMPTY_FORM);
+
   const { toast, showToast, hideToast } = useToast();
 
-  const loadUsers = useCallback(async () => {
+  const canManageProfiles = userData?.role === 'secretary' || userData?.role === 'director';
+
+  const loadProfiles = useCallback(async () => {
     try {
-      const data = await fetchUsers();
-      setUsers(Array.isArray(data) ? data : data?.data || []);
-    } catch (err) {
-      console.error('Error fetching users:', err);
+      setLoading(true);
+      await refreshProfiles();
+    } catch (error) {
+      showToast('error', 'Error', 'Failed to load profiles');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshProfiles, showToast]);
 
   useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+    loadProfiles();
+  }, [loadProfiles]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadUsers();
+    await loadProfiles();
     setRefreshing(false);
   };
 
-  // Filter users by tab and search
-  const getFilteredUsers = () => {
-    let filtered = users;
-    if (activeTab === 'inactive') {
-      filtered = filtered.filter(u => u.disabled || !u.isVerified);
-    } else {
-      filtered = filtered.filter(u => u.role === activeTab);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(u =>
-        `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) ||
-        (u.email || '').toLowerCase().includes(q)
-      );
-    }
-    return filtered;
+  const rows = useMemo(
+    () =>
+      profiles.map((profile) => ({
+        id: profile.id,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        name: `${profile.firstName || ''} ${profile.lastName || ''}`.trim(),
+        email: profile.email,
+        role: profile.role,
+        disabled: profile.disabled || false,
+        status: profile.disabled ? 'Inactive' : 'Active',
+        pinStatus: !profile.pinEnabled || profile.pinResetRequired ? 'PIN setup needed' : 'PIN ready',
+        isCurrent: activeProfileId === profile.id,
+        isLastUsed: accountData?.lastSelectedProfileId === profile.id,
+        date: profile.createdAt
+          ? new Date(profile.createdAt).toLocaleDateString('en-US', {
+              month: 'numeric',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : '-',
+      })),
+    [profiles, activeProfileId, accountData?.lastSelectedProfileId]
+  );
+
+  const filteredRows = useMemo(() => {
+    const bySearch = rows.filter((item) => {
+      const haystack = `${item.name} ${item.email} ${formatRole(item.role)}`.toLowerCase();
+      return haystack.includes(searchQuery.toLowerCase());
+    });
+
+    return bySearch.filter((item) => {
+      if (activeTab === 'all') return true;
+      if (activeTab === 'inactive') return item.disabled;
+      return item.role === activeTab && !item.disabled;
+    });
+  }, [rows, searchQuery, activeTab]);
+
+  const tabCounts = useMemo(() => {
+    const counts = {
+      all: rows.length,
+      secretary: rows.filter((r) => r.role === 'secretary' && !r.disabled).length,
+      intern: rows.filter((r) => r.role === 'intern' && !r.disabled).length,
+      supervising_lawyer: rows.filter((r) => r.role === 'supervising_lawyer' && !r.disabled).length,
+      director: rows.filter((r) => r.role === 'director' && !r.disabled).length,
+      inactive: rows.filter((r) => r.disabled).length,
+    };
+
+    return counts;
+  }, [rows]);
+
+  const totalProfiles = rows.length;
+  const activeProfiles = rows.filter((row) => !row.disabled).length;
+  const inactiveProfiles = rows.filter((row) => row.disabled).length;
+
+  const resetProfileModalState = () => {
+    setProfileModalVisible(false);
+    setProfileModalMode('create');
+    setSelectedProfile(null);
+    setProfileForm(EMPTY_FORM);
   };
 
-  const filteredUsers = getFilteredUsers();
-
-  // Stats
-  const totalUsers = users.length;
-  const activeUsers = users.filter(u => !u.disabled && u.isVerified).length;
-  const inactiveUsers = users.filter(u => u.disabled || !u.isVerified).length;
-
-  const getStatusText = (user) => {
-    if (user.disabled) return 'Disabled';
-    return user.isVerified ? 'Active' : 'Inactive';
+  const handleOpenCreateModal = () => {
+    setProfileModalMode('create');
+    setSelectedProfile(null);
+    setProfileForm(EMPTY_FORM);
+    setProfileModalVisible(true);
   };
 
-  const getStatusColor = (user) => {
-    if (user.disabled) return '#ef4444';
-    return user.isVerified ? '#22c55e' : '#999';
+  const handleOpenEditModal = (profile) => {
+    setProfileModalMode('edit');
+    setSelectedProfile(profile);
+    setProfileForm({
+      firstName: profile.firstName || '',
+      lastName: profile.lastName || '',
+      role: profile.role || '',
+    });
+    setProfileModalVisible(true);
   };
 
-  // Actions
-  const handleChangeRole = (user) => {
-    setSelectedUser(user);
-    setSelectedRole(user.role);
-    setRoleModal(true);
+  const syncAfterMutation = async () => {
+    await refreshProfiles();
   };
 
-  const confirmRoleChange = async () => {
-    if (!selectedUser || !selectedRole || selectedRole === selectedUser.role) {
-      setRoleModal(false);
+  const handleSaveProfile = async () => {
+    const validationMessage = validateProfileDraft(
+      profileForm,
+      profiles,
+      profileModalMode === 'edit' ? selectedProfile?.id : ''
+    );
+
+    if (validationMessage) {
+      showToast('warning', 'Profile Details Needed', validationMessage);
       return;
     }
+
+    setActionLoading(true);
     try {
-      setActionLoading(true);
-      await updateUserRole(selectedUser._id, selectedRole);
-      showToast('success', 'Success', `Role updated to ${ROLE_DISPLAY[selectedRole] || selectedRole}`);
-      setRoleModal(false);
-      await loadUsers();
-    } catch (err) {
-      showToast('error', 'Error', 'Failed to update role');
+      if (profileModalMode === 'create') {
+        await createManagedProfile(profileForm);
+        showToast('success', 'Profile Created', 'The new profile is ready for future logins and profile selection.');
+      } else if (selectedProfile) {
+        await updateManagedProfile(selectedProfile.id, profileForm);
+        showToast('success', 'Profile Updated', 'Profile details were updated successfully.');
+
+        if (selectedProfile.isCurrent) {
+          await refreshUserData?.();
+        }
+      }
+
+      await syncAfterMutation();
+      resetProfileModalState();
+    } catch (error) {
+      showToast(
+        'error',
+        profileModalMode === 'create' ? 'Create Failed' : 'Update Failed',
+        error.message || "We couldn't save the profile right now."
+      );
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleToggleStatus = (user) => {
-    const newStatus = !user.disabled;
-    const action = newStatus ? 'disable' : 'enable';
+  const handleToggleStatus = (profile) => {
+    const isDisabling = !profile.disabled;
     Alert.alert(
-      `${action.charAt(0).toUpperCase() + action.slice(1)} Account`,
-      `Are you sure you want to ${action} ${user.firstName} ${user.lastName}'s account?`,
+      isDisabling ? 'Disable Profile' : 'Enable Profile',
+      `${isDisabling ? 'Disable' : 'Enable'} ${profile.name}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Confirm',
-          style: newStatus ? 'destructive' : 'default',
+          text: isDisabling ? 'Disable' : 'Enable',
+          style: isDisabling ? 'destructive' : 'default',
           onPress: async () => {
+            setActionLoading(true);
             try {
-              await toggleUserStatus(user._id, newStatus);
-              showToast('success', 'Success', `Account ${newStatus ? 'disabled' : 'enabled'} successfully`);
-              await loadUsers();
-            } catch (err) {
-              showToast('error', 'Error', `Failed to ${action} account`);
+              await toggleUserStatus(profile.id, isDisabling);
+              showToast(
+                'success',
+                isDisabling ? 'Profile Disabled' : 'Profile Enabled',
+                `${profile.name} is now ${isDisabling ? 'inactive' : 'active'}.`
+              );
+
+              if (profile.isCurrent && isDisabling) {
+                await clearSelectedProfile();
+                await refreshProfiles();
+                router.replace('/auth/profiles');
+                return;
+              }
+
+              await syncAfterMutation();
+            } catch (error) {
+              showToast('error', 'Status Update Failed', error.message || "Couldn't update profile status.");
+            } finally {
+              setActionLoading(false);
             }
           },
         },
@@ -156,20 +309,32 @@ export default function AdminUsers() {
     );
   };
 
-  const handlePasswordReset = (user) => {
+  const handleResetPin = (profile) => {
     Alert.alert(
-      'Send Password Reset',
-      `Send a password reset email to ${user.email}?`,
+      'Reset Profile PIN',
+      `Reset PIN for ${profile.name}? They will need to create a new PIN on next access.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Send',
+          text: 'Reset PIN',
           onPress: async () => {
+            setActionLoading(true);
             try {
-              await sendPasswordReset(user.email);
-              showToast('success', 'Success', 'Password reset email sent');
-            } catch (err) {
-              showToast('error', 'Error', 'Failed to send password reset email');
+              await resetManagedProfilePin(profile.id);
+              showToast('success', 'Profile PIN Reset', `${profile.name} will be asked to set a new PIN.`);
+
+              if (profile.isCurrent) {
+                await syncAfterMutation();
+                await markActiveProfilePinReset();
+                router.replace('/auth/profile-pin');
+                return;
+              }
+
+              await syncAfterMutation();
+            } catch (error) {
+              showToast('error', 'PIN Reset Failed', error.message || "Couldn't reset profile PIN.");
+            } finally {
+              setActionLoading(false);
             }
           },
         },
@@ -177,275 +342,565 @@ export default function AdminUsers() {
     );
   };
 
-  const formatDate = (d) => {
-    if (!d) return 'N/A';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const handleDeleteProfile = (profile) => {
+    Alert.alert(
+      'Delete Profile',
+      `Remove ${profile.name} from this shared account?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              await deleteManagedProfile(profile.id);
+              showToast('success', 'Profile Deleted', `${profile.name} has been removed.`);
+
+              if (profile.isCurrent) {
+                await clearSelectedProfile();
+                await refreshProfiles();
+                router.replace('/auth/profiles');
+                return;
+              }
+
+              await syncAfterMutation();
+            } catch (error) {
+              showToast('error', 'Delete Failed', error.message || "Couldn't delete profile.");
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const renderUserCard = ({ item: user }) => {
-    const initials = `${(user.firstName || '?')[0]}${(user.lastName || '?')[0]}`.toUpperCase();
-    const status = getStatusText(user);
-    const statusColor = getStatusColor(user);
-    const roleColor = ROLE_COLORS[user.role] || PRIMARY_BROWN;
-    const isDisabled = user.disabled;
+  const handleResetSharedPassword = async () => {
+    if (!accountData?.email) {
+      showToast('warning', 'Missing Account Email', "Couldn't find the shared login email.");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await sendPasswordReset(accountData.email);
+      showToast('success', 'Password Reset Sent', `A reset link was sent to ${accountData.email}.`);
+    } catch (error) {
+      showToast('error', 'Reset Failed', error.message || "Couldn't send password reset email.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const renderRow = ({ item }) => {
+    const roleColor = ROLE_COLORS[item.role] || PRIMARY_BROWN;
 
     return (
-      <View style={[s.userCard, isDisabled && s.userCardDisabled]}>
-        <View style={s.userRow}>
-          <View style={[s.avatar, { backgroundColor: roleColor }]}>
-            <Text style={s.avatarText}>{initials}</Text>
-          </View>
-          <View style={s.userInfo}>
-            <Text style={s.userName}>{user.firstName} {user.lastName}</Text>
-            <Text style={s.userEmail}>{user.email}</Text>
+      <View style={[s.profileCard, item.disabled && s.profileCardDisabled]}>
+        <View style={s.profileTopRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.profileName}>{item.name}</Text>
+            <Text style={s.profileEmail}>{item.email}</Text>
             <View style={s.badgeRow}>
               <View style={[s.roleBadge, { backgroundColor: `${roleColor}20` }]}>
-                <Text style={[s.roleBadgeText, { color: roleColor }]}>
-                  {ROLE_DISPLAY[user.role] || user.role}
-                </Text>
+                <Text style={[s.roleBadgeText, { color: roleColor }]}>{formatRole(item.role)}</Text>
               </View>
-              <View style={s.statusDot}>
-                <View style={[s.dot, { backgroundColor: statusColor }]} />
-                <Text style={[s.statusText, { color: statusColor }]}>{status}</Text>
+              <View style={s.statusWrap}>
+                <View style={[s.statusDot, { backgroundColor: item.disabled ? '#9CA3AF' : '#22C55E' }]} />
+                <Text style={[s.statusText, { color: item.disabled ? '#6B7280' : '#15803D' }]}>{item.status}</Text>
               </View>
             </View>
-            <Text style={s.joinDate}>Joined {formatDate(user.createdAt)}</Text>
+
+            <Text style={s.metaText}>Joined {item.date}</Text>
+            <Text style={[s.metaText, item.pinStatus === 'PIN ready' && { color: '#15803D' }]}>{item.pinStatus}</Text>
           </View>
-          <TouchableOpacity
-            style={s.menuBtn}
-            onPress={() => setActionModal(user)}
-          >
+
+          <TouchableOpacity style={s.menuBtn} onPress={() => setActionModalProfile(item)}>
             <Ionicons name="ellipsis-vertical" size={20} color={MUTED_OLIVE} />
           </TouchableOpacity>
         </View>
+
+        <View style={s.sessionBadgeRow}>
+          {item.isCurrent ? <Text style={s.sessionBadge}>Current Session</Text> : null}
+          {!item.isCurrent && item.isLastUsed ? <Text style={s.sessionBadgeMuted}>Last Used</Text> : null}
+        </View>
       </View>
     );
   };
 
+  if (!canManageProfiles) {
+    return (
+      <View style={s.blockedWrap}>
+        <AdminSidebarToggle />
+        <Ionicons name="lock-closed" size={42} color={PRIMARY_BROWN} />
+        <Text style={s.blockedTitle}>Profile Manager Access Required</Text>
+        <Text style={s.blockedText}>
+          Only secretary and director profiles can manage staff profiles on this account.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={s.container}>
-      {/* Header */}
+      <AdminSidebarToggle />
       <View style={s.header}>
-        <Text style={s.headerTitle}>User Management</Text>
+        <Text style={s.headerTitle}>Manage Profiles</Text>
+        <Text style={s.headerSub}>Add, update, disable, and remove profiles under the shared SOLA login.</Text>
+
+        <View style={s.headerActionsRow}>
+          <TouchableOpacity style={s.secondaryBtn} onPress={handleResetSharedPassword} disabled={actionLoading}>
+            <Ionicons name="mail-outline" size={16} color={PRIMARY_BROWN} />
+            <Text style={s.secondaryBtnText}>Reset Login Password</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.primaryBtn} onPress={handleOpenCreateModal} disabled={actionLoading}>
+            <Ionicons name="add" size={16} color="#fff" />
+            <Text style={s.primaryBtnText}>Add Profile</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={s.statsRow}>
-          <View style={s.statItem}>
-            <Text style={s.statValue}>{totalUsers}</Text>
+          <View style={s.statCard}>
+            <Text style={s.statLabel}>Shared Login</Text>
+            <Text style={s.statValue} numberOfLines={1}>{accountData?.email || '-'}</Text>
+          </View>
+          <View style={s.statCard}>
             <Text style={s.statLabel}>Total</Text>
+            <Text style={s.statValue}>{totalProfiles}</Text>
           </View>
-          <View style={s.statItem}>
-            <Text style={[s.statValue, { color: '#22c55e' }]}>{activeUsers}</Text>
+          <View style={s.statCard}>
             <Text style={s.statLabel}>Active</Text>
+            <Text style={s.statValue}>{activeProfiles}</Text>
           </View>
-          <View style={s.statItem}>
-            <Text style={[s.statValue, { color: '#ef4444' }]}>{inactiveUsers}</Text>
+          <View style={s.statCard}>
             <Text style={s.statLabel}>Inactive</Text>
+            <Text style={s.statValue}>{inactiveProfiles}</Text>
           </View>
         </View>
       </View>
 
-      {/* Search */}
-      <View style={s.searchBox}>
+      <View style={s.searchWrap}>
         <Ionicons name="search" size={18} color="#999" />
         <TextInput
-          placeholder="Search by name or email..."
+          style={s.searchInput}
+          placeholder="Search profiles by name, email, or role..."
+          placeholderTextColor="#999"
           value={searchQuery}
           onChangeText={setSearchQuery}
-          style={s.searchInput}
-          placeholderTextColor="#999"
         />
-        {searchQuery.length > 0 && (
+        {searchQuery ? (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
             <Ionicons name="close-circle" size={18} color="#999" />
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
 
-      {/* Role Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabScroll} contentContainerStyle={s.tabContent}>
-        {ROLE_TABS.map(tab => {
-          const count = tab.key === 'inactive'
-            ? users.filter(u => u.disabled || !u.isVerified).length
-            : users.filter(u => u.role === tab.key).length;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={[s.tabBtn, activeTab === tab.key && s.tabBtnActive]}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <Text style={[s.tabBtnText, activeTab === tab.key && s.tabBtnTextActive]}>
-                {tab.label} ({count})
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsScroll} contentContainerStyle={s.tabsContent}>
+        {TABS.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[s.tabBtn, activeTab === tab.key && s.tabBtnActive]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Text style={[s.tabBtnText, activeTab === tab.key && s.tabBtnTextActive]}>
+              {tab.label} ({tabCounts[tab.key] || 0})
+            </Text>
+          </TouchableOpacity>
+        ))}
       </ScrollView>
 
-      {/* User List */}
       {loading ? (
-        <ActivityIndicator size="large" color={PRIMARY_BROWN} style={{ marginTop: 40 }} />
+        <View style={s.centered}>
+          <ActivityIndicator size="large" color={PRIMARY_BROWN} />
+        </View>
       ) : (
         <FlatList
-          data={filteredUsers}
-          keyExtractor={item => item._id}
-          renderItem={renderUserCard}
+          data={filteredRows}
+          keyExtractor={(item) => item.id}
+          renderItem={renderRow}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 24 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_BROWN]} />}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 20 }}
           ListEmptyComponent={
             <View style={s.emptyState}>
-              <Ionicons name="people-outline" size={48} color="#ccc" />
-              <Text style={s.emptyTitle}>No users found</Text>
+              <Ionicons name="people-outline" size={42} color="#C9C9C9" />
+              <Text style={s.emptyTitle}>No profiles match this view</Text>
             </View>
           }
         />
       )}
 
-      {/* Role Change Modal */}
-      <Modal visible={roleModal} transparent animationType="fade">
-        <TouchableOpacity
-          style={s.modalOverlay}
-          activeOpacity={1}
-          onPress={() => !actionLoading && setRoleModal(false)}
-        >
-          <View style={s.modalContent} onStartShouldSetResponder={() => true}>
-            <Text style={s.modalTitle}>Change Role</Text>
-            {selectedUser && (
-              <Text style={s.modalSubtitle}>{selectedUser.firstName} {selectedUser.lastName}</Text>
-            )}
-            <View style={s.roleOptions}>
-              {ROLE_OPTIONS.map(opt => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[s.roleOption, selectedRole === opt.value && s.roleOptionActive]}
-                  onPress={() => setSelectedRole(opt.value)}
-                >
-                  <View style={[s.radioOuter, selectedRole === opt.value && s.radioOuterActive]}>
-                    {selectedRole === opt.value && <View style={s.radioInner} />}
-                  </View>
-                  <Text style={[s.roleOptionText, selectedRole === opt.value && s.roleOptionTextActive]}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+      <Modal
+        visible={profileModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={resetProfileModalState}
+      >
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={resetProfileModalState}>
+          <View style={s.modalCard} onStartShouldSetResponder={() => true}>
+            <Text style={s.modalTitle}>{profileModalMode === 'create' ? 'Add Profile' : 'Edit Profile'}</Text>
+            <Text style={s.modalSub}>
+              {profileModalMode === 'create'
+                ? 'Create another staff profile under this shared account.'
+                : `Update details for ${selectedProfile?.name || 'this profile'}.`}
+            </Text>
+
+            <Text style={s.fieldLabel}>First Name</Text>
+            <TextInput
+              style={s.fieldInput}
+              value={profileForm.firstName}
+              onChangeText={(value) => setProfileForm((prev) => ({ ...prev, firstName: value }))}
+              placeholder="Enter first name"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={s.fieldLabel}>Last Name</Text>
+            <TextInput
+              style={s.fieldInput}
+              value={profileForm.lastName}
+              onChangeText={(value) => setProfileForm((prev) => ({ ...prev, lastName: value }))}
+              placeholder="Enter last name"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={s.fieldLabel}>Assigned Role</Text>
+            <View style={s.roleOptionsWrap}>
+              {ROLE_OPTIONS.map((roleOption) => {
+                const selected = profileForm.role === roleOption.value;
+                return (
+                  <TouchableOpacity
+                    key={roleOption.value}
+                    style={[s.roleOptionBtn, selected && s.roleOptionBtnActive]}
+                    onPress={() => setProfileForm((prev) => ({ ...prev, role: roleOption.value }))}
+                  >
+                    <Text style={[s.roleOptionText, selected && s.roleOptionTextActive]}>{roleOption.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+
             <View style={s.modalActions}>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => setRoleModal(false)} disabled={actionLoading}>
-                <Text style={s.cancelBtnText}>Cancel</Text>
+              <TouchableOpacity style={s.modalCancelBtn} onPress={resetProfileModalState} disabled={actionLoading}>
+                <Text style={s.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.confirmBtn, actionLoading && { opacity: 0.6 }]}
-                onPress={confirmRoleChange}
-                disabled={actionLoading}
-              >
+              <TouchableOpacity style={s.modalConfirmBtn} onPress={handleSaveProfile} disabled={actionLoading}>
                 {actionLoading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={s.confirmBtnText}>Update Role</Text>
+                  <Text style={s.modalConfirmText}>{profileModalMode === 'create' ? 'Create Profile' : 'Save Changes'}</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
       </Modal>
-      <ThemedToast toast={toast} onHide={hideToast} />
 
-      {/* Action Bottom Sheet */}
-      <Modal visible={!!actionModal} transparent animationType="slide" onRequestClose={() => setActionModal(null)}>
-        <TouchableOpacity style={s.actionOverlay} activeOpacity={1} onPress={() => setActionModal(null)}>
-          <View style={s.actionSheet} onStartShouldSetResponder={() => true}>
-            {actionModal && (
+      <Modal
+        visible={!!actionModalProfile}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setActionModalProfile(null)}
+      >
+        <TouchableOpacity style={s.sheetOverlay} activeOpacity={1} onPress={() => setActionModalProfile(null)}>
+          <View style={s.sheetCard} onStartShouldSetResponder={() => true}>
+            {actionModalProfile ? (
               <>
-                <View style={s.actionSheetHandle} />
-                <Text style={s.actionSheetTitle}>{actionModal.firstName} {actionModal.lastName}</Text>
-                <Text style={s.actionSheetSubtitle}>{actionModal.email}</Text>
+                <View style={s.sheetHandle} />
+                <Text style={s.sheetTitle}>{actionModalProfile.name}</Text>
+                <Text style={s.sheetSub}>{actionModalProfile.email}</Text>
 
-                <TouchableOpacity style={s.actionItem} onPress={() => { setActionModal(null); handleChangeRole(actionModal); }}>
-                  <Ionicons name="swap-horizontal" size={20} color={PRIMARY_BROWN} />
-                  <Text style={s.actionItemText}>Change Role</Text>
+                <TouchableOpacity
+                  style={s.sheetItem}
+                  onPress={() => {
+                    const target = actionModalProfile;
+                    setActionModalProfile(null);
+                    handleOpenEditModal(target);
+                  }}
+                >
+                  <Ionicons name="create-outline" size={18} color={PRIMARY_BROWN} />
+                  <Text style={s.sheetItemText}>Edit Profile</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={s.actionItem} onPress={() => { setActionModal(null); handleToggleStatus(actionModal); }}>
-                  <Ionicons name={actionModal.disabled ? 'checkmark-circle' : 'ban'} size={20} color={actionModal.disabled ? '#22c55e' : '#ef4444'} />
-                  <Text style={[s.actionItemText, !actionModal.disabled && { color: '#ef4444' }]}>
-                    {actionModal.disabled ? 'Enable Account' : 'Disable Account'}
+                <TouchableOpacity
+                  style={s.sheetItem}
+                  onPress={() => {
+                    const target = actionModalProfile;
+                    setActionModalProfile(null);
+                    handleResetPin(target);
+                  }}
+                >
+                  <Ionicons name="key-outline" size={18} color="#F59E0B" />
+                  <Text style={s.sheetItemText}>Reset PIN</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={s.sheetItem}
+                  onPress={() => {
+                    const target = actionModalProfile;
+                    setActionModalProfile(null);
+                    handleToggleStatus(target);
+                  }}
+                >
+                  <Ionicons
+                    name={actionModalProfile.disabled ? 'lock-open-outline' : 'lock-closed-outline'}
+                    size={18}
+                    color={actionModalProfile.disabled ? '#22C55E' : '#EF4444'}
+                  />
+                  <Text style={[s.sheetItemText, !actionModalProfile.disabled && { color: '#EF4444' }]}>
+                    {actionModalProfile.disabled ? 'Enable Profile' : 'Disable Profile'}
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={s.actionItem} onPress={() => { setActionModal(null); handlePasswordReset(actionModal); }}>
-                  <Ionicons name="key" size={20} color="#F59E0B" />
-                  <Text style={s.actionItemText}>Send Password Reset</Text>
+                <TouchableOpacity
+                  style={s.sheetItem}
+                  onPress={() => {
+                    const target = actionModalProfile;
+                    setActionModalProfile(null);
+                    handleDeleteProfile(target);
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  <Text style={[s.sheetItemText, { color: '#EF4444' }]}>Delete Profile</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[s.actionItem, s.actionCancel]} onPress={() => setActionModal(null)}>
-                  <Text style={s.actionCancelText}>Cancel</Text>
+                <TouchableOpacity style={[s.sheetItem, s.sheetCancel]} onPress={() => setActionModalProfile(null)}>
+                  <Text style={s.sheetCancelText}>Cancel</Text>
                 </TouchableOpacity>
               </>
-            )}
+            ) : null}
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <ThemedToast toast={toast} onHide={hideToast} />
     </View>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F8FA' },
-  header: { backgroundColor: '#fff', paddingTop: 50, paddingBottom: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: CHARCOAL },
-  statsRow: { flexDirection: 'row', marginTop: 12, gap: 16 },
-  statItem: { alignItems: 'center' },
-  statValue: { fontSize: 18, fontWeight: '700', color: PRIMARY_BROWN },
-  statLabel: { fontSize: 11, color: MUTED_OLIVE },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', marginHorizontal: 12, marginTop: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, gap: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: CHARCOAL },
-  tabScroll: { maxHeight: 50, marginTop: 8 },
-  tabContent: { paddingHorizontal: 12, gap: 6 },
-  tabBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#fff' },
-  tabBtnActive: { backgroundColor: PRIMARY_BROWN },
-  tabBtnText: { fontSize: 12, color: MUTED_OLIVE, fontWeight: '500' },
-  tabBtnTextActive: { color: '#fff', fontWeight: '600' },
-  userCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8 },
-  userCardDisabled: { opacity: 0.6, backgroundColor: '#fff5f5' },
-  userRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  avatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  avatarText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  userInfo: { flex: 1 },
-  userName: { fontSize: 15, fontWeight: '600', color: CHARCOAL },
-  userEmail: { fontSize: 12, color: MUTED_OLIVE, marginTop: 2 },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 8 },
-  roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  roleBadgeText: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase' },
-  statusDot: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 11, fontWeight: '500' },
-  joinDate: { fontSize: 10, color: '#bbb', marginTop: 4 },
-  menuBtn: { padding: 4 },
-  emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyTitle: { fontSize: 14, color: '#aaa', marginTop: 8 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: '#fff', borderRadius: 16, width: '85%', padding: 24 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  blockedWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: '#F7F8FA',
+  },
+  blockedTitle: { marginTop: 10, fontSize: 20, fontWeight: '700', color: CHARCOAL, textAlign: 'center' },
+  blockedText: { marginTop: 8, fontSize: 14, color: MUTED_OLIVE, textAlign: 'center', lineHeight: 20 },
+  header: {
+    backgroundColor: '#fff',
+    paddingTop: 50,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: CHARCOAL },
+  headerSub: { marginTop: 4, fontSize: 12, color: MUTED_OLIVE },
+  headerActionsRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  secondaryBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D9CDBA',
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  secondaryBtnText: { color: PRIMARY_BROWN, fontSize: 11, fontWeight: '700' },
+  primaryBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: PRIMARY_BROWN,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  primaryBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  statCard: {
+    flexBasis: '48%',
+    backgroundColor: '#F9F6F0',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E6DED0',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  statLabel: { fontSize: 10, color: MUTED_OLIVE, textTransform: 'uppercase', fontWeight: '700' },
+  statValue: { marginTop: 2, fontSize: 13, color: CHARCOAL, fontWeight: '700' },
+  searchWrap: {
+    marginTop: 10,
+    marginHorizontal: 12,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EEE',
+    paddingHorizontal: 12,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchInput: { flex: 1, fontSize: 13, color: CHARCOAL },
+  tabsScroll: { marginTop: 8, maxHeight: 48 },
+  tabsContent: { paddingHorizontal: 12, gap: 6 },
+  tabBtn: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#EEE',
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  tabBtnActive: { backgroundColor: PRIMARY_BROWN, borderColor: PRIMARY_BROWN },
+  tabBtnText: { fontSize: 12, color: MUTED_OLIVE, fontWeight: '600' },
+  tabBtnTextActive: { color: '#fff' },
+  profileCard: {
+    marginTop: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EEE',
+    padding: 12,
+  },
+  profileCardDisabled: { backgroundColor: '#FEF2F2', opacity: 0.76 },
+  profileTopRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  profileName: { fontSize: 15, fontWeight: '700', color: CHARCOAL },
+  profileEmail: { marginTop: 2, fontSize: 12, color: MUTED_OLIVE },
+  badgeRow: { marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  roleBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  roleBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
+  statusWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statusDot: { width: 6, height: 6, borderRadius: 99 },
+  statusText: { fontSize: 11, fontWeight: '600' },
+  metaText: { marginTop: 3, fontSize: 11, color: '#8B8B8B' },
+  menuBtn: { paddingHorizontal: 2, paddingVertical: 2, marginLeft: 8 },
+  sessionBadgeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  sessionBadge: {
+    fontSize: 10,
+    color: '#15803D',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: 'hidden',
+    fontWeight: '700',
+  },
+  sessionBadgeMuted: {
+    fontSize: 10,
+    color: '#854D0E',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: 'hidden',
+    fontWeight: '700',
+  },
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
+  emptyTitle: { marginTop: 8, fontSize: 14, color: '#999' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    padding: 14,
+  },
   modalTitle: { fontSize: 18, fontWeight: '700', color: CHARCOAL },
-  modalSubtitle: { fontSize: 14, color: MUTED_OLIVE, marginTop: 4, marginBottom: 16 },
-  roleOptions: { gap: 10 },
-  roleOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#f9f9f9' },
-  roleOptionActive: { backgroundColor: `${PRIMARY_BROWN}10`, borderWidth: 1, borderColor: PRIMARY_BROWN },
-  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#ccc', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  radioOuterActive: { borderColor: PRIMARY_BROWN },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: PRIMARY_BROWN },
-  roleOptionText: { fontSize: 14, color: CHARCOAL },
-  roleOptionTextActive: { fontWeight: '600', color: PRIMARY_BROWN },
-  modalActions: { flexDirection: 'row', marginTop: 20, gap: 10 },
-  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  cancelBtnText: { fontSize: 14, color: MUTED_OLIVE, fontWeight: '600' },
-  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: PRIMARY_BROWN, alignItems: 'center' },
-  confirmBtnText: { fontSize: 14, color: '#fff', fontWeight: '600' },
-  // Action bottom sheet
-  actionOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  actionSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30, paddingHorizontal: 20 },
-  actionSheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#ddd', alignSelf: 'center', marginTop: 10, marginBottom: 14 },
-  actionSheetTitle: { fontSize: 16, fontWeight: '700', color: CHARCOAL },
-  actionSheetSubtitle: { fontSize: 12, color: MUTED_OLIVE, marginBottom: 16 },
-  actionItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  actionItemText: { fontSize: 15, color: CHARCOAL, fontWeight: '500' },
-  actionCancel: { justifyContent: 'center', borderBottomWidth: 0, marginTop: 6 },
-  actionCancelText: { fontSize: 15, color: MUTED_OLIVE, fontWeight: '600', textAlign: 'center', width: '100%' },
+  modalSub: { marginTop: 4, marginBottom: 10, fontSize: 12, color: MUTED_OLIVE, lineHeight: 18 },
+  fieldLabel: { marginTop: 6, marginBottom: 4, fontSize: 11, color: MUTED_OLIVE, textTransform: 'uppercase', fontWeight: '700' },
+  fieldInput: {
+    borderWidth: 1,
+    borderColor: '#E4DED3',
+    borderRadius: 10,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: CHARCOAL,
+    backgroundColor: '#FCFBF9',
+  },
+  roleOptionsWrap: { marginTop: 4, gap: 7 },
+  roleOptionBtn: {
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E4DED3',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  roleOptionBtnActive: { borderColor: PRIMARY_BROWN, backgroundColor: '#F6EFE4' },
+  roleOptionText: { fontSize: 13, color: CHARCOAL },
+  roleOptionTextActive: { color: PRIMARY_BROWN, fontWeight: '700' },
+  modalActions: { marginTop: 12, flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  modalCancelBtn: {
+    borderWidth: 1,
+    borderColor: '#D5D5D5',
+    borderRadius: 8,
+    minHeight: 38,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: { color: '#555', fontWeight: '600' },
+  modalConfirmBtn: {
+    borderRadius: 8,
+    minHeight: 38,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PRIMARY_BROWN,
+  },
+  modalConfirmText: { color: '#fff', fontWeight: '700' },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  sheetCard: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingBottom: 20,
+    paddingTop: 8,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 42,
+    height: 4,
+    borderRadius: 99,
+    backgroundColor: '#DDD',
+    marginBottom: 8,
+  },
+  sheetTitle: { fontSize: 17, fontWeight: '700', color: CHARCOAL },
+  sheetSub: { marginTop: 2, marginBottom: 8, fontSize: 12, color: MUTED_OLIVE },
+  sheetItem: {
+    minHeight: 44,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 10,
+  },
+  sheetItemText: { fontSize: 14, color: CHARCOAL, fontWeight: '600' },
+  sheetCancel: {
+    marginTop: 6,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  sheetCancelText: { width: '100%', textAlign: 'center', color: MUTED_OLIVE, fontWeight: '600' },
 });

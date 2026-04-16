@@ -80,13 +80,41 @@ const TeamCard = memo(({ name, role, initials, img }) => (
 ));
 
 export default function LandingPage() {
-  const { userLoggedIn, userData } = useAuth();
+  const {
+    userLoggedIn,
+    userData,
+    loading,
+    pinStatusLoading,
+    requiresProfileSelection,
+    activeProfileId,
+    requiresPinSetup,
+    requiresPinVerification,
+  } = useAuth();
 
   useEffect(() => {
-    if (userLoggedIn && userData) {
-      router.replace('/admin');
+    if (loading || pinStatusLoading || !userLoggedIn) return;
+
+    if (requiresProfileSelection || !activeProfileId) {
+      router.replace('/auth/profiles');
+      return;
     }
-  }, [userLoggedIn, userData]);
+
+    if (requiresPinSetup || requiresPinVerification || !userData) {
+      router.replace('/auth/profile-pin');
+      return;
+    }
+
+    router.replace('/admin');
+  }, [
+    loading,
+    pinStatusLoading,
+    userLoggedIn,
+    userData,
+    requiresProfileSelection,
+    activeProfileId,
+    requiresPinSetup,
+    requiresPinVerification,
+  ]);
 
   return (
     <ScrollView style={s.container} showsVerticalScrollIndicator={false}>

@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useForm } from "react-hook-form";
-import { sendEmailVerification } from "firebase/auth";
 import { useAuth } from "context/authContext";
 import {
   doSigninWithEmailAndPassword,
@@ -10,10 +9,24 @@ import {
   doSignOut,
 } from "@firebaseApp/auth";
 import apiClient from "../api/apiClient";
+import { clearAllStoredActiveProfileIds } from "../features/auth/profileSession";
+import { clearAllStoredProfilePinTokens } from "../features/auth/profilePinSession";
+
+const ADMIN_ROLES = new Set(['secretary', 'supervising_lawyer', 'director', 'intern']);
 
 export const useNativeLogin = () => {
   const router = useRouter();
-  const { getAuthErrorMessage, userData, userLoggedIn } = useAuth();
+  const {
+    getAuthErrorMessage,
+    userData,
+    userLoggedIn,
+    loading,
+    pinStatusLoading,
+    accountData,
+    requiresProfileSelection,
+    requiresPinSetup,
+    requiresPinVerification,
+  } = useAuth();
   const hasNavigated = useRef(false);
 
   // Form state
@@ -24,65 +37,89 @@ export const useNativeLogin = () => {
   } = useForm();
 
   // UI state
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Handle navigation when user data is loaded
   useEffect(() => {
-    if (userLoggedIn && userData && !hasNavigated.current) {
-      if (!userData.isVerified) {
-        Alert.alert(
-          "Email Not Verified",
-          "Please verify your email before logging in. Check your inbox for the verification link."
-        );
-        doSignOut();
-        setLoading(false);
-        return;
-      }
+    if (!userLoggedIn || loading || pinStatusLoading || hasNavigated.current) {
+      return;
+    }
 
-      if (userData.role === 'user') {
+    if (accountData && !accountData.isVerified) {
+      Alert.alert(
+        'Email Not Verified',
+        'Please verify your email before logging in. Check your inbox for the verification link.'
+      );
+      doSignOut();
+      setIsSigningIn(false);
+      return;
+    }
+
+    if (requiresProfileSelection) {
+      hasNavigated.current = true;
+      setIsSigningIn(false);
+      router.replace('/auth/profiles');
+      return;
+    }
+
+    if (requiresPinSetup || requiresPinVerification) {
+      hasNavigated.current = true;
+      setIsSigningIn(false);
+      router.replace('/auth/profile-pin');
+      return;
+    }
+
+    if (userData) {
+      if (!ADMIN_ROLES.has(userData.role)) {
         Alert.alert(
-          "Account Pending",
-          "Your account is pending approval. An administrator will review and assign your role. Please check back later.",
-          [{ text: "OK", onPress: async () => {
-            try { await doSignOut(); } catch (e) {}
-          }}]
+          'Account Pending',
+          'Your account is pending approval. An administrator will review and assign your role. Please check back later.',
+          [{ text: 'OK', onPress: () => doSignOut() }]
         );
-        setLoading(false);
         return;
       }
 
       hasNavigated.current = true;
-      navigateByRole(userData.role);
+      setIsSigningIn(false);
+      router.replace('/admin');
+      return;
     }
-  }, [userLoggedIn, userData]);
 
-  const navigateByRole = (role) => {
-    const adminLikeRoles = ["admin", "attorney", "secretary", "pao_lawyer", "legal_volunteer", "intern", "supervising_lawyer", "director"];
-    if (adminLikeRoles.includes(role)) {
-      router.replace("/admin");
-    } else {
-      Alert.alert(
-        "Account Pending",
-        "Your account is pending approval. An administrator will review and assign your role. Please check back later.",
-        [{ text: "OK", onPress: async () => {
-          try { await doSignOut(); } catch (e) {}
-        }}]
-      );
+    if (!userData && !requiresProfileSelection && !requiresPinSetup && !requiresPinVerification) {
+      setIsSigningIn(false);
+      if (!errorMessage) {
+        setErrorMessage("We couldn't load the staff profiles for this account yet.");
+      }
     }
+  }, [
+    userLoggedIn,
+    userData,
+    loading,
+    pinStatusLoading,
+    accountData,
+    requiresProfileSelection,
+    requiresPinSetup,
+    requiresPinVerification,
+    errorMessage,
+    router,
+  ]);
+
+  const resetLoginState = async () => {
+    await clearAllStoredActiveProfileIds();
+    await clearAllStoredProfilePinTokens();
+    setIsSigningIn(true);
+    setErrorMessage('');
+    hasNavigated.current = false;
   };
 
-  // Email/Password Login
   const handleEmailLogin = async (data) => {
+    if (isSigningIn) return;
+
     try {
-      setLoading(true);
-      setErrorMessage('');
-      hasNavigated.current = false;
+      await resetLoginState();
 
       let emailToUse = data.email;
 
-      // Username-to-email resolution (matches website logic)
       if (!data.email.includes('@')) {
         try {
           const response = await apiClient.post('/auth/get-email-from-username', {
@@ -95,7 +132,7 @@ export const useNativeLogin = () => {
           }
         } catch (error) {
           setErrorMessage('Username not found. Please check your credentials.');
-          setLoading(false);
+          setIsSigningIn(false);
           return;
         }
       }
@@ -103,85 +140,41 @@ export const useNativeLogin = () => {
       const userCredential = await doSigninWithEmailAndPassword(emailToUse, data.password);
       const user = userCredential.user;
 
-      // Check email verification immediately
       if (!user.emailVerified) {
         Alert.alert(
-          "Email Not Verified",
-          "Please verify your email before logging in. Check your inbox for the verification link.",
-          [
-            {
-              text: "Resend Verification",
-              onPress: async () => {
-                try {
-                  await sendEmailVerification(user);
-                  Alert.alert("Verification Sent", "A new verification email has been sent to your inbox.");
-                } catch (error) {
-                  Alert.alert("Error", "Failed to send verification email. Please try again.");
-                }
-              },
-            },
-            { text: "OK", style: "default" },
-          ]
+          'Email Not Verified',
+          'Please verify your email before logging in. Check your inbox for the verification link.'
         );
         await doSignOut();
-        setLoading(false);
+        setIsSigningIn(false);
         return;
       }
 
-      // Check role immediately (matches website logic)
-      try {
-        const profileResp = await apiClient.get('/users/profile');
-        const profile = profileResp?.data?.data || profileResp?.data;
-        if (profile && profile.role === 'user') {
-          Alert.alert(
-            "Account Pending",
-            "Your account is pending approval. An administrator will review and assign your role.",
-            [{ text: "OK" }]
-          );
-          await doSignOut();
-          setLoading(false);
-          return;
-        }
-      } catch (profileErr) {
-        // Fall back to useEffect-based navigation
-      }
-
-      // Navigation will happen in useEffect
-      setLoading(false);
+      // Navigation continues in useEffect after auth context refresh.
     } catch (error) {
       setErrorMessage(getAuthErrorMessage(error.code) || error.message);
-      setLoading(false);
+      setIsSigningIn(false);
     }
   };
 
-  // Google Sign In
   const handleGoogleSignIn = async () => {
+    if (isSigningIn) return;
+
     try {
-      setLoading(true);
-      setErrorMessage('');
-      hasNavigated.current = false;
+      await resetLoginState();
 
-      await doSignInWithGoogle();
+      const result = await doSignInWithGoogle();
+      const signedUser = result?.user;
 
-      // Check role immediately after Google sign-in
-      try {
-        const profileResp = await apiClient.get('/users/profile');
-        const profile = profileResp?.data?.data || profileResp?.data;
-        if (profile && profile.role === 'user') {
-          Alert.alert(
-            "Account Pending",
-            "Your account is pending approval. An administrator will review and assign your role.",
-            [{ text: "OK" }]
-          );
-          await doSignOut();
-          setLoading(false);
-          return;
-        }
-      } catch (profileErr) {
-        // Fall back to useEffect-based navigation
+      if (signedUser && !signedUser.emailVerified) {
+        Alert.alert(
+          'Email Not Verified',
+          'Please verify your email before logging in. Check your inbox for the verification link.'
+        );
+        await doSignOut();
+        setIsSigningIn(false);
+        return;
       }
-
-      setLoading(false);
     } catch (error) {
       let msg = "An error occurred during Google Sign-In";
       if (error.message?.includes("cancelled") || error.code === "12501") {
@@ -192,21 +185,17 @@ export const useNativeLogin = () => {
         msg = "Configuration error. Please contact support.";
       }
       if (msg) setErrorMessage(msg);
-      setLoading(false);
+      setIsSigningIn(false);
     }
   };
-
-  const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
   return {
     control,
     errors,
     handleSubmit,
-    showPassword,
-    loading,
+    loading: isSigningIn,
     errorMessage,
     handleEmailLogin,
     handleGoogleSignIn,
-    togglePasswordVisibility,
   };
 };

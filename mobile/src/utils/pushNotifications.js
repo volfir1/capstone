@@ -79,7 +79,13 @@ export async function unregisterPushNotifications(token) {
     await unregisterPushToken(token);
     console.log('Push token unregistered from server');
   } catch (error) {
-    console.error('Failed to unregister push token:', error.message);
+    const status = error?.response?.status;
+    if (status && status >= 400 && status < 500) {
+      console.log('Push token already cleared or session closed; skipping unregister retry');
+      return;
+    }
+
+    console.error('Failed to unregister push token:', error?.response?.data?.message || error.message);
   }
 }
 

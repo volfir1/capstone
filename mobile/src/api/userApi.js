@@ -14,17 +14,17 @@ export const fetchUserAppointments = async () => {
 // ============== PROFILE ==============
 export const fetchUserProfile = async () => {
   const response = await apiClient.get('/users/profile');
-  return response.data;
+  return response.data?.data;
 };
 
 export const updateUserProfile = async (data) => {
-  const response = await apiClient.put('/user/profile', data);
-  return response.data;
+  const response = await apiClient.put('/users/profile', data);
+  return response.data?.data;
 };
 
 export const updateProfileImage = async (imageUrl) => {
   const response = await apiClient.put('/users/profile/image', { profileImage: imageUrl });
-  return response.data;
+  return response.data?.data;
 };
 
 export const uploadProfileImageFile = async (uri) => {
@@ -38,17 +38,22 @@ export const uploadProfileImageFile = async (uri) => {
   const response = await apiClient.post('/users/profile/image/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-  return response.data;
+  return response.data?.data;
+};
+
+export const uploadProfileSignature = async (dataUrl) => {
+  const response = await apiClient.post('/users/profile/signature/upload', { dataUrl });
+  return response.data?.data;
 };
 
 export const updateAdminProfile = async (data) => {
   const response = await apiClient.put('/users/profile', data);
-  return response.data;
+  return response.data?.data;
 };
 
 export const updateAttorneyProfile = async (data) => {
   const response = await apiClient.put('/users/profile', data);
-  return response.data;
+  return response.data?.data;
 };
 
 // ============== NOTIFICATIONS ==============
@@ -84,7 +89,16 @@ export const registerPushToken = async (token) => {
 };
 
 export const unregisterPushToken = async (token) => {
-  const response = await apiClient.delete('/users/push-token', { data: { token } });
+  const normalizedToken = String(token || '').trim();
+  if (!normalizedToken) {
+    return { success: true, message: 'No push token to unregister' };
+  }
+
+  const response = await apiClient.delete('/users/push-token', {
+    data: { token: normalizedToken },
+    params: { token: normalizedToken },
+    headers: { 'x-push-token': normalizedToken },
+  });
   return response.data;
 };
 

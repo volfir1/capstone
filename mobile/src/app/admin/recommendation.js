@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Image,
+  Modal,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -19,6 +21,11 @@ import apiClient from '../../api/apiClient';
 import { useAuth } from '../../context/authContext';
 import getEnv from '../../api/environment';
 import ThemedToast, { useToast } from '../../components/ThemedToast';
+import { getStoredActiveProfileId } from '../../features/auth/profileSession';
+import { getStoredProfilePinToken } from '../../features/auth/profilePinSession';
+import { uploadProfileSignature } from '../../api/userApi';
+import SignatureComposer from '../../components/signature/SignatureComposer';
+import AdminSidebarToggle from '../../components/navigation/AdminSidebarToggle';
 
 // Safe import — prevents "unmatched route" crash when native module isn't linked yet
 let DocumentPicker = null;
@@ -34,7 +41,75 @@ const PRIMARY_GOLD = '#C4AB7D';
 const CHARCOAL = '#2C2C2C';
 const MUTED_OLIVE = '#6B6B5A';
 const THEMED_LIGHT_BG = '#FAF8F3';
-const EMPTY_EVIDENCE_ROW = { type: '', author: '', purpose: '', issues: '' };
+const EMPTY_EVIDENCE_ROW = { type: '', author: '', purpose: '', issues: '', attachment: null };
+const EVIDENCE_ATTACHMENT_EXTENSIONS = new Set([
+  '.pdf', '.doc', '.docx',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tif', '.tiff',
+  '.mp4', '.mov', '.avi', '.mkv', '.webm', '.mpeg', '.mpg',
+]);
+const EVIDENCE_ATTACHMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
+const buildUserDisplayName = (user = {}) => {
+  if (user?.firstName && user?.lastName) {
+    return `${user.firstName} ${user.lastName}`;
+  }
+  return user?.username || user?.displayName || 'Unknown User';
+};
+
+const getTodayIsoDate = () => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+};
+
+const enrichActionInfoForRole = (value = {}, userRole = '', userData = null) => {
+  if (!userData) return value;
+
+  const currentUserName = buildUserDisplayName(userData);
+  const currentUserId = userData?._id || userData?.id || null;
+  const currentSignatureUrl = userData?.signatureUrl || '';
+  const nextValue = { ...value };
+
+  if (userRole === 'intern' || userRole === 'secretary') {
+    if (!nextValue.assignedTo) {
+      nextValue.assignedTo = currentUserName;
+    } else if (!nextValue.assignedTo.includes(currentUserName)) {
+      nextValue.assignedTo = `${nextValue.assignedTo}, ${currentUserName}`;
+    }
+
+    if (!nextValue.assignedToId && currentUserId) {
+      nextValue.assignedToId = currentUserId;
+    }
+    if (!nextValue.signatureDate) {
+      nextValue.signatureDate = getTodayIsoDate();
+    }
+  } else if (userRole === 'supervising_lawyer') {
+    if (!nextValue.supervisingLawyer) {
+      nextValue.supervisingLawyer = currentUserName;
+    }
+    if (!nextValue.supervisingLawyerId && currentUserId) {
+      nextValue.supervisingLawyerId = currentUserId;
+    }
+    if (!nextValue.supervisingLawyerSignatureUrl && currentSignatureUrl) {
+      nextValue.supervisingLawyerSignatureUrl = currentSignatureUrl;
+    }
+  } else if (userRole === 'director') {
+    if (!nextValue.directorSignature) {
+      nextValue.directorSignature = currentUserName;
+    }
+    if (!nextValue.directorId && currentUserId) {
+      nextValue.directorId = currentUserId;
+    }
+    if (!nextValue.directorSignatureUrl && currentSignatureUrl) {
+      nextValue.directorSignatureUrl = currentSignatureUrl;
+    }
+  }
+
+  return nextValue;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
@@ -54,7 +129,7 @@ export default function RecommendationForAction() {
   })();
 
   const derivedCaseId = caseIdParam || passedReview?.caseId || 'new-case';
-  const { userData } = useAuth();
+  const { userData, currentUser, activeProfileId, refreshUserData } = useAuth();
   const normalizedRole = (userData?.role || '').toLowerCase().trim();
   const isIntern = normalizedRole === 'intern' || normalizedRole === 'secretary';
 
@@ -68,10 +143,13 @@ export default function RecommendationForAction() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [documentVersions, setDocumentVersions] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadingEvidenceKey, setUploadingEvidenceKey] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [reviewId, setReviewId] = useState(null);
   const [currentReviewStage, setCurrentReviewStage] = useState(''); // '' = new review not yet submitted
   const [isViewingExistingReview, setIsViewingExistingReview] = useState(false);
+  const [signatureRequiredModalVisible, setSignatureRequiredModalVisible] = useState(false);
+  const [profileSignatureUrl, setProfileSignatureUrl] = useState(userData?.signatureUrl || '');
 
   const [interviewInfo, setInterviewInfo] = useState({
     dateOfInterview: '',
@@ -100,8 +178,13 @@ export default function RecommendationForAction() {
     decision: '',
     decisionNote: '',
     assignedTo: '',
+    assignedToId: null,
     supervisingLawyer: '',
+    supervisingLawyerId: null,
+    supervisingLawyerSignatureUrl: '',
     directorSignature: '',
+    directorId: null,
+    directorSignatureUrl: '',
     signatureDate: '',
   });
 
@@ -126,6 +209,10 @@ export default function RecommendationForAction() {
   const directorSectionDisabled = normalizedRole !== 'director';
   // Assignment & Signature read-only for interns/SL, and when director stage
   const assignmentReadOnly = isIntern || normalizedRole === 'supervising_lawyer' || currentReviewStage === 'director';
+
+  useEffect(() => {
+    setProfileSignatureUrl(userData?.signatureUrl || '');
+  }, [userData?.signatureUrl]);
 
   // ─── Load existing review from passedReview (legacy) ───
   useEffect(() => {
@@ -178,31 +265,100 @@ export default function RecommendationForAction() {
   // ─── Auto-populate fields based on user role (matches website) ───
   useEffect(() => {
     if (!userData || loading) return;
-    const currentUserName = userData.firstName && userData.lastName
-      ? `${userData.firstName} ${userData.lastName}`
-      : userData.username || userData.displayName || 'Unknown User';
-    const today = new Date();
-    const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    setActionInfo((prev) => {
+      const next = enrichActionInfoForRole(prev, normalizedRole, userData);
+      const changedKeys = [
+        'assignedTo',
+        'assignedToId',
+        'signatureDate',
+        'supervisingLawyer',
+        'supervisingLawyerId',
+        'supervisingLawyerSignatureUrl',
+        'directorSignature',
+        'directorId',
+        'directorSignatureUrl',
+      ];
 
-    if (isIntern) {
-      if (!actionInfo.assignedTo) {
-        setActionInfo(prev => ({ ...prev, assignedTo: currentUserName, assignedToId: userData?._id || userData?.id || null, signatureDate: formattedDate }));
-      } else if (!actionInfo.assignedTo.includes(currentUserName)) {
-        setActionInfo(prev => ({ ...prev, assignedTo: prev.assignedTo + ', ' + currentUserName, signatureDate: formattedDate }));
-      } else if (!actionInfo.signatureDate) {
-        setActionInfo(prev => ({ ...prev, signatureDate: formattedDate }));
-      }
-    } else if (normalizedRole === 'supervising_lawyer') {
-      if (!actionInfo.supervisingLawyer) {
-        setActionInfo(prev => ({ ...prev, supervisingLawyer: currentUserName, supervisingLawyerId: userData?._id || userData?.id || null }));
-      }
-    } else if (normalizedRole === 'director') {
-      if (!actionInfo.directorSignature) {
-        setActionInfo(prev => ({ ...prev, directorSignature: currentUserName, directorId: userData?._id || userData?.id || null }));
-      }
-    }
+      const changed = changedKeys.some((key) => next[key] !== prev[key]);
+      return changed ? next : prev;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalizedRole, userData, loading]);
+
+  const hydrateActionInfoMetadata = useCallback(async (baseActionInfo = {}) => {
+    let nextActionInfo = enrichActionInfoForRole(baseActionInfo, normalizedRole, userData);
+    const signerKeys = [
+      { idKey: 'supervisingLawyerId', nameKey: 'supervisingLawyer', urlKey: 'supervisingLawyerSignatureUrl' },
+      { idKey: 'directorId', nameKey: 'directorSignature', urlKey: 'directorSignatureUrl' },
+    ];
+
+    for (const { idKey, nameKey, urlKey } of signerKeys) {
+      const signerId = nextActionInfo[idKey];
+      if (!signerId || (nextActionInfo[nameKey] && nextActionInfo[urlKey])) continue;
+
+      try {
+        const response = await apiClient.get(`/users/${signerId}`);
+        const profile = response?.data?.data;
+        if (!profile) continue;
+
+        if (!nextActionInfo[nameKey]) {
+          nextActionInfo[nameKey] = buildUserDisplayName(profile);
+        }
+        if (!nextActionInfo[urlKey] && profile.signatureUrl) {
+          nextActionInfo[urlKey] = profile.signatureUrl;
+        }
+      } catch (error) {
+        console.warn(`Unable to hydrate signer metadata for ${idKey}:`, error?.message || error);
+      }
+    }
+
+    return nextActionInfo;
+  }, [normalizedRole, userData]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateActionInfo = async () => {
+      if (!actionInfo || Object.keys(actionInfo).length === 0) return;
+
+      const hydrated = await hydrateActionInfoMetadata(actionInfo);
+      if (cancelled) return;
+
+      const changedKeys = [
+        'assignedTo',
+        'assignedToId',
+        'signatureDate',
+        'supervisingLawyer',
+        'supervisingLawyerId',
+        'supervisingLawyerSignatureUrl',
+        'directorSignature',
+        'directorId',
+        'directorSignatureUrl',
+      ];
+
+      const hasChanges = changedKeys.some((key) => hydrated[key] !== actionInfo[key]);
+      if (hasChanges) {
+        setActionInfo((prev) => ({ ...prev, ...hydrated }));
+      }
+    };
+
+    hydrateActionInfo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    actionInfo.assignedTo,
+    actionInfo.assignedToId,
+    actionInfo.signatureDate,
+    actionInfo.supervisingLawyer,
+    actionInfo.supervisingLawyerId,
+    actionInfo.supervisingLawyerSignatureUrl,
+    actionInfo.directorSignature,
+    actionInfo.directorId,
+    actionInfo.directorSignatureUrl,
+    hydrateActionInfoMetadata,
+  ]);
 
   // ──────────────────────────────────────────────────
   // API helpers
@@ -287,7 +443,9 @@ export default function RecommendationForAction() {
 
   const filterEmptyEvidence = (evidenceArray) => {
     if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
-    return evidenceArray.filter(row => row && (row.type || row.author || row.purpose || row.issues));
+    return evidenceArray.filter(
+      row => row && (row.type || row.author || row.purpose || row.issues || row.attachment?.fileUrl || row.attachment?.cloudinaryUrl),
+    );
   };
 
   const buildCompleteInterviewInfo = () => ({
@@ -311,12 +469,58 @@ export default function RecommendationForAction() {
     return false;
   };
 
+  const handleApprovalSignatureSave = async (dataUrl) => {
+    try {
+      const result = await uploadProfileSignature(dataUrl);
+      const signatureUrl = result?.signatureUrl;
+
+      if (!signatureUrl) {
+        throw new Error('Signature upload did not return a URL');
+      }
+
+      await refreshUserData?.();
+      setProfileSignatureUrl(signatureUrl);
+
+      setActionInfo((prev) => {
+        const next = { ...prev };
+        if (normalizedRole === 'director') {
+          next.directorSignatureUrl = signatureUrl;
+          if (!next.directorSignature) {
+            next.directorSignature = buildUserDisplayName(userData);
+          }
+        }
+        if (normalizedRole === 'supervising_lawyer') {
+          next.supervisingLawyerSignatureUrl = signatureUrl;
+        }
+        return next;
+      });
+
+      showToast('success', 'Signature saved', 'Your profile signature is ready. You can approve the case now.');
+      setSignatureRequiredModalVisible(false);
+      return signatureUrl;
+    } catch (error) {
+      showToast('error', 'Signature save failed', error.response?.data?.message || error.message || 'Failed to save signature.');
+      throw error;
+    }
+  };
+
   // ──────────────────────────────────────────────────
   // Handler: Submit (intern creates new review OR director finalizes)
   // Matches website handleSubmit exactly
   // ──────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (isViewOnly || saving) return;
+
+    const directorIsFinalizingDecision = normalizedRole === 'director'
+      && currentStep === steps.length - 1
+      && (actionInfo.decision === 'accepted' || actionInfo.decision === 'rejected');
+
+    if (directorIsFinalizingDecision && !profileSignatureUrl) {
+      setSignatureRequiredModalVisible(true);
+      showToast('warning', 'Signature required', 'Directors need a saved signature before approving or rejecting a case.');
+      return;
+    }
+
     setSaving(true);
     try {
       const completeInterviewInfo = buildCompleteInterviewInfo();
@@ -611,6 +815,122 @@ export default function RecommendationForAction() {
     }));
   }, []);
 
+  const setEvidenceAttachment = useCallback((evidenceType, rowIndex, attachment) => {
+    setInterviewInfo((prev) => {
+      const rows = Array.isArray(prev[evidenceType]) ? [...prev[evidenceType]] : [];
+      while (rows.length <= rowIndex) rows.push({ ...EMPTY_EVIDENCE_ROW });
+
+      const existingRow = rows[rowIndex] || { ...EMPTY_EVIDENCE_ROW };
+      rows[rowIndex] = { ...existingRow, attachment };
+      return { ...prev, [evidenceType]: rows };
+    });
+  }, []);
+
+  const handleUploadEvidenceAttachment = async (evidenceType, rowIndex) => {
+    if (!DocumentPicker) {
+      Alert.alert(
+        'Rebuild Required',
+        'Document picker requires a native rebuild. Run: npx expo run:android',
+      );
+      return;
+    }
+
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (picked.canceled || !picked.assets?.length) {
+        return;
+      }
+
+      const file = picked.assets[0];
+      if (!isSupportedEvidenceAttachment(file.name, file.mimeType)) {
+        showToast('warning', 'Unsupported file type', 'Please upload image, video, PDF, or Word files only.');
+        return;
+      }
+
+      setUploadingEvidenceKey({ type: evidenceType, index: rowIndex });
+
+      const existingAttachment = interviewInfo?.[evidenceType]?.[rowIndex]?.attachment;
+      if (existingAttachment?.isServerFile && existingAttachment?.filename) {
+        try {
+          await apiClient.delete(`/upload/document/${encodeURIComponent(existingAttachment.filename)}`, {
+            params: {
+              cloudinaryPublicId: existingAttachment.cloudinaryPublicId,
+              cloudinaryResourceType: existingAttachment.cloudinaryResourceType,
+            },
+          });
+        } catch (deleteErr) {
+          console.warn('Could not delete previous evidence attachment before replacement:', deleteErr);
+        }
+      }
+
+      const serverFile = await uploadAssetToServer(file);
+      const uploadedBy = userData?.firstName && userData?.lastName
+        ? `${userData.firstName} ${userData.lastName}`
+        : userData?.username || 'Unknown';
+
+      const attachment = {
+        fileName: serverFile.displayName || serverFile.originalName || file.name,
+        fileSize: serverFile.size || file.size || 0,
+        fileType: serverFile.mimetype || file.mimeType || 'application/octet-stream',
+        fileUrl: serverFile.url || serverFile.path || null,
+        filename: serverFile.filename,
+        cloudinaryUrl: serverFile.cloudinaryUrl || null,
+        cloudinaryPublicId: serverFile.cloudinaryPublicId || null,
+        cloudinaryResourceType: serverFile.cloudinaryResourceType || null,
+        isServerFile: true,
+        uploadedBy,
+        uploadedByRole: normalizedRole || 'Unknown',
+        uploadedAt: new Date().toISOString(),
+      };
+
+      setEvidenceAttachment(evidenceType, rowIndex, attachment);
+      showToast('success', 'Attachment uploaded', 'Evidence file uploaded successfully.');
+    } catch (error) {
+      console.error('Error uploading evidence attachment:', error);
+      showToast('error', 'Upload failed', 'Failed to upload evidence attachment.');
+    } finally {
+      setUploadingEvidenceKey(null);
+    }
+  };
+
+  const handleRemoveEvidenceAttachment = async (evidenceType, rowIndex) => {
+    const row = interviewInfo?.[evidenceType]?.[rowIndex];
+    const attachment = row?.attachment;
+    if (!attachment) return;
+
+    if (attachment.isServerFile && attachment.filename) {
+      try {
+        await apiClient.delete(`/upload/document/${encodeURIComponent(attachment.filename)}`, {
+          params: {
+            cloudinaryPublicId: attachment.cloudinaryPublicId,
+            cloudinaryResourceType: attachment.cloudinaryResourceType,
+          },
+        });
+      } catch (error) {
+        console.error('Error deleting evidence attachment from server:', error);
+      }
+    }
+
+    setEvidenceAttachment(evidenceType, rowIndex, null);
+  };
+
+  const handleViewEvidenceAttachment = (attachment) => {
+    if (!attachment) return;
+
+    handleViewDocument({
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      fileUrl: attachment.fileUrl,
+      filename: attachment.filename,
+      cloudinaryUrl: attachment.cloudinaryUrl,
+      isServerFile: true,
+    });
+  };
+
   // ─── Resolve full document URL from relative server path ───
   const resolveDocUrl = (relativeUrl) => {
     if (!relativeUrl) return null;
@@ -622,6 +942,89 @@ export default function RecommendationForAction() {
     // just concatenate without double-encoding.
     return `${baseUrl}${relativeUrl}`;
   };
+
+  const getFileExtension = (fileName = '') => {
+    const match = /\.[^.]+$/.exec(String(fileName || '').toLowerCase());
+    return match ? match[0] : '';
+  };
+
+  const isSupportedEvidenceAttachment = (fileName = '', mimeType = '') => {
+    const normalizedMime = String(mimeType || '').toLowerCase();
+    const extension = getFileExtension(fileName);
+
+    return (
+      EVIDENCE_ATTACHMENT_EXTENSIONS.has(extension) ||
+      EVIDENCE_ATTACHMENT_MIME_TYPES.has(normalizedMime) ||
+      normalizedMime.startsWith('image/') ||
+      normalizedMime.startsWith('video/')
+    );
+  };
+
+  const uploadAssetToServer = useCallback(async (asset) => {
+    if (!asset?.uri) {
+      throw new Error('No file URI found for upload');
+    }
+
+    const { apiUrl: uploadBaseUrl } = getEnv();
+    const { getAuth: getFirebaseAuth } = require('firebase/auth');
+    const firebaseAuth = getFirebaseAuth();
+    const fbUser = firebaseAuth.currentUser;
+    const idToken = fbUser ? await fbUser.getIdToken() : null;
+
+    const firebaseUid = fbUser?.uid || currentUser?.uid || '';
+    const resolvedProfileId = activeProfileId || (firebaseUid ? await getStoredActiveProfileId(firebaseUid) : '');
+    const profilePinToken =
+      firebaseUid && resolvedProfileId
+        ? await getStoredProfilePinToken(firebaseUid, resolvedProfileId)
+        : '';
+
+    const formData = new FormData();
+    formData.append('document', {
+      uri: Platform.OS === 'android' ? asset.uri : asset.uri.replace('file://', ''),
+      name: asset.name,
+      type: asset.mimeType || 'application/octet-stream',
+    });
+
+    const uploadResult = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${uploadBaseUrl}/upload/document`);
+
+      if (idToken) {
+        xhr.setRequestHeader('Authorization', `Bearer ${idToken}`);
+      }
+      if (resolvedProfileId) {
+        xhr.setRequestHeader('x-profile-id', resolvedProfileId);
+      }
+      if (profilePinToken) {
+        xhr.setRequestHeader('x-profile-pin-token', profilePinToken);
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error('Invalid server response'));
+          }
+          return;
+        }
+
+        reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+      };
+
+      xhr.onerror = () => reject(new Error('Network request failed - check server connection'));
+      xhr.ontimeout = () => reject(new Error('Upload timed out'));
+      xhr.timeout = 120000;
+      xhr.send(formData);
+    });
+
+    const uploadedFile = uploadResult?.file;
+    if (!uploadedFile) {
+      throw new Error('Upload did not return file metadata');
+    }
+
+    return uploadedFile;
+  }, [activeProfileId, currentUser?.uid]);
 
   // ─── Document picker & upload helpers ───
   const handlePickDocument = async () => {
@@ -653,42 +1056,9 @@ export default function RecommendationForAction() {
         setDocumentVersions(prev => [currentDoc, ...prev]);
       }
 
-      const formData = new FormData();
-      formData.append('document', {
-        uri: Platform.OS === 'android' ? file.uri : file.uri.replace('file://', ''),
-        name: file.name,
-        type: file.mimeType || 'application/octet-stream',
-      });
+      const serverFile = await uploadAssetToServer(file);
 
-      // Use raw XMLHttpRequest to bypass Axios 1.x transform pipeline
-      // which can corrupt FormData in React Native 0.81 (new architecture).
-      const { apiUrl: uploadBaseUrl } = getEnv();
-      const { getAuth: getFirebaseAuth } = require('firebase/auth');
-      const firebaseAuth = getFirebaseAuth();
-      const fbUser = firebaseAuth.currentUser;
-      const uploadToken = fbUser ? await fbUser.getIdToken() : null;
-
-      const uploadResult = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${uploadBaseUrl}/upload/document`);
-        if (uploadToken) xhr.setRequestHeader('Authorization', `Bearer ${uploadToken}`);
-        // Do NOT set Content-Type — the native XHR sets multipart/form-data + boundary
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try { resolve(JSON.parse(xhr.responseText)); }
-            catch { reject(new Error('Invalid server response')); }
-          } else {
-            reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
-          }
-        };
-        xhr.onerror = () => reject(new Error('Network request failed — check server connection'));
-        xhr.ontimeout = () => reject(new Error('Upload timed out'));
-        xhr.timeout = 60000;
-        xhr.send(formData);
-      });
-
-      if (uploadResult?.success) {
-        const serverFile = uploadResult.file;
+      if (serverFile) {
         const uploadedDoc = {
           fileName: serverFile.displayName || serverFile.originalName || file.name,
           fileSize: serverFile.size || file.size,
@@ -705,8 +1075,6 @@ export default function RecommendationForAction() {
         setUploadedFile(uploadedDoc);
         setInterviewInfo(prev => ({ ...prev, uploadedDocument: uploadedDoc }));
         showToast('success', 'Success', 'Document uploaded successfully.');
-      } else {
-        showToast('error', 'Error', 'Upload failed. Please try again.');
       }
     } catch (error) {
       console.error('Document pick/upload error:', error);
@@ -887,51 +1255,118 @@ export default function RecommendationForAction() {
 
         {/* Client Evidence */}
         <Text style={styles.sectionTitle}>Evidence on Hand / Available for the Client(s)</Text>
-        {(interviewInfo.clientEvidence || []).map((evidence, index) => (
-          <View key={`client-${index}`} style={styles.evidenceCard}>
-            <Text style={styles.evidenceCardTitle}>Evidence #{index + 1}</Text>
+        {(interviewInfo.clientEvidence || []).map((evidence, index) => {
+          const isEvidenceUploading =
+            uploadingEvidenceKey?.type === 'clientEvidence' && uploadingEvidenceKey?.index === index;
+          const attachment = evidence?.attachment;
 
-            <Text style={styles.inputLabel}>Type / Description</Text>
-            <TextInput
-              style={[styles.input, readOnly && styles.disabledInput]}
-              value={evidence.type || ''}
-              onChangeText={(text) => updateClientEvidence(index, 'type', text)}
-              placeholder="Type/Desc"
-              placeholderTextColor="#999"
-              editable={!readOnly}
-            />
+          return (
+            <View key={`client-${index}`} style={styles.evidenceCard}>
+              <Text style={styles.evidenceCardTitle}>Evidence #{index + 1}</Text>
 
-            <Text style={styles.inputLabel}>Author / Custodian</Text>
-            <TextInput
-              style={[styles.input, readOnly && styles.disabledInput]}
-              value={evidence.author || ''}
-              onChangeText={(text) => updateClientEvidence(index, 'author', text)}
-              placeholder="Author/Custodian"
-              placeholderTextColor="#999"
-              editable={!readOnly}
-            />
+              <Text style={styles.inputLabel}>Type / Description</Text>
+              <TextInput
+                style={[styles.input, readOnly && styles.disabledInput]}
+                value={evidence.type || ''}
+                onChangeText={(text) => updateClientEvidence(index, 'type', text)}
+                placeholder="Type/Desc"
+                placeholderTextColor="#999"
+                editable={!readOnly}
+              />
 
-            <Text style={styles.inputLabel}>Purpose</Text>
-            <TextInput
-              style={[styles.input, readOnly && styles.disabledInput]}
-              value={evidence.purpose || ''}
-              onChangeText={(text) => updateClientEvidence(index, 'purpose', text)}
-              placeholder="Purpose"
-              placeholderTextColor="#999"
-              editable={!readOnly}
-            />
+              <Text style={styles.inputLabel}>Author / Custodian</Text>
+              <TextInput
+                style={[styles.input, readOnly && styles.disabledInput]}
+                value={evidence.author || ''}
+                onChangeText={(text) => updateClientEvidence(index, 'author', text)}
+                placeholder="Author/Custodian"
+                placeholderTextColor="#999"
+                editable={!readOnly}
+              />
 
-            <Text style={styles.inputLabel}>Admissibility Issues</Text>
-            <TextInput
-              style={[styles.input, readOnly && styles.disabledInput]}
-              value={evidence.issues || ''}
-              onChangeText={(text) => updateClientEvidence(index, 'issues', text)}
-              placeholder="Admissibility Issues"
-              placeholderTextColor="#999"
-              editable={!readOnly}
-            />
-          </View>
-        ))}
+              <Text style={styles.inputLabel}>Purpose</Text>
+              <TextInput
+                style={[styles.input, readOnly && styles.disabledInput]}
+                value={evidence.purpose || ''}
+                onChangeText={(text) => updateClientEvidence(index, 'purpose', text)}
+                placeholder="Purpose"
+                placeholderTextColor="#999"
+                editable={!readOnly}
+              />
+
+              <Text style={styles.inputLabel}>Admissibility Issues</Text>
+              <TextInput
+                style={[styles.input, readOnly && styles.disabledInput]}
+                value={evidence.issues || ''}
+                onChangeText={(text) => updateClientEvidence(index, 'issues', text)}
+                placeholder="Admissibility Issues"
+                placeholderTextColor="#999"
+                editable={!readOnly}
+              />
+
+              <Text style={styles.inputLabel}>Attachment (image, video, PDF, Word)</Text>
+              {!readOnly && (
+                <TouchableOpacity
+                  style={[styles.evidenceUploadButton, isEvidenceUploading && styles.buttonDisabled]}
+                  onPress={() => handleUploadEvidenceAttachment('clientEvidence', index)}
+                  disabled={isEvidenceUploading}
+                >
+                  {isEvidenceUploading ? (
+                    <ActivityIndicator size="small" color={PRIMARY_BROWN} />
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-upload-outline" size={18} color={PRIMARY_BROWN} />
+                      <Text style={styles.evidenceUploadButtonText}>
+                        {attachment ? 'Replace Attachment' : 'Upload Attachment'}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {attachment && (
+                <View style={styles.evidenceAttachmentCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                    <Ionicons
+                      name={attachment.fileType?.startsWith('video/')
+                        ? 'videocam-outline'
+                        : attachment.fileType?.startsWith('image/')
+                          ? 'image-outline'
+                          : 'document-text-outline'}
+                      size={22}
+                      color={PRIMARY_BROWN}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.evidenceAttachmentName} numberOfLines={1}>
+                        {attachment.fileName || 'Evidence Attachment'}
+                      </Text>
+                      <Text style={styles.evidenceAttachmentMeta}>
+                        {((attachment.fileSize || 0) / 1024).toFixed(2)} KB
+                        {attachment.uploadedAt ? ` • ${new Date(attachment.uploadedAt).toLocaleDateString()}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity
+                      onPress={() => handleViewEvidenceAttachment(attachment)}
+                      style={styles.docActionBtn}
+                    >
+                      <Ionicons name="eye-outline" size={18} color="#2563EB" />
+                    </TouchableOpacity>
+                    {!readOnly && (
+                      <TouchableOpacity
+                        onPress={() => handleRemoveEvidenceAttachment('clientEvidence', index)}
+                        style={styles.docActionBtn}
+                      >
+                        <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
+          );
+        })}
         {!readOnly && (
           <TouchableOpacity style={styles.addRowButton} onPress={addClientEvidenceRow}>
             <Ionicons name="add-circle-outline" size={18} color={PRIMARY_BROWN} />
@@ -943,41 +1378,108 @@ export default function RecommendationForAction() {
 
         {/* Adverse Party Evidence */}
         <Text style={styles.sectionTitle}>Evidence on Hand / Available for the Adverse Party(ies)</Text>
-        {(interviewInfo.adversePartyEvidence || []).map((evidence, index) => (
-          <View key={`adverse-${index}`} style={styles.evidenceCard}>
-            <Text style={styles.evidenceCardTitle}>Evidence #{index + 1}</Text>
+        {(interviewInfo.adversePartyEvidence || []).map((evidence, index) => {
+          const isEvidenceUploading =
+            uploadingEvidenceKey?.type === 'adversePartyEvidence' && uploadingEvidenceKey?.index === index;
+          const attachment = evidence?.attachment;
 
-            <Text style={styles.inputLabel}>Type / Description</Text>
-            <TextInput
-              style={[styles.input, readOnly && styles.disabledInput]}
-              value={evidence.type || ''}
-              onChangeText={(text) => updateAdverseEvidence(index, 'type', text)}
-              placeholder="Type/Desc"
-              placeholderTextColor="#999"
-              editable={!readOnly}
-            />
+          return (
+            <View key={`adverse-${index}`} style={styles.evidenceCard}>
+              <Text style={styles.evidenceCardTitle}>Evidence #{index + 1}</Text>
 
-            <Text style={styles.inputLabel}>Author / Custodian</Text>
-            <TextInput
-              style={[styles.input, readOnly && styles.disabledInput]}
-              value={evidence.author || ''}
-              onChangeText={(text) => updateAdverseEvidence(index, 'author', text)}
-              placeholder="Author/Custodian"
-              placeholderTextColor="#999"
-              editable={!readOnly}
-            />
+              <Text style={styles.inputLabel}>Type / Description</Text>
+              <TextInput
+                style={[styles.input, readOnly && styles.disabledInput]}
+                value={evidence.type || ''}
+                onChangeText={(text) => updateAdverseEvidence(index, 'type', text)}
+                placeholder="Type/Desc"
+                placeholderTextColor="#999"
+                editable={!readOnly}
+              />
 
-            <Text style={styles.inputLabel}>Admissibility Issues</Text>
-            <TextInput
-              style={[styles.input, readOnly && styles.disabledInput]}
-              value={evidence.issues || ''}
-              onChangeText={(text) => updateAdverseEvidence(index, 'issues', text)}
-              placeholder="Admissibility Issues"
-              placeholderTextColor="#999"
-              editable={!readOnly}
-            />
-          </View>
-        ))}
+              <Text style={styles.inputLabel}>Author / Custodian</Text>
+              <TextInput
+                style={[styles.input, readOnly && styles.disabledInput]}
+                value={evidence.author || ''}
+                onChangeText={(text) => updateAdverseEvidence(index, 'author', text)}
+                placeholder="Author/Custodian"
+                placeholderTextColor="#999"
+                editable={!readOnly}
+              />
+
+              <Text style={styles.inputLabel}>Admissibility Issues</Text>
+              <TextInput
+                style={[styles.input, readOnly && styles.disabledInput]}
+                value={evidence.issues || ''}
+                onChangeText={(text) => updateAdverseEvidence(index, 'issues', text)}
+                placeholder="Admissibility Issues"
+                placeholderTextColor="#999"
+                editable={!readOnly}
+              />
+
+              <Text style={styles.inputLabel}>Attachment (image, video, PDF, Word)</Text>
+              {!readOnly && (
+                <TouchableOpacity
+                  style={[styles.evidenceUploadButton, isEvidenceUploading && styles.buttonDisabled]}
+                  onPress={() => handleUploadEvidenceAttachment('adversePartyEvidence', index)}
+                  disabled={isEvidenceUploading}
+                >
+                  {isEvidenceUploading ? (
+                    <ActivityIndicator size="small" color={PRIMARY_BROWN} />
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-upload-outline" size={18} color={PRIMARY_BROWN} />
+                      <Text style={styles.evidenceUploadButtonText}>
+                        {attachment ? 'Replace Attachment' : 'Upload Attachment'}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {attachment && (
+                <View style={styles.evidenceAttachmentCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                    <Ionicons
+                      name={attachment.fileType?.startsWith('video/')
+                        ? 'videocam-outline'
+                        : attachment.fileType?.startsWith('image/')
+                          ? 'image-outline'
+                          : 'document-text-outline'}
+                      size={22}
+                      color={PRIMARY_BROWN}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.evidenceAttachmentName} numberOfLines={1}>
+                        {attachment.fileName || 'Evidence Attachment'}
+                      </Text>
+                      <Text style={styles.evidenceAttachmentMeta}>
+                        {((attachment.fileSize || 0) / 1024).toFixed(2)} KB
+                        {attachment.uploadedAt ? ` • ${new Date(attachment.uploadedAt).toLocaleDateString()}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity
+                      onPress={() => handleViewEvidenceAttachment(attachment)}
+                      style={styles.docActionBtn}
+                    >
+                      <Ionicons name="eye-outline" size={18} color="#2563EB" />
+                    </TouchableOpacity>
+                    {!readOnly && (
+                      <TouchableOpacity
+                        onPress={() => handleRemoveEvidenceAttachment('adversePartyEvidence', index)}
+                        style={styles.docActionBtn}
+                      >
+                        <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
+          );
+        })}
         {!readOnly && (
           <TouchableOpacity style={styles.addRowButton} onPress={addAdverseEvidenceRow}>
             <Ionicons name="add-circle-outline" size={18} color={PRIMARY_BROWN} />
@@ -1172,6 +1674,19 @@ export default function RecommendationForAction() {
       setActionInfo(prev => ({ ...prev, decision: prev.decision === val ? '' : val }));
     };
 
+    const renderSignaturePreview = (label, url) => {
+      if (!url) return null;
+
+      return (
+        <View style={styles.signaturePreviewWrap}>
+          <Text style={styles.signaturePreviewLabel}>{label}</Text>
+          <View style={styles.signaturePreviewBox}>
+            <Image source={{ uri: url }} style={styles.signaturePreviewImage} resizeMode="contain" />
+          </View>
+        </View>
+      );
+    };
+
     return (
       <View style={styles.formSection}>
         <Text style={styles.mainTitle}>Supervising Lawyer & Director Action</Text>
@@ -1243,6 +1758,7 @@ export default function RecommendationForAction() {
         />
 
         <Text style={styles.inputLabel}>Supervising Lawyer</Text>
+        {renderSignaturePreview('Supervising Lawyer Signature', actionInfo.supervisingLawyerSignatureUrl)}
         <TextInput
           style={[styles.input, assignmentReadOnly && styles.disabledInput]}
           value={actionInfo.supervisingLawyer}
@@ -1253,6 +1769,7 @@ export default function RecommendationForAction() {
         />
 
         <Text style={styles.inputLabel}>Director's Signature</Text>
+        {renderSignaturePreview("Director's Signature", actionInfo.directorSignatureUrl)}
         <TextInput
           style={[styles.input, assignmentReadOnly && styles.disabledInput]}
           value={actionInfo.directorSignature}
@@ -1541,6 +2058,7 @@ export default function RecommendationForAction() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
+        <AdminSidebarToggle />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={CHARCOAL} />
@@ -1558,6 +2076,7 @@ export default function RecommendationForAction() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AdminSidebarToggle />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={CHARCOAL} />
@@ -1632,6 +2151,39 @@ export default function RecommendationForAction() {
           renderActionButtons()
         )}
       </View>
+
+      <Modal
+        visible={signatureRequiredModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSignatureRequiredModalVisible(false)}
+      >
+        <View style={styles.signatureModalBackdrop}>
+          <View style={styles.signatureModalCard}>
+            <View style={styles.signatureModalHeader}>
+              <Text style={styles.signatureModalTitle}>Director Signature Required</Text>
+              <TouchableOpacity onPress={() => setSignatureRequiredModalVisible(false)}>
+                <Ionicons name="close" size={22} color={CHARCOAL} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.signatureModalInfo}>
+              Before a director can approve or reject a case, the profile must have a saved signature.
+              Create one below using draw, typed signature, or image upload.
+            </Text>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 }}>
+              <SignatureComposer
+                initialUrl={profileSignatureUrl || null}
+                defaultTypedName={buildUserDisplayName(userData)}
+                onSave={handleApprovalSignatureSave}
+                onClose={() => setSignatureRequiredModalVisible(false)}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <ThemedToast toast={toast} onHide={hideToast} />
     </SafeAreaView>
   );
@@ -1794,6 +2346,30 @@ const styles = StyleSheet.create({
     minHeight: 100,
     textAlignVertical: 'top',
   },
+  signaturePreviewWrap: {
+    marginBottom: 10,
+  },
+  signaturePreviewLabel: {
+    fontSize: 11,
+    color: MUTED_OLIVE,
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  signaturePreviewBox: {
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: '#E5E0D8',
+    borderRadius: 8,
+    backgroundColor: '#FAFAF7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    overflow: 'hidden',
+  },
+  signaturePreviewImage: {
+    width: '100%',
+    height: 56,
+  },
   disabledInput: {
     backgroundColor: '#F5F5F5',
     opacity: 0.7,
@@ -1837,6 +2413,47 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: PRIMARY_BROWN,
     marginBottom: 8,
+  },
+  evidenceUploadButton: {
+    marginTop: 4,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D7C4A4',
+    borderRadius: 8,
+    borderStyle: 'dashed',
+    backgroundColor: '#FFFBF5',
+    paddingVertical: 10,
+    gap: 8,
+  },
+  evidenceUploadButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: PRIMARY_BROWN,
+  },
+  evidenceAttachmentCard: {
+    marginTop: 2,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#B0D4F1',
+    backgroundColor: '#F0F8FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  evidenceAttachmentName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: CHARCOAL,
+  },
+  evidenceAttachmentMeta: {
+    fontSize: 10,
+    color: MUTED_OLIVE,
+    marginTop: 1,
   },
   addRowButton: {
     flexDirection: 'row',
@@ -2123,5 +2740,33 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: PRIMARY_GOLD,
+  },
+  signatureModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  signatureModalCard: {
+    maxHeight: '90%',
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    padding: 14,
+    gap: 10,
+  },
+  signatureModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  signatureModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: PRIMARY_BROWN,
+  },
+  signatureModalInfo: {
+    fontSize: 12,
+    color: MUTED_OLIVE,
+    lineHeight: 18,
   },
 });

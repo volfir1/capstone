@@ -1,15 +1,23 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  TextInput, ActivityIndicator, Alert, Image, Modal, FlatList,
+  TextInput, ActivityIndicator, Image, Modal, FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from 'context/authContext';
-import { updateAdminProfile, updateAttorneyProfile, uploadProfileImageFile, fetchUserProfile } from '../../api/userApi';
+import {
+  updateAdminProfile,
+  updateAttorneyProfile,
+  uploadProfileImageFile,
+  fetchUserProfile,
+  uploadProfileSignature,
+} from '../../api/userApi';
 import getEnv from '../../api/environment';
 import { PRIMARY_BROWN, PRIMARY_GOLD, CHARCOAL, MUTED_OLIVE, ACCENT_TAN } from 'utils/constants';
 import ThemedToast, { useToast } from '../../components/ThemedToast';
+import SignatureComposer from '../../components/signature/SignatureComposer';
+import AdminSidebarToggle from '../../components/navigation/AdminSidebarToggle';
 
 const { apiUrl } = getEnv();
 const SERVER_BASE = apiUrl.replace(/\/api\/?$/, '');
@@ -41,7 +49,9 @@ export default function AdminProfile() {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [signatureModalVisible, setSignatureModalVisible] = useState(false);
   const [profileImage, setProfileImage] = useState('');
+  const [signatureUrl, setSignatureUrl] = useState('');
   const [editedData, setEditedData] = useState({});
   const [multiSelectModal, setMultiSelectModal] = useState(null); // 'specializations' | 'languages' | 'consultationMode'
   const { toast, showToast, hideToast } = useToast();
@@ -64,10 +74,13 @@ export default function AdminProfile() {
       lastName: authUserData.lastName || '',
       email: authUserData.email || '',
       username: authUserData.username || '',
+      signatureUrl: authUserData.signatureUrl || '',
       role: authUserData.role || '',
       verified: authUserData.isVerified || false,
       memberSince: authUserData.createdAt ? new Date(authUserData.createdAt).getFullYear().toString() : '',
     };
+
+    setSignatureUrl(authUserData.signatureUrl || '');
 
     if (isAttorney) {
       setEditedData({
@@ -139,7 +152,10 @@ export default function AdminProfile() {
       if (result.canceled) return;
       setUploadingImage(true);
       const res = await uploadProfileImageFile(result.assets[0].uri);
-      const img = res.data.profileImage;
+      const img = res?.profileImage;
+      if (!img) {
+        throw new Error('Profile image URL not returned');
+      }
       setProfileImage(img.startsWith('/') ? `${SERVER_BASE}${img}` : img);
       refreshUserData?.();
       showToast('success', 'Success', 'Profile photo updated');
@@ -147,6 +163,27 @@ export default function AdminProfile() {
       showToast('error', 'Error', err.response?.data?.message || 'Failed to upload image');
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleSignatureSave = async (dataUrl) => {
+    try {
+      const result = await uploadProfileSignature(dataUrl);
+      const nextSignatureUrl = result?.signatureUrl;
+
+      if (!nextSignatureUrl) {
+        throw new Error('Signature upload did not return a URL');
+      }
+
+      setSignatureUrl(nextSignatureUrl);
+      setEditedData((prev) => ({ ...prev, signatureUrl: nextSignatureUrl }));
+      await refreshUserData?.();
+      showToast('success', 'Signature Saved', 'Your profile signature has been updated.');
+      setSignatureModalVisible(false);
+      return nextSignatureUrl;
+    } catch (err) {
+      showToast('error', 'Error', err.response?.data?.message || err.message || 'Failed to upload signature');
+      throw err;
     }
   };
 
@@ -166,6 +203,7 @@ export default function AdminProfile() {
 
   if (authLoading) return (
     <View style={s.loadingContainer}>
+      <AdminSidebarToggle />
       <ActivityIndicator size="large" color={PRIMARY_BROWN} />
     </View>
   );
@@ -174,6 +212,7 @@ export default function AdminProfile() {
 
   return (
     <View style={s.container}>
+      <AdminSidebarToggle />
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile Card */}
         <View style={s.profileCard}>
@@ -288,6 +327,26 @@ export default function AdminProfile() {
               <Text style={s.fieldValue}>{roleLabel}</Text>
             </View>
           </View>
+        </View>
+
+        <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <Ionicons name="create-outline" size={16} color={ACCENT_TAN} />
+            <Text style={s.sectionTitle}>SIGNATURE</Text>
+          </View>
+
+          <View style={s.signaturePreviewBox}>
+            {signatureUrl ? (
+              <Image source={{ uri: signatureUrl }} style={s.signaturePreviewImage} resizeMode="contain" />
+            ) : (
+              <Text style={s.notSet}>No signature saved yet</Text>
+            )}
+          </View>
+
+          <TouchableOpacity style={s.signatureBtn} onPress={() => setSignatureModalVisible(true)}>
+            <Ionicons name={signatureUrl ? 'create-outline' : 'add-circle-outline'} size={18} color={PRIMARY_BROWN} />
+            <Text style={s.signatureBtnText}>{signatureUrl ? 'Edit Signature' : 'Create Signature'}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Attorney Professional Credentials */}
@@ -464,6 +523,31 @@ export default function AdminProfile() {
           />
         </View>
       </Modal>
+
+      <Modal
+        visible={signatureModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSignatureModalVisible(false)}
+      >
+        <View style={s.modalContainer}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>Signature</Text>
+            <TouchableOpacity onPress={() => setSignatureModalVisible(false)}>
+              <Ionicons name="close" size={24} color={CHARCOAL} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={s.signatureModalContent}>
+            <SignatureComposer
+              initialUrl={signatureUrl || null}
+              defaultTypedName={`${editedData.firstName || ''} ${editedData.lastName || ''}`.trim()}
+              onSave={handleSignatureSave}
+              onClose={() => setSignatureModalVisible(false)}
+            />
+          </ScrollView>
+        </View>
+      </Modal>
       <ThemedToast toast={toast} onHide={hideToast} />
     </View>
   );
@@ -535,9 +619,41 @@ const s = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   chip: { backgroundColor: `${PRIMARY_GOLD}15`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   chipText: { fontSize: 12, color: PRIMARY_BROWN, fontWeight: '500' },
+  signaturePreviewBox: {
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: '#E5E0D8',
+    borderRadius: 10,
+    backgroundColor: '#FAFAF7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    padding: 10,
+  },
+  signaturePreviewImage: {
+    width: '100%',
+    height: 96,
+  },
+  signatureBtn: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: PRIMARY_BROWN,
+    borderRadius: 10,
+    paddingVertical: 10,
+  },
+  signatureBtnText: {
+    fontSize: 14,
+    color: PRIMARY_BROWN,
+    fontWeight: '600',
+  },
   modalContainer: { flex: 1, backgroundColor: '#F7F8FA' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 50, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
   modalTitle: { fontSize: 18, fontWeight: '600', color: CHARCOAL },
+  signatureModalContent: { padding: 16, paddingBottom: 32 },
   selectItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', backgroundColor: '#fff', gap: 12 },
   selectItemActive: { backgroundColor: `${PRIMARY_BROWN}08` },
   selectItemText: { fontSize: 15, color: CHARCOAL },

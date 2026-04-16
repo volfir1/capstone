@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from 'context/authContext';
 import apiClient from '../../api/apiClient';
 import ThemedToast, { useToast } from '../../components/ThemedToast';
+import AdminSidebarToggle from '../../components/navigation/AdminSidebarToggle';
 
 const PRIMARY_BROWN = '#8B4513';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -1064,6 +1065,7 @@ export default function AssignedCases() {
 
   return (
     <View style={s.container}>
+      <AdminSidebarToggle />
       {/* Header */}
       <View style={s.header}>
         <View>

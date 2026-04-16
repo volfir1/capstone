@@ -1,24 +1,57 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
-import { onAuthStateChanged, signOut, updateProfile } from "firebase/auth";
-import axios from 'axios';
-import { auth } from "../firebaseApp/firebase";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+
+import { auth } from '../firebaseApp/firebase';
+import { doSignOut } from '../firebaseApp/auth';
+import { getUserData } from '../features/auth/user';
+import { verifyUser } from '../features/auth/auth';
+import { createProfile, getAccountContext } from '../features/auth/account';
 import {
-  doCreateUserWithEmailAndPassword,
-  doSigninWithEmailAndPassword,
-  doSignOut,
-  doSendEmailVerification,
-} from "../firebaseApp/auth";
-import { storeToken, getStoredToken, clearToken, storeUserData, getStoredUserData, clearUserData } from "utils/secureStore";
-import { getUserData } from "../features/auth/user";
-import { verifyUser } from "../features/auth/auth";
-import { registerForPushNotifications, unregisterPushNotifications } from "../utils/pushNotifications";
+  getProfilePinStatus,
+  setupProfilePin as setupProfilePinRequest,
+  verifyProfilePin as verifyProfilePinRequest,
+} from '../features/auth/profilePin';
+import {
+  clearAllStoredActiveProfileIds,
+  clearStoredActiveProfileId,
+  getStoredActiveProfileId,
+  setStoredActiveProfileId,
+} from '../features/auth/profileSession';
+import {
+  clearAllStoredProfilePinTokens,
+  clearStoredProfilePinTokensForUser,
+  setStoredProfilePinToken,
+} from '../features/auth/profilePinSession';
+import { getStoredToken } from 'utils/secureStore';
+import { registerForPushNotifications, unregisterPushNotifications } from '../utils/pushNotifications';
 
 const AuthContext = createContext();
+
+const ADMIN_ROLES = new Set(['secretary', 'supervising_lawyer', 'director', 'intern']);
+
+const EMPTY_PIN_STATUS = {
+  hasPin: false,
+  verified: false,
+  requiresSetup: false,
+  requiresUnlock: false,
+  pinResetRequired: false,
+  lockedUntil: null,
+  isLocked: false,
+  remainingAttempts: 0,
+  maxAttempts: 0,
+  sessionExpiresAt: null,
+};
+
+const PIN_STATUS_ERROR_CODES = new Set([
+  'profile-pin-setup-required',
+  'profile-pin-required',
+  'profile-pin-locked',
+]);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
@@ -26,333 +59,417 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const isLoggingOutRef = useRef(false);
-  const [initializing, setInitializing] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
+  const [accountData, setAccountData] = useState(null);
+  const [profiles, setProfiles] = useState([]);
+  const [activeProfileId, setActiveProfileIdState] = useState('');
+  const [requiresProfileSelection, setRequiresProfileSelection] = useState(false);
+  const [pinStatus, setPinStatus] = useState(EMPTY_PIN_STATUS);
+  const [pinStatusLoading, setPinStatusLoading] = useState(false);
+
+  const currentUidRef = useRef(null);
+  const isLoggingOutRef = useRef(false);
   const pushTokenRef = useRef(null);
 
-  // Monitor auth state changes - THIS IS KEY!
+  const normalizePinStatus = (status) => ({ ...EMPTY_PIN_STATUS, ...(status || {}) });
+
+  const resolvePinStatusFromError = (error) => {
+    const code = error?.response?.data?.code;
+    if (!PIN_STATUS_ERROR_CODES.has(code)) {
+      return null;
+    }
+
+    return normalizePinStatus(error?.response?.data?.data);
+  };
+
+  const clearProfileSessionKeys = async (uid) => {
+    if (!uid) return;
+
+    await clearStoredActiveProfileId(uid);
+    await clearStoredProfilePinTokensForUser(uid);
+  };
+
+  const syncUnlockedProfileSession = async () => {
+    const backendUserData = await getUserData();
+    setUserData(backendUserData || null);
+    setRequiresProfileSelection(false);
+
+    if (backendUserData) {
+      registerForPushNotifications().then((token) => {
+        if (token) {
+          pushTokenRef.current = token;
+        }
+      });
+    }
+
+    return backendUserData;
+  };
+
+  const syncPinStateForSelectedProfile = async () => {
+    setPinStatusLoading(true);
+
+    try {
+      const currentPinStatus = normalizePinStatus(await getProfilePinStatus());
+      setPinStatus(currentPinStatus);
+
+      if (currentPinStatus.verified) {
+        await syncUnlockedProfileSession();
+        return currentPinStatus;
+      }
+
+      setUserData(null);
+      return currentPinStatus;
+    } catch (error) {
+      const fallbackPinStatus = resolvePinStatusFromError(error);
+      if (!fallbackPinStatus) {
+        throw error;
+      }
+
+      setPinStatus(fallbackPinStatus);
+      setUserData(null);
+      return fallbackPinStatus;
+    } finally {
+      setPinStatusLoading(false);
+    }
+  };
+
+  const refreshProfiles = useCallback(async (preferredProfileId = '') => {
+    if (!currentUser?.uid) return null;
+
+    const resolvedProfileId = preferredProfileId || (await getStoredActiveProfileId(currentUser.uid));
+    const context = await getAccountContext(resolvedProfileId);
+    const availableProfiles = Array.isArray(context?.profiles) ? context.profiles : [];
+    setAccountData(context?.account || null);
+    setProfiles(availableProfiles);
+    return context;
+  }, [currentUser?.uid]);
+
+  const applyVerifiedPinSession = async (pinResult = {}) => {
+    const targetProfileId = pinResult?.profile?.id || activeProfileId;
+    const resolvedPinToken = String(pinResult?.pinToken || '').trim();
+
+    if (currentUser?.uid && targetProfileId && resolvedPinToken) {
+      await setStoredProfilePinToken(currentUser.uid, targetProfileId, resolvedPinToken);
+    }
+
+    setPinStatus(normalizePinStatus(pinResult));
+
+    if (pinResult?.profile?.id) {
+      setProfiles((currentProfiles) =>
+        currentProfiles.map((profile) =>
+          profile.id === pinResult.profile.id ? { ...profile, ...pinResult.profile } : profile
+        )
+      );
+    }
+
+    const backendUserData = await syncUnlockedProfileSession();
+    await refreshProfiles(targetProfileId);
+    return backendUserData;
+  };
+
+  const syncAccountState = async (firebaseUser, preferredProfileId = '') => {
+    await firebaseUser.reload();
+
+    if (!firebaseUser.emailVerified) {
+      setAccountData(null);
+      setProfiles([]);
+      setActiveProfileIdState('');
+      setUserData(null);
+      setPinStatus(EMPTY_PIN_STATUS);
+      setPinStatusLoading(false);
+      setRequiresProfileSelection(false);
+      return;
+    }
+
+    try {
+      await verifyUser();
+    } catch (error) {
+      console.error('Backend verification sync failed:', error);
+    }
+
+    const storedProfileId = preferredProfileId || (await getStoredActiveProfileId(firebaseUser.uid));
+    const accountContext = await getAccountContext(storedProfileId);
+    const availableProfiles = Array.isArray(accountContext?.profiles) ? accountContext.profiles : [];
+
+    setAccountData(accountContext?.account || null);
+    setProfiles(availableProfiles);
+
+    const selectableProfiles = availableProfiles.filter((profile) => !profile.disabled);
+    const resolvedProfileId =
+      storedProfileId && selectableProfiles.some((profile) => profile.id === storedProfileId)
+        ? storedProfileId
+        : '';
+
+    if (!resolvedProfileId) {
+      await clearStoredActiveProfileId(firebaseUser.uid);
+      await clearStoredProfilePinTokensForUser(firebaseUser.uid);
+      setActiveProfileIdState('');
+      setUserData(null);
+      setPinStatus(EMPTY_PIN_STATUS);
+      setPinStatusLoading(false);
+      setRequiresProfileSelection(true);
+      return;
+    }
+
+    await setStoredActiveProfileId(firebaseUser.uid, resolvedProfileId);
+    setActiveProfileIdState(resolvedProfileId);
+    setRequiresProfileSelection(false);
+
+    try {
+      await syncPinStateForSelectedProfile();
+    } catch (error) {
+      console.error('Failed to load active profile state:', error);
+      await clearStoredActiveProfileId(firebaseUser.uid);
+      await clearStoredProfilePinTokensForUser(firebaseUser.uid);
+      setActiveProfileIdState('');
+      setUserData(null);
+      setPinStatus(EMPTY_PIN_STATUS);
+      setPinStatusLoading(false);
+      setRequiresProfileSelection(true);
+    }
+  };
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, initializeUser);
-    return unsubscribe;
-  }, []);
-
-  // This function runs EVERY TIME auth state changes (login, logout, etc.)
-  async function initializeUser(user) {
-  // If we're in the middle of an explicit logout, ignore auth state changes
-  if (isLoggingOutRef.current) return;
-
-    if (user) {
-      setCurrentUser({ ...user });
-      setUserLoggedIn(true);
-
-      // Try to load cached user data immediately for instant redirect
-      try {
-        const cachedData = await getStoredUserData();
-        if (cachedData) {
-          console.log("Loaded cached user data for instant redirect");
-          setUserData(cachedData);
-        }
-      } catch (cacheErr) {
-        console.warn('Failed to load cached user data:', cacheErr);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (isLoggingOutRef.current) {
+        return;
       }
 
-      try {
-        await user.reload();
+      setLoading(true);
 
-        const token = await user.getIdToken()
-        await storeToken(token)
-        console.log("Token obtained and stored")
+      if (user) {
+        currentUidRef.current = user.uid;
+        setCurrentUser({ ...user });
+        setUserLoggedIn(true);
 
-        if (user.emailVerified) {
-          console.log(
-            "User is verified in Firebase, syncing verification with backend..."
-          );
-
-          try {
-            await verifyUser(); 
-            console.log("Backend verification status updated");
-          } catch (verifyError) {
-            console.log("Failed to update backend verification:", verifyError);
-          }
-
-        
-          try {
-            const backendUserData = await getUserData();
-            // getUserData() returns { data: { ... }, success: true }
-            setUserData(backendUserData.data);
-            await storeUserData(backendUserData.data);
-            console.log("User data loaded and cached:", backendUserData.data);
-
-            // Register for push notifications after successful login
-            registerForPushNotifications().then(token => {
-              if (token) pushTokenRef.current = token;
-            });
-          } catch (userError) {
-            console.error("Failed to fetch user data:", userError);
-
-           
-            if (userError.response?.status === 404) {
-              console.log("User not found in MongoDB, creating new user if possible...");
-
-              const displayName = (user.displayName || "").trim();
-              if (!displayName) {
-                console.log("Display name empty; skipping auto-register (likely attorney account created elsewhere)");
-                setUserData(null);
-                return;
-              }
-
-              const nameParts = displayName.split(" ");
-              const firstName = nameParts[0] || "";
-              const lastName = nameParts.slice(1).join(" ") || "";
-              const username = user.email;
-
-              if (!firstName || !username) {
-                console.log("Missing firstName or email; skipping auto-register");
-                setUserData(null);
-                return;
-              }
-
-              try {
-                const { registerUser } = await import(
-                  "../features/auth/register"
-                );
-                await registerUser(firstName, lastName, user.email, username);
-
-                const newUserData = await getUserData();
-                setUserData(newUserData.data);
-                await storeUserData(newUserData.data);
-                console.log("New user created and loaded:", newUserData.data);
-              } catch (registerError) {
-                console.log("Registration attempt failed (this may be expected):", registerError.response?.status);
-                if (
-                  registerError.response?.data?.message ===
-                  "User already exists"
-                ) {
-                  try {
-                    const retryUserData = await getUserData();
-                    setUserData(retryUserData.data);
-                    await storeUserData(retryUserData.data);
-                    console.log("User data loaded on retry:", retryUserData.data);
-                  } catch (retryError) {
-                    console.error(
-                      "Failed to fetch user data on retry:",
-                      retryError
-                    );
-                    setUserData(null);
-                  }
-                } else {
-                  setUserData(null);
-                }
-              }
-            } else {
-              console.log("Non-404 error, skipping user creation");
-              setUserData(null);
-            }
-          }
-        } else {
-          console.log("User is not verified yet — skipping backend sync");
+        try {
+          await syncAccountState(user);
+        } catch (error) {
+          console.error('Auth state error:', error);
+          setAccountData(null);
+          setProfiles([]);
+          setActiveProfileIdState('');
           setUserData(null);
+          setPinStatus(EMPTY_PIN_STATUS);
+          setPinStatusLoading(false);
+          setRequiresProfileSelection(false);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("Failed to fetch user data:", error);
-        // If network failed but we have cached data, keep using it
-        const cachedFallback = await getStoredUserData();
-        if (cachedFallback) {
-          console.log("Using cached user data after network failure");
-          setUserData(cachedFallback);
-        } else {
-          setUserData(null);
-        }
-      }
-    } else {
-      // Clear secure storage and any auth headers when there's no user
-      try {
-        await clearToken();
-        await clearUserData();
-      } catch (e) {
-        console.warn('Failed clearing token during initializeUser:', e);
+
+        return;
       }
 
-      
-      try {
-        delete axios.defaults.headers.common.Authorization;
-      } catch (e) {
-    
+      const lastUid = currentUidRef.current;
+      if (lastUid) {
+        await clearProfileSessionKeys(lastUid);
+        currentUidRef.current = null;
+      } else {
+        await clearAllStoredActiveProfileIds();
+        await clearAllStoredProfilePinTokens();
       }
 
       setCurrentUser(null);
       setUserLoggedIn(false);
+      setAccountData(null);
+      setProfiles([]);
+      setActiveProfileIdState('');
       setUserData(null);
-    }
+      setPinStatus(EMPTY_PIN_STATUS);
+      setPinStatusLoading(false);
+      setRequiresProfileSelection(false);
+      setLoading(false);
+    });
 
-    if (initializing) setInitializing(false);
-    setIsLoading(false);
-  }
+    return () => unsubscribe();
+  }, []);
 
-  const login = async (email, password) => {
+  const refreshUserData = async () => {
+    if (!currentUser || !activeProfileId || !normalizePinStatus(pinStatus).verified) return null;
+
+    const backendUserData = await getUserData();
+    setUserData(backendUserData || null);
+    return backendUserData;
+  };
+
+  const selectProfile = async (profileId) => {
+    if (!currentUser?.uid || !profileId) return null;
+
+    await clearStoredProfilePinTokensForUser(currentUser.uid);
+    setPinStatusLoading(true);
+    await setStoredActiveProfileId(currentUser.uid, profileId);
+    setActiveProfileIdState(profileId);
+    setPinStatus(EMPTY_PIN_STATUS);
+    setUserData(null);
+    setRequiresProfileSelection(false);
+
     try {
-      setIsLoading(true);
-      const userCredential = await doSigninWithEmailAndPassword(
-        email,
-        password
-      );
-      return userCredential;
+      await refreshProfiles(profileId);
+      return await syncPinStateForSelectedProfile();
     } catch (error) {
-      console.error("Login error:", error);
+      console.error('Failed to select profile:', error);
+      await clearStoredActiveProfileId(currentUser.uid);
+      await clearStoredProfilePinTokensForUser(currentUser.uid);
+      setActiveProfileIdState('');
+      setUserData(null);
+      setPinStatus(EMPTY_PIN_STATUS);
+      setPinStatusLoading(false);
+      setRequiresProfileSelection(true);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // Rest of your functions stay the same...
-  const register = async (userData) => {
+  const createProfileAndSelect = async (payload) => {
+    if (!currentUser?.uid) return null;
+
+    const createdProfile = await createProfile(payload);
+    await selectProfile(createdProfile.id);
+    return createdProfile;
+  };
+
+  const clearSelectedProfile = async () => {
+    if (!currentUser?.uid) return;
+
+    await clearStoredActiveProfileId(currentUser.uid);
+    await clearStoredProfilePinTokensForUser(currentUser.uid);
+    setActiveProfileIdState('');
+    setUserData(null);
+    setPinStatus(EMPTY_PIN_STATUS);
+    setPinStatusLoading(false);
+    setRequiresProfileSelection(true);
+  };
+
+  const markActiveProfilePinReset = async () => {
+    if (!currentUser?.uid || !activeProfileId) return;
+
+    await clearStoredProfilePinTokensForUser(currentUser.uid);
+    setUserData(null);
+    setPinStatus({
+      ...EMPTY_PIN_STATUS,
+      requiresSetup: true,
+      pinResetRequired: true,
+    });
+    setPinStatusLoading(false);
+    setRequiresProfileSelection(false);
+  };
+
+  const setupActiveProfilePin = async (pin) => {
+    if (!currentUser?.uid || !activeProfileId) return null;
+
     try {
-      setIsLoading(true);
-      const { email, password, firstName, lastName, username } = userData;
-
-      console.log("Step 1: Creating Firebase user with:", {
-        email,
-        password: "hidden",
-      });
-      const userCredential = await doCreateUserWithEmailAndPassword(
-        email,
-        password
-      );
-
-      await updateProfile(userCredential.user, {
-        displayName: `${firstName} ${lastName}`,
-      });
-
-      console.log("Step 2: Sending verification email...");
-      await doSendEmailVerification();
-
-      console.log("Step 3: Registering user with values:", {
-        firstName,
-        lastName,
-        username: username || email,
-      });
-
-      const { registerUser } = await import("../features/auth/register");
-      await registerUser(firstName, lastName, username || email);
-
-      await signOut(auth);
-      return userCredential;
+      const pinResult = await setupProfilePinRequest(pin);
+      return await applyVerifiedPinSession(pinResult);
     } catch (error) {
-      console.error("Register error:", error);
+      if (error?.response?.data?.data) {
+        setPinStatus(normalizePinStatus(error.response.data.data));
+      }
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const googleSignIn = async () => {
+  const verifyActiveProfilePin = async (pin) => {
+    if (!currentUser?.uid || !activeProfileId) return null;
+
     try {
-      setIsLoading(true);
-      throw new Error("Google Sign-In not implemented yet");
+      const pinResult = await verifyProfilePinRequest(pin);
+      return await applyVerifiedPinSession(pinResult);
     } catch (error) {
+      if (error?.response?.data?.data) {
+        setPinStatus(normalizePinStatus(error.response.data.data));
+      }
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const logout = async () => {
-  // Prevent concurrent logouts
-  console.trace('logout called');
-  if (isLoggingOutRef.current) {
-    console.log('Logout already in progress — ignoring duplicate call');
-    return;
-  }
-  setIsLoggingOut(true);
-  isLoggingOutRef.current = true;
-  setIsLoading(true);
+    if (isLoggingOutRef.current) return;
 
-  try {
-      // Unregister push token before signing out
+    isLoggingOutRef.current = true;
+    setLoading(true);
+
+    try {
       if (pushTokenRef.current) {
         await unregisterPushNotifications(pushTokenRef.current);
         pushTokenRef.current = null;
       }
 
-      // Use doSignOut which handles Google and Firebase sign-out
-      // but avoid throwing if there's no authenticated user
       if (auth.currentUser) {
         await doSignOut();
       } else {
-        console.log('No Firebase user found, skipping signOut()');
+        await clearAllStoredActiveProfileIds();
+        await clearAllStoredProfilePinTokens();
       }
 
-      // Clear stored token and cached user data
-      try {
-        await clearToken();
-        await clearUserData();
-      } catch (e) {
-        console.warn('Failed to clear token on logout:', e);
+      const lastUid = currentUidRef.current;
+      if (lastUid) {
+        await clearProfileSessionKeys(lastUid);
       }
 
-      // Remove any axios default auth header
-      try {
-        delete axios.defaults.headers.common.Authorization;
-      } catch (e) {
-        /* ignore */
-      }
-
-      // Clear local state
+      currentUidRef.current = null;
       setCurrentUser(null);
       setUserLoggedIn(false);
+      setAccountData(null);
+      setProfiles([]);
+      setActiveProfileIdState('');
       setUserData(null);
-
-  console.log('User logged out successfully');
-    } catch (error) {
-      console.error('Logout error:', error);
-      throw error;
+      setPinStatus(EMPTY_PIN_STATUS);
+      setPinStatusLoading(false);
+      setRequiresProfileSelection(false);
     } finally {
-      setIsLoading(false);
-      setIsLoggingOut(false);
+      setLoading(false);
       isLoggingOutRef.current = false;
     }
   };
 
   const getAuthErrorMessage = (errorCode) => {
     switch (errorCode) {
-      case "auth/user-not-found":
-        return "No account found with this email.";
-      case "auth/wrong-password":
-        return "Incorrect password.";
-      case "auth/invalid-email":
-        return "Invalid email address.";
-      case "auth/email-already-in-use":
-        return "An account with this email already exists.";
-      case "auth/weak-password":
-        return "Password should be at least 6 characters.";
+      case 'auth/user-not-found':
+        return 'No account found with this email.';
+      case 'auth/wrong-password':
+        return 'Incorrect password.';
+      case 'auth/invalid-email':
+        return 'Invalid email address.';
+      case 'auth/email-already-in-use':
+        return 'An account with this email already exists.';
+      case 'auth/weak-password':
+        return 'Password should be at least 6 characters.';
       default:
-        return "An error occurred. Please try again.";
+        return 'An error occurred. Please try again.';
     }
   };
 
   const value = {
-    user: currentUser,
-    isLoading,
-    initializing,
-    login,
-    register,
-    googleSignIn,
-    logout,
-    getAuthErrorMessage,
     currentUser,
     userLoggedIn,
+    loading,
+    isLoading: loading,
     userData,
-    isVerified: userData?.isVerified || false,
-    getStoredToken
+    accountData,
+    profiles,
+    activeProfileId,
+    requiresProfileSelection,
+    pinStatus,
+    pinStatusLoading,
+    requiresPinSetup:
+      !!activeProfileId && !requiresProfileSelection && !!normalizePinStatus(pinStatus).requiresSetup,
+    requiresPinVerification:
+      !!activeProfileId && !requiresProfileSelection && !!normalizePinStatus(pinStatus).requiresUnlock,
+    hasProfiles: profiles.length > 0,
+    isAdmin: ADMIN_ROLES.has(userData?.role),
+    isVerified: accountData?.isVerified || false,
+    refreshUserData,
+    refreshProfiles,
+    selectProfile,
+    createProfileAndSelect,
+    clearSelectedProfile,
+    markActiveProfilePinReset,
+    setupActiveProfilePin,
+    verifyActiveProfilePin,
+    logout,
+    getAuthErrorMessage,
+    getStoredToken,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!initializing && children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
