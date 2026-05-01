@@ -1,5 +1,299 @@
 @import "tailwindcss";
 
+:root,
+html[data-app-theme='light'],
+body[data-app-theme='light'] {
+  --app-bg: #f7f8fa;
+  --app-themed-bg: #e8e3d5;
+  --app-text-primary: #2c2c2c;
+  --app-text-muted: #6b6b5a;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f5f0eb;
+  --app-surface-soft: #f9f7f3;
+  --app-border: #e8e8e8;
+  --app-nav-hover: #fafafa;
+  --app-nav-active: #f5f0eb;
+  --app-header-bg: #ffffff;
+  --app-danger-soft: #fef2f2;
+  --app-shadow: rgba(0, 0, 0, 0.02);
+  --app-accent: #8b4513;
+  --app-accent-soft: #f5ece2;
+  --app-icon-muted: #79828d;
+  --app-icon-soft: #5d6671;
+}
+
+html[data-app-theme='dark'],
+body[data-app-theme='dark'] {
+  --app-bg: #16181b;
+  --app-themed-bg: #1d2126;
+  --app-text-primary: #dce2e9;
+  --app-text-muted: #96a0ab;
+  --app-surface: #1b1f23;
+  --app-surface-muted: #20252a;
+  --app-surface-soft: #262c32;
+  --app-border: #313840;
+  --app-nav-hover: #23292f;
+  --app-nav-active: #2a3036;
+  --app-header-bg: #181c20;
+  --app-danger-soft: #332328;
+  --app-shadow: rgba(0, 0, 0, 0.24);
+  --app-accent: #b58a62;
+  --app-accent-soft: #2f261e;
+  --app-icon-muted: #9ca5af;
+  --app-icon-soft: #7f8994;
+
+  /* Bridge Mantine semantic tokens to our custom dark palette */
+  --mantine-color-body: var(--app-bg);
+  --mantine-color-text: var(--app-text-primary);
+  --mantine-color-dimmed: var(--app-text-muted);
+  --mantine-color-anchor: var(--app-accent);
+  --mantine-color-default: var(--app-surface);
+  --mantine-color-white: var(--app-surface);
+  --mantine-color-gray-0: var(--app-surface);
+  --mantine-color-gray-1: var(--app-surface-soft);
+  --mantine-color-gray-2: var(--app-surface-muted);
+  --mantine-color-gray-3: var(--app-border);
+  --mantine-color-default-border: var(--app-border);
+  --mantine-color-dark-0: #e7ecf2;
+  --mantine-color-dark-1: #d7dde5;
+  --mantine-color-dark-2: #b4bec8;
+  --mantine-color-dark-3: #939daa;
+  --mantine-color-dark-4: #69737e;
+  --mantine-color-dark-5: #394048;
+  --mantine-color-dark-6: var(--app-surface-soft);
+  --mantine-color-dark-7: var(--app-surface-muted);
+  --mantine-color-dark-8: var(--app-surface);
+  --mantine-color-dark-9: #121417;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--app-bg);
+  color: var(--app-text-primary);
+  transition: background-color 220ms ease, color 220ms ease;
+}
+
+html[data-app-theme='dark'] .m-Paper-root,
+html[data-app-theme='dark'] .m-Card-root,
+html[data-app-theme='dark'] .m-Modal-content,
+html[data-app-theme='dark'] .m-Menu-dropdown,
+html[data-app-theme='dark'] .m-Popover-dropdown,
+html[data-app-theme='dark'] .m-Drawer-content,
+html[data-app-theme='dark'] .m-Combobox-dropdown,
+html[data-app-theme='dark'] .m-Select-dropdown,
+html[data-app-theme='dark'] .m-MultiSelect-dropdown,
+html[data-app-theme='dark'] .m-DatePickerInput-dropdown,
+html[data-app-theme='dark'] .m-DatePicker-dropdown,
+html[data-app-theme='dark'] .m-HoverCard-dropdown,
+html[data-app-theme='dark'] .m-Notification-root {
+  background-color: var(--app-surface) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text-primary);
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+html[data-app-theme='dark'] .m-Table-table {
+  background-color: var(--app-surface) !important;
+}
+
+html[data-app-theme='dark'] .m-Table-thead,
+html[data-app-theme='dark'] .m-Table-th {
+  background-color: var(--app-surface-muted) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text-muted) !important;
+}
+
+html[data-app-theme='dark'] .m-Table-tr,
+html[data-app-theme='dark'] .m-Table-td {
+  border-color: var(--app-border) !important;
+}
+
+html[data-app-theme='dark'] .m-TextInput-input,
+html[data-app-theme='dark'] .m-Textarea-input,
+html[data-app-theme='dark'] .m-Select-input,
+html[data-app-theme='dark'] .m-MultiSelect-input,
+html[data-app-theme='dark'] .m-NumberInput-input,
+html[data-app-theme='dark'] .m-DateInput-input,
+html[data-app-theme='dark'] .m-DatePickerInput-input,
+html[data-app-theme='dark'] .m-PillsInput-input {
+  background-color: #1f2429 !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text-primary) !important;
+}
+
+html[data-app-theme='dark'] .m-Input-input::placeholder,
+html[data-app-theme='dark'] .m-Textarea-input::placeholder {
+  color: #88929d !important;
+}
+
+html[data-app-theme='dark'] .m-InputWrapper-label,
+html[data-app-theme='dark'] .m-InputWrapper-description,
+html[data-app-theme='dark'] .m-Modal-title,
+html[data-app-theme='dark'] .m-Menu-label {
+  color: var(--app-text-primary) !important;
+}
+
+html[data-app-theme='dark'] .m-Divider-root {
+  border-color: var(--app-border) !important;
+}
+
+html[data-app-theme='dark'] .m-Tabs-list {
+  border-color: var(--app-border) !important;
+}
+
+html[data-app-theme='dark'] .m-Tabs-tab {
+  color: var(--app-text-muted);
+}
+
+html[data-app-theme='dark'] .m-Tabs-tab[data-active='true'] {
+  background-color: #2b3137 !important;
+  color: var(--app-text-primary) !important;
+}
+
+html[data-app-theme='dark'] .m-Tabs-panel,
+html[data-app-theme='dark'] .m-Accordion-item,
+html[data-app-theme='dark'] .m-Accordion-control,
+html[data-app-theme='dark'] .m-Accordion-panel {
+  border-color: var(--app-border) !important;
+}
+
+html[data-app-theme='dark'] .m-Badge-root[data-variant='outline'] {
+  border-color: var(--app-border) !important;
+}
+
+html[data-app-theme='dark'] .m-ActionIcon-root[data-variant='light'] {
+  background-color: var(--app-surface-muted) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-icon-muted) !important;
+}
+
+html[data-app-theme='dark'] .m-ActionIcon-root[data-variant='subtle'] {
+  color: var(--app-icon-muted) !important;
+}
+
+html[data-app-theme='dark'] .m-ActionIcon-root[data-variant='light']:hover,
+html[data-app-theme='dark'] .m-ActionIcon-root[data-variant='subtle']:hover {
+  background-color: var(--app-nav-hover) !important;
+  color: var(--app-text-primary) !important;
+}
+
+html[data-app-theme='dark'] .m-Menu-item:hover,
+html[data-app-theme='dark'] .m-Combobox-option:hover,
+html[data-app-theme='dark'] .m-Combobox-option[data-combobox-selected],
+html[data-app-theme='dark'] .m-NavLink-root:hover {
+  background-color: var(--app-nav-hover) !important;
+}
+
+html[data-app-theme='dark'] .m-NavLink-root[data-active='true'] {
+  box-shadow: inset 0 0 0 1px rgba(181, 138, 98, 0.08);
+}
+
+html[data-app-theme='dark'] .m-NavLink-root .m-NavLink-section,
+html[data-app-theme='dark'] .m-Menu-item .m-Menu-itemSection,
+html[data-app-theme='dark'] .m-ActionIcon-root .tabler-icon,
+html[data-app-theme='dark'] .m-Menu-item .tabler-icon {
+  color: inherit !important;
+}
+
+html[data-app-theme='dark'] .m-Pagination-control {
+  background-color: var(--app-surface) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text-primary) !important;
+}
+
+html[data-app-theme='dark'] .m-Pagination-control[data-active='true'] {
+  background-color: var(--app-accent) !important;
+  border-color: var(--app-accent) !important;
+  color: #ffffff !important;
+}
+
+html[data-app-theme='dark'] .m-Switch-track {
+  background-color: var(--app-surface-soft) !important;
+  border-color: var(--app-border) !important;
+}
+
+html[data-app-theme='dark'] .m-Switch-input:checked + .m-Switch-track,
+html[data-app-theme='dark'] .m-Switch-track[data-checked='true'] {
+  background-color: var(--app-accent) !important;
+  border-color: var(--app-accent) !important;
+}
+
+html[data-app-theme='dark'] .m-ScrollArea-thumb,
+html[data-app-theme='dark'] .m-ScrollArea-scrollbar {
+  background-color: #3b434c;
+}
+
+html[data-app-theme='dark'] .m-Skeleton-root {
+  background-color: #2b3138 !important;
+}
+
+html[data-app-theme='dark'] .m-Skeleton-root::before {
+  background-image: linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.07) 45%, transparent 90%) !important;
+}
+
+html[data-app-theme='dark'] .m-Box-root[style*="background-color: white" i],
+html[data-app-theme='dark'] .m-Box-root[style*="background-color:white" i],
+html[data-app-theme='dark'] .m-Box-root[style*="background: white" i],
+html[data-app-theme='dark'] .m-Box-root[style*="background:white" i],
+html[data-app-theme='dark'] .m-Paper-root[style*="background-color: white" i],
+html[data-app-theme='dark'] .m-Paper-root[style*="background-color:white" i],
+html[data-app-theme='dark'] .m-Paper-root[style*="background: white" i],
+html[data-app-theme='dark'] .m-Paper-root[style*="background:white" i],
+html[data-app-theme='dark'] [style*="background-color: white" i],
+html[data-app-theme='dark'] [style*="background-color:white" i],
+html[data-app-theme='dark'] [style*="background: white" i],
+html[data-app-theme='dark'] [style*="background:white" i] {
+  background-color: var(--app-surface) !important;
+  background: var(--app-surface) !important;
+}
+
+html[data-app-theme='dark'] [style*="#FAFAFA" i],
+html[data-app-theme='dark'] [style*="#F9FAFB" i],
+html[data-app-theme='dark'] [style*="#F8F9FA" i],
+html[data-app-theme='dark'] [style*="#F7F8FA" i],
+html[data-app-theme='dark'] [style*="#F5F5F5" i] {
+  background-color: var(--app-surface-muted) !important;
+  background: var(--app-surface-muted) !important;
+}
+
+html[data-app-theme='dark'] [style*="#F0F0F0" i],
+html[data-app-theme='dark'] [style*="#F0F1F3" i],
+html[data-app-theme='dark'] [style*="#EEE" i],
+html[data-app-theme='dark'] [style*="#E5E7EB" i],
+html[data-app-theme='dark'] [style*="#E0E0E0" i],
+html[data-app-theme='dark'] [style*="#F3F4F6" i],
+html[data-app-theme='dark'] [style*="#EDE7DD" i] {
+  border-color: var(--app-border) !important;
+}
+
+html[data-app-theme='dark'] [style*="color: #6B7280" i],
+html[data-app-theme='dark'] [style*="color:#6B7280" i],
+html[data-app-theme='dark'] [style*="color: #9CA3AF" i],
+html[data-app-theme='dark'] [style*="color:#9CA3AF" i],
+html[data-app-theme='dark'] [style*="color: #374151" i],
+html[data-app-theme='dark'] [style*="color:#374151" i] {
+  color: var(--app-text-muted) !important;
+}
+
+html[data-app-theme='dark'] .calendar-day-cell {
+  transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+html[data-app-theme='dark'] .calendar-day-cell:hover {
+  background-color: var(--app-nav-hover) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+html[data-app-theme='dark'] .calendar-nav-group {
+  background-color: var(--app-surface-muted) !important;
+  border: 1px solid var(--app-border);
+}
+
 /* ─── Notification transitions ─────────────────────────────
    Slow entrance (500ms via transitionDuration prop),
    fast exit: target Mantine's Transition wrapper when

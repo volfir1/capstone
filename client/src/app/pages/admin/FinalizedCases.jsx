@@ -2460,7 +2460,7 @@ export default function FinalizedCases() {
 
           <Group gap={8} wrap="nowrap" style={{ flexShrink: 0, paddingRight: 4 }}>
             <Tooltip label="View Review">
-              <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: '1px solid #E5E7EB' }}
+              <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: '1px solid var(--app-border)', color: 'var(--app-icon-muted)' }}
                 onClick={(e) => { e.stopPropagation(); openModal(f); }}
               >
                 <IconEye size={15} />
@@ -2469,7 +2469,7 @@ export default function FinalizedCases() {
 
             <Menu shadow="md" width={220} position="bottom-end">
               <Menu.Target>
-                <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: '1px solid #E5E7EB' }}>
+                <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: '1px solid var(--app-border)', color: 'var(--app-icon-muted)' }}>
                   <IconDots size={15} />
                 </ActionIcon>
               </Menu.Target>
@@ -3700,6 +3700,7 @@ export default function FinalizedCases() {
               onClick={() => fetchFinalized()}
               loading={state.loadingFinalized}
               radius="md"
+              style={{ color: 'var(--app-icon-muted)' }}
             >
               <IconRefresh size={18} />
             </ActionIcon>

@@ -22,11 +22,13 @@ import {
   PRIMARY_GOLD,
   PRIMARY_BROWN,
   MUTED_OLIVE,
-  THEMED_LIGHT_BG,
   CHARCOAL,
-  ACCENT_TAN,
   BG
 } from '@utils/constants';
+
+const APPOINTMENT_SURFACE = 'var(--app-surface)';
+const APPOINTMENT_BORDER = 'var(--app-border)';
+const APPOINTMENT_DANGER_SOFT = 'var(--app-danger-soft)';
 
 export default function StaffAppointmentManager() {
   const { userData, refreshUserData } = useAuth();
@@ -599,7 +601,11 @@ export default function StaffAppointmentManager() {
       padding="md"
       radius="lg"
       withBorder
-      style={{ borderLeft: `5px solid ${item.calendarRecorded ? 'green' : PRIMARY_GOLD}` }}
+      style={{
+        borderLeft: `5px solid ${item.calendarRecorded ? 'green' : PRIMARY_GOLD}`,
+        backgroundColor: APPOINTMENT_SURFACE,
+        borderColor: APPOINTMENT_BORDER,
+      }}
     >
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start" wrap="nowrap">
@@ -692,11 +698,12 @@ export default function StaffAppointmentManager() {
             <Box style={{
               width: 44, height: 44, flexShrink: 0,
               borderRadius: '12px',
-              background: `linear-gradient(45deg, ${PRIMARY_BROWN}, ${PRIMARY_GOLD})`,
+              backgroundColor: 'var(--app-surface-muted)',
+              border: '1px solid var(--app-border)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(107,68,35,0.15)',
+              boxShadow: '0 10px 24px var(--app-shadow)',
             }}>
-              <IconScale size={22} color="white" stroke={2} />
+              <IconScale size={22} color={PRIMARY_BROWN} stroke={2} />
             </Box>
             <Stack gap={0}>
               <Title order={3} fw={700} c={CHARCOAL} style={{ fontSize: 'clamp(15px, 3.5vw, 20px)' }}>
@@ -719,13 +726,14 @@ export default function StaffAppointmentManager() {
                     shadow="xs"
                     radius="xl"
                     withBorder
-                    bg="white"
+                    bg={APPOINTMENT_SURFACE}
                     px="sm"
                     py={6}
                     style={{
                       cursor: isConnectingGoogle ? 'wait' : 'pointer',
                       opacity: isConnectingGoogle ? 0.7 : 1,
                       flexShrink: 0,
+                      borderColor: APPOINTMENT_BORDER,
                     }}
                   >
                     <Group gap="xs" align="center" wrap="nowrap">
@@ -771,13 +779,14 @@ export default function StaffAppointmentManager() {
                 shadow="xs"
                 radius="xl"
                 withBorder
-                bg="white"
+                bg={APPOINTMENT_SURFACE}
                 px="sm"
                 py={6}
                 style={{
                   cursor: isConnectingGoogle ? 'wait' : 'pointer',
                   opacity: isConnectingGoogle ? 0.7 : 1,
                   flexShrink: 0,
+                  borderColor: APPOINTMENT_BORDER,
                 }}
                 onClick={!isConnectingGoogle ? handleConnectGoogleCalendar : undefined}
               >
@@ -799,7 +808,15 @@ export default function StaffAppointmentManager() {
             )}
 
             {/* Stats pill */}
-            <Paper shadow="xs" radius="xl" withBorder bg="white" px="sm" py={6}>
+            <Paper
+              shadow="xs"
+              radius="xl"
+              withBorder
+              bg={APPOINTMENT_SURFACE}
+              px="sm"
+              py={6}
+              style={{ borderColor: APPOINTMENT_BORDER }}
+            >
               <Group gap="sm" align="center" wrap="nowrap">
                 <Stack gap={0} ta="center">
                   {/* Label hidden on mobile to save space */}
@@ -846,7 +863,12 @@ export default function StaffAppointmentManager() {
               p={{ base: 'sm', sm: 'lg' }}
               radius="xl"
               withBorder
-              style={{ border: '2px solid #E5E7EB', backgroundColor: 'white', height: '100%' }}
+              style={{
+                border: `1px solid ${APPOINTMENT_BORDER}`,
+                backgroundColor: APPOINTMENT_SURFACE,
+                height: '100%',
+                boxShadow: '0 18px 40px var(--app-shadow)',
+              }}
             >
               <ClientFormStatusCalendar
                 appointments={allAppointmentsForCalendar}
@@ -870,7 +892,8 @@ export default function StaffAppointmentManager() {
               p={{ base: 'sm', sm: 'lg' }}
               radius="xl"
               withBorder
-              bg="white"
+              bg={APPOINTMENT_SURFACE}
+              style={{ borderColor: APPOINTMENT_BORDER, boxShadow: '0 18px 40px var(--app-shadow)' }}
             >
               <Stack gap="md">
 
@@ -904,7 +927,12 @@ export default function StaffAppointmentManager() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     size="sm"
                     radius="md"
-                    styles={{ input: { borderColor: '#E5E7EB' } }}
+                    styles={{
+                      input: {
+                        borderColor: APPOINTMENT_BORDER,
+                        backgroundColor: APPOINTMENT_SURFACE,
+                      },
+                    }}
                   />
                   {selectedFilterDate && (
                     <Badge variant="light" color={PRIMARY_BROWN} radius="md" size="sm" fullWidth>
@@ -1035,7 +1063,7 @@ export default function StaffAppointmentManager() {
         styles={{ inner: { padding: '8px' } }}
       >
         <Stack gap="md" align="center" ta="center">
-          <Box p="lg" bg={THEMED_LIGHT_BG + '40'} style={{ borderRadius: '50%' }}>
+          <Box p="lg" bg="var(--app-surface-muted)" style={{ borderRadius: '50%' }}>
             <IconCheck size={40} color={PRIMARY_BROWN} />
           </Box>
           <Box>
@@ -1067,7 +1095,7 @@ export default function StaffAppointmentManager() {
       >
         <Stack gap="md">
           {selectedAppointment && (
-            <Paper p="md" radius="lg" withBorder bg={THEMED_LIGHT_BG + '30'}>
+            <Paper p="md" radius="lg" withBorder bg="var(--app-surface-muted)">
               <Group gap="sm">
                 <Avatar size={40} color={PRIMARY_BROWN}>{selectedAppointment.clientName[0]}</Avatar>
                 <Box>
@@ -1169,7 +1197,7 @@ export default function StaffAppointmentManager() {
         styles={{ inner: { padding: '8px' } }}
       >
         <Stack gap="md" align="center" ta="center">
-          <Box p="lg" bg="red.0" style={{ borderRadius: '50%' }}>
+          <Box p="lg" bg={APPOINTMENT_DANGER_SOFT} style={{ borderRadius: '50%' }}>
             <IconTrash size={40} color="red" />
           </Box>
           <Box>
@@ -1194,7 +1222,7 @@ export default function StaffAppointmentManager() {
         styles={{ inner: { padding: '8px' } }}
       >
         <Stack gap="md" align="center" ta="center">
-          <Box p="lg" bg="red.0" style={{ borderRadius: '50%' }}>
+          <Box p="lg" bg={APPOINTMENT_DANGER_SOFT} style={{ borderRadius: '50%' }}>
             <IconTrash size={40} color="red" />
           </Box>
           <Box>

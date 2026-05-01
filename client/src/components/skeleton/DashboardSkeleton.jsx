@@ -11,6 +11,10 @@ import {
 } from '@mantine/core';
 import { BG } from '@utils/constants';
 
+const S_SURFACE = 'var(--app-surface)';
+const S_SURFACE_MUTED = 'var(--app-surface-muted)';
+const S_BORDER = 'var(--app-border)';
+
 export default function DashboardSkeleton() {
   return (
     <Box bg={BG} mih="100vh" py="xl">
@@ -63,8 +67,8 @@ export default function DashboardSkeleton() {
 
         {/* Large Papers Skeleton (Queues and Monitoring) */}
         {Array.from({ length: 3 }).map((_, i) => (
-          <Paper key={i} shadow="sm" radius="lg" bg="white" mt={i > 0 ? "xl" : 0} withBorder style={{ overflow: 'hidden' }}>
-            <Box px="lg" py="md" style={{ borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' }}>
+          <Paper key={i} shadow="sm" radius="lg" bg={S_SURFACE} mt={i > 0 ? "xl" : 0} withBorder style={{ overflow: 'hidden' }}>
+            <Box px="lg" py="md" style={{ borderBottom: `1px solid ${S_BORDER}`, background: S_SURFACE_MUTED }}>
               <Group justify="space-between">
                 <Skeleton height={20} width={180} />
                 <Skeleton height={24} width={200} radius="md" />
@@ -72,7 +76,7 @@ export default function DashboardSkeleton() {
             </Box>
             
             {/* Table-like headers skeleton */}
-            <Box px="md" py={8} bg="#F8F9FA" style={{ borderBottom: '1px solid #EEE' }}>
+            <Box px="md" py={8} bg={S_SURFACE_MUTED} style={{ borderBottom: `1px solid ${S_BORDER}` }}>
                <Group wrap="nowrap" gap="md">
                 <Skeleton height={12} style={{ flex: 1 }} />
                 <Skeleton height={12} width={150} />
@@ -88,12 +92,12 @@ export default function DashboardSkeleton() {
                     <Skeleton height={16} width={150} />
                     <Skeleton height={20} width={40} />
                   </Group>
-                  <Divider color="#F3F4F6" />
+                  <Divider color={S_BORDER} />
                 </Box>
               ))}
             </Stack>
             
-            <Box px="lg" py="xs" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
+            <Box px="lg" py="xs" style={{ background: S_SURFACE_MUTED, borderTop: `1px solid ${S_BORDER}` }}>
               <Skeleton height={24} width={200} />
             </Box>
           </Paper>

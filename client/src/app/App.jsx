@@ -6,8 +6,9 @@ import "@mantine/notifications/styles.css";
 import { createTheme, MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { DatesProvider } from "@mantine/dates";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import AuthProvider, { useAuth } from "../context/authContext";
+import { ThemeModeProvider, useThemeMode } from "@context/themeContext";
 import { Layout } from "../components/layout/Layout";
 import { Loaders } from "../components/ui/Loader";
 
@@ -34,6 +35,7 @@ const RecommendationForAction = lazy(() => import("./pages/other/RecommendationF
 const ClientApplicationStatus = lazy(() => import("./pages/other/ClientFormStatus"));
 const ClientInfoView          = lazy(() => import("./pages/other/ClientInfoView"));
 const AdminProfile            = lazy(() => import("./pages/other/Profiles/AdminProfile"));
+const Settings                = lazy(() => import("./pages/other/Settings"));
 
 // Roles:
 //   'user'              — pending/holding, no routes, redirected to login until promoted
@@ -240,6 +242,7 @@ function AppRoutes() {
           <Route path="clientinfo/:id"          element={<ClientInfoView />} />
           <Route path="analytics"               element={<Analytics />} />
           <Route path="profile"                 element={<AdminProfile />} />
+          <Route path="settings"                element={<Settings />} />
         </Route>
 
         <Route path="*" element={<PageNotFound />} />
@@ -250,7 +253,28 @@ function AppRoutes() {
 
 function App() {
   return (
-    <MantineProvider theme={theme}>
+    <ThemeModeProvider>
+      <Router>
+        <ThemedApp />
+      </Router>
+    </ThemeModeProvider>
+  );
+}
+
+function ThemedApp() {
+  const { mode } = useThemeMode();
+  const location = useLocation();
+  const isAdminSystemRoute = location.pathname.startsWith('/admin');
+  const effectiveMode = isAdminSystemRoute ? mode : 'light';
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-app-theme', effectiveMode);
+    document.body.setAttribute('data-app-theme', effectiveMode);
+    document.documentElement.style.colorScheme = effectiveMode;
+  }, [effectiveMode]);
+
+  return (
+    <MantineProvider theme={theme} forceColorScheme={effectiveMode}>
       <Notifications
         position="top-center"
         zIndex={1000}
@@ -259,11 +283,9 @@ function App() {
         limit={4}
       />
       <DatesProvider settings={{ locale: 'en', firstDayOfWeek: 0, weekendDays: [0, 6] }}>
-        <Router>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </Router>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
       </DatesProvider>
     </MantineProvider>
   );

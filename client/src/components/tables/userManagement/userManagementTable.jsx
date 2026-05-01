@@ -59,6 +59,13 @@ import {
   ACCENT_TAN,
 } from "@/utils/constants";
 
+const UM_SURFACE = "var(--app-surface)";
+const UM_SURFACE_MUTED = "var(--app-surface-muted)";
+const UM_BORDER = "var(--app-border)";
+const UM_HOVER = "var(--app-nav-hover)";
+const UM_TEXT_SUBTLE = "var(--app-text-muted)";
+const UM_DISABLED_BG = "var(--app-danger-soft)";
+
 const ROLE_OPTIONS = [
   { value: "secretary", label: "Secretary" },
   { value: "intern", label: "Legal Intern" },
@@ -137,7 +144,7 @@ function ProfileCard({ row, onEdit, onResetPin, onToggleStatus, onDelete }) {
       px="md"
       py="sm"
       style={{
-        backgroundColor: row.disabled ? "#FEF2F2" : "white",
+        backgroundColor: row.disabled ? UM_DISABLED_BG : UM_SURFACE,
         opacity: row.disabled ? 0.74 : 1,
       }}
     >
@@ -173,7 +180,7 @@ function ProfileCard({ row, onEdit, onResetPin, onToggleStatus, onDelete }) {
               size="md"
               radius="md"
               color="gray"
-              style={{ border: "1px solid #E5E7EB", flexShrink: 0 }}
+              style={{ border: `1px solid ${UM_BORDER}`, flexShrink: 0 }}
             >
               <IconDots size={16} stroke={1.5} />
             </ActionIcon>
@@ -208,9 +215,9 @@ function ProfileCard({ row, onEdit, onResetPin, onToggleStatus, onDelete }) {
         <Group gap={4} wrap="nowrap">
           <IconCircleFilled
             size={8}
-            style={{ color: row.status === "Active" ? "#22C55E" : "#9CA3AF" }}
+            style={{ color: row.status === "Active" ? "#22C55E" : UM_TEXT_SUBTLE }}
           />
-          <Text size="xs" fw={500} c={row.status === "Active" ? "#16A34A" : "#6B7280"}>
+          <Text size="xs" fw={500} c={row.status === "Active" ? "#16A34A" : UM_TEXT_SUBTLE}>
             {row.status}
           </Text>
         </Group>
@@ -540,8 +547,8 @@ export default function UserManagementTable() {
       key={row.id}
       className="user-row"
       style={{
-        backgroundColor: row.disabled ? "#FEF2F2" : "white",
-        borderBottom: "1px solid #E5E7EB",
+        backgroundColor: row.disabled ? UM_DISABLED_BG : UM_SURFACE,
+        borderBottom: `1px solid ${UM_BORDER}`,
         opacity: row.disabled ? 0.74 : 1,
       }}
     >
@@ -587,7 +594,7 @@ export default function UserManagementTable() {
         <Group gap={8} justify="flex-end">
           <Menu shadow="md" width={220} position="bottom-end">
             <Menu.Target>
-              <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: "1px solid #E5E7EB" }}>
+              <ActionIcon variant="light" size="md" radius="md" color="gray" style={{ border: `1px solid ${UM_BORDER}` }}>
                 <IconDots size={16} stroke={1.5} />
               </ActionIcon>
             </Menu.Target>
@@ -758,7 +765,7 @@ export default function UserManagementTable() {
           ::-webkit-scrollbar-thumb { background: ${MUTED_OLIVE}; border-radius: 4px; }
           ::-webkit-scrollbar-thumb:hover { background: ${PRIMARY_BROWN}; }
           * { scrollbar-width: thin; scrollbar-color: ${MUTED_OLIVE} transparent; }
-          .user-row:hover { background: #F9FAFB !important; }
+          .user-row:hover { background: ${UM_HOVER} !important; }
         `}</style>
 
         <Container size="xl" px={{ base: "md", sm: "xl" }}>
@@ -797,7 +804,7 @@ export default function UserManagementTable() {
           </Group>
 
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md" mb="lg">
-            <Card radius="lg" p="lg" style={{ border: "1px solid #EDE7DD" }}>
+            <Card radius="lg" p="lg" style={{ border: `1px solid ${UM_BORDER}` }}>
               <Group justify="space-between" align="flex-start">
                 <Box>
                   <Text size="xs" fw={700} tt="uppercase" c={MUTED_OLIVE}>
@@ -811,7 +818,7 @@ export default function UserManagementTable() {
               </Group>
             </Card>
 
-            <Card radius="lg" p="lg" style={{ border: "1px solid #EDE7DD" }}>
+            <Card radius="lg" p="lg" style={{ border: `1px solid ${UM_BORDER}` }}>
               <Text size="xs" fw={700} tt="uppercase" c={MUTED_OLIVE}>
                 Total Profiles
               </Text>
@@ -820,7 +827,7 @@ export default function UserManagementTable() {
               </Title>
             </Card>
 
-            <Card radius="lg" p="lg" style={{ border: "1px solid #EDE7DD" }}>
+            <Card radius="lg" p="lg" style={{ border: `1px solid ${UM_BORDER}` }}>
               <Text size="xs" fw={700} tt="uppercase" c={MUTED_OLIVE}>
                 Active Profiles
               </Text>
@@ -829,7 +836,7 @@ export default function UserManagementTable() {
               </Title>
             </Card>
 
-            <Card radius="lg" p="lg" style={{ border: "1px solid #EDE7DD" }}>
+            <Card radius="lg" p="lg" style={{ border: `1px solid ${UM_BORDER}` }}>
               <Text size="xs" fw={700} tt="uppercase" c={MUTED_OLIVE}>
                 Current Session
               </Text>
@@ -839,7 +846,7 @@ export default function UserManagementTable() {
             </Card>
           </SimpleGrid>
 
-          <Paper shadow="xs" p={{ base: "md", sm: "lg" }} mb="lg" radius="lg" bg="white" style={{ border: "1px solid #F0F0F0" }}>
+          <Paper shadow="xs" p={{ base: "md", sm: "lg" }} mb="lg" radius="lg" bg={UM_SURFACE} style={{ border: `1px solid ${UM_BORDER}` }}>
             <Stack gap="md">
               <UserSearchFilter
                 value={searchQuery}
@@ -892,12 +899,12 @@ export default function UserManagementTable() {
             shadow="xs"
             radius="lg"
             visibleFrom="sm"
-            style={{ backgroundColor: "white", border: "1px solid #E5E7EB", overflow: "hidden" }}
+            style={{ backgroundColor: UM_SURFACE, border: `1px solid ${UM_BORDER}`, overflow: "hidden" }}
           >
             <Box style={{ overflowX: "auto" }}>
               <Table>
                 <Table.Thead>
-                  <Table.Tr style={{ backgroundColor: "#F9FAFB" }}>
+                  <Table.Tr style={{ backgroundColor: UM_SURFACE_MUTED }}>
                     {["Profile", "Assigned Role", "Status", "Created", "Actions"].map((heading, index) => (
                       <Table.Th
                         key={heading}
@@ -908,7 +915,7 @@ export default function UserManagementTable() {
                           textTransform: "uppercase",
                           letterSpacing: "0.5px",
                           padding: "12px 20px",
-                          borderBottom: "1px solid #E5E7EB",
+                          borderBottom: `1px solid ${UM_BORDER}`,
                           textAlign: index === 4 ? "right" : "left",
                         }}
                       >
@@ -931,7 +938,7 @@ export default function UserManagementTable() {
             shadow="xs"
             radius="lg"
             hiddenFrom="sm"
-            style={{ backgroundColor: "white", border: "1px solid #E5E7EB", overflow: "hidden" }}
+            style={{ backgroundColor: UM_SURFACE, border: `1px solid ${UM_BORDER}`, overflow: "hidden" }}
           >
             {paginatedData.length > 0 ? (
               <Stack gap={0}>
@@ -944,7 +951,7 @@ export default function UserManagementTable() {
                       onToggleStatus={handleToggleStatus}
                       onDelete={handleConfirmDelete}
                     />
-                    {index < paginatedData.length - 1 && <Divider color="#F3F4F6" />}
+                    {index < paginatedData.length - 1 && <Divider color={UM_BORDER} />}
                   </Box>
                 ))}
               </Stack>
@@ -961,8 +968,8 @@ export default function UserManagementTable() {
             px={{ base: "md", sm: "lg" }}
             mt="lg"
             radius="lg"
-            bg="white"
-            style={{ border: "1px solid #F0F0F0" }}
+            bg={UM_SURFACE}
+            style={{ border: `1px solid ${UM_BORDER}` }}
           >
             <Stack gap="xs">
               <Group justify="space-between" align="center" wrap="wrap" gap="sm">
@@ -985,7 +992,7 @@ export default function UserManagementTable() {
                     { value: "50", label: "50 / page" },
                   ]}
                   style={{ width: 110 }}
-                  styles={{ input: { border: "1px solid #E5E7EB", fontSize: "12px" } }}
+                  styles={{ input: { border: `1px solid ${UM_BORDER}`, fontSize: "12px" } }}
                   allowDeselect={false}
                 />
               </Group>

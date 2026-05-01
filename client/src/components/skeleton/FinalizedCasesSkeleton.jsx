@@ -2,11 +2,13 @@ import React from 'react';
 import { Stack, Paper, Skeleton, Group, Box, Text } from '@mantine/core';
 import { PRIMARY_BROWN, MUTED_OLIVE } from '@/utils/constants';
 
+const S_BORDER = 'var(--app-border)';
+
 export default function FinalizedCasesSkeleton({ rows = 6 }) {
   return (
     <Stack gap="sm">
       {Array.from({ length: rows }).map((_, i) => (
-        <Paper key={i} shadow="xs" p="md" radius="md" style={{ border: '1px solid #E5E7EB' }}>
+        <Paper key={i} shadow="xs" p="md" radius="md" style={{ border: `1px solid ${S_BORDER}` }}>
           <Group position="apart" align="flex-start">
             <Box style={{ flex: 1 }}>
               <Skeleton height={18} width="60%" mb="8px" />

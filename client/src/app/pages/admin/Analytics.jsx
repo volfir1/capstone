@@ -589,7 +589,6 @@ export default function Analytics() {
                             curveType="monotone"
                             tickLine="y"
                             gridAxis="xy"
-                            withGradient
                         />
                     ) : (
                         <Center h={200}><Text c="dimmed">No data available for trend analysis</Text></Center>

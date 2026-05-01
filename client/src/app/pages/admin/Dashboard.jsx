@@ -57,6 +57,10 @@ import { useLocation } from 'react-router-dom';
 import DashboardSkeleton from '@/components/skeleton/DashboardSkeleton';
 import { getSocket } from '@/config/socket';
 
+const DASH_SURFACE = 'var(--app-surface)';
+const DASH_SURFACE_MUTED = 'var(--app-surface-muted)';
+const DASH_BORDER = 'var(--app-border)';
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
@@ -352,9 +356,9 @@ export default function AdminDashboard() {
         </SimpleGrid>
 
         {/* ── C. Review Queue ── */}
-        <Paper shadow="sm" radius="lg" bg="white" withBorder style={{ overflow: 'hidden' }}>
+        <Paper shadow="sm" radius="lg" bg={DASH_SURFACE} withBorder style={{ overflow: 'hidden' }}>
           {/* Header */}
-          <Box px={{ base: 'md', sm: 'lg' }} py="md" style={{ borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' }}>
+          <Box px={{ base: 'md', sm: 'lg' }} py="md" style={{ borderBottom: `1px solid ${DASH_BORDER}`, background: DASH_SURFACE_MUTED }}>
             <Stack gap="sm">
               <Group justify="space-between" align="center">
                 <Title order={4} c={CHARCOAL} fw={700} tt="uppercase" lts={0.5}>Review Queue</Title>
@@ -389,7 +393,7 @@ export default function AdminDashboard() {
             </ScrollArea>
 
             {/* Table header — hide date on mobile */}
-            <Box px={{ base: 'sm', sm: 'md' }} py={8} bg="#F8F9FA" style={{ borderBottom: '1px solid #EEE' }}>
+            <Box px={{ base: 'sm', sm: 'md' }} py={8} bg={DASH_SURFACE_MUTED} style={{ borderBottom: `1px solid ${DASH_BORDER}` }}>
               <Group wrap="nowrap" gap="md">
                 <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ flex: 1 }}>CLIENT NAME</Text>
                 {/* Hide on mobile */}
@@ -424,7 +428,7 @@ export default function AdminDashboard() {
                           style={{
                             cursor: 'pointer',
                             borderLeft: `4px solid ${bColor}`,
-                            background: i % 2 === 0 ? 'white' : '#FAFAFA',
+                            background: i % 2 === 0 ? DASH_SURFACE : DASH_SURFACE_MUTED,
                             alignItems: 'center',
                           }}
                           onClick={() => navigate(`/admin/recommendation/${r.caseId}`, { state: { review: r, isViewingExistingReview: true } })}
@@ -452,7 +456,7 @@ export default function AdminDashboard() {
                             <IconChevronRight size={18} color="gray" />
                           </Box>
                         </Group>
-                        <Divider color="#F3F4F6" />
+                        <Divider color={DASH_BORDER} />
                       </Box>
                     )) : (
                       <Center h={100}>
@@ -465,7 +469,7 @@ export default function AdminDashboard() {
             })}
           </Tabs>
 
-          <Box px={{ base: 'md', sm: 'lg' }} py="xs" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
+          <Box px={{ base: 'md', sm: 'lg' }} py="xs" style={{ background: DASH_SURFACE_MUTED, borderTop: `1px solid ${DASH_BORDER}` }}>
             <Pagination
               total={Math.ceil((reviewTab === 'supervising' ? supervisingLawyerReviews.length : reviewTab === 'director' ? directorReviews.length : returnedToInternReviews.length) / ITEMS_PER_PAGE) || 1}
               value={reviewPage}
@@ -479,14 +483,14 @@ export default function AdminDashboard() {
         </Paper>
 
         {/* ── D. Activity Monitoring ── */}
-        <Paper shadow="sm" radius="lg" bg="white" mt="xl" withBorder style={{ overflow: 'hidden' }}>
+        <Paper shadow="sm" radius="lg" bg={DASH_SURFACE} mt="xl" withBorder style={{ overflow: 'hidden' }}>
           {/* Header */}
-          <Box px={{ base: 'md', sm: 'lg' }} py="md" style={{ borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' }}>
+          <Box px={{ base: 'md', sm: 'lg' }} py="md" style={{ borderBottom: `1px solid ${DASH_BORDER}`, background: DASH_SURFACE_MUTED }}>
             <Stack gap="sm">
               {/* Title row */}
               <Group justify="space-between" align="center">
                 <Group gap="sm">
-                  <Box style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 10, background: CHARCOAL, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Box style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 10, background: PRIMARY_BROWN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconActivity size={18} color="white" stroke={2} />
                   </Box>
                   <Title order={4} c={CHARCOAL} fw={700} tt="uppercase" lts={0.5}>Activity Monitoring</Title>
@@ -556,9 +560,9 @@ export default function AdminDashboard() {
               <Box
                 px={{ base: 'sm', sm: 'md' }}
                 py={8}
-                bg="#F8F9FA"
+                bg={DASH_SURFACE_MUTED}
                 visibleFrom="sm"
-                style={{ borderBottom: '1px solid #EEE', borderRadius: '8px 8px 0 0' }}
+                style={{ borderBottom: `1px solid ${DASH_BORDER}`, borderRadius: '8px 8px 0 0' }}
               >
                 <Group wrap="nowrap" gap="md">
                   <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ width: 60 }}>ACTION</Text>
@@ -597,7 +601,7 @@ export default function AdminDashboard() {
                             hiddenFrom="sm"
                             px="sm"
                             py="xs"
-                            style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}
+                            style={{ background: idx % 2 === 0 ? DASH_SURFACE : DASH_SURFACE_MUTED }}
                           >
                             <Group justify="space-between" align="flex-start" wrap="nowrap">
                               <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
@@ -632,7 +636,7 @@ export default function AdminDashboard() {
                             px="md"
                             h={50}
                             gap="md"
-                            style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}
+                            style={{ background: idx % 2 === 0 ? DASH_SURFACE : DASH_SURFACE_MUTED }}
                           >
                             <Box style={{ width: 60, flexShrink: 0 }}>
                               <Badge size="xs" variant="light" color={config.color} fw={600} leftSection={config.icon}>
@@ -661,7 +665,7 @@ export default function AdminDashboard() {
                             </Box>
                           </Group>
 
-                          <Divider color="#F3F4F6" />
+                          <Divider color={DASH_BORDER} />
                         </Box>
                       );
                     })}
@@ -671,7 +675,7 @@ export default function AdminDashboard() {
                 )}
               </ScrollArea>
 
-              <Box px={{ base: 'md', sm: 'lg' }} py="xs" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
+              <Box px={{ base: 'md', sm: 'lg' }} py="xs" style={{ background: DASH_SURFACE_MUTED, borderTop: `1px solid ${DASH_BORDER}` }}>
                 <Pagination
                   total={Math.ceil(logTotal / LOG_ITEMS) || 1}
                   value={logPage}
@@ -690,9 +694,9 @@ export default function AdminDashboard() {
               <Box
                 px={{ base: 'sm', sm: 'md' }}
                 py={8}
-                bg="#F8F9FA"
+                bg={DASH_SURFACE_MUTED}
                 visibleFrom="sm"
-                style={{ borderBottom: '1px solid #EEE', borderRadius: '8px 8px 0 0' }}
+                style={{ borderBottom: `1px solid ${DASH_BORDER}`, borderRadius: '8px 8px 0 0' }}
               >
                 <Group wrap="nowrap" gap="md">
                   <Text size="xs" fw={600} c={MUTED_OLIVE} style={{ width: 40, textAlign: 'center' }}>STATUS</Text>
@@ -715,7 +719,7 @@ export default function AdminDashboard() {
                             hiddenFrom="sm"
                             px="sm"
                             py="xs"
-                            style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}
+                            style={{ background: idx % 2 === 0 ? DASH_SURFACE : DASH_SURFACE_MUTED }}
                           >
                             <Group justify="space-between" align="center" wrap="nowrap">
                               <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
@@ -743,7 +747,7 @@ export default function AdminDashboard() {
                             px="md"
                             h={50}
                             gap="md"
-                            style={{ background: idx % 2 === 0 ? 'white' : '#FAFAFA' }}
+                            style={{ background: idx % 2 === 0 ? DASH_SURFACE : DASH_SURFACE_MUTED }}
                           >
                             <Box style={{ width: 40, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
                               <IconCircleFilled size={10} style={{ color: '#40C057' }} />
@@ -767,7 +771,7 @@ export default function AdminDashboard() {
                             </Box>
                           </Group>
 
-                          <Divider color="#F3F4F6" />
+                          <Divider color={DASH_BORDER} />
                         </Box>
                       );
                     })}
@@ -781,7 +785,7 @@ export default function AdminDashboard() {
                 )}
               </ScrollArea>
 
-              <Box px={{ base: 'md', sm: 'lg' }} py="sm" style={{ background: '#FAFAFA', borderTop: '1px solid #F0F0F0' }}>
+              <Box px={{ base: 'md', sm: 'lg' }} py="sm" style={{ background: DASH_SURFACE_MUTED, borderTop: `1px solid ${DASH_BORDER}` }}>
                 <Text size="xs" c="dimmed" fs="italic" fw={400}>Activity status is updated every 15 seconds</Text>
               </Box>
             </Tabs.Panel>

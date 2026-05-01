@@ -28,6 +28,10 @@ import { PRIMARY_GOLD, PRIMARY_BROWN, MUTED_OLIVE, CHARCOAL, ACCENT_TAN } from '
 import { notifications as mantineNotifications } from '@mantine/notifications';
 import { IconTrash } from '@tabler/icons-react';
 
+const N_SURFACE_SOFT = 'var(--app-surface-soft)';
+const N_BORDER = 'var(--app-border)';
+const N_TEXT_MUTED = 'var(--app-text-muted)';
+
 // ── Icon + color map by notification type ──
 const TYPE_CONFIG = {
   case_assigned:       { icon: IconBriefcase,     color: '#3B82F6' },
@@ -69,12 +73,11 @@ function NotificationItem({ notification, onRead, onDelete, onNavigate }) {
       }}
       style={{
         padding: '12px 16px',
-        background: notification.read ? 'transparent' : '#FDFAF5',
+        background: notification.read ? 'transparent' : N_SURFACE_SOFT,
         cursor: (onNavigate && notification.referenceId) ? 'pointer' : (notification.read ? 'default' : 'pointer'),
         borderLeft: notification.read ? '3px solid transparent' : `3px solid ${config.color}`,
         transition: 'background 0.15s',
         position: 'relative',
-        '&:hover': { background: '#FAFAFA' },
       }}
     >
       <Group align="flex-start" wrap="nowrap" gap={12}>
@@ -112,7 +115,7 @@ function NotificationItem({ notification, onRead, onDelete, onNavigate }) {
           <Text size="xs" c={MUTED_OLIVE} lineClamp={2} lh={1.4} mt={2}>
             {notification.message}
           </Text>
-          <Text size="10px" c="#B0B0B0" mt={4}>
+          <Text size="10px" c={N_TEXT_MUTED} mt={4}>
             {timeAgo(notification.createdAt)}
           </Text>
         </Box>
@@ -195,13 +198,13 @@ export default function NotificationDropdown({
       <Popover.Dropdown
         p={0}
         style={{
-          border: '1px solid #ECECEC',
+          border: `1px solid ${N_BORDER}`,
           borderRadius: 12,
           overflow: 'hidden',
         }}
       >
         {/* Header */}
-        <Group justify="space-between" px="md" py="sm" style={{ borderBottom: '1px solid #F0F0F0' }}>
+        <Group justify="space-between" px="md" py="sm" style={{ borderBottom: `1px solid ${N_BORDER}` }}>
           <Group gap={6}>
             <Text size="sm" fw={700} c={CHARCOAL}>
               Notifications
@@ -255,8 +258,8 @@ export default function NotificationDropdown({
           ) : notifications.length === 0 ? (
             <Center py={40}>
               <Stack align="center" gap={8}>
-                <IconBell size={32} color="#D5D5D5" stroke={1.5} />
-                <Text size="sm" c="#B0B0B0">
+                <IconBell size={32} color={N_TEXT_MUTED} stroke={1.5} />
+                <Text size="sm" c={N_TEXT_MUTED}>
                   No notifications yet
                 </Text>
               </Stack>
@@ -265,7 +268,7 @@ export default function NotificationDropdown({
             <Stack gap={0}>
               {notifications.map((n, i) => (
                 <React.Fragment key={n._id}>
-                  {i > 0 && <Divider color="#F5F5F5" />}
+                  {i > 0 && <Divider color={N_BORDER} />}
                   <NotificationItem
                     notification={n}
                     onRead={onRead}

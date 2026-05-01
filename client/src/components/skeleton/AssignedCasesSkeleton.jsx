@@ -1,6 +1,10 @@
 import { Box, Container, Paper, Skeleton, Group, Stack, Table, Text } from '@mantine/core';
 import { PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL } from '@/utils/constants';
 
+const S_SURFACE = 'var(--app-surface)';
+const S_SURFACE_MUTED = 'var(--app-surface-muted)';
+const S_BORDER = 'var(--app-border)';
+
 const SkeletonTableRow = ({ cols }) => (
   <Table.Tr>
     {Array.from({ length: cols }).map((_, i) => (
@@ -41,14 +45,14 @@ export default function AssignedCasesSkeleton({ rows = 5, isAssigner = false }) 
         </Group>
 
         {/* Search */}
-        <Paper shadow="xs" p="md" mb="md" radius="lg" withBorder style={{ background: 'white' }}>
+        <Paper shadow="xs" p="md" mb="md" radius="lg" withBorder style={{ background: S_SURFACE }}>
           <Skeleton height={36} radius="md" />
         </Paper>
 
         {/* Tabs + Table */}
-        <Paper shadow="xs" radius="lg" withBorder style={{ overflow: 'hidden', background: 'white' }}>
+        <Paper shadow="xs" radius="lg" withBorder style={{ overflow: 'hidden', background: S_SURFACE }}>
           {/* Tab header area */}
-          <Box px={{ base: 'sm', sm: 'md' }} pt="md" pb="sm" style={{ borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' }}>
+          <Box px={{ base: 'sm', sm: 'md' }} pt="md" pb="sm" style={{ borderBottom: `1px solid ${S_BORDER}`, background: S_SURFACE_MUTED }}>
             <Group gap="sm">
               <Skeleton height={32} width={170} radius="xl" />
               <Skeleton height={32} width={110} radius="xl" />

@@ -7,7 +7,8 @@ import {
   IconUserCircle,
   IconBriefcase,
   IconChartDots,
-  IconClipboardCheck
+  IconClipboardCheck,
+  IconSettings
 } from "@tabler/icons-react";
 
 const BASE_ADMIN_NAV = [
@@ -17,6 +18,7 @@ const BASE_ADMIN_NAV = [
   { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
   { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
   { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
+  { icon: IconSettings, label: "Settings", path: 'settings', section: 'account' },
 ];
 
 const PROFILE_MANAGER_ITEM = { icon: IconUsers, label: "Manage Profiles", path: 'users', section: 'main' };

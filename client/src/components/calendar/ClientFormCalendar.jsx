@@ -18,9 +18,13 @@ import {
   PRIMARY_GOLD, 
   PRIMARY_BROWN, 
   MUTED_OLIVE, 
-  CHARCOAL,
-  ACCENT_TAN
+  CHARCOAL
 } from '@utils/constants';
+
+const CALENDAR_SURFACE = 'var(--app-surface)';
+const CALENDAR_SURFACE_MUTED = 'var(--app-surface-muted)';
+const CALENDAR_SURFACE_SOFT = 'var(--app-surface-soft)';
+const CALENDAR_BORDER = 'var(--app-border)';
 
 const EVENT_TYPE_CONFIG = {
   'Initial Interview': { color: '#3B82F6', icon: <IconUser size={12} /> },
@@ -80,11 +84,19 @@ export default function ClientFormStatusCalendar({
     const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     return (
-      <Box style={{ border: '1px solid #E5E7EB', borderRadius: '16px', overflow: 'hidden', backgroundColor: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+      <Box
+        style={{
+          border: `1px solid ${CALENDAR_BORDER}`,
+          borderRadius: '16px',
+          overflow: 'hidden',
+          backgroundColor: CALENDAR_SURFACE,
+          boxShadow: '0 12px 30px var(--app-shadow)',
+        }}
+      >
         {/* Weekday Header */}
-        <SimpleGrid cols={7} spacing={0} style={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+        <SimpleGrid cols={7} spacing={0} style={{ backgroundColor: CALENDAR_SURFACE_MUTED, borderBottom: `1px solid ${CALENDAR_BORDER}` }}>
           {weekdays.map((day) => (
-            <Box key={day} py={14} ta="center" style={{ borderRight: day !== 'Sat' ? '1px solid #E5E7EB' : 'none' }}>
+            <Box key={day} py={14} ta="center" style={{ borderRight: day !== 'Sat' ? `1px solid ${CALENDAR_BORDER}` : 'none' }}>
               <Text size="xs" fw={600} c={MUTED_OLIVE} tt="uppercase" lts={1.5}>
                 {isMobile ? day[0] : day}
               </Text>
@@ -101,9 +113,9 @@ export default function ClientFormStatusCalendar({
                 key={`empty-${idx}`} 
                 style={{ 
                   height: isMobile ? 70 : 100, 
-                  backgroundColor: '#FDFDFD',
-                  borderRight: isLastInRow ? 'none' : '1px solid #F3F4F6',
-                  borderBottom: '1px solid #F3F4F6'
+                  backgroundColor: CALENDAR_SURFACE_SOFT,
+                  borderRight: isLastInRow ? 'none' : `1px solid ${CALENDAR_BORDER}`,
+                  borderBottom: `1px solid ${CALENDAR_BORDER}`
                 }} 
               />
             );
@@ -115,15 +127,16 @@ export default function ClientFormStatusCalendar({
               <HoverCard width={260} shadow="xl" position="right-start" withArrow radius="lg" openDelay={100} key={idx}>
                 <HoverCard.Target>
                   <UnstyledButton 
+                    className="calendar-day-cell"
                     onClick={() => onDateClick && onDateClick(date)}
                     style={{
                       height: isMobile ? 70 : 100,
-                      borderRight: isLastInRow ? 'none' : '1px solid #F3F4F6',
-                      borderBottom: '1px solid #F3F4F6',
-                      backgroundColor: isToday ? `${PRIMARY_GOLD}05` : 'white',
+                      borderRight: isLastInRow ? 'none' : `1px solid ${CALENDAR_BORDER}`,
+                      borderBottom: `1px solid ${CALENDAR_BORDER}`,
+                      backgroundColor: isToday ? 'rgba(196, 171, 125, 0.1)' : CALENDAR_SURFACE,
                       transition: 'all 0.2s ease',
                       position: 'relative',
-                      '&:hover': { backgroundColor: '#F9FAFB', zIndex: 1 }
+                      zIndex: 0,
                     }}
                   >
                     <Stack gap={4} p={8} h="100%" align="stretch" justify="space-between">
@@ -180,7 +193,10 @@ export default function ClientFormStatusCalendar({
                 </HoverCard.Target>
                 
                 {dayApts.length > 0 && (
-                  <HoverCard.Dropdown p="xs">
+                  <HoverCard.Dropdown
+                    p="xs"
+                    style={{ backgroundColor: CALENDAR_SURFACE, border: `1px solid ${CALENDAR_BORDER}` }}
+                  >
                     <Stack gap="xs">
                       <Group justify="space-between" wrap="nowrap" px={4} pb={4}>
                         <Text fw={700} size="sm" c={CHARCOAL}>
@@ -202,7 +218,17 @@ export default function ClientFormStatusCalendar({
                           {dayApts.map((apt, i) => {
                             const config = getEventConfig(apt.type || 'other');
                             return (
-                              <Paper key={i} p={4} py={3} radius="sm" withBorder style={{ borderLeft: `3px solid ${config.color}` }}>
+                              <Paper
+                                key={i}
+                                p={4}
+                                py={3}
+                                radius="sm"
+                                withBorder
+                                style={{
+                                  borderLeft: `3px solid ${config.color}`,
+                                  backgroundColor: CALENDAR_SURFACE_SOFT,
+                                }}
+                              >
                                 <Group gap="xs" wrap="nowrap" justify="space-between">
                                   <Group gap={6} wrap="nowrap" style={{ flex: 1, overflow: 'hidden' }}>
                                     <Box c={config.color} style={{ display: 'flex', opacity: 0.8 }}>{config.icon}</Box>
@@ -248,7 +274,13 @@ export default function ClientFormStatusCalendar({
                 size="xs" 
                 radius="md"
                 w={160}
-                styles={{ input: { borderColor: '#E5E7EB', '&:focus': { borderColor: PRIMARY_BROWN } } }}
+                styles={{
+                  input: {
+                    borderColor: CALENDAR_BORDER,
+                    backgroundColor: CALENDAR_SURFACE,
+                    '&:focus': { borderColor: PRIMARY_BROWN },
+                  },
+                }}
               />
               <Button 
                 variant="light" 
@@ -275,7 +307,7 @@ export default function ClientFormStatusCalendar({
           >
             Today
           </Button>
-          <Group gap={0} bg="#F3F4F6" p={4} style={{ borderRadius: '12px' }}>
+          <Group gap={0} p={4} className="calendar-nav-group" style={{ borderRadius: '12px' }}>
             <ActionIcon variant="subtle" color="gray" onClick={goToPrevious} radius="md" size="lg"><IconChevronLeft size={18} /></ActionIcon>
             <ActionIcon variant="subtle" color="gray" onClick={goToNext} radius="md" size="lg"><IconChevronRight size={18} /></ActionIcon>
           </Group>
