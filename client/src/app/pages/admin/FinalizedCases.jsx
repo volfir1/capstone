@@ -22,7 +22,6 @@ import {
   TextInput,
   Textarea,
   Radio,
-  Stepper,
   Select,
   Grid,
   ScrollArea,
@@ -31,7 +30,7 @@ import {
   Tooltip,
   Pagination,
 } from '@mantine/core';
-import { IconBriefcase, IconChevronRight, IconEye, IconFileText, IconCircleCheck, IconChevronLeft, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconAlertTriangle, IconBriefcase, IconEye, IconFileText, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash, IconUpload } from '@tabler/icons-react';
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
@@ -131,7 +130,6 @@ const initialState = {
   selectedCase: null,
   editMode: false,
   editedData: null,
-  activeStep: 0,
 
   // Case Record Modal
   caseRecordModalOpened: false,
@@ -270,7 +268,6 @@ function stateReducer(state, action) {
         selectedCase: action.payload,
         editedData: JSON.parse(JSON.stringify(action.payload)),
         editMode: false,
-        activeStep: 0,
       };
     case 'CLOSE_REVIEW_MODAL':
       return { ...state, modalOpened: false, editMode: false };
@@ -278,8 +275,6 @@ function stateReducer(state, action) {
       return { ...state, editMode: action.payload };
     case 'SET_EDITED_DATA':
       return { ...state, editedData: action.payload };
-    case 'SET_ACTIVE_STEP':
-      return { ...state, activeStep: action.payload };
 
     // Appointment Receipt Modal actions
     case 'OPEN_APPOINTMENT_MODAL':
@@ -394,6 +389,9 @@ export default function FinalizedCases() {
   const [state, dispatch] = useReducer(stateReducer, initialState);
   const { userData } = useAuth();
   const [uploadingEvidenceKey, setUploadingEvidenceKey] = useState(null);
+  const [deleteModalOpened, setDeleteModalOpened] = useState(false);
+  const [deleteTargetCase, setDeleteTargetCase] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // â”€â”€ Assign Case Modal State â”€â”€
   const [assignModalOpened, setAssignModalOpened] = useState(false);
@@ -417,6 +415,17 @@ export default function FinalizedCases() {
     setAssignTargetCase(finCase);
     setAssignForm({ assigneeId: '', deadline: '', message: '' });
     setAssignModalOpened(true);
+  };
+
+  const openDeleteModal = (finCase) => {
+    setDeleteTargetCase(finCase);
+    setDeleteModalOpened(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (deleteLoading) return;
+    setDeleteModalOpened(false);
+    setDeleteTargetCase(null);
   };
 
   const handleAssignCase = async () => {
@@ -524,6 +533,65 @@ export default function FinalizedCases() {
       .replace(/\n/g, '\n');
   };
 
+  const formatSingleNameForPdf = (value) => {
+    if (!value) return '-';
+    const raw = String(value).trim();
+    if (!raw || raw === '-') return '-';
+
+    // Keep already formatted "Last, First Middle" names.
+    if (raw.includes(',')) {
+      return raw.replace(/\s*,\s*/g, ', ').replace(/\s{2,}/g, ' ').trim();
+    }
+
+    const parts = raw.split(/\s+/).filter(Boolean);
+    if (parts.length <= 1) return raw;
+
+    const lastName = parts[parts.length - 1];
+    const firstName = parts[0];
+    const middleName = parts.slice(1, -1).join(' ');
+    return `${lastName}, ${firstName}${middleName ? ` ${middleName}` : ''}`;
+  };
+
+  const formatNameListForPdf = (value) => {
+    if (!value) return '-';
+    const text = String(value).trim();
+    if (!text || text === '-') return '-';
+
+    if (text.includes('\n')) {
+      return text
+        .split('\n')
+        .map((item) => formatSingleNameForPdf(item))
+        .join('\n');
+    }
+
+    if (text.includes(';')) {
+      return text
+        .split(';')
+        .map((item) => formatSingleNameForPdf(item))
+        .join('; ');
+    }
+
+    if (text.toLowerCase().includes(' and ')) {
+      return text
+        .split(/\s+and\s+/i)
+        .map((item) => formatSingleNameForPdf(item))
+        .join(' and ');
+    }
+
+    return formatSingleNameForPdf(text);
+  };
+
+  const sanitizePdfFileNamePart = (value) => String(value || '')
+    .replace(/[\\/:*?"<>|]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const buildClientPdfFileName = (clientName) => {
+    const normalizedName = formatSingleNameForPdf(clientName);
+    const safeName = sanitizePdfFileNamePart(normalizedName === '-' ? 'Client' : normalizedName) || 'Client';
+    return `${safeName}.pdf`;
+  };
+
   // Helper function to add date/time header to all pages of a PDF
   const addDateTimeHeaderToAllPages = (doc) => {
     const totalPages = doc.internal.getNumberOfPages();
@@ -541,7 +609,7 @@ export default function FinalizedCases() {
       doc.setPage(i);
       const pageWidth = doc.internal.pageSize.getWidth();
       doc.setFont('times', 'italic');
-      doc.setFontSize(9);
+      doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
       doc.text(`Generated: ${dateTimeStr}`, pageWidth - 14, 8, { align: 'right' });
     }
@@ -604,6 +672,7 @@ export default function FinalizedCases() {
   });
 
   const renderSectionRows = (doc, startY, title, rows) => {
+    const PDF_FONT_SIZE = 10;
     if (!rows || rows.length === 0) return startY;
     const pageHeight = doc.internal.pageSize.getHeight();
     let y = startY;
@@ -615,13 +684,15 @@ export default function FinalizedCases() {
       }
     };
 
-    doc.setFontSize(14);
+    doc.setFont('times', 'bold');
+    doc.setFontSize(PDF_FONT_SIZE);
     doc.setTextColor(74, 53, 31);
     addPageIfNeeded(10);
     doc.text(title, 14, y);
     y += 6;
 
-    doc.setFontSize(11);
+    doc.setFont('times', 'normal');
+    doc.setFontSize(PDF_FONT_SIZE);
     doc.setTextColor(0, 0, 0);
     const startX = 12;
     const labelBoxW = 55;
@@ -648,6 +719,7 @@ export default function FinalizedCases() {
   };
 
   const renderEvidenceToPdf = (doc, startY, title, evidence = []) => {
+    const PDF_FONT_SIZE = 10;
     if (!evidence || evidence.length === 0) return startY;
     const pageHeight = doc.internal.pageSize.getHeight();
 
@@ -673,14 +745,16 @@ export default function FinalizedCases() {
     };
 
     // Section title
-    doc.setFontSize(14);
+    doc.setFont('times', 'bold');
+    doc.setFontSize(PDF_FONT_SIZE);
     doc.setTextColor(74, 53, 31);
     addPageIfNeeded(10);
     doc.text(title, startX + 2, y);
     y += 6;
 
     // Header
-    doc.setFontSize(11);
+    doc.setFont('times', 'normal');
+    doc.setFontSize(PDF_FONT_SIZE);
     doc.setTextColor(0, 0, 0);
     const headerHeight = 8;
     addPageIfNeeded(headerHeight + 4);
@@ -716,10 +790,11 @@ export default function FinalizedCases() {
   };
 
   const downloadPdfDocument = (title, sections = []) => {
+    const PDF_FONT_SIZE = 10;
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     let y = 20;
-    doc.setFont('times', 'normal');
-    doc.setFontSize(18);
+    doc.setFont('times', 'bold');
+    doc.setFontSize(PDF_FONT_SIZE);
     doc.setTextColor(74, 53, 31);
     doc.text(title, 14, y);
     y += 10;
@@ -765,8 +840,15 @@ export default function FinalizedCases() {
       remarks: formatText(state.caseRecordData.remarks),
     });
 
+    const caseRecordClientName =
+      state.caseRecordData?.clientName ||
+      state.caseRecordData?.fullName ||
+      state.selectedCase?.clientName ||
+      state.selectedCase?.content?.interviewInfo?.clientName ||
+      '';
+
     addDateTimeHeaderToAllPages(doc);
-    doc.save('Case_Record.pdf');
+    doc.save(buildClientPdfFileName(caseRecordClientName));
   };
 
   const exportAppointmentPdf = () => {
@@ -782,8 +864,9 @@ export default function FinalizedCases() {
 
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     drawClientsInformationSheetPage(doc, exportData);
+    const appointmentClientName = exportData?.fullName || exportData?.name || '';
     addDateTimeHeaderToAllPages(doc);
-    doc.save('Appointment_Receipt.pdf');
+    doc.save(buildClientPdfFileName(appointmentClientName));
   };
 
   const exportRecommendationPdf = async () => {
@@ -796,7 +879,7 @@ export default function FinalizedCases() {
       const d = state.editedData;
       const interview = d.content?.interviewInfo || {};
       const action = d.content?.actionInfo || {};
-      const finalizeId = d._id || d.id;
+      const recommendationClientName = d.clientName || interview.clientName || '';
 
       const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
       let supervisingLawyerSignatureImage = null;
@@ -821,9 +904,9 @@ export default function FinalizedCases() {
       // Page 1
       const endY = drawRecommendationForActionTemplate(doc, {
         dateOfInterview: formatDate(interview.dateOfInterview || interview.dateInterview || d.dateOfInterview),
-        clientName: formatText(d.clientName || interview.clientName),
+        clientName: formatNameListForPdf(formatText(d.clientName || interview.clientName)),
         dateSubmitted: formatDate(action.signatureDate || d.updatedAt || d.createdAt),
-        interviewingInterns: formatText(interview.interviewingInterns || interview.interviewingIntern || interview.internName),
+        interviewingInterns: formatNameListForPdf(formatText(interview.interviewingInterns || interview.interviewingIntern || interview.internName)),
 
         // --- fillable areas ---
         fastFacts: formatText(interview.fastFacts),
@@ -835,20 +918,21 @@ export default function FinalizedCases() {
       });
 
       // Supervising Lawyer's Comment + Director's Action (continue on same page if space)
+      // NOTE: Do NOT include Supervising Lawyer's Action (decision radios), but DO include comment, director action, and signatures
       drawRecommendationForActionDirectorPage(doc, {
         supervisingComment: formatText(action.supervisingComment),
         decision: formatText(action.decision || d.decision),
         decisionNote: formatText(action.decisionNote),
-        assignedTo: formatText(action.assignedTo),
-        supervisingLawyer: formatText(action.supervisingLawyer),
+        assignedTo: formatNameListForPdf(formatText(action.assignedTo)),
+        supervisingLawyer: formatNameListForPdf(formatText(action.supervisingLawyer)),
         supervisingLawyerSignatureImage,
-        directorSignature: formatText(action.directorSignature),
+        directorSignature: formatNameListForPdf(formatText(action.directorSignature)),
         directorSignatureImage,
         signatureDate: formatDate(action.signatureDate),
       }, endY);
 
       addDateTimeHeaderToAllPages(doc);
-      doc.save('Recommendation_For_Action.pdf');
+      doc.save(buildClientPdfFileName(recommendationClientName));
     } catch (err) {
       console.error('exportRecommendationPdf failed:', err);
       notifications.show({
@@ -864,26 +948,26 @@ export default function FinalizedCases() {
  * Coordinates are in mm.
  */
   const drawRecommendationForActionTemplate = (doc, data = {}) => {
+    const PDF_FONT_SIZE = 10;
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 12;
 
     // Layout tuning (adjust these to fine-tune spacing)
-    const GAP_XS = 3;
-    const GAP_SM = 4;
-    const GAP_MD = 6;
+    const GAP_XS = 2;
+    const GAP_SM = 3;
+    const GAP_MD = 4;
 
-    const ROW_H_BASE = 14; // height per evidence row in mm
-    const TABLE_HEADER_H = 8; // header height for evidence tables
-    const MIN_BOX_H = 18; // minimum box height for text sections
+    const TABLE_HEADER_H = 7;
+    const MIN_BOX_H = 10;
 
-    const setFont = (size, style = "normal") => {
+    const setFont = (_size = PDF_FONT_SIZE, style = "normal") => {
       doc.setFont("times", style);
-      doc.setFontSize(size);
+      doc.setFontSize(PDF_FONT_SIZE);
     };
 
     const mmPerPt = 0.3528;
-    const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
+    const lineHeightMm = (_fontSize = PDF_FONT_SIZE) => PDF_FONT_SIZE * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
 
     const safeText = (v) => (v == null ? "" : String(v));
 
@@ -893,12 +977,40 @@ export default function FinalizedCases() {
       const padding = 2;
       const maxW = Math.max(1, w - padding * 2);
       const lh = lineHeightMm(fontSize);
-      const lines = doc.splitTextToSize(safeText(text), maxW);
+      const lines = doc.splitTextToSize(safeText(text) || '-', maxW);
       const textH = lines.length * lh + padding * 2 + 2;
       return Math.max(minH, textH);
     };
 
-    const drawMultilineInRect = (text, x, y, w, h, fontSize = 9) => {
+    const drawJustifiedLine = (line, x, y, targetW, isLastLine = false) => {
+      const raw = safeText(line).trim();
+      if (!raw) return;
+      if (isLastLine || !raw.includes(' ')) {
+        doc.text(raw, x, y);
+        return;
+      }
+
+      const words = raw.split(/\s+/).filter(Boolean);
+      if (words.length <= 1) {
+        doc.text(raw, x, y);
+        return;
+      }
+
+      const gaps = words.length - 1;
+      const wordsWidth = words.reduce((sum, word) => sum + doc.getTextWidth(word), 0);
+      const extraSpace = Math.max(0, targetW - wordsWidth);
+      const gapW = extraSpace / gaps;
+
+      let cursorX = x;
+      words.forEach((word, idx) => {
+        doc.text(word, cursorX, y);
+        if (idx < gaps) {
+          cursorX += doc.getTextWidth(word) + gapW;
+        }
+      });
+    };
+
+    const drawMultilineInRect = (text, x, y, w, h, fontSize = 9, justify = true) => {
       setFont(fontSize, "normal");
       const padding = 2;
       const maxW = Math.max(1, w - padding * 2);
@@ -907,70 +1019,80 @@ export default function FinalizedCases() {
       const lh = lineHeightMm(fontSize);
       const maxLines = Math.max(1, Math.floor(maxH / lh));
 
-      const lines = doc.splitTextToSize(safeText(text), maxW).slice(0, maxLines);
-      doc.text(lines, x + padding, y + padding + lh * 0.75); // baseline tweak
+      const lines = doc.splitTextToSize(safeText(text) || '-', maxW).slice(0, maxLines);
+      const textX = x + padding;
+      let textY = y + padding + lh * 0.75;
+
+      lines.forEach((line, idx) => {
+        if (justify) {
+          drawJustifiedLine(line, textX, textY, maxW, idx === lines.length - 1);
+        } else {
+          doc.text(line, textX, textY);
+        }
+        textY += lh;
+      });
     };
 
-    const normalizeEvidence = (arr, minRows, shape) => {
-      const rows = Array.isArray(arr) ? arr.filter(Boolean) : [];
+    const normalizeEvidence = (arr, shape) => {
+      const rows = Array.isArray(arr) ? arr.filter((r) => r && Object.values(r).some((v) => safeText(v).trim() !== '')) : [];
       const filled = rows.map((r) => ({
         ...shape,
         ...(r || {}),
       }));
-      while (filled.length < minRows) filled.push({ ...shape });
+      if (filled.length === 0) filled.push({ ...shape });
       return filled;
     };
 
-    const drawTable = (x, y, w, h, headers, colRatios, rowData = [], bodyRows = 3) => {
-      doc.rect(x, y, w, h);
+    const drawTable = (x, y, w, headers, colRatios, rowData = []) => {
+      const fontSize = 8.5;
+      const padding = 2;
+      const minRowHeight = 8;
+      setFont(fontSize, 'normal');
+      const lh = lineHeightMm(fontSize);
 
-      const headerH = 8;
-      doc.line(x, y + headerH, x + w, y + headerH);
+      const colWidths = colRatios.map((ratio) => w * ratio);
+      const measuredRows = rowData.map((row) => {
+        const cells = headers.map((_, idx) => {
+          const text = safeText(row?.[idx] ?? '-') || '-';
+          const maxW = Math.max(1, colWidths[idx] - padding * 2);
+          const lines = doc.splitTextToSize(text, maxW);
+          return { text, lines, maxW };
+        });
+        const maxLines = Math.max(...cells.map((c) => c.lines.length), 1);
+        const rowHeight = Math.max(minRowHeight, maxLines * lh + padding * 2);
+        return { cells, rowHeight };
+      });
 
-      // verticals + header text
+      const totalHeight = TABLE_HEADER_H + measuredRows.reduce((sum, row) => sum + row.rowHeight, 0);
+      doc.rect(x, y, w, totalHeight);
+      doc.line(x, y + TABLE_HEADER_H, x + w, y + TABLE_HEADER_H);
+
       let xCursor = x;
-      setFont(9, "bold");
+      setFont(PDF_FONT_SIZE, 'bold');
       headers.forEach((header, i) => {
-        const cw = w * colRatios[i];
-        const cx = xCursor + cw / 2;
-
-        if (i !== 0) doc.line(xCursor, y, xCursor, y + h);
-
-        doc.text(header, cx, y + 5.5, { align: "center", maxWidth: cw - 2 });
+        const cw = colWidths[i];
+        if (i !== 0) doc.line(xCursor, y, xCursor, y + totalHeight);
+        doc.text(header, xCursor + cw / 2, y + 5, { align: 'center', maxWidth: cw - 2 });
         xCursor += cw;
       });
 
-      // body row lines
-      const bodyH = h - headerH;
-      const rowH = bodyH / bodyRows;
-      for (let r = 1; r < bodyRows; r++) {
-        doc.line(x, y + headerH + r * rowH, x + w, y + headerH + r * rowH);
-      }
-
-      // cell text
-      const fontSize = 8.5;
-      setFont(fontSize, "normal");
-      const lh = lineHeightMm(fontSize);
-
-      for (let r = 0; r < bodyRows; r++) {
-        const rowTop = y + headerH + r * rowH;
-        const maxLines = Math.max(1, Math.floor((rowH - 2) / lh));
+      let rowY = y + TABLE_HEADER_H;
+      measuredRows.forEach((row, rowIndex) => {
+        if (rowIndex > 0) {
+          doc.line(x, rowY, x + w, rowY);
+        }
 
         let cellX = x;
-        for (let c = 0; c < headers.length; c++) {
-          const cw = w * colRatios[c];
-          const padding = 2;
-
-          const cellText = safeText(rowData?.[r]?.[c] ?? "");
-          const lines = doc.splitTextToSize(cellText, Math.max(1, cw - padding * 2)).slice(0, maxLines);
-
-          if (lines.length) {
-            doc.text(lines, cellX + padding, rowTop + 4.5); // inside row
-          }
-
+        row.cells.forEach((cell, cIdx) => {
+          const cw = colWidths[cIdx];
+          drawMultilineInRect(cell.text, cellX, rowY, cw, row.rowHeight, fontSize, true);
           cellX += cw;
-        }
-      }
+        });
+
+        rowY += row.rowHeight;
+      });
+
+      return totalHeight;
     };
 
     let y = margin;
@@ -1033,9 +1155,9 @@ export default function FinalizedCases() {
     doc.text("Fast Facts", margin, y);
     y += GAP_XS;
 
-    const FAST_FACTS_H = measureTextHeight(data.fastFacts, pageW - margin * 2, 9, 20);
+    const FAST_FACTS_H = measureTextHeight(data.fastFacts, pageW - margin * 2, 9, 12);
     doc.rect(margin, y, pageW - margin * 2, FAST_FACTS_H);
-    drawMultilineInRect(data.fastFacts, margin, y, pageW - margin * 2, FAST_FACTS_H, 9);
+    drawMultilineInRect(data.fastFacts, margin, y, pageW - margin * 2, FAST_FACTS_H, 9, true);
     y += FAST_FACTS_H + GAP_MD;
 
     // Evidence (Client)
@@ -1043,31 +1165,58 @@ export default function FinalizedCases() {
     doc.text("Evidence on Hand / Available for the Client(s)", margin, y);
     y += GAP_XS;
 
-    const clientRows = normalizeEvidence(data.clientEvidence, 3, { type: "", author: "", purpose: "", issues: "" });
+    const clientRows = normalizeEvidence(data.clientEvidence, { type: "", author: "", purpose: "", issues: "" });
     const clientRowData = clientRows.map((r) => [r.type, r.author, r.purpose, r.issues]);
-    const clientBodyRows = clientRowData.length;
-    const CLIENT_EVIDENCE_H = TABLE_HEADER_H + clientBodyRows * ROW_H_BASE;
-
-    drawTable(
+    const clientTableH = (() => {
+      const fontSize = 8.5;
+      const padding = 2;
+      setFont(fontSize, 'normal');
+      const lh = lineHeightMm(fontSize);
+      const widths = [0.28, 0.22, 0.20, 0.30].map((r) => (pageW - margin * 2) * r);
+      return TABLE_HEADER_H + clientRowData.reduce((sum, row) => {
+        const maxLines = row.reduce((mx, cell, i) => {
+          const lines = doc.splitTextToSize(safeText(cell) || '-', Math.max(1, widths[i] - padding * 2));
+          return Math.max(mx, lines.length);
+        }, 1);
+        return sum + Math.max(8, maxLines * lh + padding * 2);
+      }, 0);
+    })();
+    if (y + clientTableH > pageH - margin) {
+      doc.addPage();
+      y = margin;
+      setFont(10, 'bold');
+      doc.text("Evidence on Hand / Available for the Client(s)", margin, y);
+      y += GAP_XS;
+    }
+    y += drawTable(
       margin,
       y,
       pageW - margin * 2,
-      CLIENT_EVIDENCE_H,
       ["Type / Description", "Author / Custodian", "Purpose", "Admissibility Issues"],
       [0.28, 0.22, 0.20, 0.30],
-      clientRowData,
-      clientBodyRows
-    );
-    y += CLIENT_EVIDENCE_H + GAP_MD;
+      clientRowData
+    ) + GAP_MD;
 
     // Evidence (Adverse)
-    const adverseRows = normalizeEvidence(data.adversePartyEvidence, 3, { type: "", author: "", issues: "" });
+    const adverseRows = normalizeEvidence(data.adversePartyEvidence, { type: "", author: "", issues: "" });
     const adverseRowData = adverseRows.map((r) => [r.type, r.author, r.issues]);
-    const adverseBodyRows = adverseRowData.length;
-    const ADVERSE_EVIDENCE_H = TABLE_HEADER_H + adverseBodyRows * ROW_H_BASE;
+    const adverseTableH = (() => {
+      const fontSize = 8.5;
+      const padding = 2;
+      setFont(fontSize, 'normal');
+      const lh = lineHeightMm(fontSize);
+      const widths = [0.35, 0.30, 0.35].map((r) => (pageW - margin * 2) * r);
+      return TABLE_HEADER_H + adverseRowData.reduce((sum, row) => {
+        const maxLines = row.reduce((mx, cell, i) => {
+          const lines = doc.splitTextToSize(safeText(cell) || '-', Math.max(1, widths[i] - padding * 2));
+          return Math.max(mx, lines.length);
+        }, 1);
+        return sum + Math.max(8, maxLines * lh + padding * 2);
+      }, 0);
+    })();
 
     // Check if adverse evidence table fits on current page
-    if (y + 5 + ADVERSE_EVIDENCE_H > pageH - margin) {
+    if (y + GAP_XS + adverseTableH > pageH - margin) {
       doc.addPage();
       y = margin;
     }
@@ -1076,22 +1225,19 @@ export default function FinalizedCases() {
     doc.text("Evidence on Hand / Available for the Adverse Party(ies)", margin, y);
     y += GAP_XS;
 
-    drawTable(
+    y += drawTable(
       margin,
       y,
       pageW - margin * 2,
-      ADVERSE_EVIDENCE_H,
       ["Type / Description", "Author / Custodian", "Admissibility Issues"],
       [0.35, 0.30, 0.35],
-      adverseRowData,
-      adverseBodyRows
-    );
-    y += ADVERSE_EVIDENCE_H + (GAP_MD + 2);
+      adverseRowData
+    ) + GAP_MD;
 
     // Pre-compute advice and opinion heights for page break check
-    const adviceH = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
-    const opinionH = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
-    const remainingNeeded = GAP_XS + adviceH + (GAP_MD + 2) + 4 + opinionH + margin + 10;
+    const adviceH = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, 12);
+    const opinionH = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 12);
+    const remainingNeeded = GAP_XS + adviceH + GAP_MD + 4 + opinionH + margin + 6;
     if (y + remainingNeeded > pageH) {
       doc.addPage();
       y = margin;
@@ -1117,17 +1263,17 @@ export default function FinalizedCases() {
 
     y += GAP_XS;
 
-    const ADVICE_H = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, MIN_BOX_H);
+    const ADVICE_H = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, 12);
     doc.rect(margin, y, pageW - margin * 2, ADVICE_H);
-    drawMultilineInRect(data.internAdvice, margin, y, pageW - margin * 2, ADVICE_H, 9);
-    y += ADVICE_H + (GAP_MD + 2);
+    drawMultilineInRect(data.internAdvice, margin, y, pageW - margin * 2, ADVICE_H, 9, true);
+    y += ADVICE_H + GAP_MD;
 
     // Legal Opinion
     setFont(10, "bold");
     doc.text("Legal Opinion", margin, y);
     y += 4;
 
-    const OPINION_H = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 20);
+    const OPINION_H = measureTextHeight(data.legalOpinion, pageW - margin * 2, 9, 12);
     // Check if opinion fits; add page if needed
     if (y + OPINION_H > pageH - margin) {
       doc.addPage();
@@ -1137,7 +1283,7 @@ export default function FinalizedCases() {
       y += 4;
     }
     doc.rect(margin, y, pageW - margin * 2, OPINION_H);
-    drawMultilineInRect(data.legalOpinion, margin, y, pageW - margin * 2, OPINION_H, 9);
+    drawMultilineInRect(data.legalOpinion, margin, y, pageW - margin * 2, OPINION_H, 9, true);
     y += OPINION_H + GAP_MD;
     return y;
   };
@@ -1147,41 +1293,80 @@ export default function FinalizedCases() {
    * based on the provided page photo.
    */
   const drawRecommendationForActionDirectorPage = (doc, data = {}, startY = null) => {
+    const PDF_FONT_SIZE = 10;
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
-    const margin = 14;
+    const margin = 12;
 
-    const setFont = (size, style = 'normal') => {
+    const setFont = (_size = PDF_FONT_SIZE, style = 'normal') => {
       doc.setFont('times', style);
-      doc.setFontSize(size);
+      doc.setFontSize(PDF_FONT_SIZE);
     };
 
     const safeText = (v) => (v == null ? '' : String(v));
 
     const mmPerPt = 0.3528;
-    const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
+    const lineHeightMm = (_fontSize = PDF_FONT_SIZE) => PDF_FONT_SIZE * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
 
-    const MIN_BOX_H = 20;
+    const MIN_BOX_H = 12;
 
     const measureTextHeight = (text, w, fontSize = 10, minH = MIN_BOX_H) => {
       setFont(fontSize, 'normal');
       const padding = 2;
       const maxW = Math.max(1, w - padding * 2);
       const lh = lineHeightMm(fontSize);
-      const lines = doc.splitTextToSize(safeText(text), maxW);
+      const lines = doc.splitTextToSize(safeText(text) || '-', maxW);
       const textH = lines.length * lh + padding * 2 + 2;
       return Math.max(minH, textH);
     };
 
-    const drawMultilineInRect = (text, x, y, w, h, fontSize = 10) => {
+    const drawJustifiedLine = (line, x, y, targetW, isLastLine = false) => {
+      const raw = safeText(line).trim();
+      if (!raw) return;
+      if (isLastLine || !raw.includes(' ')) {
+        doc.text(raw, x, y);
+        return;
+      }
+
+      const words = raw.split(/\s+/).filter(Boolean);
+      if (words.length <= 1) {
+        doc.text(raw, x, y);
+        return;
+      }
+
+      const gaps = words.length - 1;
+      const wordsWidth = words.reduce((sum, word) => sum + doc.getTextWidth(word), 0);
+      const extraSpace = Math.max(0, targetW - wordsWidth);
+      const gapW = extraSpace / gaps;
+
+      let cursorX = x;
+      words.forEach((word, idx) => {
+        doc.text(word, cursorX, y);
+        if (idx < gaps) {
+          cursorX += doc.getTextWidth(word) + gapW;
+        }
+      });
+    };
+
+    const drawMultilineInRect = (text, x, y, w, h, fontSize = 10, justify = true) => {
       setFont(fontSize, 'normal');
       const padding = 2;
       const maxW = Math.max(1, w - padding * 2);
       const maxH = Math.max(1, h - padding * 2);
       const lh = lineHeightMm(fontSize);
       const maxLines = Math.max(1, Math.floor(maxH / lh));
-      const lines = doc.splitTextToSize(safeText(text), maxW).slice(0, maxLines);
-      doc.text(lines, x + padding, y + padding + lh * 0.75);
+      const lines = doc.splitTextToSize(safeText(text) || '-', maxW).slice(0, maxLines);
+      const textX = x + padding;
+      let textY = y + padding + lh * 0.75;
+
+      lines.forEach((line, idx) => {
+        if (justify) {
+          drawJustifiedLine(line, textX, textY, maxW, idx === lines.length - 1);
+        } else {
+          doc.text(line, textX, textY);
+        }
+        textY += lh;
+      });
     };
 
     const drawLabelLine = (label, x, y, w) => {
@@ -1283,33 +1468,29 @@ export default function FinalizedCases() {
 
     const fullW = pageW - margin * 2;
 
-    // Estimate total height needed for the director section
-    const commentH = measureTextHeight(data.supervisingComment, fullW, 10, 30);
-    const actionH = measureTextHeight(data.decisionNote, fullW, 10, 30);
-    const totalNeeded = 6 + commentH + 10 + 6 + 5 + 5 + actionH + 12 + 10 + 52;
-
-    // Determine starting y: continue on current page if there's enough space, otherwise new page
-    let y;
-    if (startY != null && startY + totalNeeded <= pageH - margin) {
-      y = startY;
-    } else {
-      if (startY != null) {
-        // Not enough space on current page, add new page
+    const commentH = measureTextHeight(data.supervisingComment, fullW, 10, 12);
+    let y = startY != null ? startY : margin;
+    const ensureSpace = (needed = 0) => {
+      if (y + needed > pageH - margin) {
         doc.addPage();
-      } else {
-        doc.addPage();
+        y = margin;
       }
-      y = margin;
-    }
+    };
+
+    // Keep on current page whenever the next block still fits.
+    ensureSpace(4 + commentH);
 
     // Supervising Lawyer's Comment
     setFont(11, 'bold');
     doc.text("Supervising Lawyer's Comment", margin, y);
-    y += 6;
+    y += 4;
 
     doc.rect(margin, y, fullW, commentH);
-    drawMultilineInRect(data.supervisingComment, margin, y, fullW, commentH, 10);
-    y += commentH + 10;
+    drawMultilineInRect(data.supervisingComment, margin, y, fullW, commentH, 10, true);
+    y += commentH + 4;
+
+    const actionBoxH = measureTextHeight(data.decisionNote, fullW, 10, 12);
+    ensureSpace(5 + 4 + actionBoxH + 6);
 
     // Director's Action + checkboxes
     setFont(11, 'bold');
@@ -1329,20 +1510,22 @@ export default function FinalizedCases() {
     xCb = drawCheckbox(xCb, y, 'Rejected', isRejected) + gap;
     drawCheckbox(xCb, y, 'Pending', isPending);
 
-    y += 6;
+    y += 4;
     setFont(10, 'normal');
     doc.text('If accepted/pending, instruction(s); if rejected, reason(s):', margin, y);
-    y += 5;
+    y += 3;
 
-    const actionBoxH = measureTextHeight(data.decisionNote, fullW, 10, 30);
     doc.rect(margin, y, fullW, actionBoxH);
-    drawMultilineInRect(data.decisionNote, margin, y, fullW, actionBoxH, 10);
-    y += actionBoxH + 12;
+    drawMultilineInRect(data.decisionNote, margin, y, fullW, actionBoxH, 10, true);
+    y += actionBoxH + 6;
+
+    const signatureBlockEstimate = 34;
+    ensureSpace(7 + signatureBlockEstimate);
 
     // Assigned to (two columns)
     setFont(11, 'bold');
     doc.text('Assigned to:', margin, y);
-    y += 10;
+    y += 7;
 
     const colGap = 18;
     const colW = (fullW - colGap) / 2;
@@ -1362,7 +1545,7 @@ export default function FinalizedCases() {
       y,
       colW,
     );
-    y += 2;
+    y += 0.5;
     y = drawSignatureBlock(
       "Director's Signature:",
       data.directorSignature,
@@ -1371,7 +1554,7 @@ export default function FinalizedCases() {
       y,
       colW,
     );
-    y += 4;
+    y += 1;
     drawCenteredValueNearLine('Date:', data.signatureDate, rightX, y, colW, { topOffset: -0.2 });
 
     // Defensive: keep within page
@@ -1383,20 +1566,21 @@ export default function FinalizedCases() {
    * based on the provided form photo.
    */
   const drawCaseRecordHistoryRemarksPage = (doc, data = {}) => {
+    const PDF_FONT_SIZE = 10;
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 10;
     const w = pageW - margin * 2;
 
-    const setFont = (size, style = 'normal') => {
+    const setFont = (_size = PDF_FONT_SIZE, style = 'normal') => {
       doc.setFont('times', style);
-      doc.setFontSize(size);
+      doc.setFontSize(PDF_FONT_SIZE);
     };
 
     const safeText = (v) => (v == null ? '' : String(v));
 
     const mmPerPt = 0.3528;
-    const lineHeightMm = (fontSize) => fontSize * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
+    const lineHeightMm = (_fontSize = PDF_FONT_SIZE) => PDF_FONT_SIZE * mmPerPt * (doc.getLineHeightFactor?.() || 1.15);
 
     const drawMultilineInRect = (text, x, y, w, h, fontSize = 9) => {
       setFont(fontSize, 'normal');
@@ -1682,14 +1866,22 @@ export default function FinalizedCases() {
     }
   };
 
-  const handleDeleteFinalized = async (recordId) => {
+  const handleDeleteFinalized = async () => {
+    const recordId = deleteTargetCase?._id || deleteTargetCase?.id;
+    if (!recordId) return;
+
+    setDeleteLoading(true);
     try {
       await apiClient.delete(`/finalize/${recordId}`);
       dispatch({ type: 'SET_FINALIZED', payload: state.finalized.filter(f => (f._id || f.id) !== recordId) });
       notifications.show({ title: 'Deleted', message: 'Finalized record has been deleted.', color: 'green', autoClose: 3000 });
+      setDeleteModalOpened(false);
+      setDeleteTargetCase(null);
     } catch (err) {
       console.error('Delete finalized error:', err);
       notifications.show({ title: 'Error', message: 'Failed to delete finalized record.', color: 'red', autoClose: 4000 });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -2745,7 +2937,7 @@ export default function FinalizedCases() {
                 <Menu.Item leftSection={<IconTrash size={16} />} color="red"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteFinalized(recordId);
+                    openDeleteModal(f);
                   }}
                 >
                   Delete Record
@@ -2761,6 +2953,8 @@ export default function FinalizedCases() {
   const appointmentStatusLabel = state.appointmentEditMode
     ? (state.appointmentForm.status || state.appointmentDetails?.status || 'For Appointment')
     : (state.appointmentDetails?.status || 'For Appointment');
+  const deleteTargetName = deleteTargetCase?.clientName || deleteTargetCase?.content?.interviewInfo?.clientName || 'Unknown Client';
+  const deleteTargetTitle = deleteTargetCase?.caseTitle || deleteTargetCase?.content?.caseInfo?.caseTitle || deleteTargetCase?.content?.caseInfo?.title || deleteTargetCase?.caseId || deleteTargetName;
 
   return (
     <Box bg={BG} mih="100vh" py={{ base: 'sm', sm: 'xl' }}>
@@ -3744,195 +3938,144 @@ export default function FinalizedCases() {
         >
           {state.editedData && (
             <Stack gap="lg">
-              {/* Stepper Navigation */}
-              <Stepper
-                active={state.activeStep}
-                color={PRIMARY_BROWN}
-                completedIcon={<IconCircleCheck size={20} />}
-                styles={{
-                  stepLabel: { fontWeight: 600, fontSize: '14px' },
-                  stepDescription: { fontSize: '12px', color: MUTED_OLIVE },
-                }}
-              >
-                <Stepper.Step label="Interview" description="Client & Evidence" />
-                <Stepper.Step label="Action" description="Lawyer & Director" />
-              </Stepper>
-
               <Divider />
 
-              {/* Step 1: Interview Information */}
-              {state.activeStep === 0 && (
-                <Paper p="md" withBorder>
-                  <Title order={4} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
-                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mb="md">
-                    <Box>
-                      <Text size="xs" c="dimmed">Date of Interview</Text>
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
-                    </Box>
-                    <Box>
-                      <Text size="xs" c="dimmed">Date Submitted</Text>
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
-                    </Box>
-                    <Box>
-                      <Text size="xs" c="dimmed">Client's Name</Text>
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.clientName || '-'}</Text>
-                    </Box>
-                    <Box>
-                      <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
-                      <Text fw={500}>{state.editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
-                    </Box>
-                  </SimpleGrid>
-                  <Divider my="md" />
-                  <Box mb="md">
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Fast Facts</Text>
-                    {state.editMode ? (
-                      <Textarea
-                        autosize
-                        minRows={4}
-                        value={state.editedData.content?.interviewInfo?.fastFacts || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.fastFacts', e.target.value)}
-                      />
-                    ) : (
-                      <Text size="sm">{state.editedData.content?.interviewInfo?.fastFacts || '-'}</Text>
-                    )}
-                  </Box>
-                  <Divider my="md" />
-                  {renderEvidenceTable(
-                    "Evidence on Hand / Available for the Client(s)",
-                    state.editedData.content?.interviewInfo?.clientEvidence,
-                    'clientEvidence'
-                  )}
-                  {renderEvidenceTable(
-                    "Evidence on Hand / Available for the Adverse Party(ies)",
-                    state.editedData.content?.interviewInfo?.adversePartyEvidence,
-                    'adversePartyEvidence'
-                  )}
-                  <Box mb="md">
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
-                    {state.editMode ? (
-                      <Textarea
-                        autosize
-                        minRows={3}
-                        value={state.editedData.content?.interviewInfo?.internAdvice || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.internAdvice', e.target.value)}
-                      />
-                    ) : (
-                      <Text size="sm">{state.editedData.content?.interviewInfo?.internAdvice || '-'}</Text>
-                    )}
+              <Paper p="md" withBorder>
+                <Title order={4} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mb="md">
+                  <Box>
+                    <Text size="xs" c="dimmed">Date of Interview</Text>
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.dateOfInterview || '-'}</Text>
                   </Box>
                   <Box>
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
-                    {state.editMode ? (
-                      <Textarea
-                        autosize
-                        minRows={5}
-                        value={state.editedData.content?.interviewInfo?.legalOpinion || ''}
-                        onChange={(e) => updateEditedData('content.interviewInfo.legalOpinion', e.target.value)}
-                      />
-                    ) : (
-                      <Text size="sm">{state.editedData.content?.interviewInfo?.legalOpinion || '-'}</Text>
-                    )}
+                    <Text size="xs" c="dimmed">Date Submitted</Text>
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.dateSubmitted || '-'}</Text>
                   </Box>
-                </Paper>
-              )}
-
-              {/* Step 2: Action Information */}
-              {state.activeStep === 1 && (
-                <Paper p="md" withBorder>
-                  <Title order={4} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
-
-                  <Box mb="md">
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
-                    {state.editMode ? (
-                      <Textarea
-                        autosize
-                        minRows={4}
-                        value={state.editedData.content?.actionInfo?.supervisingComment || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.supervisingComment', e.target.value)}
-                      />
-                    ) : (
-                      <Text size="sm">{state.editedData.content?.actionInfo?.supervisingComment || '-'}</Text>
-                    )}
+                  <Box>
+                    <Text size="xs" c="dimmed">Client's Name</Text>
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.clientName || '-'}</Text>
                   </Box>
-                  <Divider my="md" />
-                  <Box mb="md">
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
-                    <Badge
-                      size="lg"
-                      color={
-                        state.editedData.decision === 'accepted' ? 'green' :
-                          state.editedData.decision === 'rejected' ? 'red' :
-                            'yellow'
-                      }
-                    >
-                      {(state.editedData.decision || 'pending').toUpperCase()}
-                    </Badge>
+                  <Box>
+                    <Text size="xs" c="dimmed">Interviewing Intern/s</Text>
+                    <Text fw={500}>{state.editedData.content?.interviewInfo?.interviewingInterns || '-'}</Text>
                   </Box>
-                  <Box mb="md">
-                    <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
-                    {state.editMode ? (
-                      <Textarea
-                        autosize
-                        minRows={4}
-                        value={state.editedData.content?.actionInfo?.decisionNote || ''}
-                        onChange={(e) => updateEditedData('content.actionInfo.decisionNote', e.target.value)}
-                      />
-                    ) : (
-                      <Text size="sm">{state.editedData.content?.actionInfo?.decisionNote || '-'}</Text>
-                    )}
-                  </Box>
-                  <Divider my="md" />
-                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                    <Box>
-                      <Text size="xs" c="dimmed">Assigned To</Text>
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
-                    </Box>
-                    <Box>
-                      <Text size="xs" c="dimmed">Supervising Lawyer</Text>
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
-                    </Box>
-                    <Box>
-                      <Text size="xs" c="dimmed">Director's Signature</Text>
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
-                    </Box>
-                    <Box>
-                      <Text size="xs" c="dimmed">Signature Date</Text>
-                      <Text fw={500}>{state.editedData.content?.actionInfo?.signatureDate || '-'}</Text>
-                    </Box>
-                  </SimpleGrid>
-                </Paper>
-              )}
-
-              {/* Navigation Buttons */}
-              <Divider />
-              <Group justify="space-between">
-                {state.activeStep > 0 ? (
-                  <Button
-                    variant="outline"
-                    leftSection={<IconChevronLeft size={20} />}
-                    onClick={() => dispatch({ type: 'SET_ACTIVE_STEP', payload: state.activeStep - 1 })}
-                    size="sm"
-                    styles={{
-                      root: { borderColor: '#E0E0E0', color: MUTED_OLIVE, '&:hover': { backgroundColor: THEMED_LIGHT_BG } },
-                    }}
-                  >
-                    Previous
-                  </Button>
-                ) : (
-                  <Box />
+                </SimpleGrid>
+                <Divider my="md" />
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Fast Facts</Text>
+                  {state.editMode ? (
+                    <Textarea
+                      autosize
+                      minRows={4}
+                      value={state.editedData.content?.interviewInfo?.fastFacts || ''}
+                      onChange={(e) => updateEditedData('content.interviewInfo.fastFacts', e.target.value)}
+                    />
+                  ) : (
+                    <Text size="sm">{state.editedData.content?.interviewInfo?.fastFacts || '-'}</Text>
+                  )}
+                </Box>
+                <Divider my="md" />
+                {renderEvidenceTable(
+                  "Evidence on Hand / Available for the Client(s)",
+                  state.editedData.content?.interviewInfo?.clientEvidence,
+                  'clientEvidence'
                 )}
-
-                {state.activeStep < 1 && (
-                  <Button
-                    rightSection={<IconChevronRight size={20} />}
-                    onClick={() => dispatch({ type: 'SET_ACTIVE_STEP', payload: state.activeStep + 1 })}
-                    size="sm"
-                    style={{ backgroundColor: PRIMARY_BROWN }}
-                  >
-                    Next Step
-                  </Button>
+                {renderEvidenceTable(
+                  "Evidence on Hand / Available for the Adverse Party(ies)",
+                  state.editedData.content?.interviewInfo?.adversePartyEvidence,
+                  'adversePartyEvidence'
                 )}
-              </Group>
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
+                  {state.editMode ? (
+                    <Textarea
+                      autosize
+                      minRows={3}
+                      value={state.editedData.content?.interviewInfo?.internAdvice || ''}
+                      onChange={(e) => updateEditedData('content.interviewInfo.internAdvice', e.target.value)}
+                    />
+                  ) : (
+                    <Text size="sm">{state.editedData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                  )}
+                </Box>
+                <Box>
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
+                  {state.editMode ? (
+                    <Textarea
+                      autosize
+                      minRows={5}
+                      value={state.editedData.content?.interviewInfo?.legalOpinion || ''}
+                      onChange={(e) => updateEditedData('content.interviewInfo.legalOpinion', e.target.value)}
+                    />
+                  ) : (
+                    <Text size="sm">{state.editedData.content?.interviewInfo?.legalOpinion || '-'}</Text>
+                  )}
+                </Box>
+              </Paper>
+
+              <Paper p="md" withBorder>
+                <Title order={4} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
+
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
+                  {state.editMode ? (
+                    <Textarea
+                      autosize
+                      minRows={4}
+                      value={state.editedData.content?.actionInfo?.supervisingComment || ''}
+                      onChange={(e) => updateEditedData('content.actionInfo.supervisingComment', e.target.value)}
+                    />
+                  ) : (
+                    <Text size="sm">{state.editedData.content?.actionInfo?.supervisingComment || '-'}</Text>
+                  )}
+                </Box>
+                <Divider my="md" />
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
+                  <Badge
+                    size="lg"
+                    color={
+                      state.editedData.decision === 'accepted' ? 'green' :
+                        state.editedData.decision === 'rejected' ? 'red' :
+                          'yellow'
+                    }
+                  >
+                    {(state.editedData.decision || 'pending').toUpperCase()}
+                  </Badge>
+                </Box>
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
+                  {state.editMode ? (
+                    <Textarea
+                      autosize
+                      minRows={4}
+                      value={state.editedData.content?.actionInfo?.decisionNote || ''}
+                      onChange={(e) => updateEditedData('content.actionInfo.decisionNote', e.target.value)}
+                    />
+                  ) : (
+                    <Text size="sm">{state.editedData.content?.actionInfo?.decisionNote || '-'}</Text>
+                  )}
+                </Box>
+                <Divider my="md" />
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                  <Box>
+                    <Text size="xs" c="dimmed">Assigned To</Text>
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.assignedTo || '-'}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Supervising Lawyer</Text>
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.supervisingLawyer || '-'}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Director's Signature</Text>
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.directorSignature || '-'}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed">Signature Date</Text>
+                    <Text fw={500}>{state.editedData.content?.actionInfo?.signatureDate || '-'}</Text>
+                  </Box>
+                </SimpleGrid>
+              </Paper>
             </Stack>
           )}
         </Modal>
@@ -4145,6 +4288,54 @@ export default function FinalizedCases() {
         </Paper>
       </Container>
 
+      {/* Delete Confirmation Modal */}
+      <Modal
+        opened={deleteModalOpened}
+        onClose={closeDeleteModal}
+        closeOnClickOutside={!deleteLoading}
+        closeOnEscape={!deleteLoading}
+        title={
+          <Group gap="sm">
+            <Box style={{ width: 32, height: 32, borderRadius: 8, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconAlertTriangle size={18} color="#DC2626" />
+            </Box>
+            <Title order={4} c={CHARCOAL}>Delete Finalized Record?</Title>
+          </Group>
+        }
+        size="md"
+        centered
+        styles={{ header: { borderBottom: '1px solid #F0F0F0', paddingBottom: 12 }, body: { padding: 24 } }}
+      >
+        <Stack gap="md">
+          <Text size="sm" c={MUTED_OLIVE}>
+            This will permanently delete this finalized case record from the finalized cases section.
+          </Text>
+
+          {deleteTargetCase && (
+            <Box p="sm" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #E8E3D5', borderRadius: 8 }}>
+              <Text size="xs" c={MUTED_OLIVE} fw={600} tt="uppercase" mb={4}>Selected Case</Text>
+              <Text size="sm" fw={700} c={CHARCOAL}>{deleteTargetTitle}</Text>
+              <Text size="xs" c="dimmed">
+                {deleteTargetCase.caseId ? `${deleteTargetCase.caseId} - ` : ''}{deleteTargetName}
+              </Text>
+            </Box>
+          )}
+
+          <Text size="sm" c={CHARCOAL} fw={600}>
+            Are you sure you want to continue?
+          </Text>
+
+          <Group justify="flex-end" gap="sm" mt="xs">
+            <Button variant="default" onClick={closeDeleteModal} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button color="red" leftSection={<IconTrash size={16} />} loading={deleteLoading} onClick={handleDeleteFinalized}>
+              Delete Record
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       {/* â”€â”€ Assign Case Modal â”€â”€ */}
       <Modal
         opened={assignModalOpened}
@@ -4230,6 +4421,7 @@ export default function FinalizedCases() {
 
 // --- CLIENT INFORMATION SHEET (SOLA Form 3) PDF LAYOUT ---
 const drawClientsInformationSheetPage = (doc, raw = {}) => {
+  const PDF_FONT_SIZE = 10;
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 12;
@@ -4301,9 +4493,9 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const adversePartiesCounselAddress = txt(a.adversePartyCounselAddress || a.adversePartiesCounselAddress);
   const adversePartiesCounselPhone = txt(a.adversePartyCounselPhone || a.adversePartiesCounselPhone);
 
-  const setFont = (size = 11, style = "normal") => {
+  const setFont = (_size = PDF_FONT_SIZE, style = "normal") => {
     doc.setFont("times", style);
-    doc.setFontSize(size);
+    doc.setFontSize(PDF_FONT_SIZE);
     doc.setTextColor(0, 0, 0);
   };
 
@@ -4327,7 +4519,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
       setFont(10, "normal");
       const maxW = Math.max(1, (x2 - lx) - 2);
       const lines = doc.splitTextToSize(String(value), maxW);
-      const lh = 10 * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
+      const lh = PDF_FONT_SIZE * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
       // First line sits above the underline
       doc.text(lines[0], lx + 1, y - 0.6);
       // Continuation lines: draw text + underline for each
@@ -4353,7 +4545,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
       setFont(10, "normal");
       const maxW = Math.max(1, (x2 - lx) - 2);
       const lines = doc.splitTextToSize(String(value), maxW);
-      const lh = 10 * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
+      const lh = PDF_FONT_SIZE * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
       // First line sits on the underline (above it), remaining lines go below
       if (lines.length <= 1) {
         doc.text(lines, lx + 1, y - 0.6);
@@ -4501,10 +4693,10 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   // --- CASE DETAILS ---
   // Pre-compute footer height so we can check for page overflow
   const privacyText = "DATA PRIVACY: Sebastinian Office of Legal Aid (SOLA) College of Law is committed to upholding the Philippine Data Privacy Act which implements the Constitutional right to informational privacy of data subjects. This form is operated and maintained by the SOLA. Your personal information is collected and processed in order for us to verify your identity, assess your application, and contact you about your case. Rest assured the information provided herein will be treated with utmost confidentiality.";
-  setFont(7, "normal");
+  setFont(PDF_FONT_SIZE, "normal");
   const privacyMaxW = pageW - margin * 2 - 4;
   const privacyLines = doc.splitTextToSize(privacyText, privacyMaxW);
-  const privacyLh = 7 * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
+  const privacyLh = PDF_FONT_SIZE * 0.3528 * (doc.getLineHeightFactor?.() || 1.15);
   const footerH = privacyLines.length * privacyLh + 6;
   const footerReserved = footerH + margin + 4; // space reserved at bottom for footer + padding
 
@@ -4569,7 +4761,7 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   // --- Data privacy footer box (always at bottom of last page) ---
   const footerY = pageH - margin - footerH;
   doc.rect(margin, footerY, pageW - margin * 2, footerH);
-  setFont(7, "normal");
+  setFont(PDF_FONT_SIZE, "normal");
   doc.text(privacyLines, margin + 2, footerY + 3 + privacyLh);
 };
 // Robust fetch helper: tries absolute/relative and retries with 127.0.0.1 if localhost fails,

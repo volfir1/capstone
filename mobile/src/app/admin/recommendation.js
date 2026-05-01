@@ -175,8 +175,7 @@ export default function RecommendationForAction() {
 
   const [actionInfo, setActionInfo] = useState({
     supervisingComment: '',
-    decision: '',
-    decisionNote: '',
+    supervisingLawyerDecision: '',
     assignedTo: '',
     assignedToId: null,
     supervisingLawyer: '',
@@ -205,6 +204,8 @@ export default function RecommendationForAction() {
 
   // Supervising lawyer comment disabled for roles that aren't SL, or when stage is director
   const supervisingLawyerDisabled = isIntern || normalizedRole === 'director' || currentReviewStage === 'director';
+  // Supervising lawyer action (decision) disabled unless SL and at supervising_lawyer stage
+  const supervisingLawyerActionDisabled = normalizedRole !== 'supervising_lawyer' || currentReviewStage !== 'supervising_lawyer';
   // Director section only editable by director
   const directorSectionDisabled = normalizedRole !== 'director';
   // Assignment & Signature read-only for interns/SL, and when director stage
@@ -1674,6 +1675,11 @@ export default function RecommendationForAction() {
       setActionInfo(prev => ({ ...prev, decision: prev.decision === val ? '' : val }));
     };
 
+    const handleSupervisingLawyerDecisionChange = (val) => {
+      if (supervisingLawyerActionDisabled) return;
+      setActionInfo(prev => ({ ...prev, supervisingLawyerDecision: prev.supervisingLawyerDecision === val ? '' : val }));
+    };
+
     const renderSignaturePreview = (label, url) => {
       if (!url) return null;
 
@@ -1705,6 +1711,27 @@ export default function RecommendationForAction() {
           numberOfLines={4}
           editable={!supervisingLawyerDisabled}
         />
+
+        <View style={styles.divider} />
+
+        <Text style={styles.sectionTitle}>Supervising Lawyer's Action</Text>
+
+        <Text style={styles.inputLabel}>Decision</Text>
+        <View style={styles.radioGroup}>
+          {['accepted', 'rejected', 'pending'].map((option) => (
+            <TouchableOpacity
+              key={option}
+              style={[styles.radioRow, supervisingLawyerActionDisabled && styles.disabledRow]}
+              onPress={() => handleSupervisingLawyerDecisionChange(option)}
+              disabled={supervisingLawyerActionDisabled}
+            >
+              <View style={[styles.radio, actionInfo.supervisingLawyerDecision === option && styles.radioSelected]}>
+                {actionInfo.supervisingLawyerDecision === option && <View style={styles.radioInner} />}
+              </View>
+              <Text style={styles.radioLabel}>{option.charAt(0).toUpperCase() + option.slice(1)}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <View style={styles.divider} />
 
@@ -1866,18 +1893,18 @@ export default function RecommendationForAction() {
               {/* Row 1: Save (left) + Approve to Director (right) */}
               <View style={styles.actionButtonRow}>
                 <TouchableOpacity
-                  style={[styles.gridButton, styles.outlineButton, saving && styles.buttonDisabled]}
+                  style={[styles.gridButton, styles.outlineButton, (saving || actionInfo.supervisingLawyerDecision !== 'pending') && styles.buttonDisabled]}
                   onPress={handleSaveChanges}
-                  disabled={saving}
+                  disabled={saving || actionInfo.supervisingLawyerDecision !== 'pending'}
                 >
                   {saving ? <ActivityIndicator size="small" color={PRIMARY_BROWN} /> : (
                     <><Ionicons name="save-outline" size={18} color={PRIMARY_BROWN} /><Text style={styles.outlineButtonText}>Save</Text></>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.gridButton, styles.orangeButton, saving && styles.buttonDisabled]}
+                  style={[styles.gridButton, styles.orangeButton, (saving || actionInfo.supervisingLawyerDecision !== 'accepted') && styles.buttonDisabled]}
                   onPress={handleApproveToDirector}
-                  disabled={saving}
+                  disabled={saving || actionInfo.supervisingLawyerDecision !== 'accepted'}
                 >
                   {saving ? <ActivityIndicator size="small" color="white" /> : (
                     <><Ionicons name="arrow-forward" size={18} color="white" /><Text style={styles.orangeButtonText}>Approve to Director</Text></>
@@ -1898,9 +1925,9 @@ export default function RecommendationForAction() {
                   <View style={styles.gridButton} />
                 )}
                 <TouchableOpacity
-                  style={[styles.gridButton, styles.redButton, saving && styles.buttonDisabled]}
+                  style={[styles.gridButton, styles.redButton, (saving || actionInfo.supervisingLawyerDecision !== 'rejected') && styles.buttonDisabled]}
                   onPress={handleReturnToIntern}
-                  disabled={saving}
+                  disabled={saving || actionInfo.supervisingLawyerDecision !== 'rejected'}
                 >
                   {saving ? <ActivityIndicator size="small" color="white" /> : (
                     <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to Intern</Text></>
@@ -1964,9 +1991,9 @@ export default function RecommendationForAction() {
                   <View style={styles.gridButton} />
                 )}
                 <TouchableOpacity
-                  style={[styles.gridButton, styles.redButton, (saving || !!actionInfo.decision) && styles.buttonDisabled]}
+                  style={[styles.gridButton, styles.redButton, (saving || actionInfo.decision !== 'rejected') && styles.buttonDisabled]}
                   onPress={handleReturnToSupervisingLawyer}
-                  disabled={saving || !!actionInfo.decision}
+                  disabled={saving || actionInfo.decision !== 'rejected'}
                 >
                   {saving ? <ActivityIndicator size="small" color="white" /> : (
                     <><Ionicons name="arrow-back" size={18} color="white" /><Text style={styles.redButtonText}>Return to SL</Text></>

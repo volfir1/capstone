@@ -24,7 +24,6 @@ import {
   Textarea,
   Select,
   SimpleGrid,
-  Stepper,
   Container,
   ScrollArea,
   FileButton,
@@ -41,9 +40,6 @@ import {
   IconEye,
   IconReceipt,
   IconFileText,
-  IconCircleCheck,
-  IconChevronLeft,
-  IconChevronRight,
   IconRefresh,
   IconUpload,
 } from '@tabler/icons-react';
@@ -438,7 +434,6 @@ export default function AssignedCases() {
   const [reviewData, setReviewData] = useState(null);
   const [editedReviewData, setEditedReviewData] = useState(null);
   const [reviewEditMode, setReviewEditMode] = useState(false);
-  const [reviewActiveStep, setReviewActiveStep] = useState(0);
   const [reviewSaving, setReviewSaving] = useState(false);
   const [uploadingEvidenceKey, setUploadingEvidenceKey] = useState(null);
 
@@ -520,7 +515,6 @@ export default function AssignedCases() {
     setReviewData(null);
     setEditedReviewData(null);
     setReviewEditMode(false);
-    setReviewActiveStep(0);
     setUploadingEvidenceKey(null);
     try {
       const res = await apiClient.get(`/finalize/detail/${assignment.finalizeId}`);
@@ -1137,128 +1131,93 @@ export default function AssignedCases() {
           <Center py="xl"><Loader size="lg" color={PRIMARY_BROWN} /></Center>
         ) : editedReviewData ? (
           <Stack gap="lg">
-            <ScrollArea type="scroll" scrollbarSize={0}>
-              <Stepper
-                active={reviewActiveStep}
-                color={PRIMARY_BROWN}
-                completedIcon={<IconCircleCheck size={18} />}
-                size="sm"
-                styles={{
-                  stepLabel: { fontWeight: 600, fontSize: '13px' },
-                  stepDescription: { fontSize: '11px', color: MUTED_OLIVE },
-                }}
-              >
-                <Stepper.Step label="Interview" description="Client & Evidence" />
-                <Stepper.Step label="Action" description="Lawyer & Director" />
-              </Stepper>
-            </ScrollArea>
             <Divider />
 
-            {/* Step 1 */}
-            {reviewActiveStep === 0 && (
-              <Paper p={{ base: 'sm', sm: 'md' }} withBorder radius="md">
-                <Title order={5} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mb="md">
-                  {[
-                    { label: 'Date of Interview', value: editedReviewData.content?.interviewInfo?.dateOfInterview },
-                    { label: 'Date Submitted', value: editedReviewData.content?.interviewInfo?.dateSubmitted },
-                    { label: "Client's Name", value: editedReviewData.content?.interviewInfo?.clientName },
-                    { label: 'Interviewing Intern/s', value: editedReviewData.content?.interviewInfo?.interviewingInterns },
-                  ].map(({ label, value }) => (
-                    <Box key={label}>
-                      <Text size="xs" c="dimmed">{label}</Text>
-                      <Text fw={500} size="sm">{value || '-'}</Text>
-                    </Box>
-                  ))}
-                </SimpleGrid>
-                <Divider my="md" />
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Fast Facts</Text>
-                  {reviewEditMode ? (
-                    <Textarea autosize minRows={4} value={editedReviewData.content?.interviewInfo?.fastFacts || ''} onChange={(e) => updateEditedReview('content.interviewInfo.fastFacts', e.target.value)} />
-                  ) : (
-                    <Text size="sm">{editedReviewData.content?.interviewInfo?.fastFacts || '-'}</Text>
-                  )}
-                </Box>
-                <Divider my="md" />
-                {renderEvidenceTable("Evidence for Client(s)", editedReviewData.content?.interviewInfo?.clientEvidence, 'clientEvidence')}
-                {renderEvidenceTable("Evidence for Adverse Party(ies)", editedReviewData.content?.interviewInfo?.adversePartyEvidence, 'adversePartyEvidence')}
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
-                  {reviewEditMode ? (
-                    <Textarea autosize minRows={3} value={editedReviewData.content?.interviewInfo?.internAdvice || ''} onChange={(e) => updateEditedReview('content.interviewInfo.internAdvice', e.target.value)} />
-                  ) : (
-                    <Text size="sm">{editedReviewData.content?.interviewInfo?.internAdvice || '-'}</Text>
-                  )}
-                </Box>
-                <Box>
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
-                  {reviewEditMode ? (
-                    <Textarea autosize minRows={5} value={editedReviewData.content?.interviewInfo?.legalOpinion || ''} onChange={(e) => updateEditedReview('content.interviewInfo.legalOpinion', e.target.value)} />
-                  ) : (
-                    <Text size="sm">{editedReviewData.content?.interviewInfo?.legalOpinion || '-'}</Text>
-                  )}
-                </Box>
-              </Paper>
-            )}
+            <Paper p={{ base: 'sm', sm: 'md' }} withBorder radius="md">
+              <Title order={5} c={PRIMARY_BROWN} mb="md">Client Interview Information</Title>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" mb="md">
+                {[
+                  { label: 'Date of Interview', value: editedReviewData.content?.interviewInfo?.dateOfInterview },
+                  { label: 'Date Submitted', value: editedReviewData.content?.interviewInfo?.dateSubmitted },
+                  { label: "Client's Name", value: editedReviewData.content?.interviewInfo?.clientName },
+                  { label: 'Interviewing Intern/s', value: editedReviewData.content?.interviewInfo?.interviewingInterns },
+                ].map(({ label, value }) => (
+                  <Box key={label}>
+                    <Text size="xs" c="dimmed">{label}</Text>
+                    <Text fw={500} size="sm">{value || '-'}</Text>
+                  </Box>
+                ))}
+              </SimpleGrid>
+              <Divider my="md" />
+              <Box mb="md">
+                <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Fast Facts</Text>
+                {reviewEditMode ? (
+                  <Textarea autosize minRows={4} value={editedReviewData.content?.interviewInfo?.fastFacts || ''} onChange={(e) => updateEditedReview('content.interviewInfo.fastFacts', e.target.value)} />
+                ) : (
+                  <Text size="sm">{editedReviewData.content?.interviewInfo?.fastFacts || '-'}</Text>
+                )}
+              </Box>
+              <Divider my="md" />
+              {renderEvidenceTable("Evidence for Client(s)", editedReviewData.content?.interviewInfo?.clientEvidence, 'clientEvidence')}
+              {renderEvidenceTable("Evidence for Adverse Party(ies)", editedReviewData.content?.interviewInfo?.adversePartyEvidence, 'adversePartyEvidence')}
+              <Box mb="md">
+                <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
+                {reviewEditMode ? (
+                  <Textarea autosize minRows={3} value={editedReviewData.content?.interviewInfo?.internAdvice || ''} onChange={(e) => updateEditedReview('content.interviewInfo.internAdvice', e.target.value)} />
+                ) : (
+                  <Text size="sm">{editedReviewData.content?.interviewInfo?.internAdvice || '-'}</Text>
+                )}
+              </Box>
+              <Box>
+                <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Legal Opinion</Text>
+                {reviewEditMode ? (
+                  <Textarea autosize minRows={5} value={editedReviewData.content?.interviewInfo?.legalOpinion || ''} onChange={(e) => updateEditedReview('content.interviewInfo.legalOpinion', e.target.value)} />
+                ) : (
+                  <Text size="sm">{editedReviewData.content?.interviewInfo?.legalOpinion || '-'}</Text>
+                )}
+              </Box>
+            </Paper>
 
-            {/* Step 2 */}
-            {reviewActiveStep === 1 && (
-              <Paper p={{ base: 'sm', sm: 'md' }} withBorder radius="md">
-                <Title order={5} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
-                  {reviewEditMode ? (
-                    <Textarea autosize minRows={4} value={editedReviewData.content?.actionInfo?.supervisingComment || ''} onChange={(e) => updateEditedReview('content.actionInfo.supervisingComment', e.target.value)} />
-                  ) : (
-                    <Text size="sm">{editedReviewData.content?.actionInfo?.supervisingComment || '-'}</Text>
-                  )}
-                </Box>
-                <Divider my="md" />
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
-                  <Badge size="lg" color={editedReviewData.decision === 'accepted' ? 'green' : editedReviewData.decision === 'rejected' ? 'red' : 'yellow'}>
-                    {(editedReviewData.decision || 'pending').toUpperCase()}
-                  </Badge>
-                </Box>
-                <Box mb="md">
-                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
-                  {reviewEditMode ? (
-                    <Textarea autosize minRows={4} value={editedReviewData.content?.actionInfo?.decisionNote || ''} onChange={(e) => updateEditedReview('content.actionInfo.decisionNote', e.target.value)} />
-                  ) : (
-                    <Text size="sm">{editedReviewData.content?.actionInfo?.decisionNote || '-'}</Text>
-                  )}
-                </Box>
-                <Divider my="md" />
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-                  {[
-                    { label: 'Assigned To', value: editedReviewData.content?.actionInfo?.assignedTo },
-                    { label: 'Supervising Lawyer', value: editedReviewData.content?.actionInfo?.supervisingLawyer },
-                    { label: "Director's Signature", value: editedReviewData.content?.actionInfo?.directorSignature },
-                    { label: 'Signature Date', value: editedReviewData.content?.actionInfo?.signatureDate },
-                  ].map(({ label, value }) => (
-                    <Box key={label}>
-                      <Text size="xs" c="dimmed">{label}</Text>
-                      <Text fw={500} size="sm">{value || '-'}</Text>
-                    </Box>
-                  ))}
-                </SimpleGrid>
-              </Paper>
-            )}
-
-            <Divider />
-            <Group justify="space-between">
-              {reviewActiveStep > 0 ? (
-                <Button variant="outline" leftSection={<IconChevronLeft size={18} />} onClick={() => setReviewActiveStep(0)} size="sm" styles={{ root: { borderColor: '#E0E0E0', color: MUTED_OLIVE } }}>
-                  Previous
-                </Button>
-              ) : <Box />}
-              {reviewActiveStep < 1 && (
-                <Button rightSection={<IconChevronRight size={18} />} onClick={() => setReviewActiveStep(1)} size="sm" style={{ backgroundColor: PRIMARY_BROWN }}>
-                  Next Step
-                </Button>
-              )}
-            </Group>
+            <Paper p={{ base: 'sm', sm: 'md' }} withBorder radius="md">
+              <Title order={5} c={PRIMARY_BROWN} mb="md">Supervising Lawyer & Director Action</Title>
+              <Box mb="md">
+                <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Supervising Lawyer's Comment</Text>
+                {reviewEditMode ? (
+                  <Textarea autosize minRows={4} value={editedReviewData.content?.actionInfo?.supervisingComment || ''} onChange={(e) => updateEditedReview('content.actionInfo.supervisingComment', e.target.value)} />
+                ) : (
+                  <Text size="sm">{editedReviewData.content?.actionInfo?.supervisingComment || '-'}</Text>
+                )}
+              </Box>
+              <Divider my="md" />
+              <Box mb="md">
+                <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Director's Decision</Text>
+                <Badge size="lg" color={editedReviewData.decision === 'accepted' ? 'green' : editedReviewData.decision === 'rejected' ? 'red' : 'yellow'}>
+                  {(editedReviewData.decision || 'pending').toUpperCase()}
+                </Badge>
+              </Box>
+              <Box mb="md">
+                <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Decision Note</Text>
+                {reviewEditMode ? (
+                  <Textarea autosize minRows={4} value={editedReviewData.content?.actionInfo?.decisionNote || ''} onChange={(e) => updateEditedReview('content.actionInfo.decisionNote', e.target.value)} />
+                ) : (
+                  <Text size="sm">{editedReviewData.content?.actionInfo?.decisionNote || '-'}</Text>
+                )}
+              </Box>
+              <Divider my="md" />
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                {[
+                  { label: 'Assigned To', value: editedReviewData.content?.actionInfo?.assignedTo },
+                  { label: 'Supervising Lawyer', value: editedReviewData.content?.actionInfo?.supervisingLawyer },
+                  { label: "Director's Signature", value: editedReviewData.content?.actionInfo?.directorSignature },
+                  { label: 'Signature Date', value: editedReviewData.content?.actionInfo?.signatureDate },
+                ].map(({ label, value }) => (
+                  <Box key={label}>
+                    <Text size="xs" c="dimmed">{label}</Text>
+                    <Text fw={500} size="sm">{value || '-'}</Text>
+                  </Box>
+                ))}
+              </SimpleGrid>
+            </Paper>
           </Stack>
         ) : (
           <Center py="xl"><Text c={MUTED_OLIVE}>No review data available</Text></Center>

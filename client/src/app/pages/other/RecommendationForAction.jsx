@@ -16,7 +16,6 @@ import {
     Radio,
     SimpleGrid,
     Button,
-    Stepper,
     Badge,
     FileButton,
     
@@ -28,7 +27,7 @@ import {
     Center
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconArrowLeft, IconUpload, IconFile, IconX, IconDownload, IconEye, IconClock, IconCheck } from '@tabler/icons-react'; // Added icons
+import { IconCircleCheck, IconFileText, IconArrowLeft, IconUpload, IconFile, IconX, IconDownload, IconEye, IconClock, IconCheck } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
@@ -1071,6 +1070,9 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
     // Determine if supervising lawyer section should be disabled
     const supervisingLawyerDisabled = userRole === 'intern' || userRole === 'secretary' || userRole === 'director' || currentReviewStage === 'director';
     
+    // Determine if supervising lawyer action (decision) should be disabled - Only supervising lawyer can decide at supervising_lawyer stage
+    const supervisingLawyerActionDisabled = userRole !== 'supervising_lawyer' || currentReviewStage !== 'supervising_lawyer';
+    
     // Determine if director section should be disabled - Only the director can set the decision
     const directorSectionDisabled = userRole !== 'director';
 
@@ -1082,6 +1084,11 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
       } else {
         onChange({ ...value, decision: val });
       }
+    };
+
+    const handleSupervisingLawyerDecisionChange = (val) => {
+        if (supervisingLawyerActionDisabled) return;
+        onChange({ ...value, supervisingLawyerDecision: val });
     };
 
     const renderSignaturePreview = (label, url) => {
@@ -1137,6 +1144,26 @@ export const SupervisingLawyerActionSection = React.memo(({ value = {}, onChange
                         },
                     }}
                 />
+
+            <Divider />
+
+            <Title order={3} c={PRIMARY_BROWN}>Supervising Lawyer's Action</Title>
+            <Box>
+                <Text size="sm" fw={500} mb={8}>Decision</Text>
+                <Group>
+                    {['accepted', 'rejected', 'pending'].map((opt) => (
+                        <Radio
+                            key={opt}
+                            value={opt}
+                            label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                            checked={value.supervisingLawyerDecision === opt}
+                            onChange={() => handleSupervisingLawyerDecisionChange(opt)}
+                            onClick={() => handleSupervisingLawyerDecisionChange(opt)}
+                            disabled={supervisingLawyerActionDisabled}
+                        />
+                    ))}
+                </Group>
+            </Box>
 
             <Divider />
 
@@ -1257,13 +1284,10 @@ SupervisingLawyerActionSection.displayName = 'SupervisingLawyerActionSection';
 
 
 // ====================================================================================
-// Main Wrapper Component (Managing Steps and Buttons)
+// Main Wrapper Component
 // ====================================================================================
-const totalSteps = 2;
-
 export default function CaseRecordFormsDisplay() {
     const { userData, refreshUserData } = useAuth();
-    const [active, setActive] = useState(0);
     const isIntern = userData?.role === 'intern' || userData?.role === 'secretary';
     const [reviews, setReviews] = useState([])
     const [saving, setSaving] = useState(false)
@@ -1704,9 +1728,6 @@ export default function CaseRecordFormsDisplay() {
         }
     }, [interviewInfo.caseType, uploadedFile]);
 
-    const nextStep = () => setActive((current) => (current < totalSteps - 1 ? current + 1 : current));
-    const prevStep = () => setActive((current) => (current > 0 ? current - 1 : current));
-    
     // Handler for viewing document
     const handleViewDocument = async (file, documentData) => {
         console.log('handleViewDocument called with:', { file, documentData });
@@ -2228,7 +2249,6 @@ export default function CaseRecordFormsDisplay() {
         }
 
         const directorIsFinalizingDecision = userData?.role === 'director'
-            && active === totalSteps - 1
             && (actionInfo.decision === 'accepted' || actionInfo.decision === 'rejected');
 
         if (directorIsFinalizingDecision && !userData?.signatureUrl) {
@@ -2300,7 +2320,7 @@ export default function CaseRecordFormsDisplay() {
             caseId: caseId,
             reviewerId: userData?.id || userData?._id || null,
             reviewerRole: userData?.role || null,
-            step: active,
+            step: 1,
             reviewStage: 'supervising_lawyer', // Start with supervising lawyer review
             content: { 
                 interviewInfo: completeInterviewInfo,
@@ -2340,7 +2360,7 @@ export default function CaseRecordFormsDisplay() {
             // - Open pre-filled Google Calendar event
             // - Do NOT redirect to dashboard yet
             // - Do NOT change clientsinfo status here (card must remain in Auto-Scheduled)
-            if (isFromAutoScheduledApproveFlow && active === totalSteps - 1) {
+            if (isFromAutoScheduledApproveFlow) {
                 // Pre-open a tab to avoid popup blockers (best-effort).
                 const calendarTab = window.open('about:blank', '_blank');
                 const resReview = await apiClient.post('/reviews', reviewPayload);
@@ -2405,7 +2425,7 @@ export default function CaseRecordFormsDisplay() {
             const isInternFinalize = window.__internFinalizeClicked;
             delete window.__internFinalizeClicked; // Clean up flag
             
-            if ((userData?.role === 'intern' || userData?.role === 'secretary') && active === totalSteps - 1) {
+            if (userData?.role === 'intern' || userData?.role === 'secretary') {
                 if (isInternFinalize && interviewInfo.caseType === 'legal-advice') {
                     // Intern finalizing a legal advice case
                     const statusOk = await updateCaseStatus('legal-advice');
@@ -2435,7 +2455,7 @@ export default function CaseRecordFormsDisplay() {
             }
             
             // If director/attorney finalizes record on last step, create a finalized record
-            if ((userData?.role === 'director' || userData?.role === 'attorney' || userData?.role === 'pao_lawyer' || userData?.role === 'legal_volunteer' || userData?.role === 'supervising_lawyer') && active === totalSteps - 1) {
+            if (userData?.role === 'director' || userData?.role === 'attorney' || userData?.role === 'pao_lawyer' || userData?.role === 'legal_volunteer' || userData?.role === 'supervising_lawyer') {
                 // Determine final status based on caseType and decision
                 const finalDecision = actionInfo.decision || 'accepted'; // default to accepted when finalizing
                 let finalStatus = 'confirmed';
@@ -2881,52 +2901,6 @@ export default function CaseRecordFormsDisplay() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isFromDashboard])
 
-    const renderStepContent = () => {
-        switch (active) {
-            case 0:
-                return (
-                    <ClientInterviewSection 
-                        value={interviewInfo} 
-                        onChange={setInterviewInfo}
-                        uploadedFile={uploadedFile}
-                        onFileChange={handleFileChange}
-                        documentVersions={documentVersions}
-                        onViewDocument={handleViewDocument}
-                        onDownloadDocument={handleDownloadDocument}
-                        onRemoveVersion={handleRemoveVersion}
-                        onUploadEvidenceAttachment={handleUploadEvidenceAttachment}
-                        onRemoveEvidenceAttachment={handleRemoveEvidenceAttachment}
-                        onViewEvidenceAttachment={handleViewEvidenceAttachment}
-                        onDownloadEvidenceAttachment={handleDownloadEvidenceAttachment}
-                        uploadingEvidenceKey={uploadingEvidenceKey}
-                        fileInputKey={fileInputKey}
-                        userRole={userData?.role}
-                        isViewingExistingReview={isViewingExistingReview}
-                        currentReviewStage={currentReviewStage}
-                    />
-                );
-            case 1:
-                return (
-                    <SupervisingLawyerActionSection 
-                        value={actionInfo} 
-                        onChange={setActionInfo} 
-                        forLegalAdvice={interviewInfo.forLegalAdvice}
-                        userRole={userData?.role}
-                        userData={userData}
-                        currentReviewStage={currentReviewStage}
-                    />
-                );
-            default:
-                return null;
-        }
-    };
-    
-    // Step labels for the Stepper component
-    const steps = [
-        { label: "Interview", description: "Client & Evidence" },
-        { label: "Action", description: "Lawyer & Director" },
-    ];
-
     // â”€â”€ Read-only Client Information Sheet side panel â”€â”€
     const ClientInfoSidePanel = () => {
         if (clientInfoLoading) {
@@ -3185,22 +3159,6 @@ export default function CaseRecordFormsDisplay() {
                         )}
 
                         
-
-                        {/* Stepper Display */}
-                        <Stepper 
-                            active={active} 
-                            color={PRIMARY_BROWN}
-                            completedIcon={<IconCircleCheck size={20} />}
-                            styles={{
-                                stepLabel: { fontWeight: 600, fontSize: '14px' },
-                                stepDescription: { fontSize: '12px', color: MUTED_OLIVE },
-                            }}
-                        >
-                            {steps.map((step, index) => (
-                                <Stepper.Step key={index} label={step.label} description={step.description} />
-                            ))}
-                        </Stepper>
-                        
                         <Divider />
 
                         {directorNeedsSignature && userData?.role === 'director' && currentReviewStage === 'director' && (
@@ -3211,45 +3169,39 @@ export default function CaseRecordFormsDisplay() {
                             </Alert>
                         )}
                         
-                        {/* Current Step Content */}
-                        {renderStepContent()}
+                        <ClientInterviewSection 
+                            value={interviewInfo} 
+                            onChange={setInterviewInfo}
+                            uploadedFile={uploadedFile}
+                            onFileChange={handleFileChange}
+                            documentVersions={documentVersions}
+                            onViewDocument={handleViewDocument}
+                            onDownloadDocument={handleDownloadDocument}
+                            onRemoveVersion={handleRemoveVersion}
+                            onUploadEvidenceAttachment={handleUploadEvidenceAttachment}
+                            onRemoveEvidenceAttachment={handleRemoveEvidenceAttachment}
+                            onViewEvidenceAttachment={handleViewEvidenceAttachment}
+                            onDownloadEvidenceAttachment={handleDownloadEvidenceAttachment}
+                            uploadingEvidenceKey={uploadingEvidenceKey}
+                            fileInputKey={fileInputKey}
+                            userRole={userData?.role}
+                            isViewingExistingReview={isViewingExistingReview}
+                            currentReviewStage={currentReviewStage}
+                        />
+
+                        <SupervisingLawyerActionSection 
+                            value={actionInfo} 
+                            onChange={setActionInfo} 
+                            forLegalAdvice={interviewInfo.forLegalAdvice}
+                            userRole={userData?.role}
+                            userData={userData}
+                            currentReviewStage={currentReviewStage}
+                        />
 
                         <Divider color="#F0F0F0" />
                         
-                        {/* Navigation Buttons */}
-                        <Group justify="space-between" wrap="wrap" gap="sm">
-                            {active > 0 ? (
-                                <Button 
-                                    variant="outline" 
-                                    leftSection={<IconChevronLeft size={18} />}
-                                    onClick={prevStep}
-                                    size='sm'
-                                    styles={{
-                                        root: { borderColor: '#E0E0E0', color: MUTED_OLIVE, '&:hover': { backgroundColor: THEMED_LIGHT_BG } },
-                                    }}
-                                >
-                                    Previous
-                                </Button>
-                            ) : (
-                                <Box /> // Empty box to maintain spacing
-                            )}
-                            
-                            <Group gap="sm" wrap="wrap">
-                                {/* Step 0: Always show Next Step button */}
-                                {active === 0 && (
-                                    <Button 
-                                        rightSection={<IconChevronRight size={18} />}
-                                        onClick={nextStep}
-                                        size='sm'
-                                        style={{ backgroundColor: PRIMARY_BROWN }}
-                                    >
-                                        Next Step
-                                    </Button>
-                                )}
-                                
-                                {/* Step 1: Show role-based buttons */}
-                                {active === 1 && (
-                                    <>
+                        {/* Form Action Buttons */}
+                        <Group justify="flex-end" wrap="wrap" gap="sm">
                                         {isViewingExistingReview ? (
                                             // Viewing existing review - show different buttons based on role and stage
                                             isIntern ? (
@@ -3293,7 +3245,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="outline"
                                                             style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                            disabled={saving}
+                                                            disabled={saving || actionInfo.supervisingLawyerDecision !== 'pending'}
                                                         >
                                                             {saving ? 'Saving...' : 'Save Changes'}
                                                         </Button>
@@ -3303,7 +3255,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#FF8C42' }}
-                                                            disabled={saving}
+                                                            disabled={saving || actionInfo.supervisingLawyerDecision !== 'accepted'}
                                                         >
                                                             {saving ? 'Approving...' : 'Approve to Director'}
                                                         </Button>
@@ -3313,7 +3265,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
-                                                            disabled={saving}
+                                                            disabled={saving || actionInfo.supervisingLawyerDecision !== 'rejected'}
                                                         >
                                                             {saving ? 'Returning...' : 'Return to Intern'}
                                                         </Button>
@@ -3359,7 +3311,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
-                                                            disabled={saving || !!actionInfo.decision}
+                                                            disabled={saving || actionInfo.decision !== 'rejected'}
                                                         >
                                                             {saving ? 'Returning...' : 'Return to Supervising Lawyer'}
                                                         </Button>
@@ -3427,9 +3379,6 @@ export default function CaseRecordFormsDisplay() {
                                                 {saving ? 'Saving...' : 'Finalize Record'}
                                             </Button>
                                         )}
-                                    </>
-                                )}
-                            </Group>
                         </Group>
                     </Stack>
                 </Paper>
