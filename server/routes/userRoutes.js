@@ -1,5 +1,5 @@
 import express from 'express'
-import { getProfile, getProfiles, createProfile, updateProfile, fetchUsers, updateManagedProfile, deleteManagedProfile, updateUserRole, toggleUserStatus, sendPasswordResetEmail, updateProfileImage, uploadProfileImageFile, profileImageMiddleware, getUserById, updateSignature, uploadSignature, registerPushToken, unregisterPushToken, getProfilePinStatus, setupProfilePin, verifyProfilePin, resetManagedProfilePin } from '../controller/userController.js'
+import { getProfile, getProfiles, createProfile, updateProfile, fetchUsers, updateManagedProfile, deleteManagedProfile, restoreManagedProfile, getProfileHistory, updateUserRole, toggleUserStatus, sendPasswordResetEmail, updateProfileImage, uploadProfileImageFile, profileImageMiddleware, getUserById, updateSignature, uploadSignature, registerPushToken, unregisterPushToken, getProfilePinStatus, setupProfilePin, verifyProfilePin, resetManagedProfilePin } from '../controller/userController.js'
 import { authenticateFirebaseToken, requireProfilePin } from '../firebase/authMiddleware.js'
 
 const router = express.Router()
@@ -35,10 +35,12 @@ router.post('/profile/image/upload', profileImageMiddleware, uploadProfileImageF
 router.put('/profile/signature', updateSignature)
 router.post('/profile/signature/upload', uploadSignature)
 router.get('/fetchusers', fetchUsers)
+router.get('/history', getProfileHistory)
 router.post('/:userId/pin/reset', resetManagedProfilePin)
 router.put('/:userId/pin/reset', resetManagedProfilePin)
 router.get('/:userId', getUserById)
 router.put('/:userId', updateManagedProfile)
+router.put('/:userId/restore', restoreManagedProfile)
 router.delete('/:userId', deleteManagedProfile)
 
 // User management routes (admin only)

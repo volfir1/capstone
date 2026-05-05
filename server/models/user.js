@@ -16,6 +16,12 @@ const userSchema = new mongoose.Schema({
   profileImage: { type: String, default: '' },
   signatureUrl: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  startDate: { type: Date, default: null },
+  endDate: { type: Date, default: null },
+  archivedAt: { type: Date, default: null },
+  archivedByProfileId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  restoredAt: { type: Date, default: null },
+  restoredByProfileId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   pinEnabled: { type: Boolean, default: false },
   pinHash: { type: String, default: '', select: false },
   pinResetRequired: { type: Boolean, default: false },
@@ -37,7 +43,9 @@ const userSchema = new mongoose.Schema({
 });
 
 userSchema.index({ role: 1, disabled: 1 });
+userSchema.index({ role: 1, archivedAt: 1 });
 userSchema.index({ accountId: 1, createdAt: 1 });
+userSchema.index({ accountId: 1, role: 1, archivedAt: 1 });
 userSchema.index({ firebaseUid: 1, role: 1 });
 
 const User = mongoose.model("User", userSchema);

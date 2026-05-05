@@ -3,6 +3,7 @@
 import {
   IconDashboard,
   IconUsers,
+  IconHistory,
   IconChartBar,
   IconUserCircle,
   IconBriefcase,
@@ -12,6 +13,7 @@ import {
 
 const BASE_ADMIN_NAV = [
   { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
+  { icon: IconHistory, label: "Tenure History", path: 'tenure-history', section: 'main' },
   { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
   { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
   { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },

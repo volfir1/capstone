@@ -1,0 +1,13 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "local.protocols-session",
+  "title": "Protocols Session Tools",
+  "description": "Streamable HTTP MCP scaffold for visual navigation, isolated test execution, and deep debugging.",
+  "version": "0.1.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "http://127.0.0.1:7331/mcp"
+    }
+  ]
+}

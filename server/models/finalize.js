@@ -1,8 +1,10 @@
 import mongoose from 'mongoose'
 import Counter from './counter.js'
+import { allocateFinalizeCaseNumber } from '../utils/finalizeCaseNumber.js'
 
 const FinalizeSchema = new mongoose.Schema({
   caseId: { type: String, unique: true, index: true },
+  caseNumber: { type: String, unique: true, sparse: true },
   caseTitle: { type: String, index: true },
   clientName: { type: String, index: true },
   linkedCaseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Case' }, // Reference to the Case document for chat
@@ -59,28 +61,37 @@ const FinalizeSchema = new mongoose.Schema({
   assignedCompletedAt: { type: Date },
 }, { timestamps: true })
 
-// Pre-save hook to auto-generate caseId if not provided
+// Pre-save hook to auto-generate identifiers if not provided
 FinalizeSchema.pre('save', async function(next) {
   if (this.isNew && !this.caseId) {
     try {
-      const currentYear = new Date().getFullYear()
-      const yearShort = currentYear.toString().slice(-2) // Get last 2 digits (e.g., 26 for 2026)
-      
-      // Find and increment counter for this year
+      const currentYear = new Date().getFullYear();
+      const yearShort = currentYear.toString().slice(-2);
+
       const counter = await Counter.findOneAndUpdate(
         { _id: `finalize-${currentYear}`, year: currentYear },
         { $inc: { sequence: 1 } },
         { new: true, upsert: true, setDefaultsOnInsert: true }
-      )
-      
-      // Format: case-26-0045 (4 digits padded with zeros)
-      const sequenceNumber = counter.sequence.toString().padStart(4, '0')
-      this.caseId = `case-${yearShort}-${sequenceNumber}`
-      
+      );
+
+      const sequenceNumber = String(counter.sequence || 1).padStart(4, '0');
+      this.caseId = `case-${yearShort}-${sequenceNumber}`;
+
       console.log('Generated caseId:', this.caseId)
     } catch (err) {
       console.error('Error generating caseId:', err)
       return next(err)
+    }
+  }
+
+  if (this.isNew && !this.caseNumber) {
+    try {
+      const caseCounter = await allocateFinalizeCaseNumber(this);
+      this.caseNumber = caseCounter.caseNumber;
+      console.log('Generated caseNumber:', this.caseNumber);
+    } catch (err) {
+      console.error('Error generating caseNumber:', err);
+      return next(err);
     }
   }
   next()

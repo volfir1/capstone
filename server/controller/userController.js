@@ -13,6 +13,7 @@ import {
   assertUniqueStaffProfile,
   createStaffProfileForAccount,
   listProfilesForAccount,
+  normalizeOptionalDate,
   serializeProfile,
   updateLastSelectedProfile,
 } from "../utils/accountContext.js";
@@ -129,7 +130,7 @@ const requireProfileManager = (req, res) => {
 };
 
 const MANAGED_PROFILE_FIELDS =
-  "accountId email firstName lastName username role isVerified createdAt profileImage signatureUrl disabled";
+  "accountId email firstName lastName username role isVerified createdAt startDate endDate archivedAt archivedByProfileId restoredAt restoredByProfileId profileImage signatureUrl disabled";
 const PIN_PROFILE_FIELDS =
   `${MANAGED_PROFILE_FIELDS} pinEnabled pinResetRequired pinFailedAttempts pinLockedUntil pinLastChangedAt`;
 
@@ -142,12 +143,31 @@ const findProfileInAccount = async (accountId, profileId, select = MANAGED_PROFI
 };
 
 const normalizeProfileText = (value) => String(value || "").trim();
+const hasBodyField = (body, field) => Object.prototype.hasOwnProperty.call(body || {}, field);
 const describeCurrentProfilePinState = (accountId, profile, req) =>
   describeProfilePinState({
     accountId,
     profile,
     token: getRequestedProfilePinToken(req),
   });
+
+const applyTenureDateUpdates = (profile, body) => {
+  if (hasBodyField(body, "startDate")) {
+    profile.startDate = normalizeOptionalDate(body.startDate, "Start Date");
+  }
+
+  if (hasBodyField(body, "endDate")) {
+    profile.endDate = normalizeOptionalDate(body.endDate, "End Date");
+  }
+
+  if (
+    profile.startDate &&
+    profile.endDate &&
+    profile.startDate.getTime() > profile.endDate.getTime()
+  ) {
+    throw new Error("Start Date cannot be after End Date");
+  }
+};
 
 const findPinProfileInAccount = async (accountId, profileId) => {
   if (!profileId || !mongoose.Types.ObjectId.isValid(profileId)) {
@@ -164,7 +184,10 @@ export const getProfiles = async (req, res) => {
     const account = requireAccount(req, res);
     if (!account) return;
 
-    const profiles = await listProfilesForAccount(account._id, { includeDisabled: true });
+    const profiles = await listProfilesForAccount(account._id, {
+      includeDisabled: true,
+      includeArchived: false,
+    });
     res.json({
       success: true,
       data: profiles.map((profile) => serializeProfile(profile, account)),
@@ -196,7 +219,8 @@ export const createProfile = async (req, res) => {
     const status =
       errorMessage.includes("required") ||
       errorMessage.includes("Role must") ||
-      errorMessage.includes("already exists")
+      errorMessage.includes("already exists") ||
+      errorMessage.includes("Date")
         ? 400
         : 500;
     res.status(status).json({ success: false, message: safeErrorMessage(error) });
@@ -444,7 +468,7 @@ export const fetchUsers = async (req, res) => {
     if (!account) return;
 
     const users = await User.find(
-      { accountId: account._id, role: { $in: STAFF_ROLES } },
+      { accountId: account._id, role: { $in: STAFF_ROLES }, archivedAt: null },
       MANAGED_PROFILE_FIELDS
     )
       .sort({ role: 1, firstName: 1, lastName: 1 })
@@ -507,6 +531,7 @@ export const updateManagedProfile = async (req, res) => {
     managedProfile.firstName = firstName;
     managedProfile.lastName = lastName;
     managedProfile.role = role;
+    applyTenureDateUpdates(managedProfile, req.body || {});
     await managedProfile.save();
 
     const refreshedProfile = await findProfileInAccount(account._id, managedProfile._id);
@@ -521,7 +546,8 @@ export const updateManagedProfile = async (req, res) => {
     const status =
       String(error.message || "").includes("already exists") ||
       String(error.message || "").includes("required") ||
-      String(error.message || "").includes("Invalid role")
+      String(error.message || "").includes("Invalid role") ||
+      String(error.message || "").includes("Date")
         ? 400
         : 500;
     res.status(status).json({ success: false, message: safeErrorMessage(error) });
@@ -658,6 +684,36 @@ export const resetManagedProfilePin = async (req, res) => {
   }
 };
 
+export const getProfileHistory = async (req, res) => {
+  try {
+    const adminProfile = requireAdminProfile(req, res);
+    if (!adminProfile) return;
+
+    const account = requireAccount(req, res);
+    if (!account) return;
+
+    const roleFilter = PROFILE_MANAGER_ROLES.has(adminProfile.role)
+      ? { $in: STAFF_ROLES }
+      : adminProfile.role;
+
+    const profiles = await User.find(
+      { accountId: account._id, role: roleFilter },
+      MANAGED_PROFILE_FIELDS
+    )
+      .sort({ role: 1, archivedAt: 1, startDate: 1, firstName: 1, lastName: 1 })
+      .lean();
+
+    res.json({
+      success: true,
+      count: profiles.length,
+      data: profiles.map((profile) => serializeProfile(profile, account)),
+    });
+  } catch (error) {
+    console.error("Get profile history error:", error);
+    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
 export const deleteManagedProfile = async (req, res) => {
   try {
     const managerProfile = requireProfileManager(req, res);
@@ -671,16 +727,47 @@ export const deleteManagedProfile = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid profile id" });
     }
 
-    const deletedProfile = await User.findOneAndDelete({
+    const profileToArchive = await User.findOne({
       _id: userId,
       accountId: account._id,
+      role: { $in: STAFF_ROLES },
+      archivedAt: null,
     }).select(MANAGED_PROFILE_FIELDS);
 
-    if (!deletedProfile) {
+    if (!profileToArchive) {
       return res.status(404).json({ success: false, message: "Profile not found" });
     }
 
-    if (account.lastSelectedProfileId?.toString?.() === deletedProfile._id.toString()) {
+    const fallbackEndDate = profileToArchive.endDate || new Date();
+    const archivedEndDate = normalizeOptionalDate(
+      req.body?.endDate ?? fallbackEndDate,
+      "End Date"
+    );
+
+    if (!archivedEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: "End Date is required before archiving a profile",
+      });
+    }
+
+    if (
+      profileToArchive.startDate &&
+      profileToArchive.startDate.getTime() > archivedEndDate.getTime()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "End Date cannot be before Start Date",
+      });
+    }
+
+    profileToArchive.endDate = archivedEndDate;
+    profileToArchive.archivedAt = new Date();
+    profileToArchive.archivedByProfileId = managerProfile._id;
+    profileToArchive.disabled = true;
+    await profileToArchive.save();
+
+    if (account.lastSelectedProfileId?.toString?.() === profileToArchive._id.toString()) {
       await Account.findByIdAndUpdate(account._id, {
         lastSelectedProfileId: null,
       });
@@ -688,14 +775,67 @@ export const deleteManagedProfile = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        deletedProfileId: deletedProfile._id.toString(),
-      },
-      message: "Profile deleted successfully",
+      data: serializeProfile(profileToArchive, account),
+      message: "Profile archived successfully",
     });
   } catch (error) {
-    console.error("Delete managed profile error:", error);
-    res.status(500).json({ success: false, message: safeErrorMessage(error) });
+    console.error("Archive managed profile error:", error);
+    const status = String(error.message || "").includes("Date") ? 400 : 500;
+    res.status(status).json({ success: false, message: safeErrorMessage(error) });
+  }
+};
+
+export const restoreManagedProfile = async (req, res) => {
+  try {
+    const managerProfile = requireProfileManager(req, res);
+    if (!managerProfile) return;
+
+    const account = requireAccount(req, res);
+    if (!account) return;
+
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid profile id" });
+    }
+
+    const archivedProfile = await User.findOne({
+      _id: userId,
+      accountId: account._id,
+      role: { $in: STAFF_ROLES },
+      archivedAt: { $ne: null },
+    }).select(MANAGED_PROFILE_FIELDS);
+
+    if (!archivedProfile) {
+      return res.status(404).json({ success: false, message: "Archived profile not found" });
+    }
+
+    await assertUniqueStaffProfile(
+      account._id,
+      {
+        firstName: archivedProfile.firstName,
+        lastName: archivedProfile.lastName,
+        role: archivedProfile.role,
+      },
+      archivedProfile._id
+    );
+
+    archivedProfile.archivedAt = null;
+    archivedProfile.archivedByProfileId = null;
+    archivedProfile.restoredAt = new Date();
+    archivedProfile.restoredByProfileId = managerProfile._id;
+    archivedProfile.endDate = null;
+    archivedProfile.disabled = false;
+    await archivedProfile.save();
+
+    res.json({
+      success: true,
+      data: serializeProfile(archivedProfile, account),
+      message: "Profile restored successfully",
+    });
+  } catch (error) {
+    console.error("Restore managed profile error:", error);
+    const status = String(error.message || "").includes("already exists") ? 400 : 500;
+    res.status(status).json({ success: false, message: safeErrorMessage(error) });
   }
 };
 

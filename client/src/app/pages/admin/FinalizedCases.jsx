@@ -102,6 +102,9 @@ const APPOINTMENT_STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
+const getFinalizedDisplayCode = (record) => String(record?.caseNumber || '').trim();
+const getFinalizedSearchCode = (record) => String(record?.caseNumber || record?.caseId || '').trim();
+
 /* Chat UI disabled per checklist. Keeping component here commented
    so it can be restored later if needed. */
 /*
@@ -1734,9 +1737,9 @@ export default function FinalizedCases() {
     if (state.searchTerm.trim()) {
       const search = state.searchTerm.toLowerCase().trim();
       filtered = filtered.filter(f => {
-        const caseId = (f.caseId || '').toLowerCase();
+        const caseCode = getFinalizedSearchCode(f).toLowerCase();
         const clientName = (f.clientName || f.content?.interviewInfo?.clientName || '').toLowerCase();
-        return caseId.includes(search) || clientName.includes(search);
+        return caseCode.includes(search) || clientName.includes(search);
       });
     }
 
@@ -1769,9 +1772,9 @@ export default function FinalizedCases() {
     if (state.searchTerm.trim()) {
       const search = state.searchTerm.toLowerCase().trim();
       filtered = filtered.filter(f => {
-        const caseId = (f.caseId || '').toLowerCase();
+        const caseCode = getFinalizedSearchCode(f).toLowerCase();
         const clientName = (f.clientName || f.content?.interviewInfo?.clientName || '').toLowerCase();
-        return caseId.includes(search) || clientName.includes(search);
+        return caseCode.includes(search) || clientName.includes(search);
       });
     }
     // Apply case type filter
@@ -2818,11 +2821,11 @@ export default function FinalizedCases() {
     const recordId = f._id || f.id;
     const hasRecord = recordId ? state.caseRecordsMap[recordId] : false;
     const clientName = f.clientName || f.content?.interviewInfo?.clientName || 'Unknown Client';
+    const caseCode = getFinalizedDisplayCode(f);
     const displayTitle = hasRecord
-      ? (f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || f.caseId || clientName)
+      ? (f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || caseCode || clientName)
       : clientName;
     const caseNature = f.content?.caseInfo?.nature || f.category;
-    const truncatedId = f.caseId ? (f.caseId.length > 8 ? '#' + f.caseId.slice(0, 8) : '#' + f.caseId) : null;
     const dateStr = f.createdAt ? new Date(f.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No Date';
     const { icon: CaseIcon, color: iconColor } = getCaseTypeIcon(f);
     const roleDisplay = (f.finalizedRole || f.finalizedBy || 'Secretary');
@@ -2835,7 +2838,7 @@ export default function FinalizedCases() {
 
     return (
       <Paper
-        key={recordId || f.caseId}
+        key={recordId || caseCode || f.caseId}
         px="md"
         py={12}
         radius="md"
@@ -2848,20 +2851,28 @@ export default function FinalizedCases() {
               <CaseIcon size={16} color={iconColor} />
             </Box>
             <Box style={{ flex: 1, minWidth: 0 }}>
-              <Group gap={8} wrap="nowrap" align="center">
-                <Text fw={700} size="sm" truncate>{displayTitle}</Text>
-                {truncatedId && (
-                  <Text size="xs" c="dimmed" ff="monospace" style={{ flexShrink: 0, opacity: 0.7 }}>{truncatedId}</Text>
+              <Stack gap={2}>
+                <Group gap={8} wrap="nowrap" align="center">
+                  <Text fw={700} size="sm" truncate>{displayTitle}</Text>
+                </Group>
+                {caseCode ? (
+                  <Text size="xs" fw={700} c={PRIMARY_BROWN} ff="monospace" style={{ lineHeight: 1.2 }}>
+                    Case Code: {caseCode}
+                  </Text>
+                ) : (
+                  <Text size="xs" c="dimmed" style={{ lineHeight: 1.2 }}>
+                    Case Code: pending
+                  </Text>
                 )}
-              </Group>
-              <Group gap={4} mt={2} wrap="nowrap">
-                <Text size="xs" c="dimmed">{dateStr}</Text>
-                {/* caseNature (category/case type) label removed per request */}
-                <Text size="xs" c="dimmed">Â·</Text>
-                <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-                  {capitalizedRole}
-                </Text>
-              </Group>
+                <Group gap={4} mt={1} wrap="nowrap">
+                  <Text size="xs" c="dimmed">{dateStr}</Text>
+                  {/* caseNature (category/case type) label removed per request */}
+                  <Text size="xs" c="dimmed">Â·</Text>
+                  <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+                    {capitalizedRole}
+                  </Text>
+                </Group>
+              </Stack>
             </Box>
           </Group>
 
@@ -2954,7 +2965,7 @@ export default function FinalizedCases() {
     ? (state.appointmentForm.status || state.appointmentDetails?.status || 'For Appointment')
     : (state.appointmentDetails?.status || 'For Appointment');
   const deleteTargetName = deleteTargetCase?.clientName || deleteTargetCase?.content?.interviewInfo?.clientName || 'Unknown Client';
-  const deleteTargetTitle = deleteTargetCase?.caseTitle || deleteTargetCase?.content?.caseInfo?.caseTitle || deleteTargetCase?.content?.caseInfo?.title || deleteTargetCase?.caseId || deleteTargetName;
+  const deleteTargetTitle = deleteTargetCase?.caseTitle || deleteTargetCase?.content?.caseInfo?.caseTitle || deleteTargetCase?.content?.caseInfo?.title || getFinalizedDisplayCode(deleteTargetCase) || deleteTargetName;
 
   return (
     <Box bg={BG} mih="100vh" py={{ base: 'sm', sm: 'xl' }}>
@@ -3071,7 +3082,7 @@ export default function FinalizedCases() {
                 <Group justify="space-between">
                   <Box>
                     <Text size="sm" fw={600}>
-                      {state.selectedCaseForVersions.caseId}
+                      {getFinalizedDisplayCode(state.selectedCaseForVersions)}
                     </Text>
                     <Text size="xs" c="dimmed">
                       {state.selectedCaseForVersions.content?.interviewInfo?.clientName || 'Unknown Client'}
@@ -4316,7 +4327,7 @@ export default function FinalizedCases() {
               <Text size="xs" c={MUTED_OLIVE} fw={600} tt="uppercase" mb={4}>Selected Case</Text>
               <Text size="sm" fw={700} c={CHARCOAL}>{deleteTargetTitle}</Text>
               <Text size="xs" c="dimmed">
-                {deleteTargetCase.caseId ? `${deleteTargetCase.caseId} - ` : ''}{deleteTargetName}
+                {getFinalizedDisplayCode(deleteTargetCase) ? `${getFinalizedDisplayCode(deleteTargetCase)} - ` : ''}{deleteTargetName}
               </Text>
             </Box>
           )}
@@ -4357,7 +4368,7 @@ export default function FinalizedCases() {
             <Paper p="sm" radius="md" style={{ backgroundColor: THEMED_LIGHT_BG, border: '1px solid #E8E3D5' }}>
               <Text size="xs" c={MUTED_OLIVE} fw={600} tt="uppercase" mb={4}>Case</Text>
               <Text size="sm" fw={600} c={CHARCOAL}>{assignTargetCase.caseTitle || 'Untitled'}</Text>
-              <Text size="xs" c="dimmed">{assignTargetCase.caseId} Â· {assignTargetCase.clientName || 'No client'}</Text>
+              <Text size="xs" c="dimmed">{getFinalizedDisplayCode(assignTargetCase)} Â· {assignTargetCase.clientName || 'No client'}</Text>
             </Paper>
 
             <Select

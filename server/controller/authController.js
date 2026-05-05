@@ -177,12 +177,15 @@ export const getAccountContext = async (req, res) => {
       });
     }
 
-    const profiles = await listProfilesForAccount(account._id, { includeDisabled: true });
+    const profiles = await listProfilesForAccount(account._id, {
+      includeDisabled: true,
+      includeArchived: false,
+    });
     const requestedProfileId = getRequestedProfileId(req);
     const activeProfile = await resolveActiveProfileForAccount(
       account._id,
       requestedProfileId,
-      { allowFallback: false, includeDisabled: true }
+      { allowFallback: false, includeDisabled: true, includeArchived: false }
     );
 
     if (activeProfile) {

@@ -84,6 +84,8 @@ const EMPTY_FORM = {
   firstName: "",
   lastName: "",
   role: "",
+  startDate: "",
+  endDate: "",
 };
 
 const formatRole = (role) => ROLE_LABELS[role] || "Profile";
@@ -105,6 +107,28 @@ const getRoleBadgeStyle = (role) => {
 
 const normalizeProfileValue = (value) => String(value || "").trim().toLowerCase();
 
+const toDateInputValue = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+};
+
+const getTodayInputValue = () => toDateInputValue(new Date());
+
+const formatDisplayDate = (value, fallback = "Not set") => {
+  if (!value) return fallback;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 const validateProfileDraft = (draft, profiles, editingId = "") => {
   const firstName = String(draft.firstName || "").trim();
   const lastName = String(draft.lastName || "").trim();
@@ -112,6 +136,10 @@ const validateProfileDraft = (draft, profiles, editingId = "") => {
 
   if (!firstName || !lastName || !role) {
     return "Please enter a first name, last name, and role.";
+  }
+
+  if (draft.startDate && draft.endDate && new Date(draft.startDate) > new Date(draft.endDate)) {
+    return "Start Date cannot be after End Date.";
   }
 
   const duplicate = profiles.some((profile) => {
@@ -194,7 +222,7 @@ function ProfileCard({ row, onEdit, onResetPin, onToggleStatus, onDelete }) {
             </Menu.Item>
             <Menu.Divider />
             <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => onDelete(row)}>
-              Delete Profile
+              Archive Profile
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>
@@ -216,7 +244,10 @@ function ProfileCard({ row, onEdit, onResetPin, onToggleStatus, onDelete }) {
         </Group>
 
         <Text size="xs" c={MUTED_OLIVE}>
-          Joined {row.date}
+          Start {row.startDateLabel}
+        </Text>
+        <Text size="xs" c={MUTED_OLIVE}>
+          End {row.endDateLabel}
         </Text>
         <Text size="xs" c={row.pinStatus === "PIN ready" ? "#2F6B3E" : MUTED_OLIVE}>
           {row.pinStatus}
@@ -251,6 +282,7 @@ export default function UserManagementTable() {
 
   const [deleteModalOpened, setDeleteModalOpened] = useState(false);
   const [profileToDelete, setProfileToDelete] = useState(null);
+  const [archiveEndDate, setArchiveEndDate] = useState("");
   const [pinResetModalOpened, setPinResetModalOpened] = useState(false);
   const [profileToResetPin, setProfileToResetPin] = useState(null);
 
@@ -263,16 +295,16 @@ export default function UserManagementTable() {
         lastName: profile.lastName,
         email: profile.email,
         role: profile.role,
+        startDate: toDateInputValue(profile.startDate),
+        endDate: toDateInputValue(profile.endDate),
+        startDateLabel: formatDisplayDate(profile.startDate),
+        endDateLabel: formatDisplayDate(profile.endDate, "Present"),
         status: profile.disabled ? "Inactive" : "Active",
         disabled: profile.disabled || false,
         isCurrent: activeProfileId === profile.id,
         isLastUsed: accountData?.lastSelectedProfileId === profile.id,
         pinStatus: !profile.pinEnabled || profile.pinResetRequired ? "PIN setup needed" : "PIN ready",
-        date: new Date(profile.createdAt).toLocaleDateString("en-US", {
-          month: "numeric",
-          day: "numeric",
-          year: "numeric",
-        }),
+        date: formatDisplayDate(profile.createdAt),
       })),
     [profiles, activeProfileId, accountData?.lastSelectedProfileId]
   );
@@ -329,6 +361,8 @@ export default function UserManagementTable() {
       firstName: profile.firstName,
       lastName: profile.lastName,
       role: profile.role,
+      startDate: profile.startDate,
+      endDate: profile.endDate,
     });
     setProfileModalOpened(true);
   };
@@ -416,6 +450,7 @@ export default function UserManagementTable() {
 
   const handleConfirmDelete = (profile) => {
     setProfileToDelete(profile);
+    setArchiveEndDate(profile.endDate || getTodayInputValue());
     setDeleteModalOpened(true);
   };
 
@@ -462,18 +497,37 @@ export default function UserManagementTable() {
   const handleDeleteProfile = async () => {
     if (!profileToDelete) return;
 
+    if (!archiveEndDate) {
+      notifications.show({
+        title: "End Date needed",
+        message: "Set the profile End Date before moving it to legacy history.",
+        color: "yellow",
+      });
+      return;
+    }
+
+    if (profileToDelete.startDate && new Date(profileToDelete.startDate) > new Date(archiveEndDate)) {
+      notifications.show({
+        title: "Check tenure dates",
+        message: "End Date cannot be before the profile Start Date.",
+        color: "yellow",
+      });
+      return;
+    }
+
     setActionLoading(true);
     try {
-      await deleteManagedProfile(profileToDelete.id);
+      await deleteManagedProfile(profileToDelete.id, { endDate: archiveEndDate });
       notifications.show({
-        title: "Profile deleted",
-        message: `${profileToDelete.name} has been removed from this shared account.`,
+        title: "Profile archived",
+        message: `${profileToDelete.name} has been moved to legacy history.`,
         color: "green",
       });
 
       const wasCurrentProfile = profileToDelete.isCurrent;
       setDeleteModalOpened(false);
       setProfileToDelete(null);
+      setArchiveEndDate("");
 
       if (wasCurrentProfile) {
         clearSelectedProfile();
@@ -485,8 +539,8 @@ export default function UserManagementTable() {
       await syncProfileViews();
     } catch (deleteError) {
       notifications.show({
-        title: "Delete failed",
-        message: deleteError.message || "We couldn't delete this profile.",
+        title: "Archive failed",
+        message: deleteError.message || "We couldn't archive this profile.",
         color: "red",
       });
     } finally {
@@ -581,7 +635,10 @@ export default function UserManagementTable() {
         </Group>
       </Table.Td>
       <Table.Td style={{ color: MUTED_OLIVE, fontSize: "14px", padding: "14px 20px" }}>
-        {row.date}
+        {row.startDateLabel}
+      </Table.Td>
+      <Table.Td style={{ color: MUTED_OLIVE, fontSize: "14px", padding: "14px 20px" }}>
+        {row.endDateLabel}
       </Table.Td>
       <Table.Td style={{ padding: "14px 20px" }}>
         <Group gap={8} justify="flex-end">
@@ -607,7 +664,7 @@ export default function UserManagementTable() {
               </Menu.Item>
               <Menu.Divider />
               <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => handleConfirmDelete(row)}>
-                Delete Profile
+                Archive Profile
               </Menu.Item>
             </Menu.Dropdown>
           </Menu>
@@ -667,6 +724,32 @@ export default function UserManagementTable() {
             }
             allowDeselect={false}
           />
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <TextInput
+              type="date"
+              label="Start Date"
+              value={profileForm.startDate}
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                setProfileForm((current) => ({
+                  ...current,
+                  startDate: nextValue,
+                }))
+              }}
+            />
+            <TextInput
+              type="date"
+              label="End Date"
+              value={profileForm.endDate}
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                setProfileForm((current) => ({
+                  ...current,
+                  endDate: nextValue,
+                }))
+              }}
+            />
+          </SimpleGrid>
           <Group justify="flex-end" mt="md">
             <Button variant="outline" onClick={resetProfileModal} disabled={actionLoading}>
               Cancel
@@ -724,28 +807,44 @@ export default function UserManagementTable() {
           if (actionLoading) return;
           setDeleteModalOpened(false);
           setProfileToDelete(null);
+          setArchiveEndDate("");
         }}
-        title="Delete Profile"
+        title="Archive Profile"
         centered
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Remove <strong>{profileToDelete?.name}</strong> from this shared account?
+            Move <strong>{profileToDelete?.name}</strong> from active profiles to legacy history?
           </Text>
           <Text size="sm" c="dimmed">
-            This removes the profile from future profile selection and login sessions.
+            This removes the profile from future profile selection and records the End Date below.
           </Text>
+          <TextInput
+            type="date"
+            label="End Date"
+            value={archiveEndDate}
+            onChange={(event) => setArchiveEndDate(event.currentTarget.value)}
+            required
+          />
           {profileToDelete?.isCurrent && (
             <Text size="sm" c="red">
-              This is the profile currently being used. Deleting it will send this session back to profile selection.
+              This is the profile currently being used. Archiving it will send this session back to profile selection.
             </Text>
           )}
           <Group justify="flex-end" mt="md">
-            <Button variant="outline" onClick={() => setDeleteModalOpened(false)} disabled={actionLoading}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteModalOpened(false);
+                setProfileToDelete(null);
+                setArchiveEndDate("");
+              }}
+              disabled={actionLoading}
+            >
               Cancel
             </Button>
             <Button color="red" loading={actionLoading} onClick={handleDeleteProfile}>
-              Delete Profile
+              Archive Profile
             </Button>
           </Group>
         </Stack>
@@ -768,7 +867,7 @@ export default function UserManagementTable() {
                 Manage Profiles
               </Title>
               <Text size="sm" c={MUTED_OLIVE} mt={2}>
-                Add, update, disable, and remove role-based profiles under the shared SOLA login.
+                Add, update, disable, and archive role-based profiles under the shared SOLA login.
               </Text>
             </Box>
 
@@ -898,7 +997,7 @@ export default function UserManagementTable() {
               <Table>
                 <Table.Thead>
                   <Table.Tr style={{ backgroundColor: "#F9FAFB" }}>
-                    {["Profile", "Assigned Role", "Status", "Created", "Actions"].map((heading, index) => (
+                    {["Profile", "Assigned Role", "Status", "Start Date", "End Date", "Actions"].map((heading, index) => (
                       <Table.Th
                         key={heading}
                         style={{
@@ -909,7 +1008,7 @@ export default function UserManagementTable() {
                           letterSpacing: "0.5px",
                           padding: "12px 20px",
                           borderBottom: "1px solid #E5E7EB",
-                          textAlign: index === 4 ? "right" : "left",
+                          textAlign: index === 5 ? "right" : "left",
                         }}
                       >
                         {heading}

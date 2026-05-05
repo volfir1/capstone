@@ -3,13 +3,12 @@ import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
 import "@mantine/charts/styles.css";
 import "@mantine/notifications/styles.css";
-import { createTheme, MantineProvider } from "@mantine/core";
+import { Box, Group, Paper, Skeleton, Stack, createTheme, MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { DatesProvider } from "@mantine/dates";
 import { lazy, Suspense } from "react";
 import AuthProvider, { useAuth } from "../context/authContext";
 import { Layout } from "../components/layout/Layout";
-import { Loaders } from "../components/ui/Loader";
 
 // Auth
 const Signup         = lazy(() => import("./pages/auth/Signup/Signup"));
@@ -27,6 +26,7 @@ const PageNotFound = lazy(() => import("./pages/other/PageNotFound"));
 // Admin pages
 const AdminDashboard          = lazy(() => import("./pages/admin/Dashboard"));
 const UserManagement          = lazy(() => import("./pages/admin/userManagement"));
+const TenureHistory           = lazy(() => import("./pages/admin/TenureHistory"));
 const FinalizedCases          = lazy(() => import("./pages/admin/FinalizedCases"));
 const AssignedCases           = lazy(() => import("./pages/admin/AssignedCases"));
 const Analytics               = lazy(() => import("./pages/admin/Analytics"));
@@ -46,6 +46,101 @@ const PROFILE_MANAGER_ROLES = new Set(['secretary', 'director']);
 
 const theme = createTheme({ fontFamily: "Montserrat, sans-serif" });
 
+function AdminPageFallback() {
+  return (
+    <Box p={{ base: "md", sm: "xl" }}>
+      <Stack gap="lg">
+        <Box>
+          <Skeleton height={28} width={220} radius="sm" />
+          <Skeleton height={14} width={360} mt="sm" radius="sm" />
+        </Box>
+
+        <Group grow align="stretch" visibleFrom="sm">
+          {[0, 1, 2].map((item) => (
+            <Paper key={item} p="lg" radius="lg" bg="white" style={{ border: "1px solid #F0F0F0" }}>
+              <Skeleton height={12} width="45%" radius="sm" />
+              <Skeleton height={26} width="70%" mt="md" radius="sm" />
+            </Paper>
+          ))}
+        </Group>
+
+        <Paper p="lg" radius="lg" bg="white" style={{ border: "1px solid #F0F0F0" }}>
+          <Stack gap="sm">
+            <Skeleton height={16} width="100%" radius="sm" />
+            <Skeleton height={16} width="92%" radius="sm" />
+            <Skeleton height={16} width="96%" radius="sm" />
+            <Skeleton height={16} width="88%" radius="sm" />
+          </Stack>
+        </Paper>
+      </Stack>
+    </Box>
+  );
+}
+
+function AppLoadingFallback({ shell = false }) {
+  if (shell) {
+    return (
+      <Box bg="#FAF8F4" mih="100vh">
+        <Box h={60} bg="white" style={{ borderBottom: "1px solid #ECECEC" }}>
+          <Group h="100%" px="lg" justify="space-between">
+            <Group gap="sm">
+              <Skeleton height={34} width={34} radius="xl" />
+              <Box>
+                <Skeleton height={14} width={72} radius="sm" />
+                <Skeleton height={8} width={190} mt={6} radius="sm" />
+              </Box>
+            </Group>
+            <Group gap="xs">
+              <Skeleton height={34} width={34} radius="xl" />
+              <Skeleton height={34} width={34} radius="xl" />
+            </Group>
+          </Group>
+        </Box>
+
+        <Group align="stretch" gap={0}>
+          <Box visibleFrom="sm" w={260} bg="white" mih="calc(100vh - 60px)" p="lg" style={{ borderRight: "1px solid #E8E8E8" }}>
+            <Stack gap="sm">
+              <Skeleton height={12} width={58} radius="sm" mb={8} />
+              {[0, 1, 2, 3, 4].map((item) => (
+                <Skeleton key={item} height={38} radius="md" />
+              ))}
+            </Stack>
+          </Box>
+          <Box style={{ flex: 1 }}>
+            <AdminPageFallback />
+          </Box>
+        </Group>
+      </Box>
+    );
+  }
+
+  return (
+    <Box bg="#FAF8F4" mih="100vh" p={{ base: "md", sm: "xl" }}>
+      <Stack maw={920} mx="auto" gap="lg">
+        <Group justify="space-between" mt="xl">
+          <Group gap="sm">
+            <Skeleton height={40} width={40} radius="xl" />
+            <Box>
+              <Skeleton height={18} width={96} radius="sm" />
+              <Skeleton height={10} width={220} mt={8} radius="sm" />
+            </Box>
+          </Group>
+          <Skeleton height={36} width={120} radius="md" />
+        </Group>
+
+        <Paper p={{ base: "lg", sm: "xl" }} radius="lg" bg="white" style={{ border: "1px solid #F0F0F0" }}>
+          <Stack gap="md">
+            <Skeleton height={30} width="48%" radius="sm" />
+            <Skeleton height={14} width="78%" radius="sm" />
+            <Skeleton height={14} width="64%" radius="sm" />
+            <Skeleton height={42} width="100%" mt="md" radius="md" />
+          </Stack>
+        </Paper>
+      </Stack>
+    </Box>
+  );
+}
+
 function ProtectedRoute({ children }) {
   const {
     userLoggedIn,
@@ -58,7 +153,7 @@ function ProtectedRoute({ children }) {
     requiresPinVerification,
   } = useAuth();
 
-  if (loading) return <Loaders height={window.innerHeight} />;
+  if (loading) return <AppLoadingFallback shell />;
   if (!userLoggedIn) return <Navigate to="/auth/admin" replace />;
   if (!isVerified) return <Navigate to="/auth/admin" replace />;
   if (requiresProfileSelection || !activeProfileId) {
@@ -76,7 +171,7 @@ function ProtectedRoute({ children }) {
 function RoleProtectedRoute({ children, allowedRoles }) {
   const { loading, userData } = useAuth();
 
-  if (loading) return <Loaders height={window.innerHeight} />;
+  if (loading) return <AppLoadingFallback shell />;
   if (!allowedRoles.has(userData?.role)) {
     return <Navigate to="/admin" replace />;
   }
@@ -96,7 +191,7 @@ function AuthEntryRoute({ children }) {
     requiresPinVerification,
   } = useAuth();
 
-  if (loading) return <Loaders height={window.innerHeight} />;
+  if (loading) return <AppLoadingFallback />;
   if (!userLoggedIn || !isVerified) return children;
   if (requiresProfileSelection || !activeProfileId) {
     return <Navigate to="/auth/profiles" replace />;
@@ -120,7 +215,7 @@ function ProfileSelectionRoute({ children }) {
     requiresPinVerification,
   } = useAuth();
 
-  if (loading) return <Loaders height={window.innerHeight} />;
+  if (loading) return <AppLoadingFallback />;
   if (!userLoggedIn || !isVerified) return <Navigate to="/auth/admin" replace />;
   if (!requiresProfileSelection && activeProfileId) {
     if (requiresPinSetup || requiresPinVerification || !userData) {
@@ -144,7 +239,7 @@ function ProfilePinRoute({ children }) {
     requiresPinVerification,
   } = useAuth();
 
-  if (loading) return <Loaders height={window.innerHeight} />;
+  if (loading) return <AppLoadingFallback />;
   if (!userLoggedIn || !isVerified) return <Navigate to="/auth/admin" replace />;
   if (requiresProfileSelection || !activeProfileId) {
     return <Navigate to="/auth/profiles" replace />;
@@ -161,11 +256,11 @@ function AppRoutes() {
   const location = useLocation();
 
   if (loading && !location.pathname.startsWith('/auth')) {
-    return <Loaders height={window.innerHeight} />;
+    return <AppLoadingFallback shell={location.pathname.startsWith('/admin')} />;
   }
 
   return (
-    <Suspense fallback={<Loaders height={window.innerHeight} />}>
+    <Suspense fallback={<AppLoadingFallback shell={location.pathname.startsWith('/admin')} />}>
       <Routes>
         {/* Public */}
         <Route path="/"                element={<LandingPage />} />
@@ -220,7 +315,11 @@ function AppRoutes() {
           path="/admin"
           element={
             <ProtectedRoute>
-              <Layout><Outlet /></Layout>
+              <Layout>
+                <Suspense fallback={<AdminPageFallback />}>
+                  <Outlet />
+                </Suspense>
+              </Layout>
             </ProtectedRoute>
           }
         >
@@ -233,6 +332,7 @@ function AppRoutes() {
               </RoleProtectedRoute>
             }
           />
+          <Route path="tenure-history"         element={<TenureHistory />} />
           <Route path="recommendation/:caseId?" element={<RecommendationForAction />} />
           <Route path="assigned-cases"          element={<AssignedCases />} />
           <Route path="finalized"               element={<FinalizedCases />} />

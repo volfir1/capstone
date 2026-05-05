@@ -1,23 +1,30 @@
-import { Quantum } from 'ldrs/react';
-import 'ldrs/react/Quantum.css';
-import { Box } from '@mantine/core';
+import { Box, Paper, Skeleton, Stack } from '@mantine/core';
 
 /**
- * A reusable, themed loader component for the application.
+ * A reusable, quiet loading placeholder for the application.
  * @param {object} props
- * @param {string} [props.size="45"] - The size of the loader.
- * @param {string} [props.speed="1.75"] - The speed of the loader animation.
- * @param {string} [props.color="#7E30E1"] - The color of the loader.
  * @param {number} [props.height=300] - The height of the container.
  */
-export function Loaders({ size = "45", speed = "1.75", color = "#7E30E1", height = 300 }) {
+export function Loaders({ height = 300 }) {
   return (
-    <Box style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: `${height}px` }}>
-      <Quantum
-        size={size}
-        speed={speed}
-        color={color}
-      />
+    <Box
+      bg="#FAF8F4"
+      p="lg"
+      style={{
+        minHeight: `${height}px`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Paper p="lg" radius="lg" bg="white" maw={620} w="100%" style={{ border: '1px solid #F0F0F0' }}>
+        <Stack gap="md">
+          <Skeleton height={22} width="45%" radius="sm" />
+          <Skeleton height={12} width="82%" radius="sm" />
+          <Skeleton height={12} width="64%" radius="sm" />
+          <Skeleton height={38} width="100%" radius="md" />
+        </Stack>
+      </Paper>
     </Box>
   );
 }

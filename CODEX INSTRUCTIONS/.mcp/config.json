@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "local-bridge": {
+      "command": "node",
+      "args": ["./.mcp/bridge.mjs"],
+      "transport": "streamable-http"
+    }
+  }
+}

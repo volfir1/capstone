@@ -21,6 +21,16 @@ export async function fetchProfiles() {
   }
 }
 
+export async function fetchProfileHistory() {
+  try {
+    const response = await apiClient.get("/users/history");
+    return unwrapResponseData(response, "Failed to fetch profile history");
+  } catch (error) {
+    console.error("Error fetching profile history:", error);
+    throw new Error(getApiError(error, "Failed to fetch profile history"));
+  }
+}
+
 export async function createManagedProfile(profileData) {
   try {
     const response = await apiClient.post("/users/profiles", profileData);
@@ -41,13 +51,23 @@ export async function updateManagedProfile(profileId, profileData) {
   }
 }
 
-export async function deleteManagedProfile(profileId) {
+export async function deleteManagedProfile(profileId, archiveData = {}) {
   try {
-    const response = await apiClient.delete(`/users/${profileId}`);
+    const response = await apiClient.delete(`/users/${profileId}`, { data: archiveData });
     return unwrapResponseData(response, "Failed to delete profile");
   } catch (error) {
     console.error("Error deleting profile:", error);
     throw new Error(getApiError(error, "Failed to delete profile"));
+  }
+}
+
+export async function restoreManagedProfile(profileId) {
+  try {
+    const response = await apiClient.put(`/users/${profileId}/restore`);
+    return unwrapResponseData(response, "Failed to restore profile");
+  } catch (error) {
+    console.error("Error restoring profile:", error);
+    throw new Error(getApiError(error, "Failed to restore profile"));
   }
 }
 

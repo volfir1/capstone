@@ -11,6 +11,19 @@ const normalizeRole = (value) => String(value || '').trim().toLowerCase();
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const buildExactCaseInsensitiveRegex = (value) => new RegExp(`^${escapeRegex(cleanName(value))}$`, 'i');
 
+export const normalizeOptionalDate = (value, fieldName = 'date') => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${fieldName} must be a valid date`);
+  }
+
+  return date;
+};
+
 const copyLegacyAccountState = async (account) => {
   const legacyProfiles = await User.find({ firebaseUid: account.firebaseUid })
     .select('+google.refreshToken +google.accessToken pushTokens').sort({ createdAt: 1 })
@@ -101,10 +114,16 @@ export const ensureAccountForDecodedToken = async (decodedToken) => {
   return account;
 };
 
-export const listProfilesForAccount = async (accountId, { includeDisabled = true } = {}) => {
+export const listProfilesForAccount = async (
+  accountId,
+  { includeDisabled = true, includeArchived = false } = {}
+) => {
   const query = { accountId };
   if (!includeDisabled) {
     query.disabled = { $ne: true };
+  }
+  if (!includeArchived) {
+    query.archivedAt = null;
   }
 
   return User.find(query).sort({ createdAt: 1, firstName: 1, lastName: 1 });
@@ -113,11 +132,14 @@ export const listProfilesForAccount = async (accountId, { includeDisabled = true
 export const resolveActiveProfileForAccount = async (
   accountId,
   requestedProfileId,
-  { allowFallback = false, includeDisabled = false } = {}
+  { allowFallback = false, includeDisabled = false, includeArchived = false } = {}
 ) => {
   const query = { accountId };
   if (!includeDisabled) {
     query.disabled = { $ne: true };
+  }
+  if (!includeArchived) {
+    query.archivedAt = null;
   }
 
   if (requestedProfileId && mongoose.Types.ObjectId.isValid(requestedProfileId)) {
@@ -165,6 +187,18 @@ export const serializeProfile = (profile, account = null) => ({
   role: profile?.role || '',
   isVerified: account?.isVerified ?? !!profile?.isVerified,
   createdAt: profile?.createdAt || null,
+  startDate: profile?.startDate || null,
+  endDate: profile?.endDate || null,
+  archivedAt: profile?.archivedAt || null,
+  archivedByProfileId:
+    profile?.archivedByProfileId?.toString?.() ||
+    profile?.archivedByProfileId ||
+    '',
+  restoredAt: profile?.restoredAt || null,
+  restoredByProfileId:
+    profile?.restoredByProfileId?.toString?.() ||
+    profile?.restoredByProfileId ||
+    '',
   profileImage: profile?.profileImage || '',
   signatureUrl: profile?.signatureUrl || '',
   disabled: !!profile?.disabled,
@@ -194,6 +228,7 @@ export const assertUniqueStaffProfile = async (accountId, payload, excludeProfil
     firstName: buildExactCaseInsensitiveRegex(firstName),
     lastName: buildExactCaseInsensitiveRegex(lastName),
     role,
+    archivedAt: null,
   };
 
   if (excludeProfileId && mongoose.Types.ObjectId.isValid(excludeProfileId)) {
@@ -211,9 +246,15 @@ export const createStaffProfileForAccount = async (account, payload) => {
   const lastName = cleanName(payload?.lastName);
   const role = normalizeRole(payload?.role);
   const username = cleanName(payload?.username);
+  const startDate = normalizeOptionalDate(payload?.startDate, 'Start Date');
+  const endDate = normalizeOptionalDate(payload?.endDate, 'End Date');
 
   if (!firstName || !lastName || !role) {
     throw new Error('firstName, lastName, and role are required');
+  }
+
+  if (startDate && endDate && startDate.getTime() > endDate.getTime()) {
+    throw new Error('Start Date cannot be after End Date');
   }
 
   if (!isStaffRole(role)) {
@@ -230,6 +271,8 @@ export const createStaffProfileForAccount = async (account, payload) => {
     lastName,
     role,
     username,
+    startDate,
+    endDate,
     isVerified: !!account.isVerified,
     disabled: false,
   });
