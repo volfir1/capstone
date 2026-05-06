@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   ActionIcon,
   Badge,
@@ -30,6 +30,7 @@ import {
   BG,
   ACCENT_TAN,
 } from "@utils/constants";
+import { showSuccess } from "@utils/notification";
 
 const formatRole = (role) =>
   role === "supervising_lawyer"
@@ -42,6 +43,7 @@ const formatRole = (role) =>
 
 export default function ProfileSelection() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     userLoggedIn,
     loading,
@@ -54,6 +56,14 @@ export default function ProfileSelection() {
   } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittingProfileId, setSubmittingProfileId] = useState("");
+
+  useEffect(() => {
+    const state = location.state;
+    if (!state || !state.signupSuccess) return;
+
+    showSuccess('Account Created', state.signupMessage || 'Choose or create a staff profile next.');
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
 
   const selectableProfiles = useMemo(
     () => profiles.filter((profile) => !profile.disabled),

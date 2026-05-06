@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import User from '../models/user.js';
 import {
   ensureAccountForDecodedToken,
   getRequestedProfileId,
@@ -35,6 +36,29 @@ export const authenticateFirebaseToken = async (req, res, next) => {
       // Verify the Firebase ID token
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       const account = await ensureAccountForDecodedToken(decodedToken);
+
+      // Keep Mongo verification state in sync with Firebase even when the ID
+      // token claim is stale (common right after clicking the verification link).
+      try {
+        const tokenVerified = !!decodedToken.email_verified;
+        if (!account.isVerified && !tokenVerified) {
+          const firebaseUser = await admin.auth().getUser(decodedToken.uid);
+          if (firebaseUser?.emailVerified) {
+            account.isVerified = true;
+            await account.save().catch(() => {});
+            await User.updateMany({ accountId: account._id }, { $set: { isVerified: true } }).catch(() => {});
+            console.log(`Synced Account.isVerified=true from Firebase for uid=${decodedToken.uid}`);
+          }
+        } else if (!account.isVerified && tokenVerified) {
+          account.isVerified = true;
+          await account.save().catch(() => {});
+          await User.updateMany({ accountId: account._id }, { $set: { isVerified: true } }).catch(() => {});
+          console.log(`Synced Account.isVerified=true from token for uid=${decodedToken.uid}`);
+        }
+      } catch (syncError) {
+        console.warn('Could not sync Firebase emailVerified to Mongo:', syncError.message);
+      }
+
       const requestedProfileId = getRequestedProfileId(req);
       const activeProfile = await resolveActiveProfileForAccount(
         account._id,

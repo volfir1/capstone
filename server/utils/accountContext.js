@@ -99,6 +99,39 @@ export const ensureAccountForDecodedToken = async (decodedToken) => {
     account = await Account.create({ email, firebaseUid: decodedToken.uid, isVerified });
     console.log(" Step 4: account created:", account._id);
     account = await Account.findById(account._id).select('+google.refreshToken +google.accessToken');
+  } else {
+    // If we matched the account by email (or a legacy record) but the Firebase UID
+    // has changed (e.g., user deleted/recreated), keep Mongo in sync.
+    const needsUidSync = decodedToken.uid && account.firebaseUid !== decodedToken.uid;
+    const needsEmailSync = email && account.email !== email;
+    if (needsUidSync || needsEmailSync) {
+      try {
+        if (needsUidSync) account.firebaseUid = decodedToken.uid;
+        if (needsEmailSync) account.email = email;
+        await account.save();
+        await User.updateMany(
+          { accountId: account._id },
+          { $set: { firebaseUid: account.firebaseUid, email: account.email } }
+        ).catch(() => {});
+        console.log(' Synced account firebaseUid/email from Firebase token');
+      } catch (err) {
+        console.warn('Could not sync account firebaseUid/email:', err.message);
+      }
+    }
+
+    // If the Firebase token indicates the email is verified but the stored
+    // Account record is not yet marked verified, update it and propagate
+    // the verified flag to any existing profiles.
+    if (isVerified && !account.isVerified) {
+      try {
+        account.isVerified = true;
+        await account.save();
+        await User.updateMany({ accountId: account._id }, { $set: { isVerified: true } }).catch(() => {});
+        console.log(' Updated account and profiles to isVerified=true');
+      } catch (err) {
+        console.warn('Could not update account verification state:', err.message);
+      }
+    }
   }
 
   console.log(" Step 5: updating User records...");

@@ -12,6 +12,7 @@ import {
   doSigninWithEmailAndPassword,
   doSignOut,
 } from "@/firebase/auth";
+import { auth } from "@/firebase/firebase";
 import {
   failNotif,
   successNotif,
@@ -22,6 +23,7 @@ import { clearAllStoredProfilePinTokens } from "@/features/auth/profilePinSessio
 
 export const useLogin = () => {
   const {
+    currentUser,
     userLoggedIn,
     userData,
     accountData,
@@ -55,7 +57,8 @@ export const useLogin = () => {
       return;
     }
 
-    if (accountData && !accountData.isVerified) {
+    const firebaseVerified = !!currentUser?.emailVerified;
+    if (accountData && !accountData.isVerified && !firebaseVerified) {
       if (!verificationNotified.current) {
         verificationNotif();
         verificationNotified.current = true;
@@ -130,6 +133,7 @@ export const useLogin = () => {
     requiresProfileSelection,
     requiresPinSetup,
     requiresPinVerification,
+    currentUser,
     hasNavigated,
     navigate,
     errorMessage,
@@ -168,7 +172,49 @@ export const useLogin = () => {
       const signInResult = await doSigninWithEmailAndPassword(emailToUse, data.password);
       const signedUser = signInResult?.user;
 
-      if (signedUser && !signedUser.emailVerified) {
+      if (signedUser) {
+        try {
+          await signedUser.reload();
+          await signedUser.getIdToken(true);
+        } catch (reloadError) {
+          console.warn('Failed to reload Firebase user after sign-in', reloadError);
+        }
+      }
+
+      let verifiedNow = !!auth.currentUser?.emailVerified;
+
+      if (signedUser && !verifiedNow) {
+        // Double-check using backend (Firebase Admin) before blocking.
+        try {
+          const response = await apiClient.put('/auth/verify-user');
+          const backendVerified = !!response?.data?.data?.isVerified;
+          if (backendVerified) {
+            verifiedNow = true;
+          }
+        } catch (error) {
+          // ignore; we'll treat as unverified
+        }
+      }
+
+      if (signedUser && !verifiedNow) {
+        try {
+          const tokenResult = await signedUser.getIdTokenResult(true);
+          console.warn('Email verification check failed', {
+            email: signedUser.email,
+            uid: signedUser.uid,
+            signedUserEmailVerified: signedUser.emailVerified,
+            currentUserEmailVerified: auth.currentUser?.emailVerified,
+            tokenEmailVerifiedClaim: tokenResult?.claims?.email_verified,
+          });
+        } catch (debugError) {
+          console.warn('Email verification check failed (could not read token claims)', {
+            email: signedUser.email,
+            uid: signedUser.uid,
+            signedUserEmailVerified: signedUser.emailVerified,
+            currentUserEmailVerified: auth.currentUser?.emailVerified,
+          });
+        }
+
         if (!verificationNotified.current) {
           verificationNotif();
           verificationNotified.current = true;
@@ -213,7 +259,50 @@ export const useLogin = () => {
       }
 
       const signedUser = result?.user;
-      if (signedUser && !signedUser.emailVerified) {
+
+      if (signedUser) {
+        try {
+          await signedUser.reload();
+          await signedUser.getIdToken(true);
+        } catch (reloadError) {
+          console.warn('Failed to reload Firebase user after Google sign-in', reloadError);
+        }
+      }
+
+      let verifiedNow = !!auth.currentUser?.emailVerified;
+
+      if (signedUser && !verifiedNow) {
+        // Double-check using backend (Firebase Admin) before blocking.
+        try {
+          const response = await apiClient.put('/auth/verify-user');
+          const backendVerified = !!response?.data?.data?.isVerified;
+          if (backendVerified) {
+            verifiedNow = true;
+          }
+        } catch (error) {
+          // ignore; we'll treat as unverified
+        }
+      }
+
+      if (signedUser && !verifiedNow) {
+        try {
+          const tokenResult = await signedUser.getIdTokenResult(true);
+          console.warn('Email verification check failed (Google)', {
+            email: signedUser.email,
+            uid: signedUser.uid,
+            signedUserEmailVerified: signedUser.emailVerified,
+            currentUserEmailVerified: auth.currentUser?.emailVerified,
+            tokenEmailVerifiedClaim: tokenResult?.claims?.email_verified,
+          });
+        } catch (debugError) {
+          console.warn('Email verification check failed (Google, could not read token claims)', {
+            email: signedUser.email,
+            uid: signedUser.uid,
+            signedUserEmailVerified: signedUser.emailVerified,
+            currentUserEmailVerified: auth.currentUser?.emailVerified,
+          });
+        }
+
         if (!verificationNotified.current) {
           verificationNotif();
           verificationNotified.current = true;

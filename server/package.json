@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "migrate:finalize-case-numbers": "node scripts/backfillFinalizeCaseNumbers.js"
+    "migrate:finalize-case-numbers": "node scripts/backfillFinalizeCaseNumbers.js",
+    "db:wipe": "node scripts/wipeAllData.js"
   },
   "keywords": [],
   "author": "",

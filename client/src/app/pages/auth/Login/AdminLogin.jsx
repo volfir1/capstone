@@ -1,4 +1,5 @@
-import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   TextInput,
   PasswordInput,
@@ -17,6 +18,7 @@ import {
   CHARCOAL,
   ACCENT_TAN,
 } from '@utils/constants';
+import { showSuccess } from '@utils/notification';
 import { useLogin } from '@/hooks/auth/useLogin';
 
 const ROLE_LABELS = {
@@ -28,6 +30,16 @@ const ROLE_LABELS = {
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const state = location.state;
+    if (!state || !state.signupSuccess) return;
+
+    showSuccess('Account Created', state.signupMessage || 'Verify the email first, then sign in.');
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   const {
     register,
     handleSubmit,

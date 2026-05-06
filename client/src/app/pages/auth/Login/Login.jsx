@@ -3,12 +3,25 @@ import { Toaster } from "react-hot-toast";
 import { LoginHero } from "./Hero";
 import { LoginForm } from "@/components/forms/LoginForm";
 import { useLogin } from "@/hooks/auth/useLogin"; 
-import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { IconArrowLeft } from "@tabler/icons-react"; 
+import { showSuccess } from "@utils/notification";
 
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const state = location.state;
+    if (!state || !state.signupSuccess) return;
+
+    showSuccess('Account Created', state.signupMessage || 'Verify the email first, then sign in.');
+
+    // Clear the state so the notification doesn't reappear on refresh/back.
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
   // Call the hook HERE in the page component
   const {
     register,       

@@ -191,7 +191,43 @@ export default function AuthProvider({ children }) {
   const syncAccountState = async (firebaseUser, preferredProfileId = "") => {
     await firebaseUser.reload();
 
-    if (!firebaseUser.emailVerified) {
+    try {
+      await firebaseUser.getIdToken(true);
+    } catch (error) {
+      console.warn('Failed to refresh Firebase ID token after reload', error);
+    }
+
+    let tokenVerified = false;
+    try {
+      const tokenResult = await firebaseUser.getIdTokenResult();
+      tokenVerified = !!tokenResult?.claims?.email_verified;
+    } catch (error) {
+      tokenVerified = false;
+    }
+
+    let firebaseVerified = !!firebaseUser.emailVerified || tokenVerified;
+    let backendVerified = false;
+
+    // If the client still thinks the user is unverified, double-check via the backend,
+    // which uses Firebase Admin (authoritative).
+    if (!firebaseVerified) {
+      try {
+        const verificationResult = await verifyUser();
+        backendVerified = !!verificationResult?.data?.isVerified;
+      } catch (error) {
+        console.error("Backend verification sync failed:", error);
+      }
+    } else {
+      try {
+        await verifyUser();
+      } catch (error) {
+        console.error("Backend verification sync failed:", error);
+      }
+    }
+
+    firebaseVerified = firebaseVerified || backendVerified;
+
+    if (!firebaseVerified) {
       setAccountData(null);
       setProfiles([]);
       setActiveProfileIdState("");
@@ -199,12 +235,6 @@ export default function AuthProvider({ children }) {
       setPinStatus(EMPTY_PIN_STATUS);
       setRequiresProfileSelection(false);
       return;
-    }
-
-    try {
-      await verifyUser();
-    } catch (error) {
-      console.error("Backend verification sync failed:", error);
     }
 
     const storedProfileId = preferredProfileId || getStoredActiveProfileId(firebaseUser.uid);
@@ -442,7 +472,7 @@ export default function AuthProvider({ children }) {
       !!activeProfileId && !requiresProfileSelection && !!normalizePinStatus(pinStatus).requiresUnlock,
     hasProfiles: profiles.length > 0,
     isAdmin: ADMIN_ROLES.has(userData?.role),
-    isVerified: accountData?.isVerified || false,
+    isVerified: !!currentUser?.emailVerified || !!accountData?.isVerified,
     refreshUserData,
     refreshProfiles,
     selectProfile,

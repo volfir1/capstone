@@ -18,6 +18,7 @@ export const useNativeLogin = () => {
   const router = useRouter();
   const {
     getAuthErrorMessage,
+    currentUser,
     userData,
     userLoggedIn,
     loading,
@@ -45,7 +46,8 @@ export const useNativeLogin = () => {
       return;
     }
 
-    if (accountData && !accountData.isVerified) {
+    const firebaseVerified = !!currentUser?.emailVerified;
+    if (accountData && !accountData.isVerified && !firebaseVerified) {
       Alert.alert(
         'Email Not Verified',
         'Please verify your email before logging in. Check your inbox for the verification link.'
@@ -140,6 +142,15 @@ export const useNativeLogin = () => {
       const userCredential = await doSigninWithEmailAndPassword(emailToUse, data.password);
       const user = userCredential.user;
 
+      if (user) {
+        try {
+          await user.reload();
+          await user.getIdToken(true);
+        } catch (reloadError) {
+          console.warn('Failed to reload Firebase user after sign-in', reloadError);
+        }
+      }
+
       if (!user.emailVerified) {
         Alert.alert(
           'Email Not Verified',
@@ -165,6 +176,15 @@ export const useNativeLogin = () => {
 
       const result = await doSignInWithGoogle();
       const signedUser = result?.user;
+
+      if (signedUser) {
+        try {
+          await signedUser.reload();
+          await signedUser.getIdToken(true);
+        } catch (reloadError) {
+          console.warn('Failed to reload Firebase user after Google sign-in', reloadError);
+        }
+      }
 
       if (signedUser && !signedUser.emailVerified) {
         Alert.alert(

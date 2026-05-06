@@ -171,6 +171,12 @@ export const AuthProvider = ({ children }) => {
   const syncAccountState = async (firebaseUser, preferredProfileId = '') => {
     await firebaseUser.reload();
 
+    try {
+      await firebaseUser.getIdToken(true);
+    } catch (error) {
+      console.warn('Failed to refresh Firebase ID token after reload', error);
+    }
+
     if (!firebaseUser.emailVerified) {
       setAccountData(null);
       setProfiles([]);
@@ -457,7 +463,7 @@ export const AuthProvider = ({ children }) => {
       !!activeProfileId && !requiresProfileSelection && !!normalizePinStatus(pinStatus).requiresUnlock,
     hasProfiles: profiles.length > 0,
     isAdmin: ADMIN_ROLES.has(userData?.role),
-    isVerified: accountData?.isVerified || false,
+    isVerified: !!currentUser?.emailVerified || !!accountData?.isVerified,
     refreshUserData,
     refreshProfiles,
     selectProfile,
