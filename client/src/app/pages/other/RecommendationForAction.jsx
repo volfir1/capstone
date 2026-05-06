@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { 
     Group, 
     Box, 
@@ -264,6 +264,50 @@ const enrichActionInfoForRole = (value = {}, userRole = '', userData = null) => 
         }
         if (!nextValue.directorSignatureUrl && currentSignatureUrl) {
             nextValue.directorSignatureUrl = currentSignatureUrl;
+        }
+    }
+
+    return nextValue;
+};
+
+const getApprovalSignaturePromptDetails = (userRole = '') => {
+    if (userRole === 'supervising_lawyer') {
+        return {
+            title: 'Supervising Lawyer Signature Required',
+            message: 'Before a supervising lawyer can approve a case, the profile must have a saved signature. Create one below using draw, typed signature, or image upload.',
+            toast: 'Supervising lawyers need a saved signature before approving a case.',
+        };
+    }
+
+    return {
+        title: 'Director Signature Required',
+        message: 'Before a director can approve or reject a case, the profile must have a saved signature. Create one below using draw, typed signature, or image upload.',
+        toast: 'Directors need a saved signature before approving or rejecting a case.',
+    };
+};
+
+const applyApprovalSignatureToActionInfo = (value = {}, userRole = '', userData = null, signatureUrl = '') => {
+    if (!signatureUrl || !userData) return value;
+
+    const currentUserName = buildUserDisplayName(userData);
+    const currentUserId = userData?._id || userData?.id || null;
+    const nextValue = { ...value };
+
+    if (userRole === 'supervising_lawyer') {
+        nextValue.supervisingLawyerSignatureUrl = signatureUrl;
+        if (!nextValue.supervisingLawyer) {
+            nextValue.supervisingLawyer = currentUserName;
+        }
+        if (!nextValue.supervisingLawyerId && currentUserId) {
+            nextValue.supervisingLawyerId = currentUserId;
+        }
+    } else if (userRole === 'director') {
+        nextValue.directorSignatureUrl = signatureUrl;
+        if (!nextValue.directorSignature) {
+            nextValue.directorSignature = currentUserName;
+        }
+        if (!nextValue.directorId && currentUserId) {
+            nextValue.directorId = currentUserId;
         }
     }
 
@@ -1307,6 +1351,8 @@ export default function CaseRecordFormsDisplay() {
     const [wordDocHtml, setWordDocHtml] = useState(null);
     const [wordDocLoading, setWordDocLoading] = useState(false);
     const [signatureRequiredModalOpened, setSignatureRequiredModalOpened] = useState(false);
+    const [signatureRequiredFor, setSignatureRequiredFor] = useState('');
+    const pendingApprovalResumeRef = useRef(null);
     
     const [fileInputKey, setFileInputKey] = useState(Date.now()); // Key to reset file input
     const location = useLocation();
@@ -1337,6 +1383,18 @@ export default function CaseRecordFormsDisplay() {
 
     const directorNeedsSignature = userData?.role === 'director' && !userData?.signatureUrl;
 
+    const closeSignatureRequiredModal = () => {
+        pendingApprovalResumeRef.current = null;
+        setSignatureRequiredModalOpened(false);
+        setSignatureRequiredFor('');
+    };
+
+    const requestApprovalSignature = (userRole, resumeAction) => {
+        pendingApprovalResumeRef.current = resumeAction;
+        setSignatureRequiredFor(userRole);
+        setSignatureRequiredModalOpened(true);
+    };
+
     const handleApprovalSignatureSave = async (dataUrl) => {
         try {
             notifications.show({
@@ -1363,7 +1421,16 @@ export default function CaseRecordFormsDisplay() {
                 autoClose: 4000,
             });
 
+            const resumeApproval = pendingApprovalResumeRef.current;
+            pendingApprovalResumeRef.current = null;
+
             setSignatureRequiredModalOpened(false);
+            setSignatureRequiredFor('');
+
+            if (resumeApproval) {
+                await resumeApproval(signatureUrl);
+            }
+
             return signatureUrl;
         } catch (error) {
             notifications.update({
@@ -2239,7 +2306,8 @@ export default function CaseRecordFormsDisplay() {
         });
     };
     
-    const handleSubmit = async () => {
+    const handleSubmit = async (signatureUrlOverride = null) => {
+        const signatureUrl = signatureUrlOverride || userData?.signatureUrl || '';
         const caseId = getCaseId();
         
         // Flush any focused evidence row input before reading interviewInfo state
@@ -2251,11 +2319,12 @@ export default function CaseRecordFormsDisplay() {
         const directorIsFinalizingDecision = userData?.role === 'director'
             && (actionInfo.decision === 'accepted' || actionInfo.decision === 'rejected');
 
-        if (directorIsFinalizingDecision && !userData?.signatureUrl) {
-            setSignatureRequiredModalOpened(true);
+        if (directorIsFinalizingDecision && !signatureUrl) {
+            requestApprovalSignature('director', (savedSignatureUrl) => handleSubmit(savedSignatureUrl));
+            const promptDetails = getApprovalSignaturePromptDetails('director');
             notifications.show({
                 title: 'Signature required',
-                message: 'Directors need a saved signature before approving or rejecting a case.',
+                message: promptDetails.toast,
                 color: 'yellow',
             });
             return;
@@ -2313,7 +2382,12 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
-        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        const preparedActionInfo = applyApprovalSignatureToActionInfo(
+            await hydrateActionInfoMetadata(actionInfo),
+            userData?.role,
+            userData,
+            signatureUrl,
+        );
         setActionInfo(preparedActionInfo);
 
         const reviewPayload = {
@@ -2830,9 +2904,21 @@ export default function CaseRecordFormsDisplay() {
     };
 
     // Handler for supervising lawyer to approve and send to director
-    const handleApproveToDirector = async () => {
+    const handleApproveToDirector = async (signatureUrlOverride = null) => {
+        const signatureUrl = signatureUrlOverride || userData?.signatureUrl || '';
         if (!reviewId) {
             noReviewIdNotif();
+            return;
+        }
+
+        if (userData?.role === 'supervising_lawyer' && !signatureUrl) {
+            requestApprovalSignature('supervising_lawyer', (savedSignatureUrl) => handleApproveToDirector(savedSignatureUrl));
+            const promptDetails = getApprovalSignaturePromptDetails('supervising_lawyer');
+            notifications.show({
+                title: 'Signature required',
+                message: promptDetails.toast,
+                color: 'yellow',
+            });
             return;
         }
 
@@ -2865,7 +2951,12 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
-        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        const preparedActionInfo = applyApprovalSignatureToActionInfo(
+            await hydrateActionInfoMetadata(actionInfo),
+            userData?.role,
+            userData,
+            signatureUrl,
+        );
         setActionInfo(preparedActionInfo);
 
         const updatePayload = {
@@ -3251,7 +3342,7 @@ export default function CaseRecordFormsDisplay() {
                                                         </Button>
                                                         <Button 
                                                             leftSection={<IconCircleCheck size={18} />}
-                                                            onClick={handleApproveToDirector}
+                                                            onClick={() => handleApproveToDirector()}
                                                             size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#FF8C42' }}
@@ -3297,7 +3388,7 @@ export default function CaseRecordFormsDisplay() {
                                                         </Button>
                                                         <Button 
                                                             leftSection={<IconCircleCheck size={18} />}
-                                                            onClick={handleSubmit}
+                                                            onClick={() => handleSubmit()}
                                                             size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: PRIMARY_BROWN }}
@@ -3342,7 +3433,7 @@ export default function CaseRecordFormsDisplay() {
                                                     </Button>
                                                     <Button 
                                                         leftSection={<IconCircleCheck size={18} />}
-                                                        onClick={handleSubmit}
+                                                        onClick={() => handleSubmit()}
                                                         size='sm'
                                                         variant="filled"
                                                         style={{ backgroundColor: PRIMARY_BROWN }}
@@ -3371,7 +3462,7 @@ export default function CaseRecordFormsDisplay() {
                                             // Attorney creating new: Finalize Record button only
                                             <Button 
                                                 leftSection={<IconCircleCheck size={18} />}
-                                                onClick={handleSubmit}
+                                                onClick={() => handleSubmit()}
                                                 size='sm'
                                                 style={{ backgroundColor: PRIMARY_BROWN }}
                                                 disabled={saving}
@@ -3405,15 +3496,15 @@ export default function CaseRecordFormsDisplay() {
 
             <Modal
                 opened={signatureRequiredModalOpened}
-                onClose={() => setSignatureRequiredModalOpened(false)}
-                title="Director Signature Required"
+                onClose={closeSignatureRequiredModal}
+                title={getApprovalSignaturePromptDetails(signatureRequiredFor).title}
                 centered
                 size="lg"
             >
                 <Stack gap="md">
                     <Alert color="yellow" title="Approval is paused">
                         <Text size="sm">
-                            Before a director can approve or reject a case, the profile must have a saved signature. Create one below using draw, typed signature, or image upload.
+                            {getApprovalSignaturePromptDetails(signatureRequiredFor).message}
                         </Text>
                     </Alert>
 
@@ -3424,7 +3515,7 @@ export default function CaseRecordFormsDisplay() {
                     />
 
                     <Text size="xs" c="dimmed">
-                        After saving, the modal will close and you can click the approval button again.
+                        After saving, the approval will continue automatically.
                     </Text>
                 </Stack>
             </Modal>
