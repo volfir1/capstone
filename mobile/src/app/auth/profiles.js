@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Modal,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -12,6 +15,7 @@ import { useRouter } from 'expo-router';
 
 import { useAuth } from 'context/authContext';
 import { doSignOut } from '../../firebaseApp/auth';
+import { createManagedProfile } from '../../api/userManagementApi';
 
 const PRIMARY_BROWN = '#8B4513';
 const PRIMARY_GOLD = '#C4AB7D';
@@ -27,6 +31,37 @@ const formatRole = (role) =>
         ? role.charAt(0).toUpperCase() + role.slice(1)
         : 'Staff';
 
+const ROLE_OPTIONS = [
+  { value: 'secretary', label: 'Secretary' },
+  { value: 'intern', label: 'Legal Intern' },
+  { value: 'supervising_lawyer', label: 'Supervising Lawyer' },
+  { value: 'director', label: 'Director' },
+];
+
+const normalizeProfileValue = (value) => String(value || '').trim().toLowerCase();
+
+const validateProfileDraft = (draft, profiles) => {
+  const firstName = String(draft.firstName || '').trim();
+  const lastName = String(draft.lastName || '').trim();
+  const role = String(draft.role || '').trim();
+
+  if (!firstName || !lastName || !role) {
+    return 'Please enter a first name, last name, and role.';
+  }
+
+  const duplicate = profiles.some((profile) =>
+    normalizeProfileValue(profile.firstName) === normalizeProfileValue(firstName) &&
+    normalizeProfileValue(profile.lastName) === normalizeProfileValue(lastName) &&
+    normalizeProfileValue(profile.role) === normalizeProfileValue(role)
+  );
+
+  if (duplicate) {
+    return 'A profile with the same name and role already exists for this shared account.';
+  }
+
+  return '';
+};
+
 export default function ProfileSelectionScreen() {
   const router = useRouter();
   const {
@@ -36,10 +71,14 @@ export default function ProfileSelectionScreen() {
     profiles,
     activeProfileId,
     selectProfile,
+    refreshProfiles,
   } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittingProfileId, setSubmittingProfileId] = useState('');
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [profileForm, setProfileForm] = useState({ firstName: '', lastName: '', role: '' });
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && !userLoggedIn) {
@@ -51,6 +90,35 @@ export default function ProfileSelectionScreen() {
     () => profiles.filter((profile) => !profile.disabled),
     [profiles]
   );
+
+  const resetProfileModalState = () => {
+    setProfileModalVisible(false);
+    setProfileForm({ firstName: '', lastName: '', role: '' });
+    setActionLoading(false);
+  };
+
+  const handleOpenCreateModal = () => {
+    setProfileForm({ firstName: '', lastName: '', role: '' });
+    setProfileModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    const validationMessage = validateProfileDraft(profileForm, profiles);
+    if (validationMessage) {
+      return Alert.alert('Profile Details Needed', validationMessage);
+    }
+
+    setActionLoading(true);
+    try {
+      await createManagedProfile(profileForm);
+      await refreshProfiles();
+      Alert.alert('Profile Created', 'The new profile is ready for future logins and profile selection.');
+      resetProfileModalState();
+    } catch (error) {
+      Alert.alert('Create Failed', error.message || "We couldn't create the profile right now.");
+      setActionLoading(false);
+    }
+  };
 
   const handleBackToLogin = async () => {
     await doSignOut();
@@ -104,6 +172,11 @@ export default function ProfileSelectionScreen() {
           <Text style={s.accountLabel}>Shared Account</Text>
           <Text style={s.accountEmail}>{accountData?.email || 'Signed-in account'}</Text>
         </View>
+
+        <TouchableOpacity style={s.addProfileBtn} onPress={handleOpenCreateModal} disabled={actionLoading}>
+          <Ionicons name="add-circle-outline" size={18} color="#fff" />
+          <Text style={s.addProfileBtnText}>Create Another Profile</Text>
+        </TouchableOpacity>
       </View>
 
       {selectableProfiles.length === 0 ? (
@@ -111,7 +184,7 @@ export default function ProfileSelectionScreen() {
           <Ionicons name="person-circle-outline" size={42} color={PRIMARY_BROWN} />
           <Text style={s.emptyTitle}>No profiles available</Text>
           <Text style={s.emptyText}>
-            This shared account has no active profiles yet. Ask a secretary or director to add a profile from Manage Profiles.
+            This shared account has no active profiles yet. Create a new profile using the button above, or ask a secretary or director to add one.
           </Text>
         </View>
       ) : (
@@ -150,6 +223,67 @@ export default function ProfileSelectionScreen() {
           }}
         />
       )}
+
+      <Modal
+        visible={profileModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={resetProfileModalState}
+      >
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={resetProfileModalState}>
+          <View style={s.modalCard} onStartShouldSetResponder={() => true}>
+            <Text style={s.modalTitle}>Create another staff profile</Text>
+            <Text style={s.modalSub}>Create a new profile under this shared account for future sign-ins.</Text>
+
+            <Text style={s.fieldLabel}>First Name</Text>
+            <TextInput
+              style={s.fieldInput}
+              value={profileForm.firstName}
+              onChangeText={(value) => setProfileForm((prev) => ({ ...prev, firstName: value }))}
+              placeholder="Enter first name"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={s.fieldLabel}>Last Name</Text>
+            <TextInput
+              style={s.fieldInput}
+              value={profileForm.lastName}
+              onChangeText={(value) => setProfileForm((prev) => ({ ...prev, lastName: value }))}
+              placeholder="Enter last name"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={s.fieldLabel}>Assigned Role</Text>
+            <View style={s.roleOptionsWrap}>
+              {ROLE_OPTIONS.map((option) => {
+                const selected = profileForm.role === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[s.roleOptionBtn, selected && s.roleOptionBtnActive]}
+                    onPress={() => setProfileForm((prev) => ({ ...prev, role: option.value }))}
+                  >
+                    <Text style={[s.roleOptionText, selected && s.roleOptionTextActive]}>{option.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalCancelBtn} onPress={resetProfileModalState} disabled={actionLoading}>
+                <Text style={s.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.modalConfirmBtn} onPress={handleSaveProfile} disabled={actionLoading}>
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={s.modalConfirmText}>Create Profile</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -172,6 +306,75 @@ const s = StyleSheet.create({
   },
   accountLabel: { fontSize: 10, color: MUTED_OLIVE, textTransform: 'uppercase', fontWeight: '700' },
   accountEmail: { marginTop: 3, fontSize: 15, color: CHARCOAL, fontWeight: '600' },
+  addProfileBtn: {
+    marginTop: 14,
+    backgroundColor: PRIMARY_BROWN,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  addProfileBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: CHARCOAL },
+  modalSub: { marginTop: 6, fontSize: 13, color: MUTED_OLIVE, marginBottom: 16 },
+  fieldLabel: { fontSize: 12, color: MUTED_OLIVE, marginTop: 12, marginBottom: 6 },
+  fieldInput: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: CHARCOAL,
+    backgroundColor: '#FAFAFA',
+  },
+  roleOptionsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
+  roleOptionBtn: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#fff',
+  },
+  roleOptionBtnActive: {
+    borderColor: PRIMARY_BROWN,
+    backgroundColor: '#F8EEE3',
+  },
+  roleOptionText: { fontSize: 13, color: CHARCOAL },
+  roleOptionTextActive: { color: PRIMARY_BROWN, fontWeight: '700' },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 20 },
+  modalCancelBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+  },
+  modalCancelText: { color: MUTED_OLIVE, fontWeight: '700' },
+  modalConfirmBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: PRIMARY_BROWN,
+  },
+  modalConfirmText: { color: '#fff', fontWeight: '700' },
   listContent: { padding: 14, paddingTop: 8, gap: 10 },
   card: {
     backgroundColor: '#fff',

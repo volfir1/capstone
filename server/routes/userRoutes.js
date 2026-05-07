@@ -10,6 +10,11 @@ router.use(authenticateFirebaseToken)
 // Log when router is loaded
 console.log('userRoutes.js loaded');
 
+router.use((req, res, next) => {
+  console.log(`userRoutes incoming: ${req.method} ${req.path}`);
+  next();
+});
+
 // Test route
 router.get('/test', (req, res) => {
   console.log('Test route hit!');
@@ -17,6 +22,7 @@ router.get('/test', (req, res) => {
 });
 
 router.get('/profiles', getProfiles)
+router.post('/profiles', createProfile)
 router.get('/profile/pin/status', getProfilePinStatus)
 router.post('/profile/pin/setup', setupProfilePin)
 router.post('/profile/pin/verify', verifyProfilePin)
@@ -25,9 +31,14 @@ router.post('/profile/pin/verify', verifyProfilePin)
 router.post('/push-token', registerPushToken)
 router.delete('/push-token', unregisterPushToken)
 
-router.use(requireProfilePin)
+// Skip profile PIN enforcement for preflight and routes defined above
+router.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+  return requireProfilePin(req, res, next);
+});
 
-router.post('/profiles', createProfile)
 router.get('/profile', getProfile)
 router.put('/profile', updateProfile)
 router.put('/profile/image', updateProfileImage)

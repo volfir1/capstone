@@ -8,8 +8,11 @@ import {
   Card,
   Grid,
   Group,
+  Modal,
+  Select,
   Stack,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -22,6 +25,7 @@ import {
 import { useAuth } from "@/context/authContext";
 import { Loaders } from "@/components/ui/Loader";
 import { doSignOut } from "@/firebase/auth";
+import { createManagedProfile } from "@/api/admin/userManagement";
 import {
   PRIMARY_GOLD,
   PRIMARY_BROWN,
@@ -41,6 +45,50 @@ const formatRole = (role) =>
         ? role.charAt(0).toUpperCase() + role.slice(1)
         : "Staff";
 
+const ROLE_OPTIONS = [
+  { value: "secretary", label: "Secretary" },
+  { value: "intern", label: "Legal Intern" },
+  { value: "supervising_lawyer", label: "Supervising Lawyer" },
+  { value: "director", label: "Director" },
+];
+
+const normalizeProfileValue = (value) => String(value || "").trim().toLowerCase();
+
+const validateProfileDraft = (draft, profiles) => {
+  const firstName = String(draft.firstName || "").trim();
+  const lastName = String(draft.lastName || "").trim();
+  const role = String(draft.role || "").trim();
+  const startDate = String(draft.startDate || "").trim();
+  const endDate = String(draft.endDate || "").trim();
+
+  if (!firstName || !lastName || !role) {
+    return "Please enter a first name, last name, and role.";
+  }
+
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return "Start Date and End Date must be valid dates.";
+    }
+    if (start.getTime() > end.getTime()) {
+      return "End Date cannot be before the Start Date.";
+    }
+  }
+
+  const duplicate = profiles.some((profile) =>
+    normalizeProfileValue(profile.firstName) === normalizeProfileValue(firstName) &&
+    normalizeProfileValue(profile.lastName) === normalizeProfileValue(lastName) &&
+    normalizeProfileValue(profile.role) === normalizeProfileValue(role)
+  );
+
+  if (duplicate) {
+    return "A profile with the same name and role already exists for this shared account.";
+  }
+
+  return "";
+};
+
 export default function ProfileSelection() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,9 +101,19 @@ export default function ProfileSelection() {
     profiles,
     activeProfileId,
     selectProfile,
+    refreshProfiles,
   } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittingProfileId, setSubmittingProfileId] = useState("");
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    firstName: "",
+    lastName: "",
+    role: "",
+    startDate: "",
+    endDate: "",
+  });
 
   useEffect(() => {
     const state = location.state;
@@ -69,6 +127,44 @@ export default function ProfileSelection() {
     () => profiles.filter((profile) => !profile.disabled),
     [profiles]
   );
+
+  const handleOpenCreateModal = () => setCreateModalOpen(true);
+  const handleCloseCreateModal = () => {
+    setCreateModalOpen(false);
+    setProfileForm({ firstName: "", lastName: "", role: "", startDate: "", endDate: "" });
+    setCreateLoading(false);
+  };
+
+  const handleCreateProfile = async () => {
+    const validationMessage = validateProfileDraft(profileForm, profiles);
+    if (validationMessage) {
+      notifications.show({
+        title: "Profile details needed",
+        message: validationMessage,
+        color: "yellow",
+      });
+      return;
+    }
+
+    setCreateLoading(true);
+    try {
+      await createManagedProfile(profileForm);
+      await refreshProfiles();
+      notifications.show({
+        title: "Profile created",
+        message: "The new profile is ready for future logins and profile selection.",
+        color: "green",
+      });
+      handleCloseCreateModal();
+    } catch (error) {
+      notifications.show({
+        title: "Create failed",
+        message: error?.response?.data?.message || "We couldn't create the profile right now.",
+        color: "red",
+      });
+      setCreateLoading(false);
+    }
+  };
   const activeProfile = useMemo(
     () => selectableProfiles.find((profile) => profile.id === activeProfileId) || null,
     [activeProfileId, selectableProfiles]
@@ -230,6 +326,17 @@ export default function ProfileSelection() {
           </Group>
         </Card>
 
+        <Group position="right" mb="md" style={{ width: "100%" }}>
+          <Button
+            size="sm"
+            radius="md"
+            onClick={handleOpenCreateModal}
+            style={{ backgroundColor: PRIMARY_BROWN, color: "white" }}
+          >
+            Create Another Profile
+          </Button>
+        </Group>
+
         <Grid gutter={{ base: "sm", md: "md" }}>
           {selectableProfiles.map((profile) => (
             <Grid.Col key={profile.id} span={{ base: 12, sm: 6, lg: 4, xl: 3 }}>
@@ -341,17 +448,75 @@ export default function ProfileSelection() {
                     No profiles available
                   </Title>
                   <Text c={MUTED_OLIVE} size="sm" maw={560}>
-                    This shared account does not have any active profiles yet. Profiles can now be created only from
-                    the Manage Profiles page of an existing signed-in profile for this same account.
+                    This shared account does not have any active profiles yet. Use the button above to create a new
+                    staff profile for this account.
                   </Text>
                   <Text size="sm" c={MUTED_OLIVE}>
-                    Sign out and use an account that already has a profile, or ask your office administrator to add one.
+                    Once created, the profile will appear here for selection.
                   </Text>
                 </Stack>
               </Card>
             </Grid.Col>
           )}
         </Grid>
+
+        <Modal opened={createModalOpen} onClose={handleCloseCreateModal} title="Create another staff profile" centered>
+          <Stack spacing="md">
+            <TextInput
+              label="First Name"
+              placeholder="Enter first name"
+              value={profileForm.firstName}
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                setProfileForm((prev) => ({ ...prev, firstName: nextValue }));
+              }}
+            />
+            <TextInput
+              label="Last Name"
+              placeholder="Enter last name"
+              value={profileForm.lastName}
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                setProfileForm((prev) => ({ ...prev, lastName: nextValue }));
+              }}
+            />
+            <Select
+              label="Role"
+              placeholder="Choose a role"
+              data={ROLE_OPTIONS}
+              value={profileForm.role}
+              onChange={(value) => setProfileForm((prev) => ({ ...prev, role: value || "" }))}
+            />
+            <Group grow>
+              <TextInput
+                label="Start Date"
+                type="date"
+                value={profileForm.startDate}
+                onChange={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setProfileForm((prev) => ({ ...prev, startDate: nextValue }));
+                }}
+              />
+              <TextInput
+                label="End Date"
+                type="date"
+                value={profileForm.endDate}
+                onChange={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setProfileForm((prev) => ({ ...prev, endDate: nextValue }));
+                }}
+              />
+            </Group>
+            <Group position="right" spacing="sm">
+              <Button variant="outline" onClick={handleCloseCreateModal} disabled={createLoading}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateProfile} loading={createLoading}>
+                Create Profile
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Box>
     </Box>
   );

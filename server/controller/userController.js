@@ -200,11 +200,28 @@ export const getProfiles = async (req, res) => {
 
 export const createProfile = async (req, res) => {
   try {
-    const managerProfile = requireProfileManager(req, res);
-    if (!managerProfile) return;
+    console.log('createProfile route hit', {
+      path: req.path,
+      method: req.method,
+      activeProfile: req.activeProfile ? { id: req.activeProfile._id?.toString?.(), role: req.activeProfile.role, disabled: req.activeProfile.disabled } : null,
+      body: {
+        firstName: req.body?.firstName,
+        lastName: req.body?.lastName,
+        role: req.body?.role,
+      },
+    });
 
     const account = requireAccount(req, res);
     if (!account) return;
+
+    const activeProfile = req.activeProfile;
+    if (activeProfile && !PROFILE_MANAGER_ROLES.has(activeProfile.role)) {
+      res.status(403).json({
+        success: false,
+        message: "Only secretaries and directors can manage profiles.",
+      });
+      return;
+    }
 
     const profile = await createStaffProfileForAccount(account, req.body || {});
 

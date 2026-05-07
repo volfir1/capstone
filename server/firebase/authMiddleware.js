@@ -18,6 +18,10 @@ import {
  */
 export const authenticateFirebaseToken = async (req, res, next) => {
   try {
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
+
     const authHeader = req.headers.authorization;
 
     // Also accept token from query string (for browser/Linking.openURL access to files)
