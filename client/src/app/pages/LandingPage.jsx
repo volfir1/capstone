@@ -334,8 +334,8 @@ export default function LandingPage() {
               <Box>
                 <Text fw={600} size="sm" c={CHARCOAL} mb={4}>Contact Numbers</Text>
                 <Text size="sm" c="dimmed" lh={1.6}>(02) 8734-8931 loc. 313</Text>
-                <Text size="sm" c="dimmed" lh={1.6}>+63 966-2136-661 (Globe)</Text>
-                <Text size="sm" c="dimmed" lh={1.6}>+63 969-0252-811 (Smart)</Text>
+                <Text size="sm" c="dimmed" lh={1.6}>+63 964-1901-918 (TnT)</Text>
+                <Text size="sm" c="dimmed" lh={1.6}>+63 955-1844-549 (TM)</Text>
               </Box>
             </Group>
             <Group gap="md" wrap="nowrap" align="flex-start">
