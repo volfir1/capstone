@@ -1448,8 +1448,15 @@ export default function StaffAppointmentManager() {
                     leftSection={<IconTrash size={14} />}
                     onClick={() => {
                       setViewEventModal(false);
-                      setEventToDelete({ id: viewingEvent.id || viewingEvent.fullData?._id });
-                      setDeleteConfirmModal(true);
+                      if (viewingEvent.isEvent) {
+                        // Event → use event delete flow
+                        setEventToDelete({ id: viewingEvent.id || viewingEvent.fullData?._id });
+                        setDeleteConfirmModal(true);
+                      } else {
+                        // Appointment → use appointment delete flow
+                        setAppointmentToDelete(viewingEvent);
+                        setDeleteAppointmentModal(true);
+                      }
                     }}
                   >
                     Delete

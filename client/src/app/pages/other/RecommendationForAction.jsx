@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     Group, 
     Box, 
@@ -2316,8 +2316,7 @@ export default function CaseRecordFormsDisplay() {
             await new Promise(r => setTimeout(r, 0));
         }
 
-        const directorIsFinalizingDecision = userData?.role === 'director'
-            && (actionInfo.decision === 'accepted' || actionInfo.decision === 'rejected');
+        const directorIsFinalizingDecision = userData?.role === 'director';
 
         if (directorIsFinalizingDecision && !signatureUrl) {
             requestApprovalSignature('director', (savedSignatureUrl) => handleSubmit(savedSignatureUrl));
@@ -2813,7 +2812,12 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
-        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        const actionInfoToSave = {
+            ...actionInfo,
+            supervisingLawyerDecision: actionInfo.supervisingLawyerDecision === 'pending' ? 'rejected' : actionInfo.supervisingLawyerDecision,
+        };
+
+        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfoToSave);
         setActionInfo(preparedActionInfo);
 
         const updatePayload = {
@@ -2876,7 +2880,12 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
-        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfo);
+        const actionInfoToSave = {
+            ...actionInfo,
+            decision: actionInfo.decision === 'pending' ? 'rejected' : actionInfo.decision,
+        };
+
+        const preparedActionInfo = await hydrateActionInfoMetadata(actionInfoToSave);
         setActionInfo(preparedActionInfo);
 
         const updatePayload = {
@@ -2951,8 +2960,13 @@ export default function CaseRecordFormsDisplay() {
                 : userData?.username || 'Unknown User')
         };
 
+        const actionInfoToSave = {
+            ...actionInfo,
+            supervisingLawyerDecision: actionInfo.supervisingLawyerDecision === 'pending' ? 'accepted' : actionInfo.supervisingLawyerDecision,
+        };
+
         const preparedActionInfo = applyApprovalSignatureToActionInfo(
-            await hydrateActionInfoMetadata(actionInfo),
+            await hydrateActionInfoMetadata(actionInfoToSave),
             userData?.role,
             userData,
             signatureUrl,
@@ -3336,7 +3350,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="outline"
                                                             style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                            disabled={saving || actionInfo.supervisingLawyerDecision !== 'pending'}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Saving...' : 'Save Changes'}
                                                         </Button>
@@ -3346,7 +3360,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#FF8C42' }}
-                                                            disabled={saving || actionInfo.supervisingLawyerDecision !== 'accepted'}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Approving...' : 'Approve to Director'}
                                                         </Button>
@@ -3356,7 +3370,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
-                                                            disabled={saving || actionInfo.supervisingLawyerDecision !== 'rejected'}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Returning...' : 'Return to Intern'}
                                                         </Button>
@@ -3382,7 +3396,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="outline"
                                                             style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                            disabled={saving || actionInfo.decision !== 'pending'}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Saving...' : 'Save Changes'}
                                                         </Button>
@@ -3392,7 +3406,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: PRIMARY_BROWN }}
-                                                            disabled={saving || (actionInfo.decision !== 'accepted' && actionInfo.decision !== 'rejected')}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Finalizing...' : 'Finalize Record'}
                                                         </Button>
@@ -3402,7 +3416,7 @@ export default function CaseRecordFormsDisplay() {
                                                             size='sm'
                                                             variant="filled"
                                                             style={{ backgroundColor: '#DC2626' }}
-                                                            disabled={saving || actionInfo.decision !== 'rejected'}
+                                                            disabled={saving}
                                                         >
                                                             {saving ? 'Returning...' : 'Return to Supervising Lawyer'}
                                                         </Button>
