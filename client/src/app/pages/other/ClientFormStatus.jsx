@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Tabs, Card, Text, Badge, Group, Button, SimpleGrid, Container, Title,
   Paper, Box, Stack, Avatar, Menu, ActionIcon, Select, TextInput, Textarea, Modal, Loader, Center,
-  Grid, Divider, ScrollArea, Tooltip, Pagination,
+  Grid, Divider, ScrollArea, Tooltip, Pagination, Popover, SegmentedControl, Slider, UnstyledButton, NumberInput,
 } from '@mantine/core';
 import ClientFormStatusCalendar from '@components/calendar/ClientFormCalendar';
 import { DatePickerInput } from '@mantine/dates';
@@ -28,6 +28,100 @@ import {
   BG
 } from '@utils/constants';
 
+const EVENT_TIME_SLOTS = [
+  '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
+  '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+  '12:00 PM', '12:30 PM', '01:00 PM', '01:30 PM',
+  '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM',
+  '04:00 PM', '04:30 PM', '05:00 PM', '05:30 PM',
+  '06:00 PM'
+];
+
+function TypeableTimePicker({ value, onChange }) {
+  const parseTime = (timeStr) => {
+    if (!timeStr) return { hour: 9, minute: 0, ampm: 'AM' };
+    const ampmMatch = String(timeStr).match(/(AM|PM)/i);
+    const ampm = ampmMatch ? ampmMatch[0].toUpperCase() : 'AM';
+    const cleanStr = String(timeStr).replace(/(AM|PM)/gi, '').trim();
+    const [hStr, mStr] = cleanStr.split(':');
+    let hour = parseInt(hStr || '9', 10);
+    let minute = parseInt(mStr || '0', 10);
+    if (isNaN(hour) || hour < 1) hour = 9;
+    if (hour > 12) hour = 12;
+    if (isNaN(minute) || minute < 0) minute = 0;
+    if (minute > 59) minute = 59;
+    return { hour, minute, ampm };
+  };
+
+  const { hour, minute, ampm } = parseTime(value);
+
+  const handleHourChange = (val) => {
+    let num = typeof val === 'number' ? val : parseInt(val, 10);
+    if (isNaN(num)) num = 12;
+    if (num < 1) num = 1;
+    if (num > 12) num = 12;
+    updateTime(num, minute, ampm);
+  };
+
+  const handleMinuteChange = (val) => {
+    let num = typeof val === 'number' ? val : parseInt(val, 10);
+    if (isNaN(num)) num = 0;
+    if (num < 0) num = 0;
+    if (num > 59) num = 59;
+    updateTime(hour, num, ampm);
+  };
+
+  const updateTime = (newHour, newMinute, newAmpm) => {
+    const formattedHour = String(newHour).padStart(2, '0');
+    const formattedMinute = String(newMinute).padStart(2, '0');
+    onChange(`${formattedHour}:${formattedMinute} ${newAmpm}`);
+  };
+
+  return (
+    <Stack gap={4}>
+      <Text size="sm" fw={500} c={CHARCOAL}>Time</Text>
+      <Group gap={4} align="center" wrap="nowrap">
+        <NumberInput
+          value={hour}
+          onChange={handleHourChange}
+          min={1}
+          max={12}
+          allowNegative={false}
+          allowDecimal={false}
+          clampBehavior="strict"
+          hideControls
+          w={44}
+          radius="md"
+          styles={{ input: { textAlign: 'center', fontWeight: 600, paddingLeft: 2, paddingRight: 2 } }}
+        />
+        <Text fw={700} size="sm" c={PRIMARY_BROWN}>:</Text>
+        <NumberInput
+          value={minute}
+          onChange={handleMinuteChange}
+          min={0}
+          max={59}
+          allowNegative={false}
+          allowDecimal={false}
+          clampBehavior="strict"
+          hideControls
+          w={44}
+          radius="md"
+          styles={{ input: { textAlign: 'center', fontWeight: 600, paddingLeft: 2, paddingRight: 2 } }}
+        />
+        <SegmentedControl
+          size="xs"
+          value={ampm}
+          onChange={(val) => updateTime(hour, minute, val)}
+          data={['AM', 'PM']}
+          color={PRIMARY_BROWN}
+          radius="md"
+          style={{ flexShrink: 0 }}
+        />
+      </Group>
+    </Stack>
+  );
+}
+
 export default function StaffAppointmentManager() {
   const { userData, refreshUserData } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,6 +130,8 @@ export default function StaffAppointmentManager() {
   const [rescheduleModal, setRescheduleModal] = useState(false);
   const [editEventModal, setEditEventModal] = useState(false);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(false);
+  const [viewEventModal, setViewEventModal] = useState(false);
+  const [viewingEvent, setViewingEvent] = useState(null);
 
   // Pagination State
   const [pendingPage, setPendingPage] = useState(1);
@@ -54,6 +150,7 @@ export default function StaffAppointmentManager() {
     title: '',
     description: '',
     eventDate: null,
+    appointmentTime: '',
     eventType: 'appointment',
     location: '',
     clientName: '',
@@ -353,11 +450,13 @@ export default function StaffAppointmentManager() {
       const eventsData = eventsResp?.data || [];
       const mappedEvents = (Array.isArray(eventsData) ? eventsData : []).map((e, idx) => ({
         id: e._id || idx,
-        clientName: e.clientName || 'Event',
+        clientName: e.title || e.clientName || 'Event',
+        title: e.title || e.clientName || 'Event',
         type: e.eventType || 'other',
+        eventType: e.eventType || 'other',
         rawAppointedDate: e.eventDate,
         scheduledDate: e.eventDate ? new Date(e.eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD',
-        appointmentTime: e.eventDate ? (() => {
+        appointmentTime: e.appointmentTime || (e.eventDate ? (() => {
           const d = new Date(e.eventDate);
           const h = d.getHours();
           const m = d.getMinutes();
@@ -365,13 +464,14 @@ export default function StaffAppointmentManager() {
           const ampm = h >= 12 ? 'PM' : 'AM';
           const displayH = h % 12 || 12;
           return `${displayH}:${String(m).padStart(2, '0')} ${ampm}`;
-        })() : '',
+        })() : ''),
         location: e.location || 'TBD',
         priority: e.priority || 'Medium',
         status: e.status || 'scheduled',
         description: e.description || '',
         assignedTo: e.assignedTo || '',
-        purpose: e.title || '',
+        purpose: e.title || e.description || 'Event',
+        fullData: e
       }));
       setEvents(mappedEvents);
     } catch (err) {
@@ -558,19 +658,24 @@ export default function StaffAppointmentManager() {
   };
 
   const handleUpdateEvent = async () => {
-    if (!eventEditForm.title || !eventEditForm.eventDate || !selectedEvent) {
+    if (!eventEditForm.title || !eventEditForm.eventDate) {
       notifications.show({ title: 'Error', message: 'Title and date are required', color: 'red' });
       return;
     }
     setIsUpdatingEvent(true);
     try {
       const { default: apiClient } = await import('@config/api/apiClient');
-      await apiClient.put(`/events/${selectedEvent.id}`, eventEditForm);
-      notifications.show({ title: 'Success', message: 'Event updated successfully', color: 'green', icon: <IconCheck size={18} /> });
+      if (selectedEvent) {
+        await apiClient.put(`/events/${selectedEvent.id}`, eventEditForm);
+        notifications.show({ title: 'Success', message: 'Event updated successfully', color: 'green', icon: <IconCheck size={18} /> });
+      } else {
+        await apiClient.post('/events', eventEditForm);
+        notifications.show({ title: 'Success', message: 'Event created successfully', color: 'green', icon: <IconCheck size={18} /> });
+      }
       setEditEventModal(false);
       await loadAllData();
     } catch (error) {
-      notifications.show({ title: 'Error', message: 'Failed to update event', color: 'red' });
+      notifications.show({ title: 'Error', message: 'Failed to save event', color: 'red' });
     } finally {
       setIsUpdatingEvent(false);
     }
@@ -852,10 +957,14 @@ export default function StaffAppointmentManager() {
                 appointments={allAppointmentsForCalendar}
                 onEventCreated={loadAllData}
                 onDateClick={handleDateClick}
+                onEventClick={(eventItem) => {
+                  setViewingEvent(eventItem);
+                  setViewEventModal(true);
+                }}
                 filterValue={calendarFilter}
                 onFilterChange={setCalendarFilter}
                 onAddEvent={() => {
-                  setEventEditForm({ title: '', description: '', eventDate: new Date(), eventType: 'appointment', location: '', clientName: '', assignedTo: '', priority: 'Medium' });
+                  setEventEditForm({ title: '', description: '', eventDate: new Date(), appointmentTime: '', eventType: 'appointment', location: '', clientName: '', assignedTo: '', priority: 'Medium' });
                   setSelectedEvent(null);
                   setEditEventModal(true);
                 }}
@@ -1106,7 +1215,7 @@ export default function StaffAppointmentManager() {
         opened={editEventModal}
         onClose={() => setEditEventModal(false)}
         title={<Text fw={700} size="lg">{selectedEvent ? 'Edit Event' : 'Add New Event'}</Text>}
-        size={{ base: '100%', sm: 'lg' }}
+        size={620}
         radius="xl"
         styles={{ inner: { padding: '8px' } }}
       >
@@ -1125,23 +1234,32 @@ export default function StaffAppointmentManager() {
             onChange={(e) => setEventEditForm({ ...eventEditForm, description: e.target.value })}
             radius="md"
           />
-          {/* ── Fixed: use SimpleGrid for responsive 2-col layout ── */}
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <DatePickerInput
-              label="Date"
-              placeholder="Select date"
-              value={eventEditForm.eventDate}
-              onChange={(d) => setEventEditForm({ ...eventEditForm, eventDate: d })}
-              radius="md"
-            />
-            <Select
-              label="Type"
-              data={['appointment', 'hearing', 'consultation', 'deadline', 'other']}
-              value={eventEditForm.eventType}
-              onChange={(v) => setEventEditForm({ ...eventEditForm, eventType: v })}
-              radius="md"
-            />
-          </SimpleGrid>
+          <Grid gutter="sm" align="flex-end">
+            <Grid.Col span={{ base: 12, sm: 3.8 }}>
+              <DatePickerInput
+                label="Date"
+                placeholder="Select date"
+                value={eventEditForm.eventDate}
+                onChange={(d) => setEventEditForm({ ...eventEditForm, eventDate: d })}
+                radius="md"
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 4.4 }}>
+              <TypeableTimePicker
+                value={eventEditForm.appointmentTime}
+                onChange={(t) => setEventEditForm({ ...eventEditForm, appointmentTime: t })}
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 3.8 }}>
+              <Select
+                label="Type"
+                data={['appointment', 'hearing', 'consultation', 'deadline', 'other']}
+                value={eventEditForm.eventType}
+                onChange={(v) => setEventEditForm({ ...eventEditForm, eventType: v })}
+                radius="md"
+              />
+            </Grid.Col>
+          </Grid>
           <TextInput
             label="Location"
             leftSection={<IconMapPin size={16} />}
@@ -1214,6 +1332,137 @@ export default function StaffAppointmentManager() {
             <Button color="red" radius="md" fw={600} onClick={handleDeleteAppointment} loading={isDeletingAppointment}>Delete</Button>
           </Group>
         </Stack>
+      </Modal>
+
+      {/* ══ View Event Details Modal ══ */}
+      <Modal
+        opened={viewEventModal}
+        onClose={() => setViewEventModal(false)}
+        title={
+          <Group gap="xs">
+            <IconCalendarEvent size={22} color={PRIMARY_BROWN} />
+            <Text fw={700} size="lg">{viewingEvent?.title || viewingEvent?.clientName || 'Event Details'}</Text>
+          </Group>
+        }
+        size="md"
+        radius="xl"
+      >
+        {viewingEvent && (
+          <Stack gap="md">
+            <Group justify="space-between" align="center">
+              <Badge color={PRIMARY_BROWN} variant="light" size="md" radius="sm">
+                {(viewingEvent.type || viewingEvent.eventType || 'other').toUpperCase()}
+              </Badge>
+              {viewingEvent.priority && (
+                <Badge
+                  color={viewingEvent.priority === 'High' ? 'red' : viewingEvent.priority === 'Medium' ? 'orange' : 'gray'}
+                  variant="outline"
+                  size="sm"
+                >
+                  {viewingEvent.priority} Priority
+                </Badge>
+              )}
+            </Group>
+
+            <Paper p="md" radius="md" bg="#FAF8F4" style={{ border: '1px solid #E5E7EB' }}>
+              <Stack gap="xs">
+                <Group gap="sm">
+                  <IconCalendar size={18} color={PRIMARY_BROWN} />
+                  <Box>
+                    <Text size="xs" c="dimmed" fw={500}>Date & Time</Text>
+                    <Text size="sm" fw={600} c={CHARCOAL}>
+                      {viewingEvent.scheduledDate || 'TBD'}{viewingEvent.appointmentTime ? ` at ${viewingEvent.appointmentTime}` : ''}
+                    </Text>
+                  </Box>
+                </Group>
+
+                <Group gap="sm" mt={4}>
+                  <IconMapPin size={18} color={PRIMARY_BROWN} />
+                  <Box>
+                    <Text size="xs" c="dimmed" fw={500}>Location</Text>
+                    <Text size="sm" fw={600} c={CHARCOAL}>{viewingEvent.location || 'Not specified'}</Text>
+                  </Box>
+                </Group>
+
+                {viewingEvent.assignedTo && (
+                  <Group gap="sm" mt={4}>
+                    <IconUser size={18} color={PRIMARY_BROWN} />
+                    <Box>
+                      <Text size="xs" c="dimmed" fw={500}>Assigned To / Client</Text>
+                      <Text size="sm" fw={600} c={CHARCOAL}>{viewingEvent.assignedTo || viewingEvent.clientName}</Text>
+                    </Box>
+                  </Group>
+                )}
+              </Stack>
+            </Paper>
+
+            {viewingEvent.description && (
+              <Box>
+                <Text size="xs" fw={700} c={CHARCOAL} tt="uppercase" lts={1} mb={4}>Description / Notes</Text>
+                <Paper p="sm" radius="md" withBorder style={{ backgroundColor: '#FFFFFF', whiteSpace: 'pre-wrap' }}>
+                  <Text size="sm" c={CHARCOAL}>{viewingEvent.description}</Text>
+                </Paper>
+              </Box>
+            )}
+
+            <Group justify="space-between" mt="md">
+              {viewingEvent.fullData?._id || viewingEvent.id ? (
+                <Group gap="xs">
+                  <Button
+                    variant="outline"
+                    color={PRIMARY_BROWN}
+                    size="xs"
+                    radius="md"
+                    leftSection={<IconEdit size={14} />}
+                    onClick={() => {
+                      setViewEventModal(false);
+                      if (viewingEvent.isEvent) {
+                        // Event → open Edit Event modal
+                        const e = viewingEvent.fullData || viewingEvent;
+                        setSelectedEvent({ id: viewingEvent.id || e._id, ...e });
+                        setEventEditForm({
+                          title: e.title || e.clientName || '',
+                          description: e.description || '',
+                          eventDate: e.eventDate ? new Date(e.eventDate) : new Date(),
+                          appointmentTime: e.appointmentTime || '',
+                          eventType: e.eventType || 'appointment',
+                          location: e.location || '',
+                          clientName: e.clientName || '',
+                          assignedTo: e.assignedTo || '',
+                          priority: e.priority || 'Medium',
+                        });
+                        setEditEventModal(true);
+                      } else {
+                        // Appointment → open Reschedule Appointment modal
+                        handleOpenEditAppointment(viewingEvent);
+                      }
+                    }}
+                  >
+                    {viewingEvent?.isEvent ? 'Edit' : 'Edit Appointment'}
+                  </Button>
+                  <Button
+                    variant="light"
+                    color="red"
+                    size="xs"
+                    radius="md"
+                    leftSection={<IconTrash size={14} />}
+                    onClick={() => {
+                      setViewEventModal(false);
+                      setEventToDelete({ id: viewingEvent.id || viewingEvent.fullData?._id });
+                      setDeleteConfirmModal(true);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </Group>
+              ) : <Box />}
+
+              <Button variant="subtle" color="gray" size="xs" radius="md" onClick={() => setViewEventModal(false)}>
+                Close
+              </Button>
+            </Group>
+          </Stack>
+        )}
       </Modal>
     </Box>
   );

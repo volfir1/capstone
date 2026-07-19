@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Paper, Box, Group, Text, Button, Badge, Stack, UnstyledButton, 
   SimpleGrid, Title, Modal, TextInput, Textarea, Select, Tooltip,
-  ActionIcon, Divider, ScrollArea, Center, HoverCard
+  ActionIcon, Divider, Center, HoverCard
 } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
 import { 
@@ -37,6 +37,7 @@ export default function ClientFormStatusCalendar({
   appointments = [], 
   onEventCreated, 
   onDateClick,
+  onEventClick,
   filterValue,
   onFilterChange,
   onAddEvent
@@ -112,7 +113,7 @@ export default function ClientFormStatusCalendar({
             const isToday = date.toDateString() === new Date().toDateString();
             
             return (
-              <HoverCard width={260} shadow="xl" position="right-start" withArrow radius="lg" openDelay={100} key={idx}>
+              <HoverCard width={330} shadow="xl" position="right-start" withArrow radius="lg" openDelay={100} key={idx}>
                 <HoverCard.Target>
                   <UnstyledButton 
                     onClick={() => onDateClick && onDateClick(date)}
@@ -180,42 +181,64 @@ export default function ClientFormStatusCalendar({
                 </HoverCard.Target>
                 
                 {dayApts.length > 0 && (
-                  <HoverCard.Dropdown p="xs">
-                    <Stack gap="xs">
-                      <Group justify="space-between" wrap="nowrap" px={4} pb={4}>
-                        <Text fw={700} size="sm" c={CHARCOAL}>
-                          {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </Text>
-                        <Badge size="xs" color={PRIMARY_BROWN} variant="light" radius="sm">{dayApts.length} Items</Badge>
-                      </Group>
-                      <Divider />
-                      <ScrollArea.Autosize 
-                        mah={300}
-                        styles={{
-                          scrollbar: {
-                            '&[data-orientation="vertical"]': { width: 6 },
-                          },
-                          thumb: { backgroundColor: PRIMARY_BROWN },
-                        }}
-                      >
-                        <Stack gap={2} py={2}>
-                          {dayApts.map((apt, i) => {
-                            const config = getEventConfig(apt.type || 'other');
-                            return (
-                              <Paper key={i} p={4} py={3} radius="sm" withBorder style={{ borderLeft: `3px solid ${config.color}` }}>
-                                <Group gap="xs" wrap="nowrap" justify="space-between">
-                                  <Group gap={6} wrap="nowrap" style={{ flex: 1, overflow: 'hidden' }}>
-                                    <Box c={config.color} style={{ display: 'flex', opacity: 0.8 }}>{config.icon}</Box>
-                                    <Text size="xs" fw={500} truncate style={{ fontSize: '11px' }}>{apt.clientName || apt.purpose}</Text>
-                                  </Group>
-                                  <Text size={9} c="dimmed" fw={500} style={{ flexShrink: 0 }}>{apt.appointmentTime || 'TBD'}</Text>
-                                </Group>
-                              </Paper>
-                            );
-                          })}
-                        </Stack>
-                      </ScrollArea.Autosize>
-                    </Stack>
+                  <HoverCard.Dropdown style={{ padding: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: CHARCOAL }}>
+                        {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                      <Badge size="xs" color={PRIMARY_BROWN} variant="light" radius="sm">{dayApts.length} Items</Badge>
+                    </div>
+                    <Divider mb={4} />
+                    <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                      {dayApts.map((apt, i) => {
+                        const config = getEventConfig(apt.type || 'other');
+                        const eventTitle = apt.title || apt.clientName || apt.purpose || 'Event';
+                        return (
+                          <div
+                            key={i}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onEventClick) onEventClick(apt);
+                            }}
+                            style={{
+                              padding: '6px 8px',
+                              borderRadius: 6,
+                              border: '1px solid #E5E7EB',
+                              borderLeft: `3px solid ${config.color}`,
+                              backgroundColor: '#fff',
+                              cursor: 'pointer',
+                              marginBottom: i < dayApts.length - 1 ? 4 : 0,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+                                <span style={{ color: config.color, display: 'flex', flexShrink: 0 }}>{config.icon}</span>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: CHARCOAL, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle}</span>
+                              </div>
+                              {apt.appointmentTime && (
+                                <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500, flexShrink: 0, marginLeft: 8, whiteSpace: 'nowrap' }}>{apt.appointmentTime}</span>
+                              )}
+                            </div>
+                            {(apt.location || apt.scheduledDate) && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 3 }}>
+                                {apt.location && apt.location !== 'TBD' && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, minWidth: 0 }}>
+                                    <IconMapPin size={12} color="#6B7280" style={{ flexShrink: 0 }} />
+                                    <span style={{ fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{apt.location}</span>
+                                  </div>
+                                )}
+                                {apt.scheduledDate && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                                    <IconCalendar size={12} color="#6B7280" />
+                                    <span style={{ fontSize: 11, color: '#6B7280' }}>{apt.scheduledDate}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </HoverCard.Dropdown>
                 )}
               </HoverCard>
