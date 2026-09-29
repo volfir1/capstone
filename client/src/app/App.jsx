@@ -30,6 +30,8 @@ const TenureHistory           = lazy(() => import("./pages/admin/TenureHistory")
 const FinalizedCases          = lazy(() => import("./pages/admin/FinalizedCases"));
 const AssignedCases           = lazy(() => import("./pages/admin/AssignedCases"));
 const Analytics               = lazy(() => import("./pages/admin/Analytics"));
+const AddExistingCase         = lazy(() => import("./pages/admin/AddExistingCase"));
+const CaseRecordView          = lazy(() => import("./pages/admin/CaseRecordView"));
 const RecommendationForAction = lazy(() => import("./pages/other/RecommendationForAction"));
 const ClientApplicationStatus = lazy(() => import("./pages/other/ClientFormStatus"));
 const ClientInfoView          = lazy(() => import("./pages/other/ClientInfoView"));
@@ -338,6 +340,8 @@ function AppRoutes() {
           <Route path="finalized"               element={<FinalizedCases />} />
           <Route path="clientformstatus"        element={<ClientApplicationStatus />} />
           <Route path="clientinfo/:id"          element={<ClientInfoView />} />
+          <Route path="add-existing-case"       element={<AddExistingCase />} />
+          <Route path="case-record/:finalizeId" element={<CaseRecordView />} />
           <Route path="analytics"               element={<Analytics />} />
           <Route path="profile"                 element={<AdminProfile />} />
         </Route>

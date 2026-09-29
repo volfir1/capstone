@@ -25,6 +25,17 @@ const CaseRecordSchema = new mongoose.Schema({
   caseHistory: { type: String },
   remarks: { type: String },
   
+  // History Records (structured history with dates, files, etc.)
+  historyRecords: [{
+    id: { type: String },
+    date: { type: String },
+    dateReceived: { type: String },
+    remarks: { type: String },
+    file: { type: String }, // Base64 encoded file data
+    fileName: { type: String },
+    fileType: { type: String }
+  }],
+  
   // Metadata
   createdBy: { type: String },
   lastModifiedBy: { type: String },

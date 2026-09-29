@@ -8,7 +8,8 @@ import {
   IconUserCircle,
   IconBriefcase,
   IconChartDots,
-  IconClipboardCheck
+  IconClipboardCheck,
+  IconPlus
 } from "@tabler/icons-react";
 
 const BASE_ADMIN_NAV = [
@@ -17,6 +18,7 @@ const BASE_ADMIN_NAV = [
   { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
   { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
   { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
+  { icon: IconPlus, label: "Add Existing Case", path: 'add-existing-case', section: 'main' },
   { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
   { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
 ];
