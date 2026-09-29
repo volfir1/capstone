@@ -41,3 +41,10 @@
 .task-assignee-select .mantine-Input-input {
   cursor: pointer;
 }
+
+.task-deadline-popover {
+  box-sizing: border-box;
+  height: 400px;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+}

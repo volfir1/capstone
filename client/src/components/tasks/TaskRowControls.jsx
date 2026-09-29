@@ -48,8 +48,8 @@ export function TaskDeadlinePicker({ value, onChange, label, compact = false, ov
           <span>{formatTaskDate(value)}</span>
         </UnstyledButton>
       </Popover.Target>
-      <Popover.Dropdown style={{ width: 318, boxSizing: 'border-box' }} p="sm">
-        <Stack gap="xs">
+      <Popover.Dropdown className="task-deadline-popover" style={{ width: 318 }} p="sm">
+        <Stack gap="xs" h="100%">
           <Text size="xs" fw={700} c={MUTED_OLIVE}>Set deadline</Text>
           <DatePicker
             value={value || null} onChange={(next) => { onChange(next || ''); setOpened(false); }}
@@ -57,7 +57,7 @@ export function TaskDeadlinePicker({ value, onChange, label, compact = false, ov
             style={{ width: '100%' }}
           />
           <Button
-            variant="subtle" color="gray" size="xs" leftSection={<IconTrash size={14} />}
+            mt="auto" variant="subtle" color="gray" size="xs" leftSection={<IconTrash size={14} />}
             onClick={() => { onChange(''); setOpened(false); }}
           >
             Remove Deadline
