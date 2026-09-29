@@ -162,7 +162,11 @@ export default function Tasks() {
             <Badge variant="light" color="brown" radius="sm">UI prototype · sample data</Badge>
           </Group>
 
-          <Paper p="md" radius="lg" shadow="xs" withBorder bg="white">
+          <Paper
+            component="section" aria-label="Task controls"
+            p="md" radius="lg" shadow="xs" withBorder bg="white"
+            style={{ position: 'sticky', top: 'var(--app-shell-header-height, 60px)', zIndex: 90 }}
+          >
             <Group align="flex-end" justify="space-between" gap="sm">
               <TextInput
                 aria-label="Search tasks" placeholder="Search tasks, clients, or cases" leftSection={<IconSearch size={17} />}
