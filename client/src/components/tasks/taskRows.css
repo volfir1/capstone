@@ -1,0 +1,43 @@
+.task-prototype-link {
+  display: inline;
+  max-width: 100%;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.task-prototype-link:hover,
+.task-prototype-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  filter: brightness(0.8);
+}
+
+.task-prototype-link:focus-visible,
+.task-deadline-button:focus-visible {
+  outline: 2px solid #8b4513;
+  outline-offset: 2px;
+}
+
+.task-deadline-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.task-deadline-button:hover {
+  background: #e8e3d580;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.task-assignee-select .mantine-Input-input {
+  cursor: pointer;
+}

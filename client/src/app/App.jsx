@@ -29,6 +29,7 @@ const UserManagement          = lazy(() => import("./pages/admin/userManagement"
 const TenureHistory           = lazy(() => import("./pages/admin/TenureHistory"));
 const FinalizedCases          = lazy(() => import("./pages/admin/FinalizedCases"));
 const AssignedCases           = lazy(() => import("./pages/admin/AssignedCases"));
+const Tasks                   = lazy(() => import("./pages/admin/Tasks"));
 const Analytics               = lazy(() => import("./pages/admin/Analytics"));
 const RecommendationForAction = lazy(() => import("./pages/other/RecommendationForAction"));
 const ClientApplicationStatus = lazy(() => import("./pages/other/ClientFormStatus"));
@@ -335,6 +336,7 @@ function AppRoutes() {
           <Route path="tenure-history"         element={<TenureHistory />} />
           <Route path="recommendation/:caseId?" element={<RecommendationForAction />} />
           <Route path="assigned-cases"          element={<AssignedCases />} />
+          <Route path="tasks"                   element={<Tasks />} />
           <Route path="finalized"               element={<FinalizedCases />} />
           <Route path="clientformstatus"        element={<ClientApplicationStatus />} />
           <Route path="clientinfo/:id"          element={<ClientInfoView />} />

@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AppShell, Burger, NavLink, ScrollArea,
   Group, ActionIcon, Text, Badge, Box,
   Flex, Menu, Tooltip, Stack, Divider, Avatar,
 } from "@mantine/core";
-import { IconLogout, IconUserCircle } from "@tabler/icons-react";
+import { IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconLogout, IconUserCircle } from "@tabler/icons-react";
 import { useAuth } from "../../context/authContext";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { doSignOut } from "@/firebase/auth";
 import { useNotifications } from "@/hooks/useNotifications";
 import NotificationDropdown from "@/components/ui/NotificationDropdown";
@@ -26,8 +26,13 @@ const UserAvatar = ({ src, firstName, size = 36, border = `2px solid ${PRIMARY_G
 );
 
 const Layout = ({ children, headerHeight = 60, navbarWidth = 260 }) => {
-  const [opened, setOpened] = useState(false);
+  const [mobileOpened, setMobileOpened] = useState(false);
+  const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
+    try { return window.localStorage.getItem('admin-sidebar-collapsed') === 'true'; }
+    catch { return false; }
+  });
   const navigate = useNavigate();
+  const location = useLocation();
   const { userData, clearSelectedProfile } = useAuth();
   const {
     notifications: notifList, unreadCount, loading: notifLoading,
@@ -35,10 +40,26 @@ const Layout = ({ children, headerHeight = 60, navbarWidth = 260 }) => {
     deleteAllNotifications, refresh: refreshNotifications,
   } = useNotifications(navigate);
 
-  const currentPath = window.location.pathname;
+  const currentPath = location.pathname;
   const role = KNOWN_ROLES.has(userData?.role) ? userData.role : 'secretary';
   const roleDisplay = ROLE_DISPLAY[role] || ROLE_DISPLAY.secretary;
   const navItems = getNavigationByRole(role, currentPath);
+
+  useEffect(() => { setMobileOpened(false); }, [currentPath]);
+
+  useEffect(() => {
+    if (!mobileOpened) return undefined;
+    const closeOnEscape = (event) => { if (event.key === 'Escape') setMobileOpened(false); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [mobileOpened]);
+
+  const toggleDesktopSidebar = () => {
+    const next = !desktopCollapsed;
+    setDesktopCollapsed(next);
+    try { window.localStorage.setItem('admin-sidebar-collapsed', String(next)); }
+    catch { /* The drawer still works if storage is unavailable. */ }
+  };
 
 const handleLogout = async () => {
   try {
@@ -90,10 +111,11 @@ const handleLogout = async () => {
   return (
     <AppShell
       header={{ height: headerHeight }}
-      navbar={{ width: { base: navbarWidth }, breakpoint: "sm", collapsed: { mobile: !opened } }}
+      navbar={{ width: { base: navbarWidth }, breakpoint: "sm", collapsed: { mobile: !mobileOpened, desktop: desktopCollapsed } }}
+      transitionDuration={220}
       padding={0}
     >
-      <AppShell.Navbar style={{ backgroundColor: "white", borderRight: `1px solid #E8E8E8`, boxShadow: '2px 0 8px rgba(0,0,0,0.02)' }}>
+      <AppShell.Navbar style={{ width: `min(${navbarWidth}px, 86vw)`, backgroundColor: "white", borderRight: `1px solid #E8E8E8`, boxShadow: '2px 0 8px rgba(0,0,0,0.02)' }}>
         <AppShell.Section grow component={ScrollArea} px="lg" pt="xl">
           <Stack gap={4}>
             {(() => {
@@ -114,7 +136,7 @@ const handleLogout = async () => {
                       label={<Text size="sm" fw={item.active ? 600 : 400}>{item.label}</Text>}
                       rightSection={item.badge ? <Badge size="sm" color={PRIMARY_BROWN} variant="filled" fw={600}>{item.badge}</Badge> : null}
                       active={item.active}
-                      onClick={() => { setOpened(false); item.path && navigate(item.path); item.onClick?.(); }}
+                      onClick={() => { setMobileOpened(false); item.path && navigate(item.path); item.onClick?.(); }}
                       styles={{
                         root: {
                           borderRadius: '0 8px 8px 0',
@@ -147,10 +169,23 @@ const handleLogout = async () => {
         </Box>
       </AppShell.Navbar>
 
+      {mobileOpened && (
+        <Box
+          hiddenFrom="sm" onClick={() => setMobileOpened(false)}
+          aria-hidden="true"
+          style={{ position: 'fixed', top: headerHeight, right: 0, bottom: 0, left: 0, zIndex: 100, background: 'rgba(28, 25, 23, 0.35)' }}
+        />
+      )}
+
       <AppShell.Header style={{ backgroundColor: "white", borderBottom: '1px solid #ECECEC' }}>
         <Flex align="center" justify="space-between" h="100%" px="lg">
           <Group gap="md">
-            <Burger opened={opened} onClick={() => setOpened(o => !o)} hiddenFrom="sm" size="sm" color={PRIMARY_BROWN} />
+            <Burger opened={mobileOpened} onClick={() => setMobileOpened((current) => !current)} hiddenFrom="sm" size="sm" color={PRIMARY_BROWN} aria-label={mobileOpened ? 'Close navigation drawer' : 'Open navigation drawer'} />
+            <Tooltip label={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} position="bottom">
+              <ActionIcon visibleFrom="sm" size={36} variant="subtle" color="gray" onClick={toggleDesktopSidebar} aria-label={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!desktopCollapsed}>
+                {desktopCollapsed ? <IconLayoutSidebarLeftExpand size={22} /> : <IconLayoutSidebarLeftCollapse size={22} />}
+              </ActionIcon>
+            </Tooltip>
             <Group gap={10}>
               <img src="/sola_logo.png" alt="SOLA Logo" style={{ width: 34, height: 34, objectFit: 'contain' }} />
               <Box>
@@ -196,7 +231,7 @@ const handleLogout = async () => {
       </AppShell.Header>
 
       <AppShell.Main style={{ backgroundColor: BG }}>
-        <Box style={{ minHeight: 'calc(100vh - 60px)' }}>{children}</Box>
+        <Box style={{ minHeight: `calc(100dvh - ${headerHeight}px)`, minWidth: 0 }}>{children}</Box>
       </AppShell.Main>
     </AppShell>
   );

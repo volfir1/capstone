@@ -8,10 +8,12 @@ import {
   IconUserCircle,
   IconBriefcase,
   IconChartDots,
-  IconClipboardCheck
+  IconClipboardCheck,
+  IconListCheck
 } from "@tabler/icons-react";
 
 const BASE_ADMIN_NAV = [
+  { icon: IconListCheck, label: "Tasks", path: 'tasks', section: 'main' },
   { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
   { icon: IconHistory, label: "Tenure History", path: 'tenure-history', section: 'main' },
   { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
@@ -23,8 +25,8 @@ const BASE_ADMIN_NAV = [
 
 const PROFILE_MANAGER_ITEM = { icon: IconUsers, label: "Manage Profiles", path: 'users', section: 'main' };
 
-const SECRETARY_NAV = [BASE_ADMIN_NAV[0], PROFILE_MANAGER_ITEM, ...BASE_ADMIN_NAV.slice(1)];
-const DIRECTOR_NAV = [BASE_ADMIN_NAV[0], PROFILE_MANAGER_ITEM, ...BASE_ADMIN_NAV.slice(1)];
+const SECRETARY_NAV = [BASE_ADMIN_NAV[0], BASE_ADMIN_NAV[1], PROFILE_MANAGER_ITEM, ...BASE_ADMIN_NAV.slice(2)];
+const DIRECTOR_NAV = [BASE_ADMIN_NAV[0], BASE_ADMIN_NAV[1], PROFILE_MANAGER_ITEM, ...BASE_ADMIN_NAV.slice(2)];
 
 export const NAVIGATION_CONFIG = {
   secretary: SECRETARY_NAV,
@@ -40,7 +42,9 @@ export const getNavigationByRole = (role, currentPath) => {
 
   return items.map(item => {
     const itemPath = item.path.startsWith('/') ? item.path : `/admin/${item.path}`;
-    const isActive = currentPath === itemPath || currentPath.startsWith(itemPath + '/');
+    const isActive = itemPath === '/admin'
+      ? currentPath === '/admin' || currentPath === '/admin/'
+      : currentPath === itemPath || currentPath.startsWith(itemPath + '/');
 
     return {
       ...item,
