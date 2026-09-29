@@ -134,12 +134,6 @@ const initialState = {
   editMode: false,
   editedData: null,
 
-  // Case Record Modal
-  caseRecordModalOpened: false,
-  caseRecordData: {},
-  selectedCaseId: null,
-  caseRecordEditMode: false,
-
   // Appointment Receipt Modal
   appointmentModalOpened: false,
   appointmentDetails: null,
@@ -356,28 +350,6 @@ function stateReducer(state, action) {
       return { ...state, mediaBlobUrl: action.payload };
     case 'SET_MEDIA_LOADING':
       return { ...state, mediaLoading: action.payload };
-
-
-    // Case Record Modal actions
-    case 'OPEN_CASE_RECORD_MODAL':
-      return {
-        ...state,
-        caseRecordModalOpened: true,
-        selectedCaseId: action.payload.caseId,
-        caseRecordData: action.payload.data,
-        caseRecordEditMode: false,
-      };
-    case 'CLOSE_CASE_RECORD_MODAL':
-      return {
-        ...state,
-        caseRecordModalOpened: false,
-        caseRecordData: {},
-        caseRecordEditMode: false,
-      };
-    case 'SET_CASE_RECORD_EDIT_MODE':
-      return { ...state, caseRecordEditMode: action.payload };
-    case 'SET_CASE_RECORD_DATA':
-      return { ...state, caseRecordData: action.payload };
 
     case 'SET_CURRENT_PAGE':
       return { ...state, [action.payload.tab]: action.payload.page };
@@ -814,44 +786,6 @@ export default function FinalizedCases() {
 
     addDateTimeHeaderToAllPages(doc);
     doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
-  };
-
-  const exportCaseRecordPdf = () => {
-    if (!state.caseRecordData || Object.keys(state.caseRecordData).length === 0) {
-      notifications.show({ title: 'Nothing to export', message: 'No case record data loaded.', color: 'yellow' });
-      return;
-    }
-
-    // Only landscape form page layout
-    const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
-    drawCaseRecordHistoryRemarksPage(doc, {
-      title: formatText(state.caseRecordData.title),
-      caseId: formatText(state.caseRecordData.caseId),
-      nature: formatText(state.caseRecordData.nature),
-      tribunal: formatText(state.caseRecordData.tribunal),
-      branch: formatText(state.caseRecordData.branch),
-      presidingJudge: formatText(state.caseRecordData.presidingJudge),
-      telEmail: formatText(state.caseRecordData.contactDetails || state.caseRecordData.telEmail),
-      parties: formatText(state.caseRecordData.parties),
-      contactDetails: formatText(state.caseRecordData.contactDetails || state.caseRecordData.telEmail),
-      counsels: formatText(state.caseRecordData.counsels),
-      publicProsecutor: formatText(state.caseRecordData.publicProsecutor),
-      opposingCounsel: formatText(state.caseRecordData.opposingCounsel),
-      clientAddress: formatText(state.caseRecordData.clientAddress),
-      others: formatText(state.caseRecordData.others),
-      caseHistory: formatText(state.caseRecordData.caseHistory),
-      remarks: formatText(state.caseRecordData.remarks),
-    });
-
-    const caseRecordClientName =
-      state.caseRecordData?.clientName ||
-      state.caseRecordData?.fullName ||
-      state.selectedCase?.clientName ||
-      state.selectedCase?.content?.interviewInfo?.clientName ||
-      '';
-
-    addDateTimeHeaderToAllPages(doc);
-    doc.save(buildClientPdfFileName(caseRecordClientName));
   };
 
   const exportAppointmentPdf = () => {
@@ -1898,27 +1832,9 @@ export default function FinalizedCases() {
   };
 
   const openCaseRecordModal = async (caseData) => {
-    try {
-      const caseId = caseData._id; // Use finalize _id instead of caseId
-
-      // Try to fetch existing case record first
-      try {
-        const resp = await apiClient.get(`/caserecords/finalize/${caseId}`);
-        if (resp.data) {
-          dispatch({ type: 'OPEN_CASE_RECORD_MODAL', payload: { caseId, data: resp.data } });
-          console.log('Loaded existing case record:', resp.data);
-          return;
-        }
-      } catch (fetchErr) {
-        // If not found, use data from finalize content
-        console.log('No existing case record, using finalize content');
-      }
-
-      dispatch({ type: 'OPEN_CASE_RECORD_MODAL', payload: { caseId, data: caseData.content?.caseInfo || {} } });
-    } catch (err) {
-      console.error('Error opening case record:', err);
-      dispatch({ type: 'OPEN_CASE_RECORD_MODAL', payload: { caseId: caseData._id, data: caseData.content?.caseInfo || {} } });
-    }
+    // Navigate to case record page instead of opening modal
+    const caseId = caseData._id; // Use finalize _id
+    navigate(`/admin/case-record/${caseId}`);
   };
 
   // Function to fetch and display appointment details
@@ -2415,42 +2331,6 @@ export default function FinalizedCases() {
       });
     } finally {
       dispatch({ type: 'SET_SENDING_MESSAGE', payload: false });
-    }
-  };
-
-  const handleSaveCaseRecord = async () => {
-    try {
-      dispatch({ type: 'SET_SAVING', payload: true });
-      console.log('Saving case record for finalizeId:', state.selectedCaseId);
-      console.log('Data:', state.caseRecordData);
-
-      const resp = await apiClient.put(`/caserecords/finalize/${state.selectedCaseId}`, state.caseRecordData);
-      console.log('Save response:', resp.data);
-
-      if (resp.data) {
-        // Refetch finalized cases to update the caseRecordsMap
-        await fetchFinalized();
-
-        // Close the modal and reset edit mode
-        dispatch({ type: 'SET_CASE_RECORD_EDIT_MODE', payload: false });
-        dispatch({ type: 'CLOSE_CASE_RECORD_MODAL' });
-
-        notifications.show({
-          title: 'Success',
-          message: 'Case record saved successfully! The case has been moved to "With Record" section.',
-          color: 'green',
-        });
-      }
-    } catch (err) {
-      console.error('Error saving case record:', err);
-      const errorMsg = err.response?.data?.error || err.message;
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to save case record: ' + errorMsg,
-        color: 'red',
-      });
-    } finally {
-      dispatch({ type: 'SET_SAVING', payload: false });
     }
   };
 
@@ -2981,70 +2861,6 @@ export default function FinalizedCases() {
         `}
       </style>
       <Container size="xl" px={{ base: 'xs', sm: 'md' }}>
-        {/* Modal for Case Record */}
-        <Modal
-          opened={state.caseRecordModalOpened}
-          onClose={() => dispatch({ type: 'CLOSE_CASE_RECORD_MODAL' })}
-          title={
-            <Group justify="space-between" wrap="wrap" gap="xs" style={{ width: '100%' }}>
-              <Title order={3} c={PRIMARY_BROWN}>Case Record</Title>
-              <Group gap="sm">
-                {!state.caseRecordEditMode ? (
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    color={PRIMARY_BROWN}
-                    onClick={() => dispatch({ type: 'SET_CASE_RECORD_EDIT_MODE', payload: true })}
-                  >
-                    Edit
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => {
-                        dispatch({ type: 'SET_CASE_RECORD_EDIT_MODE', payload: false });
-                        // Reset data to original
-                        openCaseRecordModal({ _id: state.selectedCaseId });
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      size="xs"
-                      style={{ backgroundColor: PRIMARY_BROWN }}
-                      onClick={handleSaveCaseRecord}
-                      loading={state.saving}
-                    >
-                      Save Changes
-                    </Button>
-                  </>
-                )}
-                <Button
-                  size="xs"
-                  variant="subtle"
-                  leftSection={<IconDownload size={16} />}
-                  onClick={exportCaseRecordPdf}
-                >
-                  Export PDF
-                </Button>
-              </Group>
-            </Group>
-          }
-          size="calc(90vw)"
-          styles={{
-            title: { fontWeight: 700, width: '100%' },
-            body: { maxHeight: '80vh', overflowY: 'auto' },
-          }}
-        >
-          <CaseInformationSection
-            value={state.caseRecordData}
-            onChange={(data) => dispatch({ type: 'SET_CASE_RECORD_DATA', payload: data })}
-            readOnly={!state.caseRecordEditMode}
-          />
-        </Modal>
-
         {/* Chat Modal disabled per checklist. To re-enable, uncomment the
             ChatModal invocation below and ensure the ChatModal component is active. */}
         {/**
