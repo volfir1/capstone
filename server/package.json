@@ -6,8 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "migrate:finalize-case-numbers": "node scripts/backfillFinalizeCaseNumbers.js",
-    "db:wipe": "node scripts/wipeAllData.js"
+    "migrate:finalize-case-numbers": "node scripts/backfillFinalizeCaseNumbers.js"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +28,7 @@
     "mongodb": "^6.19.0",
     "mongoose": "^8.18.1",
     "multer": "^2.0.2",
+    "nvm": "^0.0.4",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
