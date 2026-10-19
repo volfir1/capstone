@@ -49,6 +49,9 @@ const ClientsInfoSchema = new mongoose.Schema({
   relatorName: { type: String },
   relationshipToClient: { type: String },
   relatorContactNumber: { type: String },
+  relatorEmail: { type: String },
+  relatorPhone: { type: String },
+  relatorAddress: { type: String },
 
   // Financial Details fields
   currentSourceOfIncome: { type: String },
@@ -81,6 +84,34 @@ const ClientsInfoSchema = new mongoose.Schema({
   adversePartyCounsel: { type: String },
   adversePartyCounselAddress: { type: String },
   adversePartyCounselPhone: { type: String },
+  
+  // Parties and Counsel Details (structured replacement for adverse party fields)
+  partiesAndCounselDetails: [{
+    groupName: { type: String },
+    parties: [{
+      partyName: { type: String },
+      participation: { type: String },
+      mailingAddress: { type: String },
+      emailAddress: { type: String },
+      contactNumber: { type: String }
+    }],
+    counsels: [{
+      counselName: { type: String },
+      participation: { type: String },
+      mailingAddress: { type: String },
+      emailAddress: { type: String },
+      contactNumber: { type: String }
+    }]
+  }],
+  courtVenueDetails: [{
+    tribunal: { type: String },
+    venue: { type: String },
+    branch: { type: String },
+    judge: { type: String },
+    docketNumber: { type: String },
+    email: { type: String },
+    contactNumber: { type: String }
+  }],
   legalMatter: { type: String },
   location: { type: String },
   appointmentType: { type: String },

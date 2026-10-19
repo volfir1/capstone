@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IconCircleCheck, IconInfoCircle, IconCalendar, IconClock, IconUser, IconCoin, IconBriefcase } from '@tabler/icons-react';
+import { IconCircleCheck, IconInfoCircle, IconCalendar, IconClock, IconUser, IconCoin, IconBriefcase, IconUsers, IconGavel } from '@tabler/icons-react';
 import { Text, Group, Title, Paper, Grid, Stack, Box, Divider, Alert, Select } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { PRIMARY_GOLD, PRIMARY_BROWN, CHARCOAL, MUTED_OLIVE, ACCENT_TAN } from '@utils/constants';
@@ -103,30 +103,97 @@ export default function ReviewForm({ formData, getValues, setValue }) {
           <ReviewField label="Venue" value={allData.venue} />
           <ReviewField label="Present Stage" value={allData.presentStage} />
           <ReviewField label="Nature of Case" value={allData.caseNature} span={12} />
-          <ReviewField label="Court Division" value={allData.courtDivision} />
-          <ReviewField label="Presiding Officer" value={allData.presidingOfficer} />
-          <ReviewField label="Court Address" value={allData.courtAddress} span={12} />
-          <ReviewField label="Court Phone Number" value={allData.courtPhoneNumber} />
         </Grid>
       </Paper>
 
-      {/* Adverse Party */}
-      <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
-        <Group gap={8} mb="md">
-          <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#FA5252', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <IconBriefcase size={14} color="white" stroke={2.5} />
-          </Box>
-          <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Adverse Party</Text>
-        </Group>
-        <Grid gutter="sm">
-          <ReviewField label="Adverse Party(ies)" value={allData.adverseParty} span={12} />
-          <ReviewField label="Address" value={allData.adversePartyAddress} span={12} />
-          <ReviewField label="Phone Number" value={allData.adversePartyPhone} />
-          <ReviewField label="Counsel" value={allData.adversePartyCounsel} />
-          <ReviewField label="Counsel Address" value={allData.adversePartyCounselAddress} span={12} />
-          <ReviewField label="Counsel Phone" value={allData.adversePartyCounselPhone} />
-        </Grid>
-      </Paper>
+      {/* Court & Venue Details */}
+      {allData.courtVenueDetails && allData.courtVenueDetails.length > 0 && (
+        <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+          <Group gap={8} mb="md">
+            <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#4DABF7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconGavel size={14} color="white" stroke={2.5} />
+            </Box>
+            <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Court & Venue Details</Text>
+          </Group>
+          <Stack gap="md">
+            {allData.courtVenueDetails.map((courtVenue, index) => (
+              <Box key={index} p="md" style={{ background: '#F5F5F5', borderRadius: 8, border: '1px solid #E0E0E0' }}>
+                <Text size="xs" fw={600} c={CHARCOAL} mb="md">Court & Venue {index + 1}</Text>
+                <Grid gutter="xs">
+                  <ReviewField label="Court / Tribunal" value={courtVenue.tribunal} span={6} />
+                  <ReviewField label="Venue / Place" value={courtVenue.venue} span={6} />
+                  <ReviewField label="Branch / Division" value={courtVenue.branch} span={6} />
+                  <ReviewField label="Judge / Justice" value={courtVenue.judge} span={6} />
+                  <ReviewField label="Docket Number" value={courtVenue.docketNumber} span={4} />
+                  <ReviewField label="Email Address" value={courtVenue.email} span={4} />
+                  <ReviewField label="Contact Number" value={courtVenue.contactNumber} span={4} />
+                </Grid>
+              </Box>
+            ))}
+          </Stack>
+        </Paper>
+      )}
+
+      {/* Parties and Counsel Details */}
+      {allData.partiesAndCounselDetails && allData.partiesAndCounselDetails.length > 0 && (
+        <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>
+          <Group gap={8} mb="md">
+            <Box style={{ width: 28, height: 28, borderRadius: 7, background: '#FA5252', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconUsers size={14} color="white" stroke={2.5} />
+            </Box>
+            <Text size="sm" fw={600} c={CHARCOAL} tt="uppercase" lts={0.5}>Parties and Counsel Details</Text>
+          </Group>
+          <Stack gap="md">
+            {allData.partiesAndCounselDetails.map((group, groupIndex) => (
+              <Box key={groupIndex} p="md" style={{ background: '#F5F5F5', borderRadius: 8, border: '1px solid #E0E0E0' }}>
+                <Text size="sm" fw={600} c={CHARCOAL} mb="md">{group.groupName || `Group ${groupIndex + 1}`}</Text>
+
+                {/* Parties */}
+                {group.parties && group.parties.length > 0 && (
+                  <Box mb="md">
+                    <Text size="xs" fw={600} c={PRIMARY_BROWN} tt="uppercase" mb="sm">Parties</Text>
+                    <Stack gap="sm">
+                      {group.parties.map((party, partyIndex) => (
+                        <Box key={partyIndex} p="sm" style={{ background: 'white', borderRadius: 6, border: '1px solid #E8E8E8' }}>
+                          <Text size="xs" fw={500} c={CHARCOAL} mb="xs">Party {partyIndex + 1}</Text>
+                          <Grid gutter="xs">
+                            <ReviewField label="Party Name" value={party.partyName} span={6} />
+                            <ReviewField label="Participation" value={party.participation} span={6} />
+                            <ReviewField label="Mailing Address" value={party.mailingAddress} span={12} />
+                            <ReviewField label="Email Address" value={party.emailAddress} span={6} />
+                            <ReviewField label="Contact Number" value={party.contactNumber} span={6} />
+                          </Grid>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+
+                {/* Counsel */}
+                {group.counsels && group.counsels.length > 0 && (
+                  <Box>
+                    <Text size="xs" fw={600} c={PRIMARY_BROWN} tt="uppercase" mb="sm">Counsel</Text>
+                    <Stack gap="sm">
+                      {group.counsels.map((counselItem, counselIndex) => (
+                        <Box key={counselIndex} p="sm" style={{ background: 'white', borderRadius: 6, border: '1px solid #E8E8E8' }}>
+                          <Text size="xs" fw={500} c={CHARCOAL} mb="xs">Counsel {counselIndex + 1}</Text>
+                          <Grid gutter="xs">
+                            <ReviewField label="Counsel Name" value={counselItem.counselName} span={6} />
+                            <ReviewField label="Participation" value={counselItem.participation} span={6} />
+                            <ReviewField label="Mailing Address" value={counselItem.mailingAddress} span={12} />
+                            <ReviewField label="Email Address" value={counselItem.emailAddress} span={6} />
+                            <ReviewField label="Contact Number" value={counselItem.contactNumber} span={6} />
+                          </Grid>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+              </Box>
+            ))}
+          </Stack>
+        </Paper>
+      )}
 
       {/* Appointment Date & Time */}
       <Paper p="lg" radius="lg" style={{ background: '#FAFAFA', border: '1px solid #F0F0F0' }}>

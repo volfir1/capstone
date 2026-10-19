@@ -4,7 +4,7 @@ import {
   Group, ActionIcon, Text, Badge, Box,
   Flex, Menu, Tooltip, Stack, Divider, Avatar,
 } from "@mantine/core";
-import { IconLogout, IconUserCircle } from "@tabler/icons-react";
+import { IconLogout, IconUserCircle, IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { useAuth } from "../../context/authContext";
 import { useNavigate } from "react-router";
 import { doSignOut } from "@/firebase/auth";
@@ -27,6 +27,7 @@ const UserAvatar = ({ src, firstName, size = 36, border = `2px solid ${PRIMARY_G
 
 const Layout = ({ children, headerHeight = 60, navbarWidth = 260 }) => {
   const [opened, setOpened] = useState(false);
+  const [navbarCollapsed, setNavbarCollapsed] = useState(false);
   const navigate = useNavigate();
   const { userData, clearSelectedProfile } = useAuth();
   const {
@@ -90,11 +91,24 @@ const handleLogout = async () => {
   return (
     <AppShell
       header={{ height: headerHeight }}
-      navbar={{ width: { base: navbarWidth }, breakpoint: "sm", collapsed: { mobile: !opened } }}
+      navbar={{ width: { base: navbarCollapsed ? 70 : navbarWidth }, breakpoint: "sm", collapsed: { mobile: !opened } }}
       padding={0}
     >
-      <AppShell.Navbar style={{ backgroundColor: "white", borderRight: `1px solid #E8E8E8`, boxShadow: '2px 0 8px rgba(0,0,0,0.02)' }}>
-        <AppShell.Section grow component={ScrollArea} px="lg" pt="xl">
+      <AppShell.Navbar style={{ backgroundColor: "white", borderRight: `1px solid #E8E8E8`, boxShadow: '2px 0 8px rgba(0,0,0,0.02)', transition: 'width 0.3s ease' }}>
+        <AppShell.Section>
+          <Flex justify="flex-end" p="xs">
+            <ActionIcon
+              onClick={() => setNavbarCollapsed(!navbarCollapsed)}
+              variant="subtle"
+              color={PRIMARY_BROWN}
+              size="sm"
+              title={navbarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {navbarCollapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
+            </ActionIcon>
+          </Flex>
+        </AppShell.Section>
+        <AppShell.Section grow component={ScrollArea} px={navbarCollapsed ? "xs" : "lg"} pt="xl">
           <Stack gap={4}>
             {(() => {
               let lastSection = null;
@@ -104,21 +118,21 @@ const handleLogout = async () => {
                 return (
                   <div key={item.path}>
                     {isNewSection && index > 0 && <Divider my={8} color="#ECECEC" />}
-                    {isNewSection && (
+                    {isNewSection && !navbarCollapsed && (
                       <Text size="10px" fw={700} c={MUTED_OLIVE} tt="uppercase" lts={1.5} px="sm" mt={index > 0 ? 2 : 0} mb={6}>
                         {SECTION_LABELS[item.section] || item.section}
                       </Text>
                     )}
                     <NavLink
                       leftSection={<item.icon size={20} stroke={2} />}
-                      label={<Text size="sm" fw={item.active ? 600 : 400}>{item.label}</Text>}
-                      rightSection={item.badge ? <Badge size="sm" color={PRIMARY_BROWN} variant="filled" fw={600}>{item.badge}</Badge> : null}
+                      label={!navbarCollapsed && <Text size="sm" fw={item.active ? 600 : 400}>{item.label}</Text>}
+                      rightSection={!navbarCollapsed && item.badge ? <Badge size="sm" color={PRIMARY_BROWN} variant="filled" fw={600}>{item.badge}</Badge> : null}
                       active={item.active}
                       onClick={() => { setOpened(false); item.path && navigate(item.path); item.onClick?.(); }}
                       styles={{
                         root: {
                           borderRadius: '0 8px 8px 0',
-                          padding: '10px 16px',
+                          padding: navbarCollapsed ? '10px' : '10px 16px',
                           marginBottom: '2px',
                           borderLeft: item.active ? `3px solid ${PRIMARY_BROWN}` : '3px solid transparent',
                           transition: 'all 0.2s ease',
@@ -136,14 +150,20 @@ const handleLogout = async () => {
           </Stack>
         </AppShell.Section>
 
-        <Box px="lg" py="md" style={{ borderTop: '1px solid #F0F0F0' }}>
-          <Group gap="sm" wrap="nowrap">
-            <UserAvatar src={userData?.profileImage} firstName={userData?.firstName} />
-            <Box style={{ minWidth: 0 }}>
-              <Text size="sm" fw={600} c={CHARCOAL} truncate>{userData?.firstName} {userData?.lastName}</Text>
-              <Text size="xs" c={MUTED_OLIVE} truncate>{roleDisplay}</Text>
-            </Box>
-          </Group>
+        <Box px={navbarCollapsed ? "xs" : "lg"} py="md" style={{ borderTop: '1px solid #F0F0F0' }}>
+          {!navbarCollapsed ? (
+            <Group gap="sm" wrap="nowrap">
+              <UserAvatar src={userData?.profileImage} firstName={userData?.firstName} />
+              <Box style={{ minWidth: 0 }}>
+                <Text size="sm" fw={600} c={CHARCOAL} truncate>{userData?.firstName} {userData?.lastName}</Text>
+                <Text size="xs" c={MUTED_OLIVE} truncate>{roleDisplay}</Text>
+              </Box>
+            </Group>
+          ) : (
+            <Flex justify="center">
+              <UserAvatar src={userData?.profileImage} firstName={userData?.firstName} size={32} />
+            </Flex>
+          )}
         </Box>
       </AppShell.Navbar>
 

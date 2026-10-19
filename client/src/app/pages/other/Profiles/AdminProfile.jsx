@@ -65,6 +65,7 @@ const ROLE_COLORS = {
 };
 
 const ATTORNEY_ROLES = ['attorney', 'pao_lawyer', 'legal_volunteer'];
+const INTERN_ROLE = 'intern';
 
 // ── Attorney-specific option arrays ──
 const SPECIALIZATIONS = [
@@ -106,10 +107,14 @@ export default function AdminProfile() {
   const [profileImage, setProfileImage] = useState('');
 
   const isAttorney = ATTORNEY_ROLES.includes(authUserData?.role);
+  const isIntern = authUserData?.role === INTERN_ROLE;
   const userRole = authUserData?.role || 'secretary';
 
   // ── State for regular (User) accounts ──
   const [userData, setUserData] = useState({
+    givenName: '',
+    familyName: '',
+    maternalName: '',
     firstName: '',
     lastName: '',
     email: '',
@@ -118,6 +123,28 @@ export default function AdminProfile() {
     verified: false,
     memberSince: '',
     signatureUrl: '',
+    // Intern-specific fields
+    metroManilaAddress: '',
+    provincialAddress: '',
+    dateOfBirth: '',
+    placeOfBirth: '',
+    nationality: '',
+    sex: '',
+    civilStatus: '',
+    telephoneNo: '',
+    religiousAffiliations: '',
+    fathersName: '',
+    mothersName: '',
+    wifesName: '',
+    husbandsName: '',
+    gradeSchool: '',
+    highSchool: '',
+    college: '',
+    course: '',
+    honorsReceived: '',
+    affiliation: '',
+    schoolLastAttended: '',
+    employer: '',
   });
 
   // ── Extended state for attorney accounts ──
@@ -151,58 +178,164 @@ export default function AdminProfile() {
   useEffect(() => {
     if (!authUserData) return;
 
-    // Fetch profileImage from API (authUserData may not have it)
+    // Fetch complete profile data from API to get all fields including intern-specific ones
     apiClient.get('/users/profile').then((res) => {
-      if (res.data?.data?.profileImage) setProfileImage(res.data.data.profileImage);
-    }).catch(() => {});
+      const apiProfileData = res.data?.data || {};
+      
+      // Update profile image if available
+      if (apiProfileData.profileImage) setProfileImage(apiProfileData.profileImage);
 
-    if (isAttorney) {
-      const profile = {
-        firstName: authUserData.firstName || '',
-        middleName: authUserData.middleName || '',
-        lastName: authUserData.lastName || '',
-        suffix: authUserData.suffix || '',
-        email: authUserData.email || '',
-        username: authUserData.username || '',
-        role: authUserData.role || '',
-        verified: authUserData.isVerified || false,
-        memberSince: authUserData.createdAt
-          ? new Date(authUserData.createdAt).getFullYear().toString()
-          : '',
-        prcLicenseNumber: authUserData.prcLicenseNumber || '',
-        ibrNumber: authUserData.ibrNumber || '',
-        barAdmissionDate: authUserData.barAdmissionDate
-          ? new Date(authUserData.barAdmissionDate).toLocaleDateString()
-          : '',
-        lawFirm: authUserData.lawFirm || '',
-        isPAOLawyer: authUserData.isPAOLawyer || false,
-        paoOffice: authUserData.paoOffice || '',
-        specializations: authUserData.specializations || [],
-        languages: authUserData.languages || [],
-        consultationMode: authUserData.consultationMode || [],
-        biography: authUserData.biography || '',
-        isAvailable: authUserData.isAvailable ?? true,
-        accountStatus: authUserData.accountStatus || '',
-        signatureUrl: authUserData.signatureUrl || '',
-      };
-      setAttorneyData(profile);
-      setEditedData(profile);
-    } else {
-      const profile = {
-        firstName: authUserData.firstName || '',
-        lastName: authUserData.lastName || '',
-        email: authUserData.email || '',
-        username: authUserData.username || '',
-        role: authUserData.role || '',
-        verified: authUserData.isVerified || false,
-        memberSince: authUserData.createdAt
-          ? new Date(authUserData.createdAt).getFullYear().toString()
-          : '',
-        signatureUrl: authUserData.signatureUrl || '',
-      };
-      setUserData(profile);
-      setEditedData(profile);
-    }
+      // Merge API data with authUserData
+      const mergedData = { ...authUserData, ...apiProfileData };
+
+      if (isAttorney) {
+        const profile = {
+          firstName: mergedData.firstName || '',
+          middleName: mergedData.middleName || '',
+          lastName: mergedData.lastName || '',
+          suffix: mergedData.suffix || '',
+          email: mergedData.email || '',
+          username: mergedData.username || '',
+          role: mergedData.role || '',
+          verified: mergedData.isVerified || false,
+          memberSince: mergedData.createdAt
+            ? new Date(mergedData.createdAt).getFullYear().toString()
+            : '',
+          prcLicenseNumber: mergedData.prcLicenseNumber || '',
+          ibrNumber: mergedData.ibrNumber || '',
+          barAdmissionDate: mergedData.barAdmissionDate
+            ? new Date(mergedData.barAdmissionDate).toLocaleDateString()
+            : '',
+          lawFirm: mergedData.lawFirm || '',
+          isPAOLawyer: mergedData.isPAOLawyer || false,
+          paoOffice: mergedData.paoOffice || '',
+          specializations: mergedData.specializations || [],
+          languages: mergedData.languages || [],
+          consultationMode: mergedData.consultationMode || [],
+          biography: mergedData.biography || '',
+          isAvailable: mergedData.isAvailable ?? true,
+          accountStatus: mergedData.accountStatus || '',
+          signatureUrl: mergedData.signatureUrl || '',
+        };
+        setAttorneyData(profile);
+        setEditedData(profile);
+      } else {
+        const profile = {
+          givenName: mergedData.givenName || mergedData.firstName || '',
+          familyName: mergedData.familyName || mergedData.lastName || '',
+          maternalName: mergedData.maternalName || '',
+          firstName: mergedData.firstName || '',
+          lastName: mergedData.lastName || '',
+          email: mergedData.email || '',
+          username: mergedData.username || '',
+          role: mergedData.role || '',
+          verified: mergedData.isVerified || false,
+          memberSince: mergedData.createdAt
+            ? new Date(mergedData.createdAt).getFullYear().toString()
+            : '',
+          signatureUrl: mergedData.signatureUrl || '',
+          // Intern-specific fields
+          metroManilaAddress: mergedData.metroManilaAddress || '',
+          provincialAddress: mergedData.provincialAddress || '',
+          dateOfBirth: mergedData.dateOfBirth ? new Date(mergedData.dateOfBirth).toISOString().split('T')[0] : '',
+          placeOfBirth: mergedData.placeOfBirth || '',
+          nationality: mergedData.nationality || '',
+          sex: mergedData.sex || '',
+          civilStatus: mergedData.civilStatus || '',
+          telephoneNo: mergedData.telephoneNo || '',
+          religiousAffiliations: mergedData.religiousAffiliations || '',
+          fathersName: mergedData.fathersName || '',
+          mothersName: mergedData.mothersName || '',
+          wifesName: mergedData.wifesName || '',
+          husbandsName: mergedData.husbandsName || '',
+          gradeSchool: mergedData.gradeSchool || '',
+          highSchool: mergedData.highSchool || '',
+          college: mergedData.college || '',
+          course: mergedData.course || '',
+          honorsReceived: mergedData.honorsReceived || '',
+          affiliation: mergedData.affiliation || '',
+          schoolLastAttended: mergedData.schoolLastAttended || '',
+          employer: mergedData.employer || '',
+        };
+        setUserData(profile);
+        setEditedData(profile);
+      }
+    }).catch((error) => {
+      console.error('Error fetching profile data:', error);
+      // Fallback to authUserData if API fails
+      if (isAttorney) {
+        const profile = {
+          firstName: authUserData.firstName || '',
+          middleName: authUserData.middleName || '',
+          lastName: authUserData.lastName || '',
+          suffix: authUserData.suffix || '',
+          email: authUserData.email || '',
+          username: authUserData.username || '',
+          role: authUserData.role || '',
+          verified: authUserData.isVerified || false,
+          memberSince: authUserData.createdAt
+            ? new Date(authUserData.createdAt).getFullYear().toString()
+            : '',
+          prcLicenseNumber: authUserData.prcLicenseNumber || '',
+          ibrNumber: authUserData.ibrNumber || '',
+          barAdmissionDate: authUserData.barAdmissionDate
+            ? new Date(authUserData.barAdmissionDate).toLocaleDateString()
+            : '',
+          lawFirm: authUserData.lawFirm || '',
+          isPAOLawyer: authUserData.isPAOLawyer || false,
+          paoOffice: authUserData.paoOffice || '',
+          specializations: authUserData.specializations || [],
+          languages: authUserData.languages || [],
+          consultationMode: authUserData.consultationMode || [],
+          biography: authUserData.biography || '',
+          isAvailable: authUserData.isAvailable ?? true,
+          accountStatus: authUserData.accountStatus || '',
+          signatureUrl: authUserData.signatureUrl || '',
+        };
+        setAttorneyData(profile);
+        setEditedData(profile);
+      } else {
+        const profile = {
+          givenName: authUserData.givenName || authUserData.firstName || '',
+          familyName: authUserData.familyName || authUserData.lastName || '',
+          maternalName: authUserData.maternalName || '',
+          firstName: authUserData.firstName || '',
+          lastName: authUserData.lastName || '',
+          email: authUserData.email || '',
+          username: authUserData.username || '',
+          role: authUserData.role || '',
+          verified: authUserData.isVerified || false,
+          memberSince: authUserData.createdAt
+            ? new Date(authUserData.createdAt).getFullYear().toString()
+            : '',
+          signatureUrl: authUserData.signatureUrl || '',
+          // Intern-specific fields
+          metroManilaAddress: authUserData.metroManilaAddress || '',
+          provincialAddress: authUserData.provincialAddress || '',
+          dateOfBirth: authUserData.dateOfBirth ? new Date(authUserData.dateOfBirth).toISOString().split('T')[0] : '',
+          placeOfBirth: authUserData.placeOfBirth || '',
+          nationality: authUserData.nationality || '',
+          sex: authUserData.sex || '',
+          civilStatus: authUserData.civilStatus || '',
+          telephoneNo: authUserData.telephoneNo || '',
+          religiousAffiliations: authUserData.religiousAffiliations || '',
+          fathersName: authUserData.fathersName || '',
+          mothersName: authUserData.mothersName || '',
+          wifesName: authUserData.wifesName || '',
+          husbandsName: authUserData.husbandsName || '',
+          gradeSchool: authUserData.gradeSchool || '',
+          highSchool: authUserData.highSchool || '',
+          college: authUserData.college || '',
+          course: authUserData.course || '',
+          honorsReceived: authUserData.honorsReceived || '',
+          affiliation: authUserData.affiliation || '',
+          schoolLastAttended: authUserData.schoolLastAttended || '',
+          employer: authUserData.employer || '',
+        };
+        setUserData(profile);
+        setEditedData(profile);
+      }
+    });
   }, [authUserData, isAttorney]);
 
   // ── Completeness ──
@@ -223,10 +356,24 @@ export default function AdminProfile() {
       const filled = fields.filter((f) => f && (typeof f === 'string' ? f.trim() : true)).length;
       return Math.round((filled / fields.length) * 100);
     }
+    if (isIntern) {
+      const fields = [
+        userData.givenName || userData.firstName,
+        userData.familyName || userData.lastName,
+        userData.email,
+        userData.dateOfBirth,
+        userData.placeOfBirth,
+        userData.nationality,
+        userData.sex,
+        userData.civilStatus,
+      ];
+      const filled = fields.filter((f) => f && (typeof f === 'string' ? f.trim() : true)).length;
+      return Math.round((filled / fields.length) * 100);
+    }
     const fields = [userData.firstName, userData.lastName, userData.email];
     const filled = fields.filter((f) => f && f.trim()).length;
     return Math.round((filled / fields.length) * 100);
-  }, [isAttorney, userData, attorneyData]);
+  }, [isAttorney, isIntern, userData, attorneyData]);
 
   // ── Handlers ──
   const profileData = isAttorney ? attorneyData : userData;
@@ -441,9 +588,10 @@ export default function AdminProfile() {
                 {/* Name */}
                 <Box ta="center">
                   <Text size="xl" fw={700} c={CHARCOAL} mb={2}>
-                    {displayData.firstName}{' '}
+                    {isIntern ? (displayData.givenName || displayData.firstName) : displayData.firstName}{' '}
+                    {isIntern && displayData.maternalName ? `${displayData.maternalName} ` : ''}
                     {isAttorney && displayData.middleName ? `${displayData.middleName} ` : ''}
-                    {displayData.lastName}
+                    {isIntern ? (displayData.familyName || displayData.lastName) : displayData.lastName}
                     {isAttorney && displayData.suffix ? ` ${displayData.suffix}` : ''}
                   </Text>
                   <Text size="sm" c={MUTED_OLIVE}>
@@ -545,22 +693,43 @@ export default function AdminProfile() {
                 </Group>
 
                 <Grid gutter="lg">
+                  {/* Given Name / First Name */}
                   <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
-                      First Name
+                      {isIntern ? 'Given Name' : 'First Name'}
                     </Text>
                     {isEditing ? (
                       <TextInput
-                        value={editedData.firstName}
-                        onChange={(e) => handleInputChange('firstName', e.target.value)}
+                        value={isIntern ? editedData.givenName : editedData.firstName}
+                        onChange={(e) => handleInputChange(isIntern ? 'givenName' : 'firstName', e.target.value)}
                         styles={inputStyles}
                       />
                     ) : (
-                      <Text fw={500} c={displayData.firstName ? CHARCOAL : '#bbb'}>
-                        {displayData.firstName || 'Not set'}
+                      <Text fw={500} c={isIntern ? (displayData.givenName || displayData.firstName) : displayData.firstName ? CHARCOAL : '#bbb'}>
+                        {isIntern ? (displayData.givenName || displayData.firstName || 'Not set') : (displayData.firstName || 'Not set')}
                       </Text>
                     )}
                   </Grid.Col>
+
+                  {/* Maternal Name — intern only */}
+                  {isIntern && (
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                        Maternal Name
+                      </Text>
+                      {isEditing ? (
+                        <TextInput
+                          value={editedData.maternalName}
+                          onChange={(e) => handleInputChange('maternalName', e.target.value)}
+                          styles={inputStyles}
+                        />
+                      ) : (
+                        <Text fw={500} c={displayData.maternalName ? CHARCOAL : '#bbb'}>
+                          {displayData.maternalName || 'Not set'}
+                        </Text>
+                      )}
+                    </Grid.Col>
+                  )}
 
                   {/* Middle Name — attorney only */}
                   {isAttorney && (
@@ -582,19 +751,20 @@ export default function AdminProfile() {
                     </Grid.Col>
                   )}
 
+                  {/* Family Name / Last Name */}
                   <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
-                      Last Name
+                      {isIntern ? 'Family Name' : 'Last Name'}
                     </Text>
                     {isEditing ? (
                       <TextInput
-                        value={editedData.lastName}
-                        onChange={(e) => handleInputChange('lastName', e.target.value)}
+                        value={isIntern ? editedData.familyName : editedData.lastName}
+                        onChange={(e) => handleInputChange(isIntern ? 'familyName' : 'lastName', e.target.value)}
                         styles={inputStyles}
                       />
                     ) : (
-                      <Text fw={500} c={displayData.lastName ? CHARCOAL : '#bbb'}>
-                        {displayData.lastName || 'Not set'}
+                      <Text fw={500} c={isIntern ? (displayData.familyName || displayData.lastName) : displayData.lastName ? CHARCOAL : '#bbb'}>
+                        {isIntern ? (displayData.familyName || displayData.lastName || 'Not set') : (displayData.lastName || 'Not set')}
                       </Text>
                     )}
                   </Grid.Col>
@@ -618,6 +788,369 @@ export default function AdminProfile() {
                         </Text>
                       )}
                     </Grid.Col>
+                  )}
+
+                  {/* Intern-specific additional fields */}
+                  {isIntern && (
+                    <>
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Metro Manila Address
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.metroManilaAddress}
+                            onChange={(e) => handleInputChange('metroManilaAddress', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.metroManilaAddress ? CHARCOAL : '#bbb'}>
+                            {displayData.metroManilaAddress || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Provincial Address
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.provincialAddress}
+                            onChange={(e) => handleInputChange('provincialAddress', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.provincialAddress ? CHARCOAL : '#bbb'}>
+                            {displayData.provincialAddress || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Date of Birth
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            type="date"
+                            value={editedData.dateOfBirth}
+                            onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.dateOfBirth ? CHARCOAL : '#bbb'}>
+                            {displayData.dateOfBirth || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Place of Birth
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.placeOfBirth}
+                            onChange={(e) => handleInputChange('placeOfBirth', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.placeOfBirth ? CHARCOAL : '#bbb'}>
+                            {displayData.placeOfBirth || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Nationality
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.nationality}
+                            onChange={(e) => handleInputChange('nationality', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.nationality ? CHARCOAL : '#bbb'}>
+                            {displayData.nationality || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Sex
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.sex}
+                            onChange={(e) => handleInputChange('sex', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.sex ? CHARCOAL : '#bbb'}>
+                            {displayData.sex || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Civil Status
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.civilStatus}
+                            onChange={(e) => handleInputChange('civilStatus', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.civilStatus ? CHARCOAL : '#bbb'}>
+                            {displayData.civilStatus || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Telephone No.
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.telephoneNo}
+                            onChange={(e) => handleInputChange('telephoneNo', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.telephoneNo ? CHARCOAL : '#bbb'}>
+                            {displayData.telephoneNo || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Religious Affiliations
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.religiousAffiliations}
+                            onChange={(e) => handleInputChange('religiousAffiliations', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.religiousAffiliations ? CHARCOAL : '#bbb'}>
+                            {displayData.religiousAffiliations || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Father's Name
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.fathersName}
+                            onChange={(e) => handleInputChange('fathersName', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.fathersName ? CHARCOAL : '#bbb'}>
+                            {displayData.fathersName || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Mother's Name
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.mothersName}
+                            onChange={(e) => handleInputChange('mothersName', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.mothersName ? CHARCOAL : '#bbb'}>
+                            {displayData.mothersName || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Wife's Name
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.wifesName}
+                            onChange={(e) => handleInputChange('wifesName', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.wifesName ? CHARCOAL : '#bbb'}>
+                            {displayData.wifesName || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Husband's Name
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.husbandsName}
+                            onChange={(e) => handleInputChange('husbandsName', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.husbandsName ? CHARCOAL : '#bbb'}>
+                            {displayData.husbandsName || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Grade School
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.gradeSchool}
+                            onChange={(e) => handleInputChange('gradeSchool', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.gradeSchool ? CHARCOAL : '#bbb'}>
+                            {displayData.gradeSchool || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          High School
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.highSchool}
+                            onChange={(e) => handleInputChange('highSchool', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.highSchool ? CHARCOAL : '#bbb'}>
+                            {displayData.highSchool || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          College
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.college}
+                            onChange={(e) => handleInputChange('college', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.college ? CHARCOAL : '#bbb'}>
+                            {displayData.college || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Course
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.course}
+                            onChange={(e) => handleInputChange('course', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.course ? CHARCOAL : '#bbb'}>
+                            {displayData.course || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Honors Received
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.honorsReceived}
+                            onChange={(e) => handleInputChange('honorsReceived', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.honorsReceived ? CHARCOAL : '#bbb'}>
+                            {displayData.honorsReceived || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Affiliation
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.affiliation}
+                            onChange={(e) => handleInputChange('affiliation', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.affiliation ? CHARCOAL : '#bbb'}>
+                            {displayData.affiliation || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          School Last Attended (if transferee)
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.schoolLastAttended}
+                            onChange={(e) => handleInputChange('schoolLastAttended', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.schoolLastAttended ? CHARCOAL : '#bbb'}>
+                            {displayData.schoolLastAttended || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Text size="xs" c={MUTED_OLIVE} mb={4} fw={500}>
+                          Employer (if working)
+                        </Text>
+                        {isEditing ? (
+                          <TextInput
+                            value={editedData.employer}
+                            onChange={(e) => handleInputChange('employer', e.target.value)}
+                            styles={inputStyles}
+                          />
+                        ) : (
+                          <Text fw={500} c={displayData.employer ? CHARCOAL : '#bbb'}>
+                            {displayData.employer || 'Not set'}
+                          </Text>
+                        )}
+                      </Grid.Col>
+                    </>
                   )}
                 </Grid>
               </Paper>

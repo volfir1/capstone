@@ -216,6 +216,9 @@ export const serializeProfile = (profile, account = null) => ({
   firebaseUid: account?.firebaseUid || profile?.firebaseUid || '',
   firstName: profile?.firstName || '',
   lastName: profile?.lastName || '',
+  givenName: profile?.givenName || '',
+  familyName: profile?.familyName || '',
+  maternalName: profile?.maternalName || '',
   username: profile?.username || '',
   role: profile?.role || '',
   isVerified: account?.isVerified ?? !!profile?.isVerified,
@@ -243,6 +246,28 @@ export const serializeProfile = (profile, account = null) => ({
     connectedEmail: profile?.google?.connectedEmail || '',
     primaryCalendarId: profile?.google?.primaryCalendarId || 'primary',
   },
+  // Intern-specific fields
+  metroManilaAddress: profile?.metroManilaAddress || '',
+  provincialAddress: profile?.provincialAddress || '',
+  dateOfBirth: profile?.dateOfBirth || null,
+  placeOfBirth: profile?.placeOfBirth || '',
+  nationality: profile?.nationality || '',
+  sex: profile?.sex || '',
+  civilStatus: profile?.civilStatus || '',
+  telephoneNo: profile?.telephoneNo || '',
+  religiousAffiliations: profile?.religiousAffiliations || '',
+  fathersName: profile?.fathersName || '',
+  mothersName: profile?.mothersName || '',
+  wifesName: profile?.wifesName || '',
+  husbandsName: profile?.husbandsName || '',
+  gradeSchool: profile?.gradeSchool || '',
+  highSchool: profile?.highSchool || '',
+  college: profile?.college || '',
+  course: profile?.course || '',
+  honorsReceived: profile?.honorsReceived || '',
+  affiliation: profile?.affiliation || '',
+  schoolLastAttended: profile?.schoolLastAttended || '',
+  employer: profile?.employer || '',
 });
 
 export const isStaffRole = (role) => STAFF_ROLES.includes(role);
@@ -275,15 +300,19 @@ export const assertUniqueStaffProfile = async (accountId, payload, excludeProfil
 };
 
 export const createStaffProfileForAccount = async (account, payload) => {
-  const firstName = cleanName(payload?.firstName);
-  const lastName = cleanName(payload?.lastName);
+  const isIntern = normalizeRole(payload?.role) === 'intern';
+  const firstName = isIntern ? cleanName(payload?.givenName || payload?.firstName) : cleanName(payload?.firstName);
+  const lastName = isIntern ? cleanName(payload?.familyName || payload?.lastName) : cleanName(payload?.lastName);
+  const givenName = isIntern ? cleanName(payload?.givenName) : null;
+  const familyName = isIntern ? cleanName(payload?.familyName) : null;
+  const maternalName = isIntern ? cleanName(payload?.maternalName) : null;
   const role = normalizeRole(payload?.role);
   const username = cleanName(payload?.username);
   const startDate = normalizeOptionalDate(payload?.startDate, 'Start Date');
   const endDate = normalizeOptionalDate(payload?.endDate, 'End Date');
 
   if (!firstName || !lastName || !role) {
-    throw new Error('firstName, lastName, and role are required');
+    throw new Error('givenName, familyName, and role are required for interns; firstName, lastName, and role for others');
   }
 
   if (startDate && endDate && startDate.getTime() > endDate.getTime()) {
@@ -296,7 +325,7 @@ export const createStaffProfileForAccount = async (account, payload) => {
 
   await assertUniqueStaffProfile(account._id, { firstName, lastName, role });
 
-  const profile = await User.create({
+  const profileData = {
     accountId: account._id,
     email: account.email,
     firebaseUid: account.firebaseUid,
@@ -308,7 +337,37 @@ export const createStaffProfileForAccount = async (account, payload) => {
     endDate,
     isVerified: !!account.isVerified,
     disabled: false,
-  });
+  };
+
+  // Add intern-specific fields
+  if (isIntern) {
+    profileData.givenName = givenName;
+    profileData.familyName = familyName;
+    profileData.maternalName = maternalName;
+    profileData.metroManilaAddress = cleanName(payload?.metroManilaAddress) || '';
+    profileData.provincialAddress = cleanName(payload?.provincialAddress) || '';
+    profileData.dateOfBirth = normalizeOptionalDate(payload?.dateOfBirth, 'Date of Birth');
+    profileData.placeOfBirth = cleanName(payload?.placeOfBirth) || '';
+    profileData.nationality = cleanName(payload?.nationality) || '';
+    profileData.sex = cleanName(payload?.sex) || '';
+    profileData.civilStatus = cleanName(payload?.civilStatus) || '';
+    profileData.telephoneNo = cleanName(payload?.telephoneNo) || '';
+    profileData.religiousAffiliations = cleanName(payload?.religiousAffiliations) || '';
+    profileData.fathersName = cleanName(payload?.fathersName) || '';
+    profileData.mothersName = cleanName(payload?.mothersName) || '';
+    profileData.wifesName = cleanName(payload?.wifesName) || '';
+    profileData.husbandsName = cleanName(payload?.husbandsName) || '';
+    profileData.gradeSchool = cleanName(payload?.gradeSchool) || '';
+    profileData.highSchool = cleanName(payload?.highSchool) || '';
+    profileData.college = cleanName(payload?.college) || '';
+    profileData.course = cleanName(payload?.course) || '';
+    profileData.honorsReceived = cleanName(payload?.honorsReceived) || '';
+    profileData.affiliation = cleanName(payload?.affiliation) || '';
+    profileData.schoolLastAttended = cleanName(payload?.schoolLastAttended) || '';
+    profileData.employer = cleanName(payload?.employer) || '';
+  }
+
+  const profile = await User.create(profileData);
 
   if (!account.lastSelectedProfileId) {
     account.lastSelectedProfileId = profile._id;

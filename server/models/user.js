@@ -3,8 +3,13 @@ import mongoose from "mongoose";
 const userSchema = new mongoose.Schema({
   accountId: { type: mongoose.Schema.Types.ObjectId, ref: "Account", index: true, default: null },
   email: { type: String, required: true, index: true },
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
+  // Renamed for intern profiles (optional for backward compatibility)
+  givenName: { type: String, default: '' },
+  familyName: { type: String, default: '' },
+  maternalName: { type: String, default: '' },
+  // Keep old fields for backward compatibility
+  firstName: { type: String, default: '' },
+  lastName: { type: String, default: '' },
   isVerified: { type: Boolean, default: false },
   role: {
     type: String,
@@ -39,6 +44,28 @@ const userSchema = new mongoose.Schema({
     tokenExpiry: { type: Date },
     primaryCalendarId: { type: String, default: 'primary' },
   },
+  // Intern-specific personal information
+  metroManilaAddress: { type: String, default: '' },
+  provincialAddress: { type: String, default: '' },
+  dateOfBirth: { type: Date, default: null },
+  placeOfBirth: { type: String, default: '' },
+  nationality: { type: String, default: '' },
+  sex: { type: String, default: '' },
+  civilStatus: { type: String, default: '' },
+  telephoneNo: { type: String, default: '' },
+  religiousAffiliations: { type: String, default: '' },
+  fathersName: { type: String, default: '' },
+  mothersName: { type: String, default: '' },
+  wifesName: { type: String, default: '' },
+  husbandsName: { type: String, default: '' },
+  gradeSchool: { type: String, default: '' },
+  highSchool: { type: String, default: '' },
+  college: { type: String, default: '' },
+  course: { type: String, default: '' },
+  honorsReceived: { type: String, default: '' },
+  affiliation: { type: String, default: '' },
+  schoolLastAttended: { type: String, default: '' },
+  employer: { type: String, default: '' },
 
 });
 

@@ -689,8 +689,8 @@ export default function FinalizedCases() {
       </table>
       <p class="section-title">Fast Facts</p>
       <div class="box">${escapeHtml(formatText(interview.fastFacts))}</div>
-      ${renderEvidenceTable('Evidence on Hand / Available for the Client(s)', interview.clientEvidence, ['Type / Description', 'Author / Custodian', 'Purpose', 'Admissibility Issues'])}
-      ${renderEvidenceTable('Evidence on Hand / Available for the Adverse Party(ies)', interview.adversePartyEvidence, ['Type / Description', 'Author / Custodian', 'Admissibility Issues'])}
+      <p class="section-title">Evidence</p>
+      <div class="box">Evidence management is available on the web version.</div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
         <span class="section-title">Interviewing Intern's Initial Advice to the Client(s)</span>
         <span>${interview.forLegalAdvice === true || interview.forLegalAdvice === 'true' ? '&#9746;' : '&#9744;'} For legal advice only</span>

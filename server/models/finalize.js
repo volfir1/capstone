@@ -39,6 +39,15 @@ const FinalizeSchema = new mongoose.Schema({
   finalizedRole: { type: String },
   decision: { type: String, enum: ['accepted', 'rejected', 'pending'], index: true },
   content: { type: mongoose.Schema.Types.Mixed },
+  // Retained after the source review is deleted at finalization.
+  workflowHistory: [{
+    action: { type: String },
+    fromStage: { type: String },
+    toStage: { type: String },
+    actor: { id: String, name: String, role: String },
+    snapshot: { type: mongoose.Schema.Types.Mixed },
+    occurredAt: { type: Date, default: Date.now },
+  }],
   // Client account tracking
   clientAccountCreated: { type: Boolean, default: false, index: true },
   clientUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

@@ -9,16 +9,29 @@ import {
   IconBriefcase,
   IconChartDots,
   IconClipboardCheck,
-  IconPlus
+  IconPlus,
+  IconClock
 } from "@tabler/icons-react";
 
 const BASE_ADMIN_NAV = [
   { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
   { icon: IconHistory, label: "Tenure History", path: 'tenure-history', section: 'main' },
-  { icon: IconBriefcase, label: "Finalized Cases", path: 'finalized', section: 'main' },
+  { icon: IconBriefcase, label: "Cases", path: 'finalized', section: 'main' },
   { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
   { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
   { icon: IconPlus, label: "Add Existing Case", path: 'add-existing-case', section: 'main' },
+  { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
+  { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
+];
+
+const INTERN_NAV = [
+  { icon: IconDashboard, label: "Dashboard", path: '/admin', section: 'main' },
+  { icon: IconHistory, label: "Tenure History", path: 'tenure-history', section: 'main' },
+  { icon: IconBriefcase, label: "Cases", path: 'finalized', section: 'main' },
+  { icon: IconClipboardCheck, label: "Assigned Cases", path: 'assigned-cases', section: 'main' },
+  { icon: IconChartDots, label: "Appointments", path: 'clientformstatus', section: 'main' },
+  { icon: IconPlus, label: "Add Existing Case", path: 'add-existing-case', section: 'main' },
+  { icon: IconClock, label: "Time", path: 'time', section: 'main' },
   { icon: IconChartBar, label: "Analytics", path: 'analytics', section: 'insights' },
   { icon: IconUserCircle, label: "Profile", path: 'profile', section: 'account' },
 ];
@@ -31,7 +44,7 @@ const DIRECTOR_NAV = [BASE_ADMIN_NAV[0], PROFILE_MANAGER_ITEM, ...BASE_ADMIN_NAV
 export const NAVIGATION_CONFIG = {
   secretary: SECRETARY_NAV,
   attorney: BASE_ADMIN_NAV,
-  intern: BASE_ADMIN_NAV,
+  intern: INTERN_NAV,
   supervising_lawyer: BASE_ADMIN_NAV,
   director: DIRECTOR_NAV,
 };

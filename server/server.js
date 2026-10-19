@@ -17,6 +17,7 @@ import notificationRoutes from './routes/notificationRoutes.js'
 import activityLogRoutes from './routes/activityLogRoutes.js'
 import googleRoutes from './routes/googleRoutes.js'
 import caseAssignmentRoutes from './routes/caseAssignmentRoutes.js'
+import timeEntryRoutes from './routes/timeEntryRoutes.js'
 import cors from "cors"
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
@@ -438,6 +439,7 @@ app.use('/api/caserecords', caseRecordRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/activity-logs', activityLogRoutes)
 app.use('/api/case-assignments', caseAssignmentRoutes)
+app.use('/api/time-entries', timeEntryRoutes)
 // Google Calendar integration routes
 app.use('/api/google', googleRoutes)
 

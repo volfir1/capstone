@@ -36,6 +36,7 @@ const RecommendationForAction = lazy(() => import("./pages/other/RecommendationF
 const ClientApplicationStatus = lazy(() => import("./pages/other/ClientFormStatus"));
 const ClientInfoView          = lazy(() => import("./pages/other/ClientInfoView"));
 const AdminProfile            = lazy(() => import("./pages/other/Profiles/AdminProfile"));
+const Time                    = lazy(() => import("./pages/admin/Time"));
 
 // Roles:
 //   'user'              — pending/holding, no routes, redirected to login until promoted
@@ -343,6 +344,7 @@ function AppRoutes() {
           <Route path="add-existing-case"       element={<AddExistingCase />} />
           <Route path="case-record/:finalizeId" element={<CaseRecordView />} />
           <Route path="analytics"               element={<Analytics />} />
+          <Route path="time"                   element={<Time />} />
           <Route path="profile"                 element={<AdminProfile />} />
         </Route>
 

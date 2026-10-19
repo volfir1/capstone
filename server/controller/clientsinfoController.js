@@ -145,6 +145,8 @@ export const createClientsInfo = async (req, res) => {
       adversePartyCounsel: payload.adversePartyCounsel,
       adversePartyCounselAddress: payload.adversePartyCounselAddress,
       adversePartyCounselPhone: payload.adversePartyCounselPhone,
+      partiesAndCounselDetails: payload.partiesAndCounselDetails || [],
+      courtVenueDetails: payload.courtVenueDetails || [],
       legalMatter: payload.legalMatter,
       location: payload.location,
       appointmentType: payload.appointmentType,
@@ -343,6 +345,9 @@ export const updateClientsInfo = async (req, res) => {
     setField('relatorName')
     setField('relationshipToClient')
     setField('relatorContactNumber')
+    setField('relatorEmail')
+    setField('relatorPhone')
+    setField('relatorAddress')
 
     // Financial Details
     setField('currentSourceOfIncome')
@@ -353,6 +358,7 @@ export const updateClientsInfo = async (req, res) => {
     setField('employerTelephone')
     setField('spouseSourceOfIncome')
     setField('spouseMonthlyIncome', (v) => (v === '' || v === null || v === undefined ? v : Number(v)))
+    setField('spouseNatureOfWork')
     setField('spouseEmployerAddress')
     setField('totalCombinedIncome', (v) => (v === '' || v === null || v === undefined ? v : Number(v)))
     setField('dependents', (v) => (v === '' || v === null || v === undefined ? v : Number(v)))
@@ -374,6 +380,8 @@ export const updateClientsInfo = async (req, res) => {
     setField('adversePartyCounsel')
     setField('adversePartyCounselAddress')
     setField('adversePartyCounselPhone')
+    setField('partiesAndCounselDetails')
+    setField('courtVenueDetails')
     setField('legalMatter')
     setField('location')
     setField('appointmentType')

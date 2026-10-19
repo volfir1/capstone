@@ -1,6 +1,7 @@
 import Finalize from '../models/finalize.js'
 import User from '../models/user.js'
 import Case from '../models/case.js'
+import Review from '../models/review.js'
 import { createNotification } from './notificationController.js'
 import { safeErrorMessage } from '../utils/errorResponse.js'
 
@@ -18,6 +19,13 @@ export const createFinalize = async (req, res) => {
     
     if (caseTitle) toCreate.caseTitle = caseTitle
     if (clientName) toCreate.clientName = clientName
+
+    // The UI deletes the review once finalization succeeds. Copy the audit
+    // trail first so it remains available without a case-record document.
+    if (!Array.isArray(toCreate.workflowHistory) && toCreate.caseId) {
+      const review = await Review.findOne({ caseId: toCreate.caseId }).select('workflowHistory').lean()
+      if (review?.workflowHistory?.length) toCreate.workflowHistory = review.workflowHistory
+    }
 
     const rec = await Finalize.create(toCreate)
     console.log('Created finalize record with caseId:', rec.caseId)

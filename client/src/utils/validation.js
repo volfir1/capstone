@@ -237,8 +237,20 @@ export const validationRules = {
   permanentAddress: {},
   
   relatorName: {},
-  
+
   relationshipToClient: {},
+
+  relatorEmail: {
+    validate: (value) => {
+      if (!value) return true;
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(value) || "Please enter a valid email address";
+    }
+  },
+
+  relatorPhone: {},
+
+  relatorAddress: {},
   
   // ============================================
   // FINANCIAL DETAILS VALIDATION

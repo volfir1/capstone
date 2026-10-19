@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import {
   ActionIcon,
@@ -216,7 +216,9 @@ export default function ProfilePin() {
                   Selected Profile
                 </Text>
                 <Title order={3} mt={6} c={CHARCOAL}>
-                  {selectedProfile.firstName} {selectedProfile.lastName}
+                  {selectedProfile.role === "intern"
+                    ? `${selectedProfile.givenName || selectedProfile.firstName} ${selectedProfile.familyName || selectedProfile.lastName}`
+                    : `${selectedProfile.firstName} ${selectedProfile.lastName}`}
                 </Title>
                 <Group gap="sm" mt={10}>
                   <Badge

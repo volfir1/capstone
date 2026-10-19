@@ -3,16 +3,21 @@ import CaseAssignment from '../models/caseAssignment.js'
 import Finalize from '../models/finalize.js'
 import { safeErrorMessage } from '../utils/errorResponse.js'
 import { emitSocketEventToProfile } from './notificationController.js'
+import fs from 'fs'
+import path from 'path'
 
 // Create or Update Case Record
 export const upsertCaseRecord = async (req, res) => {
   try {
     const { finalizeId } = req.params
     const payload = req.body
-    
+
     console.log('Upserting case record for finalizeId:', finalizeId)
-    console.log('Payload:', payload)
-    
+    console.log('Payload keys:', Object.keys(payload))
+    console.log('courtVenueDetails:', payload.courtVenueDetails?.length || 0, 'entries')
+    console.log('partiesAndCounselDetails:', payload.partiesAndCounselDetails?.length || 0, 'groups')
+    console.log('evidence lists:', payload.evidence?.length || 0, 'lists')
+
     if (!finalizeId) {
       return res.status(400).json({ error: 'finalizeId is required' })
     }
@@ -32,20 +37,23 @@ export const upsertCaseRecord = async (req, res) => {
       return res.status(403).json({ error: 'Case record can only be created for accepted cases' })
     }
 
+    // Prepare the payload with evidence data
+    const updatePayload = {
+      ...payload,
+      finalizeId: finalizeRecord._id,
+      caseId: finalizeRecord.caseId,
+      lastModifiedBy: req.user?.uid || req.body.lastModifiedBy,
+    }
+
     // Find and update or create new
     const caseRecord = await CaseRecord.findOneAndUpdate(
       { finalizeId: finalizeRecord._id },
+      updatePayload,
       {
-        ...payload,
-        finalizeId: finalizeRecord._id,
-        caseId: finalizeRecord.caseId,
-        lastModifiedBy: req.user?.uid || req.body.lastModifiedBy,
-      },
-      { 
-        new: true, 
-        upsert: true, 
+        new: true,
+        upsert: true,
         runValidators: true,
-        setDefaultsOnInsert: true 
+        setDefaultsOnInsert: true
       }
     )
 
@@ -76,7 +84,7 @@ export const upsertCaseRecord = async (req, res) => {
       }
     }
 
-    console.log('Case record saved:', { finalizeId, recordId: caseRecord._id })
+    console.log('Case record saved:', { finalizeId, recordId: caseRecord._id, evidenceCount: caseRecord.evidence?.length || 0 })
 
     res.json({
       success: true,
@@ -239,7 +247,7 @@ export const getCaseRecordByFinalizeId = async (req, res) => {
     const { finalizeId } = req.params
 
     const caseRecord = await CaseRecord.findOne({ finalizeId }).populate('finalizeId')
-    
+
       if (!caseRecord) {
         // Return null when no case record exists for this finalize id
         return res.json(null)
@@ -248,6 +256,142 @@ export const getCaseRecordByFinalizeId = async (req, res) => {
       return res.json(caseRecord)
   } catch (err) {
     console.error('getCaseRecordByFinalizeId error', err)
+    res.status(500).json({ error: safeErrorMessage(err)})
+  }
+}
+
+// Get Evidence only (for performance when only evidence is needed)
+export const getEvidenceByFinalizeId = async (req, res) => {
+  try {
+    const { finalizeId } = req.params
+
+    const caseRecord = await CaseRecord.findOne({ finalizeId }).select('evidence')
+
+    if (!caseRecord) {
+      return res.json({ evidence: [] })
+    }
+
+    return res.json({ evidence: caseRecord.evidence || [] })
+  } catch (err) {
+    console.error('getEvidenceByFinalizeId error', err)
+    res.status(500).json({ error: safeErrorMessage(err)})
+  }
+}
+
+// Upload a draft file
+export const uploadDraft = async (req, res) => {
+  try {
+    const { finalizeId } = req.params
+    const { fileData } = req.body // fileData should contain Cloudinary response from frontend
+
+    if (!fileData) {
+      return res.status(400).json({ error: 'No file data provided' })
+    }
+
+    // Find or create case record
+    let caseRecord = await CaseRecord.findOne({ finalizeId })
+    if (!caseRecord) {
+      // Create case record if it doesn't exist
+      const finalizeRecord = await Finalize.findById(finalizeId)
+      if (!finalizeRecord) {
+        return res.status(404).json({ error: 'Finalized case not found' })
+      }
+
+      caseRecord = new CaseRecord({
+        finalizeId: finalizeRecord._id,
+        caseId: finalizeRecord.caseId,
+        drafts: []
+      })
+    }
+
+    // Initialize drafts array if it doesn't exist
+    if (!caseRecord.drafts) {
+      caseRecord.drafts = []
+    }
+
+    // Add draft to array with Cloudinary data
+    const draft = {
+      id: Date.now().toString(),
+      fileName: fileData.originalName || fileData.displayName,
+      fileType: fileData.mimetype,
+      fileSize: fileData.size,
+      filename: fileData.filename,
+      cloudinaryUrl: fileData.cloudinaryUrl || fileData.url,
+      cloudinaryPublicId: fileData.cloudinaryPublicId,
+      cloudinaryResourceType: fileData.cloudinaryResourceType,
+      uploadedAt: new Date(),
+      uploadedBy: req.user?.uid || req.body.uploadedBy || 'unknown'
+    }
+
+    caseRecord.drafts.push(draft)
+    await caseRecord.save()
+
+    res.json({
+      success: true,
+      data: draft,
+      message: 'Draft uploaded successfully'
+    })
+  } catch (err) {
+    console.error('uploadDraft error', err)
+    res.status(500).json({ error: safeErrorMessage(err)})
+  }
+}
+
+// List all drafts for a case record
+export const listDrafts = async (req, res) => {
+  try {
+    const { finalizeId } = req.params
+
+    const caseRecord = await CaseRecord.findOne({ finalizeId }).select('drafts')
+
+    if (!caseRecord) {
+      return res.json({ drafts: [] })
+    }
+
+    return res.json({ drafts: caseRecord.drafts || [] })
+  } catch (err) {
+    console.error('listDrafts error', err)
+    res.status(500).json({ error: safeErrorMessage(err)})
+  }
+}
+
+// Delete a draft file
+export const deleteDraft = async (req, res) => {
+  try {
+    const { finalizeId, draftId } = req.params
+
+    const caseRecord = await CaseRecord.findOne({ finalizeId })
+    if (!caseRecord) {
+      return res.status(404).json({ error: 'Case record not found' })
+    }
+
+    const draftIndex = caseRecord.drafts?.findIndex(d => d.id === draftId)
+    if (draftIndex === -1) {
+      return res.status(404).json({ error: 'Draft not found' })
+    }
+
+    const draft = caseRecord.drafts[draftIndex]
+
+    // Delete from Cloudinary if Cloudinary data exists
+    if (draft.cloudinaryPublicId) {
+      try {
+        const { deleteFromCloudinary } = await import('../server.js')
+        await deleteFromCloudinary(draft.cloudinaryPublicId, draft.cloudinaryResourceType || 'auto')
+      } catch (cloudErr) {
+        console.warn('Failed to delete from Cloudinary:', cloudErr.message)
+      }
+    }
+
+    // Remove draft from array
+    caseRecord.drafts.splice(draftIndex, 1)
+    await caseRecord.save()
+
+    res.json({
+      success: true,
+      message: 'Draft deleted successfully'
+    })
+  } catch (err) {
+    console.error('deleteDraft error', err)
     res.status(500).json({ error: safeErrorMessage(err)})
   }
 }

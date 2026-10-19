@@ -30,7 +30,7 @@ import {
   Tooltip,
   Pagination,
 } from '@mantine/core';
-import { IconAlertTriangle, IconBriefcase, IconEye, IconFileText, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconAlertTriangle, IconBriefcase, IconEye, IconFileText, IconMessageCircle, IconReceipt, IconSend, IconUser, IconDownload, IconClock, IconHistory, IconDots, IconRefresh, IconSearch, IconFilter, IconX, IconScale, IconClipboardText, IconFileDescription, IconGavel, IconHome, IconFileInvoice, IconUsersGroup, IconShieldLock, IconDeviceDesktop, IconTrash, IconUpload, IconPlus } from '@tabler/icons-react';
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import { notifications } from '@mantine/notifications';
@@ -39,7 +39,7 @@ import FinalizedCasesSkeleton from '@/components/skeleton/FinalizedCasesSkeleton
 import apiClient from '@config/api/apiClient';
 import { useAuth } from '@/context/authContext';
 import { auth as firebaseAuth } from '@/firebase/firebase';
-import { CaseInformationSection } from '../other/CaseInformationSection';
+import PartiesAndCounselDetails from '@/components/PartiesAndCounselDetails';
 
 // Normalize server file URLs so client always requests the backend, not the dev server origin
 const getServerFileUrl = (pathOrUrl) => {
@@ -104,6 +104,7 @@ const APPOINTMENT_STATUS_OPTIONS = [
 
 const getFinalizedDisplayCode = (record) => String(record?.caseNumber || '').trim();
 const getFinalizedSearchCode = (record) => String(record?.caseNumber || record?.caseId || '').trim();
+const getFinalizedDisplayName = (record) => record?.clientName || record?.content?.interviewInfo?.clientName || 'Unknown Client';
 
 /* Chat UI disabled per checklist. Keeping component here commented
    so it can be restored later if needed. */
@@ -183,6 +184,8 @@ const initialState = {
     adversePartyCounsel: '',
     adversePartyCounselAddress: '',
     adversePartyCounselPhone: '',
+    partiesAndCounselDetails: [],
+    courtVenueDetails: [],
   },
   appointmentSaving: false,
 
@@ -211,7 +214,6 @@ const initialState = {
 
   // Pagination
   currentPageAccepted: 1,
-  currentPageWithoutRecord: 1,
   currentPageLegalAdvice: 1,
   currentPageDocumentDrafting: 1,
   currentPageRejected: 1,
@@ -236,7 +238,6 @@ function stateReducer(state, action) {
         ...state,
         searchTerm: action.payload,
         currentPageAccepted: 1,
-        currentPageWithoutRecord: 1,
         currentPageLegalAdvice: 1,
         currentPageDocumentDrafting: 1,
       };
@@ -245,7 +246,6 @@ function stateReducer(state, action) {
         ...state,
         categoryFilter: action.payload,
         currentPageAccepted: 1,
-        currentPageWithoutRecord: 1,
         currentPageLegalAdvice: 1,
         currentPageDocumentDrafting: 1,
         currentPageRejected: 1,
@@ -277,7 +277,7 @@ function stateReducer(state, action) {
     case 'OPEN_APPOINTMENT_MODAL':
       return { ...state, appointmentModalOpened: true, loadingAppointment: true, appointmentEditMode: false, appointmentSaving: false };
     case 'CLOSE_APPOINTMENT_MODAL':
-      return { ...state, appointmentModalOpened: false, appointmentDetails: null, appointmentEditMode: false, appointmentForm: { status: '', appointedDate: '', appointmentTime: '' }, appointmentSaving: false };
+      return { ...state, appointmentModalOpened: false, appointmentDetails: null, appointmentEditMode: false, appointmentForm: { status: '', appointedDate: '', appointmentTime: '', courtVenueDetails: [] }, appointmentSaving: false };
     case 'SET_APPOINTMENT_DETAILS':
       return { ...state, appointmentDetails: action.payload, loadingAppointment: false };
     case 'SET_LOADING_APPOINTMENT':
@@ -644,6 +644,8 @@ export default function FinalizedCases() {
     adversePartyCounsel: details?.adversePartyCounsel || '',
     adversePartyCounselAddress: details?.adversePartyCounselAddress || '',
     adversePartyCounselPhone: details?.adversePartyCounselPhone || '',
+    partiesAndCounselDetails: details?.partiesAndCounselDetails || [],
+    courtVenueDetails: details?.courtVenueDetails || [],
   });
 
   const renderSectionRows = (doc, startY, title, rows) => {
@@ -698,17 +700,8 @@ export default function FinalizedCases() {
     if (!evidence || evidence.length === 0) return startY;
     const pageHeight = doc.internal.pageSize.getHeight();
 
-    // Only omit "Purpose" for: Evidence on Hand / Available for the Adverse Party(ies)
-    const isAdversePartyEvidenceSection =
-      /evidence on hand/i.test(title) && /adverse party/i.test(title);
-
-    const headers = isAdversePartyEvidenceSection
-      ? ['Type / Description', 'Author / Custodian', 'Admissibility Issues']
-      : ['Type / Description', 'Author / Custodian', 'Purpose', 'Admissibility Issues'];
-
-    const colWidths = isAdversePartyEvidenceSection
-      ? [60, 60, 75]
-      : [45, 50, 55, 45];
+    const headers = ['Annex/Exhibit', 'Document', 'Witness', 'Original', 'Notes'];
+    const colWidths = [25, 50, 35, 25, 40];
     const startX = 12;
     let y = startY;
 
@@ -743,9 +736,13 @@ export default function FinalizedCases() {
 
     // Rows
     evidence.forEach((row) => {
-      const cells = isAdversePartyEvidenceSection
-        ? [row?.type || '-', row?.author || '-', row?.issues || '-']
-        : [row?.type || '-', row?.author || '-', row?.purpose || '-', row?.issues || '-'];
+      const cells = [
+        (row?.annex || row?.exhibit || '-'),
+        row?.document || '-',
+        row?.witness || '-',
+        row?.original || '-',
+        row?.notes || '-'
+      ];
       const wrappedHeights = cells.map((cell, idx) => {
         const lines = doc.splitTextToSize(String(cell || '-'), colWidths[idx] - 4);
         return { lines, height: lines.length * 6 };
@@ -847,8 +844,7 @@ export default function FinalizedCases() {
 
         // --- fillable areas ---
         fastFacts: formatText(interview.fastFacts),
-        clientEvidence: Array.isArray(interview.clientEvidence) ? interview.clientEvidence : [],
-        adversePartyEvidence: Array.isArray(interview.adversePartyEvidence) ? interview.adversePartyEvidence : [],
+        evidence: Array.isArray(interview.evidence) ? interview.evidence : [],
         internAdvice: formatText(interview.internAdvice),
         legalOpinion: formatText(interview.legalOpinion),
         forLegalAdvice: interview.forLegalAdvice === true || interview.forLegalAdvice === 'true' || interview.forLegalAdvice === 1 || interview.forLegalAdvice === '1',
@@ -1097,79 +1093,57 @@ export default function FinalizedCases() {
     drawMultilineInRect(data.fastFacts, margin, y, pageW - margin * 2, FAST_FACTS_H, 9, true);
     y += FAST_FACTS_H + GAP_MD;
 
-    // Evidence (Client)
+    // Evidence - simplified for new structure
     setFont(10, "bold");
-    doc.text("Evidence on Hand / Available for the Client(s)", margin, y);
+    doc.text("Evidence", margin, y);
     y += GAP_XS;
 
-    const clientRows = normalizeEvidence(data.clientEvidence, { type: "", author: "", purpose: "", issues: "" });
-    const clientRowData = clientRows.map((r) => [r.type, r.author, r.purpose, r.issues]);
-    const clientTableH = (() => {
-      const fontSize = 8.5;
-      const padding = 2;
-      setFont(fontSize, 'normal');
-      const lh = lineHeightMm(fontSize);
-      const widths = [0.28, 0.22, 0.20, 0.30].map((r) => (pageW - margin * 2) * r);
-      return TABLE_HEADER_H + clientRowData.reduce((sum, row) => {
-        const maxLines = row.reduce((mx, cell, i) => {
-          const lines = doc.splitTextToSize(safeText(cell) || '-', Math.max(1, widths[i] - padding * 2));
-          return Math.max(mx, lines.length);
-        }, 1);
-        return sum + Math.max(8, maxLines * lh + padding * 2);
-      }, 0);
-    })();
-    if (y + clientTableH > pageH - margin) {
-      doc.addPage();
-      y = margin;
-      setFont(10, 'bold');
-      doc.text("Evidence on Hand / Available for the Client(s)", margin, y);
-      y += GAP_XS;
+    // Map new evidence structure to display format
+    const evidenceRows = Array.isArray(data.evidence) ? data.evidence : [];
+    const evidenceRowData = evidenceRows.map((r) => [
+      r.annex || r.exhibit || '-',
+      r.document || '-',
+      r.witness || '-',
+      r.original || '-',
+      r.notes || '-'
+    ]);
+
+    if (evidenceRowData.length > 0) {
+      const evidenceTableH = (() => {
+        const fontSize = 8.5;
+        const padding = 2;
+        setFont(fontSize, 'normal');
+        const lh = lineHeightMm(fontSize);
+        const widths = [0.15, 0.30, 0.20, 0.15, 0.20].map((r) => (pageW - margin * 2) * r);
+        return TABLE_HEADER_H + evidenceRowData.reduce((sum, row) => {
+          const maxLines = row.reduce((mx, cell, i) => {
+            const lines = doc.splitTextToSize(safeText(cell) || '-', Math.max(1, widths[i] - padding * 2));
+            return Math.max(mx, lines.length);
+          }, 1);
+          return sum + Math.max(8, maxLines * lh + padding * 2);
+        }, 0);
+      })();
+
+      if (y + GAP_XS + evidenceTableH > pageH - margin) {
+        doc.addPage();
+        y = margin;
+        setFont(10, 'bold');
+        doc.text("Evidence", margin, y);
+        y += GAP_XS;
+      }
+
+      y += drawTable(
+        margin,
+        y,
+        pageW - margin * 2,
+        ["Annex/Exhibit", "Document", "Witness", "Original", "Notes"],
+        [0.15, 0.30, 0.20, 0.15, 0.20],
+        evidenceRowData
+      ) + GAP_MD;
+    } else {
+      doc.text("No evidence provided", margin, y);
+      y += GAP_MD;
     }
-    y += drawTable(
-      margin,
-      y,
-      pageW - margin * 2,
-      ["Type / Description", "Author / Custodian", "Purpose", "Admissibility Issues"],
-      [0.28, 0.22, 0.20, 0.30],
-      clientRowData
-    ) + GAP_MD;
-
-    // Evidence (Adverse)
-    const adverseRows = normalizeEvidence(data.adversePartyEvidence, { type: "", author: "", issues: "" });
-    const adverseRowData = adverseRows.map((r) => [r.type, r.author, r.issues]);
-    const adverseTableH = (() => {
-      const fontSize = 8.5;
-      const padding = 2;
-      setFont(fontSize, 'normal');
-      const lh = lineHeightMm(fontSize);
-      const widths = [0.35, 0.30, 0.35].map((r) => (pageW - margin * 2) * r);
-      return TABLE_HEADER_H + adverseRowData.reduce((sum, row) => {
-        const maxLines = row.reduce((mx, cell, i) => {
-          const lines = doc.splitTextToSize(safeText(cell) || '-', Math.max(1, widths[i] - padding * 2));
-          return Math.max(mx, lines.length);
-        }, 1);
-        return sum + Math.max(8, maxLines * lh + padding * 2);
-      }, 0);
-    })();
-
-    // Check if adverse evidence table fits on current page
-    if (y + GAP_XS + adverseTableH > pageH - margin) {
-      doc.addPage();
-      y = margin;
-    }
-
-    setFont(10, "bold");
-    doc.text("Evidence on Hand / Available for the Adverse Party(ies)", margin, y);
-    y += GAP_XS;
-
-    y += drawTable(
-      margin,
-      y,
-      pageW - margin * 2,
-      ["Type / Description", "Author / Custodian", "Admissibility Issues"],
-      [0.35, 0.30, 0.35],
-      adverseRowData
-    ) + GAP_MD;
 
     // Pre-compute advice and opinion heights for page break check
     const adviceH = measureTextHeight(data.internAdvice, pageW - margin * 2, 9, 12);
@@ -1732,6 +1706,9 @@ export default function FinalizedCases() {
   const acceptedWithRecord = courtRepresentationCases.filter(f => state.caseRecordsMap[f._id || f.id]);
   const acceptedWithoutRecord = courtRepresentationCases.filter(f => !state.caseRecordsMap[f._id || f.id]);
 
+  // Combine both for Active Cases tab
+  const activeCases = [...acceptedWithRecord, ...acceptedWithoutRecord];
+
   // Pagination Logic
   const ITEMS_PER_PAGE = 10;
 
@@ -1740,14 +1717,12 @@ export default function FinalizedCases() {
     return items.slice(start, start + ITEMS_PER_PAGE);
   };
 
-  const paginatedAcceptedWithRecord = paginate(acceptedWithRecord, state.currentPageAccepted);
-  const paginatedAcceptedWithoutRecord = paginate(acceptedWithoutRecord, state.currentPageWithoutRecord);
+  const paginatedActiveCases = paginate(activeCases, state.currentPageAccepted);
   const paginatedLegalAdvice = paginate(legalAdviceCases, state.currentPageLegalAdvice);
   const paginatedDocumentDrafting = paginate(documentDraftingCases, state.currentPageDocumentDrafting);
   const paginatedRejected = paginate(rejectedCasesFiltered, state.currentPageRejected);
 
-  const totalPagesAccepted = Math.ceil(acceptedWithRecord.length / ITEMS_PER_PAGE);
-  const totalPagesWithoutRecord = Math.ceil(acceptedWithoutRecord.length / ITEMS_PER_PAGE);
+  const totalPagesActiveCases = Math.ceil(activeCases.length / ITEMS_PER_PAGE);
   const totalPagesLegalAdvice = Math.ceil(legalAdviceCases.length / ITEMS_PER_PAGE);
   const totalPagesDocumentDrafting = Math.ceil(documentDraftingCases.length / ITEMS_PER_PAGE);
   const totalPagesRejected = Math.ceil(rejectedCasesFiltered.length / ITEMS_PER_PAGE);
@@ -1845,6 +1820,7 @@ export default function FinalizedCases() {
       // Get the clientsinfo ID - it's stored as caseId in the finalize document
       // This caseId is actually the _id of the clientsinfo document (the appointment form)
       const clientInfoId = caseData.caseId;
+      const finalizeId = caseData._id;
 
       console.log('Fetching appointment details for clientInfoId:', clientInfoId);
       console.log('Case data:', caseData);
@@ -1855,9 +1831,38 @@ export default function FinalizedCases() {
         return;
       }
 
+      // Fetch clientsinfo data
       const response = await apiClient.get(`/clientsinfo/${clientInfoId}`);
-      const details = response.data;
-      console.log('Appointment details:', details);
+      let details = response.data;
+      console.log('Appointment details from clientsinfo:', details);
+
+      // Fetch case record data if available (contains updated fields like courtVenueDetails)
+      if (finalizeId) {
+        try {
+          const caseRecordResponse = await apiClient.get(`/caserecords/finalize/${finalizeId}`);
+          const caseRecordData = caseRecordResponse.data;
+          console.log('Case record data:', caseRecordData);
+
+          // Merge case record data into details (case record data takes precedence)
+          if (caseRecordData) {
+            details = {
+              ...details,
+              ...caseRecordData,
+              // Preserve clientsinfo-specific fields
+              _id: details._id,
+              caseNumber: details.caseNumber,
+              status: details.status,
+              appointedDate: details.appointedDate,
+              appointmentTime: details.appointmentTime,
+            };
+          }
+        } catch (caseRecordErr) {
+          console.log('No case record found or error fetching case record:', caseRecordErr.message);
+          // Continue with clientsinfo data only
+        }
+      }
+
+      console.log('Merged appointment details:', details);
       dispatch({ type: 'SET_APPOINTMENT_DETAILS', payload: details });
       dispatch({ type: 'SET_APPOINTMENT_FORM', payload: syncAppointmentFormFromDetails(details) });
     } catch (error) {
@@ -1926,6 +1931,8 @@ export default function FinalizedCases() {
       adversePartyCounsel: state.appointmentForm.adversePartyCounsel || undefined,
       adversePartyCounselAddress: state.appointmentForm.adversePartyCounselAddress || undefined,
       adversePartyCounselPhone: state.appointmentForm.adversePartyCounselPhone || undefined,
+      partiesAndCounselDetails: state.appointmentForm.partiesAndCounselDetails || [],
+      courtVenueDetails: state.appointmentForm.courtVenueDetails || [],
     };
 
     dispatch({ type: 'SET_APPOINTMENT_SAVING', payload: true });
@@ -2500,10 +2507,7 @@ export default function FinalizedCases() {
   const renderEvidenceTable = (title, evidence = [], fieldName) => {
     if (!state.editMode && (!evidence || evidence.length === 0)) return null;
 
-    // Hide "Purpose" column for adverse party evidence
-    const showPurpose = fieldName !== 'adversePartyEvidence';
-
-    const rows = evidence && evidence.length >= 3 ? evidence : [...(evidence || []), ...Array(3 - (evidence?.length || 0)).fill({ type: '', author: '', purpose: '', issues: '' })];
+    const rows = evidence && evidence.length >= 3 ? evidence : [...(evidence || []), ...Array(3 - (evidence?.length || 0)).fill({ annex: '', exhibit: '', document: '', witness: '', original: '', notes: '' })];
 
     return (
       <Box mb="lg">
@@ -2512,11 +2516,12 @@ export default function FinalizedCases() {
         <Table withTableBorder withColumnBorders striped style={{ minWidth: 500 }}>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Type / Description</Table.Th>
-              <Table.Th>Author / Custodian</Table.Th>
-              {showPurpose && <Table.Th>Purpose</Table.Th>}
-              <Table.Th>Admissibility Issues</Table.Th>
-              <Table.Th>Attachment</Table.Th>
+              <Table.Th>Annex</Table.Th>
+              <Table.Th>Exhibit</Table.Th>
+              <Table.Th>Document</Table.Th>
+              <Table.Th>Witness</Table.Th>
+              <Table.Th>Original</Table.Th>
+              <Table.Th>Notes</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -2525,146 +2530,86 @@ export default function FinalizedCases() {
                 <Table.Td>
                   {state.editMode ? (
                     <TextInput
-                      placeholder="Type/Desc"
+                      placeholder="Annex"
                       size="xs"
                       variant="unstyled"
-                      value={row?.type || ''}
-                      onChange={(e) => updateEvidence(fieldName, idx, 'type', e.target.value)}
+                      value={row?.annex || ''}
+                      onChange={(e) => updateEvidence(fieldName, idx, 'annex', e.target.value)}
                     />
                   ) : (
-                    row?.type || '-'
+                    row?.annex || '-'
                   )}
                 </Table.Td>
                 <Table.Td>
                   {state.editMode ? (
                     <TextInput
-                      placeholder="Author/Custodian"
+                      placeholder="Exhibit"
                       size="xs"
                       variant="unstyled"
-                      value={row?.author || ''}
-                      onChange={(e) => updateEvidence(fieldName, idx, 'author', e.target.value)}
+                      value={row?.exhibit || ''}
+                      onChange={(e) => updateEvidence(fieldName, idx, 'exhibit', e.target.value)}
                     />
                   ) : (
-                    row?.author || '-'
+                    row?.exhibit || '-'
                   )}
                 </Table.Td>
-                {showPurpose && (
-                  <Table.Td>
-                    {state.editMode ? (
-                      <TextInput
-                        placeholder="Purpose"
-                        size="xs"
-                        variant="unstyled"
-                        value={row?.purpose || ''}
-                        onChange={(e) => updateEvidence(fieldName, idx, 'purpose', e.target.value)}
-                      />
-                    ) : (
-                      row?.purpose || '-'
-                    )}
-                  </Table.Td>
-                )}
                 <Table.Td>
                   {state.editMode ? (
                     <TextInput
-                      placeholder="Issues"
+                      placeholder="Document"
                       size="xs"
                       variant="unstyled"
-                      value={row?.issues || ''}
-                      onChange={(e) => updateEvidence(fieldName, idx, 'issues', e.target.value)}
+                      value={row?.document || ''}
+                      onChange={(e) => updateEvidence(fieldName, idx, 'document', e.target.value)}
                     />
                   ) : (
-                    row?.issues || '-'
+                    row?.document || '-'
                   )}
                 </Table.Td>
                 <Table.Td>
-                  <Stack gap={4}>
-                    {state.editMode && (
-                      <FileButton
-                        onChange={(file) => {
-                          if (file) handleUploadEvidenceAttachment(fieldName, idx, file);
-                        }}
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.mp4,.mov,.avi,.mkv,.webm,.mpeg,.mpg"
-                      >
-                        {(props) => (
-                          <Button
-                            {...props}
-                            size="xs"
-                            variant="outline"
-                            leftSection={<IconUpload size={14} />}
-                            loading={uploadingEvidenceKey?.type === fieldName && uploadingEvidenceKey?.index === idx}
-                          >
-                            {row?.attachment?.fileUrl || row?.attachment?.cloudinaryUrl ? 'Replace' : 'Upload'}
-                          </Button>
-                        )}
-                      </FileButton>
-                    )}
-
-                    {(row?.attachment?.fileUrl || row?.attachment?.cloudinaryUrl) ? (
-                      <>
-                        <Text size="xs" fw={600} lineClamp={1}>{row?.attachment?.fileName || 'Attachment'}</Text>
-                        <Group gap={4}>
-                          <Button
-                            size="xs"
-                            variant="light"
-                            color="blue"
-                            leftSection={<IconEye size={12} />}
-                            onClick={() => handleViewEvidenceAttachment(row.attachment)}
-                          >
-                            View
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="light"
-                            color="green"
-                            leftSection={<IconDownload size={12} />}
-                            onClick={() => handleDownloadEvidenceAttachment(row.attachment)}
-                          >
-                            Download
-                          </Button>
-                          {state.editMode && (
-                            <Button
-                              size="xs"
-                              variant="subtle"
-                              color="red"
-                              leftSection={<IconX size={12} />}
-                              onClick={() => handleRemoveEvidenceAttachment(fieldName, idx)}
-                            >
-                              Remove
-                            </Button>
-                          )}
-                        </Group>
-                      </>
-                    ) : (
-                      <Text size="xs" c="dimmed">No attachment</Text>
-                    )}
-                  </Stack>
+                  {state.editMode ? (
+                    <TextInput
+                      placeholder="Witness"
+                      size="xs"
+                      variant="unstyled"
+                      value={row?.witness || ''}
+                      onChange={(e) => updateEvidence(fieldName, idx, 'witness', e.target.value)}
+                    />
+                  ) : (
+                    row?.witness || '-'
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  {state.editMode ? (
+                    <TextInput
+                      placeholder="Original"
+                      size="xs"
+                      variant="unstyled"
+                      value={row?.original || ''}
+                      onChange={(e) => updateEvidence(fieldName, idx, 'original', e.target.value)}
+                    />
+                  ) : (
+                    row?.original || '-'
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  {state.editMode ? (
+                    <TextInput
+                      placeholder="Notes"
+                      size="xs"
+                      variant="unstyled"
+                      value={row?.notes || ''}
+                      onChange={(e) => updateEvidence(fieldName, idx, 'notes', e.target.value)}
+                    />
+                  ) : (
+                    row?.notes || '-'
+                  )}
                 </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
         </ScrollArea>
-        {state.editMode && (
-          <Button
-            variant="subtle"
-            size="xs"
-            mt="xs"
-            style={{ color: PRIMARY_BROWN }}
-            onClick={() => {
-              const newData = JSON.parse(JSON.stringify(state.editedData));
-              if (!newData.content) newData.content = {};
-              if (!newData.content.interviewInfo) newData.content.interviewInfo = {};
-              if (!newData.content.interviewInfo[fieldName]) newData.content.interviewInfo[fieldName] = [];
-              newData.content.interviewInfo[fieldName] = [
-                ...newData.content.interviewInfo[fieldName],
-                { type: '', author: '', purpose: '', issues: '' }
-              ];
-              dispatch({ type: 'SET_EDITED_DATA', payload: newData });
-            }}
-          >
-            + Add another row
-          </Button>
-        )}
       </Box>
     );
   };
@@ -2702,9 +2647,7 @@ export default function FinalizedCases() {
     const hasRecord = recordId ? state.caseRecordsMap[recordId] : false;
     const clientName = f.clientName || f.content?.interviewInfo?.clientName || 'Unknown Client';
     const caseCode = getFinalizedDisplayCode(f);
-    const displayTitle = hasRecord
-      ? (f.caseTitle || f.content?.caseInfo?.caseTitle || f.content?.caseInfo?.title || caseCode || clientName)
-      : clientName;
+    const displayTitle = clientName; // Always show client name as primary
     const caseNature = f.content?.caseInfo?.nature || f.category;
     const dateStr = f.createdAt ? new Date(f.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No Date';
     const { icon: CaseIcon, color: iconColor } = getCaseTypeIcon(f);
@@ -2734,6 +2677,11 @@ export default function FinalizedCases() {
               <Stack gap={2}>
                 <Group gap={8} wrap="nowrap" align="center">
                   <Text fw={700} size="sm" truncate>{displayTitle}</Text>
+                  {!hasRecord && (
+                    <Tooltip label="Without Case Record">
+                      <IconAlertTriangle size={14} color="#E8590C" />
+                    </Tooltip>
+                  )}
                 </Group>
                 {caseCode ? (
                   <Text size="xs" fw={700} c={PRIMARY_BROWN} ff="monospace" style={{ lineHeight: 1.2 }}>
@@ -3650,53 +3598,152 @@ export default function FinalizedCases() {
                 </Grid>
               </Paper>
 
-              {/* Adverse Party */}
+              {/* Court & Venue Details */}
               <Paper shadow="xs" p="lg" radius="lg" style={{ backgroundColor: 'white', border: '1px solid #F0F0F0' }}>
-                <Title order={4} mb="md" c={CHARCOAL}>Adverse Party</Title>
+                <Title order={4} mb="md" c={CHARCOAL}>Court & Venue Details</Title>
                 <Divider mb="md" color="#F0F0F0" />
-                <Grid gutter="md">
-                  <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party(ies)</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput size="sm" value={state.appointmentForm.adverseParty} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adverseParty: e.target.value } })} />
+                {state.appointmentEditMode ? (
+                  <Stack gap="md">
+                    {(state.appointmentForm.courtVenueDetails || []).map((courtVenue, index) => (
+                      <Box key={index} p="md" style={{ background: '#F5F5F5', borderRadius: 8, border: '1px solid #E0E0E0', position: 'relative' }}>
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          size="sm"
+                          onClick={() => {
+                            const updated = [...state.appointmentForm.courtVenueDetails];
+                            updated.splice(index, 1);
+                            dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtVenueDetails: updated } });
+                          }}
+                          style={{ position: 'absolute', top: -8, right: -8, zIndex: 1 }}
+                        >
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                        <Text size="xs" fw={600} c="#2C2C2C" mb="md">Court & Venue {index + 1}</Text>
+                        <Grid gutter="sm">
+                          <Grid.Col span={{ base: 12, sm: 6 }}>
+                            <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court / Tribunal</Text>
+                            <TextInput size="sm" value={courtVenue.tribunal} onChange={(e) => {
+                              const updated = [...state.appointmentForm.courtVenueDetails];
+                              updated[index] = { ...updated[index], tribunal: e.target.value };
+                              dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtVenueDetails: updated } });
+                            }} />
+                          </Grid.Col>
+                          <Grid.Col span={{ base: 12, sm: 6 }}>
+                            <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue / Place</Text>
+                            <TextInput size="sm" value={courtVenue.venue} onChange={(e) => {
+                              const updated = [...state.appointmentForm.courtVenueDetails];
+                              updated[index] = { ...updated[index], venue: e.target.value };
+                              dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtVenueDetails: updated } });
+                            }} />
+                          </Grid.Col>
+                          <Grid.Col span={{ base: 12, sm: 6 }}>
+                            <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Branch / Division</Text>
+                            <TextInput size="sm" value={courtVenue.branch} onChange={(e) => {
+                              const updated = [...state.appointmentForm.courtVenueDetails];
+                              updated[index] = { ...updated[index], branch: e.target.value };
+                              dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtVenueDetails: updated } });
+                            }} />
+                          </Grid.Col>
+                          <Grid.Col span={{ base: 12, sm: 6 }}>
+                            <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Judge / Justice</Text>
+                            <TextInput size="sm" value={courtVenue.judge} onChange={(e) => {
+                              const updated = [...state.appointmentForm.courtVenueDetails];
+                              updated[index] = { ...updated[index], judge: e.target.value };
+                              dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtVenueDetails: updated } });
+                            }} />
+                          </Grid.Col>
+                          <Grid.Col span={{ base: 12, sm: 4 }}>
+                            <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Docket Number</Text>
+                            <TextInput size="sm" value={courtVenue.docketNumber} onChange={(e) => {
+                              const updated = [...state.appointmentForm.courtVenueDetails];
+                              updated[index] = { ...updated[index], docketNumber: e.target.value };
+                              dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtVenueDetails: updated } });
+                            }} />
+                          </Grid.Col>
+                          <Grid.Col span={{ base: 12, sm: 4 }}>
+                            <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Email Address</Text>
+                            <TextInput size="sm" value={courtVenue.email} onChange={(e) => {
+                              const updated = [...state.appointmentForm.courtVenueDetails];
+                              updated[index] = { ...updated[index], email: e.target.value };
+                              dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtVenueDetails: updated } });
+                            }} />
+                          </Grid.Col>
+                          <Grid.Col span={{ base: 12, sm: 4 }}>
+                            <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
+                            <TextInput size="sm" value={courtVenue.contactNumber} onChange={(e) => {
+                              const updated = [...state.appointmentForm.courtVenueDetails];
+                              updated[index] = { ...updated[index], contactNumber: e.target.value };
+                              dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtVenueDetails: updated } });
+                            }} />
+                          </Grid.Col>
+                        </Grid>
+                      </Box>
+                    ))}
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      color={PRIMARY_BROWN}
+                      leftSection={<IconPlus size={14} />}
+                      onClick={() => {
+                        const updated = [...(state.appointmentForm.courtVenueDetails || []), { tribunal: '', venue: '', branch: '', judge: '', docketNumber: '', email: '', contactNumber: '' }];
+                        dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, courtVenueDetails: updated } });
+                      }}
+                    >
+                      Add Court & Venue
+                    </Button>
+                  </Stack>
+                ) : (
+                  <Stack gap="md">
+                    {(state.appointmentDetails.courtVenueDetails || []).length > 0 ? (
+                      (state.appointmentDetails.courtVenueDetails || []).map((courtVenue, index) => (
+                        <Box key={index} p="md" style={{ background: '#F5F5F5', borderRadius: 8, border: '1px solid #E0E0E0' }}>
+                          <Text size="xs" fw={600} c="#2C2C2C" mb="md">Court & Venue {index + 1}</Text>
+                          <Grid gutter="sm">
+                            <Grid.Col span={{ base: 12, sm: 6 }}>
+                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Court / Tribunal</Text>
+                              <Text size="sm" c={CHARCOAL} fw={500}>{courtVenue.tribunal || 'N/A'}</Text>
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, sm: 6 }}>
+                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Venue / Place</Text>
+                              <Text size="sm" c={CHARCOAL} fw={500}>{courtVenue.venue || 'N/A'}</Text>
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, sm: 6 }}>
+                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Branch / Division</Text>
+                              <Text size="sm" c={CHARCOAL} fw={500}>{courtVenue.branch || 'N/A'}</Text>
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, sm: 6 }}>
+                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Judge / Justice</Text>
+                              <Text size="sm" c={CHARCOAL} fw={500}>{courtVenue.judge || 'N/A'}</Text>
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, sm: 4 }}>
+                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Docket Number</Text>
+                              <Text size="sm" c={CHARCOAL} fw={500}>{courtVenue.docketNumber || 'N/A'}</Text>
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, sm: 4 }}>
+                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Email Address</Text>
+                              <Text size="sm" c={CHARCOAL} fw={500}>{courtVenue.email || 'N/A'}</Text>
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, sm: 4 }}>
+                              <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Contact Number</Text>
+                              <Text size="sm" c={CHARCOAL} fw={500}>{courtVenue.contactNumber || 'N/A'}</Text>
+                            </Grid.Col>
+                          </Grid>
+                        </Box>
+                      ))
                     ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adverseParty || 'N/A'}</Text>
+                      <Text size="sm" c={MUTED_OLIVE}>No court & venue details available</Text>
                     )}
-                  </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Address</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput size="sm" value={state.appointmentForm.adversePartyAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyAddress: e.target.value } })} />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyAddress || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput size="sm" value={state.appointmentForm.adversePartyCounsel} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounsel: e.target.value } })} />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounsel || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={12}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel Address</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput size="sm" value={state.appointmentForm.adversePartyCounselAddress} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounselAddress: e.target.value } })} />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounselAddress || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                  <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <Text size="xs" c={MUTED_OLIVE} tt="uppercase" fw={600} mb={4}>Adverse Party Counsel Phone</Text>
-                    {state.appointmentEditMode ? (
-                      <TextInput size="sm" value={state.appointmentForm.adversePartyCounselPhone} onChange={(e) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, adversePartyCounselPhone: e.target.value } })} />
-                    ) : (
-                      <Text size="sm" c={CHARCOAL} fw={500}>{state.appointmentDetails.adversePartyCounselPhone || 'N/A'}</Text>
-                    )}
-                  </Grid.Col>
-                </Grid>
+                  </Stack>
+                )}
               </Paper>
+
+              {/* Parties and Counsel Details */}
+              <PartiesAndCounselDetails
+                value={state.appointmentEditMode ? state.appointmentForm.partiesAndCounselDetails : state.appointmentDetails.partiesAndCounselDetails}
+                onChange={(value) => dispatch({ type: 'SET_APPOINTMENT_FORM', payload: { ...state.appointmentForm, partiesAndCounselDetails: value } })}
+                readOnly={!state.appointmentEditMode}
+              />
             </Stack>
           ) : (
             <Center py="xl">
@@ -3802,16 +3849,10 @@ export default function FinalizedCases() {
                   )}
                 </Box>
                 <Divider my="md" />
-                {renderEvidenceTable(
-                  "Evidence on Hand / Available for the Client(s)",
-                  state.editedData.content?.interviewInfo?.clientEvidence,
-                  'clientEvidence'
-                )}
-                {renderEvidenceTable(
-                  "Evidence on Hand / Available for the Adverse Party(ies)",
-                  state.editedData.content?.interviewInfo?.adversePartyEvidence,
-                  'adversePartyEvidence'
-                )}
+                <Box mb="md">
+                  <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Evidence</Text>
+                  <Text size="sm" c="dimmed">Please use the main Recommendation for Action page to manage evidence.</Text>
+                </Box>
                 <Box mb="md">
                   <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
                   {state.editMode ? (
@@ -3959,16 +4000,10 @@ export default function FinalizedCases() {
             <ScrollArea type="scroll" scrollbarSize={0} mb="md">
               <Tabs.List style={{ borderBottom: '1px solid #E5E7EB', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
               <Tabs.Tab value="accepted"
-                rightSection={<Badge size="xs" variant="light" color="green" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{acceptedWithRecord.length}</Badge>}
+                rightSection={<Badge size="xs" variant="light" color="green" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{activeCases.length}</Badge>}
                 style={{ fontSize: '13px', padding: '10px 14px' }}
               >
-                With Record
-              </Tabs.Tab>
-              <Tabs.Tab value="without-record"
-                rightSection={<Badge size="xs" variant="light" color="blue" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{acceptedWithoutRecord.length}</Badge>}
-                style={{ fontSize: '13px', padding: '10px 14px' }}
-              >
-                Without Record
+                Active Cases
               </Tabs.Tab>
               <Tabs.Tab value="legal-advice"
                 rightSection={<Badge size="xs" variant="light" color="teal" radius="xl" style={{ minWidth: 20, height: 20, padding: '0 6px' }}>{legalAdviceCases.length}</Badge>}
@@ -3996,37 +4031,16 @@ export default function FinalizedCases() {
                 {state.loadingFinalized ? (
                   <FinalizedCasesSkeleton />
                 ) : (
-                  paginatedAcceptedWithRecord.length ? paginatedAcceptedWithRecord.map(renderCaseCard) : (
-                    <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases with case records found</Text>
+                  paginatedActiveCases.length ? paginatedActiveCases.map(renderCaseCard) : (
+                    <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No active cases found</Text>
                   )
                 )}
               </Stack>
               <Group justify="center" mt="xl">
                 <Pagination
-                  total={Math.max(1, totalPagesAccepted)}
+                  total={Math.max(1, totalPagesActiveCases)}
                   value={state.currentPageAccepted}
                   onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageAccepted', page } })}
-                  color={PRIMARY_BROWN}
-                  radius="md"
-                />
-              </Group>
-            </Tabs.Panel>
-
-            <Tabs.Panel value="without-record" pb="md">
-              <Stack gap={10}>
-                {state.loadingFinalized ? (
-                  <FinalizedCasesSkeleton />
-                ) : (
-                  paginatedAcceptedWithoutRecord.length ? paginatedAcceptedWithoutRecord.map(renderCaseCard) : (
-                    <Text size="sm" c={MUTED_OLIVE} ta="center" py="xl">No accepted cases without case records found</Text>
-                  )
-                )}
-              </Stack>
-              <Group justify="center" mt="xl">
-                <Pagination
-                  total={Math.max(1, totalPagesWithoutRecord)}
-                  value={state.currentPageWithoutRecord}
-                  onChange={(page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: { tab: 'currentPageWithoutRecord', page } })}
                   color={PRIMARY_BROWN}
                   radius="md"
                 />
@@ -4319,6 +4333,9 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   const adversePartiesCounsel = txt(a.adversePartyCounsel || a.adversePartiesCounsel);
   const adversePartiesCounselAddress = txt(a.adversePartyCounselAddress || a.adversePartiesCounselAddress);
   const adversePartiesCounselPhone = txt(a.adversePartyCounselPhone || a.adversePartiesCounselPhone);
+  
+  // New parties and counsel details structure
+  const partiesAndCounselDetails = Array.isArray(a.partiesAndCounselDetails) ? a.partiesAndCounselDetails : [];
 
   const setFont = (_size = PDF_FONT_SIZE, style = "normal") => {
     doc.setFont("times", style);
@@ -4394,7 +4411,10 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
   // Section title (PERSONAL DETAILS, etc.)
   const sectionTitle = (t, x, y) => {
     setFont(11, "bold");
+    doc.setTextColor(74, 53, 31); // PRIMARY_BROWN color
     doc.text(t, x, y);
+    doc.setTextColor(0, 0, 0); // Reset to black
+    setFont(10, "normal");
   };
 
   // --- Header (matches the photo) ---
@@ -4569,20 +4589,105 @@ const drawClientsInformationSheetPage = (doc, raw = {}) => {
     y += Math.max(h1, h2);
   }
 
-  checkPageBreak();
-  y += field({ labelText: "Adverse Party(ies):", value: adverseParties, x: leftX, y, labelW: 36, lineW: pageW - margin * 2 - 38 });
+  // Render Parties and Counsel Details if available, otherwise fall back to old adverse party fields
+  if (partiesAndCounselDetails.length > 0) {
+    checkPageBreak();
+    setFont(11, "bold");
+    doc.setTextColor(74, 53, 31); // PRIMARY_BROWN color
+    doc.text("PARTIES AND COUNSEL DETAILS", leftX, y);
+    doc.setTextColor(0, 0, 0); // Reset to black
+    setFont(10, "normal");
+    y += 10;
+    
+    partiesAndCounselDetails.forEach((group, groupIndex) => {
+      checkPageBreak();
+      if (group.groupName) {
+        setFont(10, "bold");
+        doc.text(`Group: ${group.groupName}`, leftX, y);
+        y += 7;
+      }
+      
+      // Render parties
+      if (group.parties && group.parties.length > 0) {
+        checkPageBreak();
+        setFont(10, "bold");
+        doc.text("Parties:", leftX, y);
+        y += 5;
+        
+        group.parties.forEach((party) => {
+          if (party.partyName) {
+            checkPageBreak();
+            y += field({ labelText: "Party Name:", value: party.partyName, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+          if (party.participation) {
+            checkPageBreak();
+            y += field({ labelText: "Participation:", value: party.participation, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+          if (party.mailingAddress) {
+            checkPageBreak();
+            y += field({ labelText: "Mailing Address:", value: party.mailingAddress, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+          if (party.emailAddress) {
+            checkPageBreak();
+            y += field({ labelText: "Email Address:", value: party.emailAddress, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+          if (party.contactNumber) {
+            checkPageBreak();
+            y += field({ labelText: "Contact Number:", value: party.contactNumber, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+        });
+      }
+      
+      // Render counsels
+      if (group.counsels && group.counsels.length > 0) {
+        checkPageBreak();
+        setFont(10, "bold");
+        doc.text("Counsel:", leftX, y);
+        y += 5;
+        
+        group.counsels.forEach((counsel) => {
+          if (counsel.counselName) {
+            checkPageBreak();
+            y += field({ labelText: "Counsel Name:", value: counsel.counselName, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+          if (counsel.participation) {
+            checkPageBreak();
+            y += field({ labelText: "Participation:", value: counsel.participation, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+          if (counsel.mailingAddress) {
+            checkPageBreak();
+            y += field({ labelText: "Mailing Address:", value: counsel.mailingAddress, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+          if (counsel.emailAddress) {
+            checkPageBreak();
+            y += field({ labelText: "Email Address:", value: counsel.emailAddress, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+          if (counsel.contactNumber) {
+            checkPageBreak();
+            y += field({ labelText: "Contact Number:", value: counsel.contactNumber, x: leftX, y, labelW: 40, lineW: pageW - margin * 2 - 42 });
+          }
+        });
+      }
+      
+      y += 5; // Space between groups
+    });
+  } else {
+    // Fall back to old adverse party fields for backward compatibility
+    checkPageBreak();
+    y += field({ labelText: "Adverse Party(ies):", value: adverseParties, x: leftX, y, labelW: 36, lineW: pageW - margin * 2 - 38 });
 
-  checkPageBreak();
-  y += field({ labelText: "Adverse Party(ies) Address:", value: adversePartiesAddress, x: leftX, y, labelW: 52, lineW: pageW - margin * 2 - 54 });
+    checkPageBreak();
+    y += field({ labelText: "Adverse Party(ies) Address:", value: adversePartiesAddress, x: leftX, y, labelW: 52, lineW: pageW - margin * 2 - 54 });
 
-  checkPageBreak();
-  y += field({ labelText: "Adverse Party(ies) Counsel:", value: adversePartiesCounsel, x: leftX, y, labelW: 50, lineW: pageW - margin * 2 - 52 });
+    checkPageBreak();
+    y += field({ labelText: "Adverse Party(ies) Counsel:", value: adversePartiesCounsel, x: leftX, y, labelW: 50, lineW: pageW - margin * 2 - 52 });
 
-  checkPageBreak();
-  y += field({ labelText: "Adverse Party(ies) Counsel Address:", value: adversePartiesCounselAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
+    checkPageBreak();
+    y += field({ labelText: "Adverse Party(ies) Counsel Address:", value: adversePartiesCounselAddress, x: leftX, y, labelW: 64, lineW: pageW - margin * 2 - 66 });
 
-  checkPageBreak();
-  y += field({ labelText: "Adverse Party(ies) Counsel Phone Number:", value: adversePartiesCounselPhone, x: leftX, y, labelW: 76, lineW: pageW - margin * 2 - 78 });
+    checkPageBreak();
+    y += field({ labelText: "Adverse Party(ies) Counsel Phone Number:", value: adversePartiesCounselPhone, x: leftX, y, labelW: 76, lineW: pageW - margin * 2 - 78 });
+  }
   y += 10;
 
   // --- Data privacy footer box (always at bottom of last page) ---

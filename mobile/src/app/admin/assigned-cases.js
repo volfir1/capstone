@@ -704,8 +704,12 @@ export default function AssignedCases() {
                   </View>
 
                   {/* Evidence */}
-                  {renderEvidenceSection('Evidence for Client(s)', editedReviewData.content?.interviewInfo?.clientEvidence)}
-                  {renderEvidenceSection('Evidence for Adverse Party(ies)', editedReviewData.content?.interviewInfo?.adversePartyEvidence)}
+                  <View style={s.reviewSection}>
+                    <Text style={s.reviewSectionTitle}>Evidence</Text>
+                    <Text style={[s.reviewFieldValue, { color: '#666', fontSize: 12 }]}>
+                      Evidence management is available on the web version.
+                    </Text>
+                  </View>
 
                   {/* Intern's Advice */}
                   <View style={s.reviewSection}>

@@ -1158,8 +1158,10 @@ export default function AssignedCases() {
                 )}
               </Box>
               <Divider my="md" />
-              {renderEvidenceTable("Evidence for Client(s)", editedReviewData.content?.interviewInfo?.clientEvidence, 'clientEvidence')}
-              {renderEvidenceTable("Evidence for Adverse Party(ies)", editedReviewData.content?.interviewInfo?.adversePartyEvidence, 'adversePartyEvidence')}
+              <Box mb="md">
+                <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Evidence</Text>
+                <Text size="sm" c="dimmed">Please use the main Recommendation for Action page to manage evidence.</Text>
+              </Box>
               <Box mb="md">
                 <Text size="sm" fw={600} c={PRIMARY_BROWN} mb="xs">Intern's Initial Advice</Text>
                 {reviewEditMode ? (

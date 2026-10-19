@@ -1,24 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-    Group, 
-    Box, 
-    Text, 
-    Title, 
-    Paper, 
-    Stack, 
-    Divider, 
-    Container, 
-    TextInput, 
-    Textarea, 
-    Grid, 
-    Table, 
+import {
+    Group,
+    Box,
+    Text,
+    Title,
+    Paper,
+    Stack,
+    Divider,
+    Container,
+    TextInput,
+    Textarea,
+    Grid,
+    Table,
     Checkbox,
     Radio,
     SimpleGrid,
     Button,
     Badge,
     FileButton,
-    
+    ActionIcon,
+
     Alert,
     Modal,
     Timeline,
@@ -27,12 +28,13 @@ import {
     Center
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCircleCheck, IconFileText, IconArrowLeft, IconUpload, IconFile, IconX, IconDownload, IconEye, IconClock, IconCheck } from '@tabler/icons-react'; // Added icons
+import { IconCircleCheck, IconFileText, IconArrowLeft, IconUpload, IconFile, IconX, IconDownload, IconEye, IconClock, IconCheck, IconDeviceFloppy, IconChevronLeft, IconChevronRight, IconChevronUp, IconChevronDown } from '@tabler/icons-react'; // Added icons
 import { useAuth } from '@/context/authContext';
 import { useLocation, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
 import { auth as firebaseAuth } from '@/firebase/firebase';
+import EvidenceList from '@/components/EvidenceList';
 
 // Configure PDF.js worker â€” try local node_modules first, fall back to CDN
 try {
@@ -319,242 +321,9 @@ const PRIMARY_GOLD = '#FFD700';
 const PRIMARY_BROWN = '#5C4033';
 const THEMED_LIGHT_BG = '#F7F7F7';
 const MUTED_OLIVE = '#8A8A5C'; // Re-added for button styling
-const EVIDENCE_ATTACHMENT_ACCEPT = [
-    '.pdf', '.doc', '.docx',
-    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tif', '.tiff',
-    '.mp4', '.mov', '.avi', '.mkv', '.webm', '.mpeg', '.mpg'
-].join(',');
+const CHARCOAL = '#333333';
 // --- End of Consolidated Constants ---
 
-
-// Helper component for Evidence Tables (Memoized)
-const EMPTY_EVIDENCE_ROW = { type: '', author: '', purpose: '', issues: '', attachment: null };
-
-const EvidenceRow = React.memo(({
-    row,
-    index,
-    onBlurRow,
-    readOnly,
-    showPurpose = true,
-    onUploadAttachment = () => {},
-    onRemoveAttachment = () => {},
-    onViewAttachment = () => {},
-    onDownloadAttachment = () => {},
-    isUploading = false,
-}) => {
-    // Local state per-row so keystrokes never re-render siblings or the parent form
-    const [local, setLocal] = React.useState(() => ({ ...EMPTY_EVIDENCE_ROW, ...row }));
-
-    // Sync inbound prop changes (e.g. initial load) without clobbering active edits
-    const prevRowRef = React.useRef(row);
-    React.useEffect(() => {
-        const prev = prevRowRef.current;
-        const changed =
-            prev.type !== row.type || prev.author !== row.author ||
-            prev.purpose !== row.purpose || prev.issues !== row.issues;
-        if (changed) {
-            setLocal({ ...EMPTY_EVIDENCE_ROW, ...row });
-        }
-        prevRowRef.current = row;
-    }, [row]);
-
-    const handleChange = (field) => (e) => {
-        if (readOnly) return;
-        setLocal((prev) => ({ ...prev, [field]: e.target.value }));
-    };
-
-    const handleBlur = (field) => (e) => {
-        if (readOnly) return;
-        const updated = { ...local, [field]: e.target.value };
-        setLocal(updated);
-        onBlurRow(index, updated);
-    };
-
-    const inputStyles = {
-        input: {
-            backgroundColor: readOnly ? '#F5F5F5' : 'transparent',
-            cursor: readOnly ? 'not-allowed' : 'text',
-        },
-    };
-
-    const attachment = row?.attachment || null;
-    const hasAttachment = Boolean(attachment && (attachment.fileUrl || attachment.cloudinaryUrl));
-
-    return (
-        <Table.Tr>
-            <Table.Td>
-                <TextInput placeholder="Type/Desc" size="xs" variant="unstyled"
-                    value={local.type}
-                    onChange={handleChange('type')}
-                    onBlur={handleBlur('type')}
-                    readOnly={readOnly} styles={inputStyles} />
-            </Table.Td>
-
-            <Table.Td>
-                <TextInput placeholder="Author/Custodian" size="xs" variant="unstyled"
-                    value={local.author}
-                    onChange={handleChange('author')}
-                    onBlur={handleBlur('author')}
-                    readOnly={readOnly} styles={inputStyles} />
-            </Table.Td>
-
-            {showPurpose && (
-                <Table.Td>
-                    <TextInput placeholder="Purpose" size="xs" variant="unstyled"
-                        value={local.purpose}
-                        onChange={handleChange('purpose')}
-                        onBlur={handleBlur('purpose')}
-                        readOnly={readOnly} styles={inputStyles} />
-                </Table.Td>
-            )}
-
-            <Table.Td>
-                <TextInput placeholder="Issues" size="xs" variant="unstyled"
-                    value={local.issues}
-                    onChange={handleChange('issues')}
-                    onBlur={handleBlur('issues')}
-                    readOnly={readOnly} styles={inputStyles} />
-            </Table.Td>
-
-            <Table.Td>
-                <Stack gap={4}>
-                    {!readOnly && (
-                        <FileButton
-                            onChange={(file) => {
-                                if (file) onUploadAttachment(index, file);
-                            }}
-                            accept={EVIDENCE_ATTACHMENT_ACCEPT}
-                        >
-                            {(props) => (
-                                <Button
-                                    {...props}
-                                    size="xs"
-                                    variant="outline"
-                                    leftSection={<IconUpload size={14} />}
-                                    loading={isUploading}
-                                >
-                                    {hasAttachment ? 'Replace' : 'Upload'}
-                                </Button>
-                            )}
-                        </FileButton>
-                    )}
-
-                    {hasAttachment && (
-                        <>
-                            <Text size="xs" fw={600} lineClamp={1}>{attachment.fileName || 'Attachment'}</Text>
-                            <Group gap={4}>
-                                <Button
-                                    size="xs"
-                                    variant="light"
-                                    color="blue"
-                                    leftSection={<IconEye size={12} />}
-                                    onClick={() => onViewAttachment(attachment)}
-                                >
-                                    View
-                                </Button>
-                                <Button
-                                    size="xs"
-                                    variant="light"
-                                    color="green"
-                                    leftSection={<IconDownload size={12} />}
-                                    onClick={() => onDownloadAttachment(attachment)}
-                                >
-                                    Download
-                                </Button>
-                                {!readOnly && (
-                                    <Button
-                                        size="xs"
-                                        variant="subtle"
-                                        color="red"
-                                        leftSection={<IconX size={12} />}
-                                        onClick={() => onRemoveAttachment(index)}
-                                    >
-                                        Remove
-                                    </Button>
-                                )}
-                            </Group>
-                        </>
-                    )}
-                </Stack>
-            </Table.Td>
-        </Table.Tr>
-    );
-});
-EvidenceRow.displayName = 'EvidenceRow';
-
-const EvidenceTable = React.memo(({
-    title,
-    value = [],
-    onChange = () => {},
-    readOnly = false,
-    showPurpose = true,
-    onUploadAttachment = () => {},
-    onRemoveAttachment = () => {},
-    onViewAttachment = () => {},
-    onDownloadAttachment = () => {},
-    uploadingRowKey = null,
-}) => {
-    // Ensure we have at least 3 rows
-    const rows = value.length >= 3 ? value : [...value, ...Array(3 - value.length).fill(EMPTY_EVIDENCE_ROW)];
-
-    const handleBlurRow = React.useCallback((index, updatedRowData) => {
-        const updated = [...rows];
-        updated[index] = updatedRowData;
-        onChange(updated);
-    }, [rows, onChange]);
-
-    const handleAddRow = React.useCallback(() => {
-        onChange([...rows, { ...EMPTY_EVIDENCE_ROW }]);
-    }, [rows, onChange]);
-
-    return (
-        <Stack gap="sm">
-            <Title order={4} c={PRIMARY_BROWN}>{title}</Title>
-            <ScrollArea type="auto">
-            <Table withRowBorders withColumnBorders withTableBorder striped style={{ minWidth: 500 }}>
-                <Table.Thead>
-                    <Table.Tr>
-                        <Table.Th style={{ width: showPurpose ? '30%' : '35%' }}>Type / Description</Table.Th>
-                        <Table.Th style={{ width: showPurpose ? '25%' : '30%' }}>Author / Custodian</Table.Th>
-                        {showPurpose && <Table.Th style={{ width: '25%' }}>Purpose</Table.Th>}
-                        <Table.Th style={{ width: showPurpose ? '18%' : '28%' }}>Admissibility Issues</Table.Th>
-                        <Table.Th style={{ width: showPurpose ? '22%' : '32%' }}>Attachment</Table.Th>
-                    </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                    {rows.map((row, index) => (
-                        <EvidenceRow
-                            key={index}
-                            row={row}
-                            index={index}
-                            onBlurRow={handleBlurRow}
-                            readOnly={readOnly}
-                            showPurpose={showPurpose}
-                            onUploadAttachment={onUploadAttachment}
-                            onRemoveAttachment={onRemoveAttachment}
-                            onViewAttachment={onViewAttachment}
-                            onDownloadAttachment={onDownloadAttachment}
-                            isUploading={uploadingRowKey === index}
-                        />
-                    ))}
-                </Table.Tbody>
-            </Table>
-            </ScrollArea>
-
-            {!readOnly && (
-                <Button
-                    variant="subtle"
-                    size="xs"
-                    style={{ alignSelf: 'flex-start', color: PRIMARY_BROWN }}
-                    onClick={handleAddRow}
-                >
-                    + Add another row
-                </Button>
-            )}
-        </Stack>
-    );
-});
-EvidenceTable.displayName = 'EvidenceTable';
 
 // Simple PDF viewer using pdfjs-dist
 const PdfViewer = ({ url, fileData, cloudinaryUrl }) => {
@@ -730,21 +499,25 @@ const MediaPreview = ({ doc, kind = 'image' }) => {
 // ====================================================================================
 // 2. Client Interview and Evidence Section (Based on image_588eb7.png)
 // ====================================================================================
-export const ClientInterviewSection = React.memo(({ value = {}, onChange = () => {}, uploadedFile = null, onFileChange = () => {}, documentVersions = [], onViewDocument = () => {}, onDownloadDocument = () => {}, onRemoveVersion = () => {}, fileInputKey = Date.now(), userRole = '', isViewingExistingReview = false, currentReviewStage = '', onUploadEvidenceAttachment = () => {}, onRemoveEvidenceAttachment = () => {}, onViewEvidenceAttachment = () => {}, onDownloadEvidenceAttachment = () => {}, uploadingEvidenceKey = null }) => {
+export const ClientInterviewSection = React.memo(({ value = {}, onChange = () => {}, uploadedFile = null, onFileChange = () => {}, documentVersions = [], onViewDocument = () => {}, onDownloadDocument = () => {}, onRemoveVersion = () => {}, fileInputKey = Date.now(), userRole = '', isViewingExistingReview = false, currentReviewStage = '', onPartialSave = null, saving = false, evidenceListRef = null }) => {
     // Determine if the section should be read-only based on:
     // 1. Position mismatch (different role created it) - BUT allow supervising lawyers and directors to edit during their review stages
     // 2. Review stage restrictions (intern can't edit when in review stages, EXCEPT when returned for revision)
     // Allow supervising lawyer to edit when at supervising_lawyer stage, director to edit at director stage
+    // Allow intern and secretary to edit each other's records
     const isReturnedToIntern = currentReviewStage === 'returned_to_intern';
     const isSupervisingLawyerReviewing = userRole === 'supervising_lawyer' && currentReviewStage === 'supervising_lawyer';
     const isDirectorReviewing = userRole === 'director' && currentReviewStage === 'director';
-    const isPositionMismatch = value.createdByRole && userRole && value.createdByRole !== userRole && 
-        !isReturnedToIntern && !isSupervisingLawyerReviewing && !isDirectorReviewing;
+    // Allow intern and secretary to edit each other's records
+    const isInternSecretaryCrossEdit = (userRole === 'intern' && value.createdByRole === 'secretary') ||
+                                       (userRole === 'secretary' && value.createdByRole === 'intern');
+    const isPositionMismatch = value.createdByRole && userRole && value.createdByRole !== userRole &&
+        !isReturnedToIntern && !isSupervisingLawyerReviewing && !isDirectorReviewing && !isInternSecretaryCrossEdit;
     // Interns can edit when: not submitted yet OR returned to them for revision
-    const isInternViewingSubmittedReview = (userRole === 'intern' || userRole === 'secretary') && 
+    const isInternViewingSubmittedReview = (userRole === 'intern' || userRole === 'secretary') &&
         (currentReviewStage === 'supervising_lawyer' || currentReviewStage === 'director' || currentReviewStage === 'completed');
     const isSupervisingLawyerViewingDirectorReview = userRole === 'supervising_lawyer' && (currentReviewStage === 'director' || currentReviewStage === 'completed');
-    
+
     const isReadOnly = (isPositionMismatch || isInternViewingSubmittedReview || isSupervisingLawyerViewingDirectorReview);
     
     // Determine the alert message based on why it's read-only
@@ -752,7 +525,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
     if (isPositionMismatch) {
         alertMessage = `This record was created by a ${value.createdByRole?.replace('_', ' ')} and cannot be edited by your role (${userRole?.replace('_', ' ')}).`;
     } else if (isInternViewingSubmittedReview) {
-        alertMessage = 'This record has been submitted for review and can no longer be edited by interns.';
+        alertMessage = 'This record has been submitted for review and can no longer be edited by interns or secretaries.';
     } else if (isSupervisingLawyerViewingDirectorReview) {
         alertMessage = 'This record is currently under director review and cannot be edited by supervising lawyers.';
     }
@@ -760,7 +533,7 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
     return (
     <Paper shadow="md" p={{ base: 'sm', sm: 'xl' }} radius="lg" bg="white">
         <Stack gap={{ base: 'md', sm: 'xl' }}>
-            <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center', fontSize: 'clamp(16px, 4vw, 24px)' }}>Client Interview and Evidence Record</Title>
+            <Title order={2} c={PRIMARY_BROWN} style={{ textAlign: 'center', fontSize: 'clamp(16px, 4vw, 24px)' }}>Client Interview and Legal Opinion</Title>
             
             {isReadOnly && (
                 <Alert color="yellow" title="View Only Mode" radius="md">
@@ -838,33 +611,14 @@ export const ClientInterviewSection = React.memo(({ value = {}, onChange = () =>
 
             <Divider />
 
-            <EvidenceTable 
-                title="Evidence on Hand / Available for the Client(s)" 
-                value={value.clientEvidence || []}
-                onChange={(evidence) => onChange({ ...value, clientEvidence: evidence })}
+            <Title order={4} c={PRIMARY_BROWN}>Evidence</Title>
+            <EvidenceList
+                ref={evidenceListRef}
+                value={value.evidence || []}
+                onChange={(evidence) => onChange({ ...value, evidence: evidence })}
                 readOnly={isReadOnly}
-                onUploadAttachment={(rowIndex, file) => onUploadEvidenceAttachment('clientEvidence', rowIndex, file)}
-                onRemoveAttachment={(rowIndex) => onRemoveEvidenceAttachment('clientEvidence', rowIndex)}
-                onViewAttachment={onViewEvidenceAttachment}
-                onDownloadAttachment={onDownloadEvidenceAttachment}
-                uploadingRowKey={uploadingEvidenceKey?.type === 'clientEvidence' ? uploadingEvidenceKey.index : null}
             />
 
-            <Divider />
-            
-            <EvidenceTable 
-                title="Evidence on Hand / Available for the Adverse Party(ies)" 
-                value={value.adversePartyEvidence || []}
-                onChange={(evidence) => onChange({ ...value, adversePartyEvidence: evidence })}
-                readOnly={isReadOnly}
-                showPurpose={false}
-                onUploadAttachment={(rowIndex, file) => onUploadEvidenceAttachment('adversePartyEvidence', rowIndex, file)}
-                onRemoveAttachment={(rowIndex) => onRemoveEvidenceAttachment('adversePartyEvidence', rowIndex)}
-                onViewAttachment={onViewEvidenceAttachment}
-                onDownloadAttachment={onDownloadEvidenceAttachment}
-                uploadingRowKey={uploadingEvidenceKey?.type === 'adversePartyEvidence' ? uploadingEvidenceKey.index : null}
-            />
-            
             <Divider />
             
             <Title order={4} c={PRIMARY_BROWN}>Interviewing Intern's Initial Advice to the Client(s)</Title>
@@ -1353,6 +1107,7 @@ export default function CaseRecordFormsDisplay() {
     const [signatureRequiredModalOpened, setSignatureRequiredModalOpened] = useState(false);
     const [signatureRequiredFor, setSignatureRequiredFor] = useState('');
     const pendingApprovalResumeRef = useRef(null);
+    const evidenceListRef = useRef(null);
     
     const [fileInputKey, setFileInputKey] = useState(Date.now()); // Key to reset file input
     const location = useLocation();
@@ -1362,6 +1117,7 @@ export default function CaseRecordFormsDisplay() {
 
     // Client Information Sheet side panel state
     const [showClientInfoPanel, setShowClientInfoPanel] = useState(false);
+    const [clientInfoPanelCollapsed, setClientInfoPanelCollapsed] = useState(true);
     const [clientInfoData, setClientInfoData] = useState(null);
     const [clientInfoLoading, setClientInfoLoading] = useState(false);
 
@@ -1494,7 +1250,7 @@ export default function CaseRecordFormsDisplay() {
             
             // Load review data from location.state
             const ii = review.content.interviewInfo || review.interviewInfo || {};
-            
+
             // Restore uploaded file if exists
             if (ii.uploadedDocument) {
                 try {
@@ -1542,7 +1298,7 @@ export default function CaseRecordFormsDisplay() {
             } else {
                 setInterviewInfo(ii);
             }
-            
+
             // Load action info if available
             if (review.content?.actionInfo) {
                 setActionInfo(review.content.actionInfo);
@@ -1683,6 +1439,7 @@ export default function CaseRecordFormsDisplay() {
                         } else {
                             setInterviewInfo(ii);
                         }
+
                         if (latestReview.content?.actionInfo) {
                             setActionInfo(latestReview.content.actionInfo);
                         }
@@ -2306,10 +2063,157 @@ export default function CaseRecordFormsDisplay() {
         });
     };
     
+    const handlePartialSave = async () => {
+        const caseId = getCaseId();
+
+        // Force sync evidence data before saving
+        if (evidenceListRef.current?.forceSync) {
+            evidenceListRef.current.forceSync();
+        }
+
+        // Flush any focused evidence row input before reading interviewInfo state
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+            await new Promise(r => setTimeout(r, 0));
+        }
+
+        // Wait a bit longer to ensure EvidenceList's onChange has been called and state updated
+        await new Promise(r => setTimeout(r, 300));
+
+        // Filter out completely empty evidence rows before saving
+        const filterEmptyEvidence = (evidenceArray) => {
+            if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
+
+            // Check if it's the new structure (array of lists) or old structure (flat array of annexes)
+            if (evidenceArray.length > 0 && evidenceArray[0]._id && evidenceArray[0].name && evidenceArray[0].annexes) {
+                // New structure: array of lists
+                return evidenceArray.map(list => ({
+                    _id: list._id,
+                    name: list.name,
+                    annexes: list.annexes.map(row => {
+                        if (!row) return null;
+                        // Keep the row if it has any data, OR if it has seriesRows with data
+                        const hasData = row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId;
+                        const hasSeriesData = (row.seriesRows || []).some(s =>
+                            s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                        );
+                        // Keep row if it has data OR has series with data
+                        if (hasData || hasSeriesData) {
+                            return {
+                                ...row,
+                                // Also filter series rows to keep only those with data
+                                seriesRows: (row.seriesRows || []).filter(s =>
+                                    s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                                )
+                            };
+                        }
+                        return null;
+                    }).filter(row => row !== null)
+                })).filter(list => list.annexes.length > 0);
+            } else {
+                // Old structure: flat array of annexes
+                return evidenceArray.filter(row =>
+                    row && (row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId)
+                );
+            }
+        };
+
+        // All documents (Word and PDF) now stored on server with URL references
+        let fileData = null;
+        if (uploadedFile && interviewInfo.caseType === 'legal-document') {
+            if (uploadedFile.isServerFile) {
+                // Document already uploaded to server (both Word and PDF)
+                fileData = {
+                    fileName: uploadedFile.name,
+                    fileSize: uploadedFile.size,
+                    fileType: uploadedFile.type,
+                    fileUrl: uploadedFile.serverFile.url,
+                    filename: uploadedFile.serverFile.filename,
+                    isServerFile: true,
+                    uploadedBy: uploadedFile.uploadedBy || (userData?.firstName && userData?.lastName
+                        ? `${userData.firstName} ${userData.lastName}`
+                        : userData?.username || 'Unknown'),
+                    uploadedByRole: uploadedFile.uploadedByRole || userData?.role || 'Unknown'
+                };
+            } else {
+                // Shouldn't happen with current logic, but handle as fallback
+                fileNotUploadedNotif();
+                return;
+            }
+        }
+
+        // Ensure all interview data is included
+        const completeInterviewInfo = {
+            ...interviewInfo,
+            // For draft saves, preserve all evidence rows including empty ones to allow user to fill them later
+            evidence: interviewInfo.evidence || [],
+            uploadedDocument: fileData, // Add file data with URL reference
+            documentVersions: documentVersions.length > 0 ? documentVersions : interviewInfo.documentVersions || [],
+            createdByRole: interviewInfo.createdByRole || userData?.role || null, // Track who created this interview record
+            createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName
+                ? `${userData.firstName} ${userData.lastName}`
+                : userData?.username || 'Unknown User')
+        };
+
+        try {
+            setSaving(true);
+
+            // Check if there's an existing review to update
+            const existingReview = reviews && reviews.length > 0 ? reviews[0] : null;
+
+            if (existingReview) {
+                // Update existing review without changing review stage
+                const updatePayload = {
+                    content: {
+                        interviewInfo: completeInterviewInfo,
+                        actionInfo: existingReview.content?.actionInfo || actionInfo
+                    },
+                    // Don't change reviewStage on partial save
+                    reviewStage: existingReview.reviewStage || 'draft'
+                };
+
+                await apiClient.put(`/reviews/${existingReview._id}`, updatePayload);
+                await fetchReviews(caseId);
+                // Update currentReviewStage to reflect the saved state
+                setCurrentReviewStage(existingReview.reviewStage || 'draft');
+                changesSavedNotif();
+            } else {
+                // Create a new draft review (will be in draft stage)
+                const reviewPayload = {
+                    caseId: caseId,
+                    reviewerId: userData?.id || userData?._id || null,
+                    reviewerRole: userData?.role || null,
+                    step: 1,
+                    reviewStage: 'draft', // Mark as draft
+                    content: {
+                        interviewInfo: completeInterviewInfo,
+                        actionInfo: actionInfo
+                    }
+                };
+
+                await apiClient.post('/reviews', reviewPayload);
+                await fetchReviews(caseId);
+                // Update currentReviewStage to reflect the saved state
+                setCurrentReviewStage('draft');
+                changesSavedNotif();
+            }
+        } catch (err) {
+            console.error('Partial save error:', err);
+            changesSaveFailedNotif(err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const handleSubmit = async (signatureUrlOverride = null) => {
         const signatureUrl = signatureUrlOverride || userData?.signatureUrl || '';
         const caseId = getCaseId();
-        
+
+        // Force sync evidence data before saving
+        if (evidenceListRef.current?.forceSync) {
+            evidenceListRef.current.forceSync();
+        }
+
         // Flush any focused evidence row input before reading interviewInfo state
         if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
@@ -2328,21 +2232,51 @@ export default function CaseRecordFormsDisplay() {
             });
             return;
         }
-        
+
         // Check if file is required but not uploaded
         if (interviewInfo.caseType === 'legal-document' && !uploadedFile) {
             fileRequiredNotif();
             return;
         }
-        
+
         // Filter out completely empty evidence rows before saving
         const filterEmptyEvidence = (evidenceArray) => {
             if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
-            return evidenceArray.filter(row => 
-                row && (row.type || row.author || row.purpose || row.issues || row.attachment?.fileUrl || row.attachment?.cloudinaryUrl)
-            );
+
+            // Check if it's the new structure (array of lists) or old structure (flat array of annexes)
+            if (evidenceArray.length > 0 && evidenceArray[0]._id && evidenceArray[0].name && evidenceArray[0].annexes) {
+                // New structure: array of lists
+                return evidenceArray.map(list => ({
+                    _id: list._id,
+                    name: list.name,
+                    annexes: list.annexes.map(row => {
+                        if (!row) return null;
+                        // Keep the row if it has any data, OR if it has seriesRows with data
+                        const hasData = row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId;
+                        const hasSeriesData = (row.seriesRows || []).some(s =>
+                            s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                        );
+                        // Keep row if it has data OR has series with data
+                        if (hasData || hasSeriesData) {
+                            return {
+                                ...row,
+                                // Also filter series rows to keep only those with data
+                                seriesRows: (row.seriesRows || []).filter(s =>
+                                    s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                                )
+                            };
+                        }
+                        return null;
+                    }).filter(row => row !== null)
+                })).filter(list => list.annexes.length > 0);
+            } else {
+                // Old structure: flat array of annexes
+                return evidenceArray.filter(row =>
+                    row && (row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId)
+                );
+            }
         };
-        
+
         // All documents (Word and PDF) now stored on server with URL references
         let fileData = null;
         if (uploadedFile && interviewInfo.caseType === 'legal-document') {
@@ -2355,8 +2289,8 @@ export default function CaseRecordFormsDisplay() {
                     fileUrl: uploadedFile.serverFile.url,
                     filename: uploadedFile.serverFile.filename,
                     isServerFile: true,
-                    uploadedBy: uploadedFile.uploadedBy || (userData?.firstName && userData?.lastName 
-                        ? `${userData.firstName} ${userData.lastName}` 
+                    uploadedBy: uploadedFile.uploadedBy || (userData?.firstName && userData?.lastName
+                        ? `${userData.firstName} ${userData.lastName}`
                         : userData?.username || 'Unknown'),
                     uploadedByRole: uploadedFile.uploadedByRole || userData?.role || 'Unknown'
                 };
@@ -2366,18 +2300,17 @@ export default function CaseRecordFormsDisplay() {
                 return;
             }
         }
-        
+
         // Ensure all interview data is included
         const completeInterviewInfo = {
             ...interviewInfo,
             // Filter out empty evidence rows
-            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
-            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            evidence: filterEmptyEvidence(interviewInfo.evidence),
             uploadedDocument: fileData, // Add file data with URL reference
             documentVersions: documentVersions.length > 0 ? documentVersions : interviewInfo.documentVersions || [],
             createdByRole: interviewInfo.createdByRole || userData?.role || null, // Track who created this interview record
-            createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName 
-                ? `${userData.firstName} ${userData.lastName}` 
+            createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName
+                ? `${userData.firstName} ${userData.lastName}`
                 : userData?.username || 'Unknown User')
         };
 
@@ -2395,7 +2328,7 @@ export default function CaseRecordFormsDisplay() {
             reviewerRole: userData?.role || null,
             step: 1,
             reviewStage: 'supervising_lawyer', // Start with supervising lawyer review
-            content: { 
+            content: {
                 interviewInfo: completeInterviewInfo,
                 actionInfo: preparedActionInfo
             }
@@ -2628,6 +2561,11 @@ export default function CaseRecordFormsDisplay() {
             return;
         }
 
+        // Force sync evidence data before saving
+        if (evidenceListRef.current?.forceSync) {
+            evidenceListRef.current.forceSync();
+        }
+
         // Flush any focused evidence row input before reading interviewInfo state
         if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
@@ -2643,9 +2581,39 @@ export default function CaseRecordFormsDisplay() {
         // Filter out completely empty evidence rows before saving
         const filterEmptyEvidence = (evidenceArray) => {
             if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
-            return evidenceArray.filter(row => 
-                row && (row.type || row.author || row.purpose || row.issues)
-            );
+
+            // Check if it's the new structure (array of lists) or old structure (flat array of annexes)
+            if (evidenceArray.length > 0 && evidenceArray[0]._id && evidenceArray[0].name && evidenceArray[0].annexes) {
+                // New structure: array of lists
+                return evidenceArray.map(list => ({
+                    _id: list._id,
+                    name: list.name,
+                    annexes: list.annexes.map(row => {
+                        if (!row) return null;
+                        // Keep the row if it has any data, OR if it has seriesRows with data
+                        const hasData = row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId;
+                        const hasSeriesData = (row.seriesRows || []).some(s =>
+                            s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                        );
+                        // Keep row if it has data OR has series with data
+                        if (hasData || hasSeriesData) {
+                            return {
+                                ...row,
+                                // Also filter series rows to keep only those with data
+                                seriesRows: (row.seriesRows || []).filter(s =>
+                                    s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                                )
+                            };
+                        }
+                        return null;
+                    }).filter(row => row !== null)
+                })).filter(list => list.annexes.length > 0);
+            } else {
+                // Old structure: flat array of annexes
+                return evidenceArray.filter(row =>
+                    row && (row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId)
+                );
+            }
         };
 
         // All documents (Word and PDF) now stored on server with URL references
@@ -2680,8 +2648,7 @@ export default function CaseRecordFormsDisplay() {
 
         const completeInterviewInfo = {
             ...interviewInfo,
-            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
-            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            evidence: filterEmptyEvidence(interviewInfo.evidence),
             uploadedDocument: fileData,
             documentVersions: documentVersions.length > 0 ? documentVersions : interviewInfo.documentVersions || [],
             createdByRole: interviewInfo.createdByRole || userData?.role || null, // Preserve or set position
@@ -2723,15 +2690,41 @@ export default function CaseRecordFormsDisplay() {
         // Filter out completely empty evidence rows before resubmitting
         const filterEmptyEvidence = (evidenceArray) => {
             if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
-            return evidenceArray.filter(row => 
-                row && (row.type || row.author || row.purpose || row.issues)
-            );
+
+            // Check if it's the new structure (array of lists) or old structure (flat array of annexes)
+            if (evidenceArray.length > 0 && evidenceArray[0]._id && evidenceArray[0].name && evidenceArray[0].annexes) {
+                // New structure: array of lists
+                return evidenceArray.map(list => ({
+                    _id: list._id,
+                    name: list.name,
+                    annexes: list.annexes.map(row => {
+                        if (!row) return null;
+                        const hasData = row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId;
+                        const hasSeriesData = (row.seriesRows || []).some(s =>
+                            s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                        );
+                        if (hasData || hasSeriesData) {
+                            return {
+                                ...row,
+                                seriesRows: (row.seriesRows || []).filter(s =>
+                                    s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                                )
+                            };
+                        }
+                        return null;
+                    }).filter(row => row !== null)
+                })).filter(list => list.annexes.length > 0);
+            } else {
+                // Old structure: flat array of annexes
+                return evidenceArray.filter(row =>
+                    row && (row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId)
+                );
+            }
         };
 
         const completeInterviewInfo = {
             ...interviewInfo,
-            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
-            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            evidence: filterEmptyEvidence(interviewInfo.evidence),
             uploadedDocument: uploadedFile ? {
                 fileName: uploadedFile.name,
                 fileSize: uploadedFile.size,
@@ -2786,15 +2779,41 @@ export default function CaseRecordFormsDisplay() {
         // Save changes first
         const filterEmptyEvidence = (evidenceArray) => {
             if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
-            return evidenceArray.filter(row => 
-                row && (row.type || row.author || row.purpose || row.issues)
-            );
+
+            // Check if it's the new structure (array of lists) or old structure (flat array of annexes)
+            if (evidenceArray.length > 0 && evidenceArray[0]._id && evidenceArray[0].name && evidenceArray[0].annexes) {
+                // New structure: array of lists
+                return evidenceArray.map(list => ({
+                    _id: list._id,
+                    name: list.name,
+                    annexes: list.annexes.map(row => {
+                        if (!row) return null;
+                        const hasData = row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId;
+                        const hasSeriesData = (row.seriesRows || []).some(s =>
+                            s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                        );
+                        if (hasData || hasSeriesData) {
+                            return {
+                                ...row,
+                                seriesRows: (row.seriesRows || []).filter(s =>
+                                    s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                                )
+                            };
+                        }
+                        return null;
+                    }).filter(row => row !== null)
+                })).filter(list => list.annexes.length > 0);
+            } else {
+                // Old structure: flat array of annexes
+                return evidenceArray.filter(row =>
+                    row && (row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId)
+                );
+            }
         };
 
         const completeInterviewInfo = {
             ...interviewInfo,
-            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
-            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            evidence: filterEmptyEvidence(interviewInfo.evidence),
             uploadedDocument: uploadedFile ? {
                 fileName: uploadedFile.name,
                 fileSize: uploadedFile.size,
@@ -2854,15 +2873,41 @@ export default function CaseRecordFormsDisplay() {
         // Save changes first
         const filterEmptyEvidence = (evidenceArray) => {
             if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
-            return evidenceArray.filter(row => 
-                row && (row.type || row.author || row.purpose || row.issues)
-            );
+
+            // Check if it's the new structure (array of lists) or old structure (flat array of annexes)
+            if (evidenceArray.length > 0 && evidenceArray[0]._id && evidenceArray[0].name && evidenceArray[0].annexes) {
+                // New structure: array of lists
+                return evidenceArray.map(list => ({
+                    _id: list._id,
+                    name: list.name,
+                    annexes: list.annexes.map(row => {
+                        if (!row) return null;
+                        const hasData = row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId;
+                        const hasSeriesData = (row.seriesRows || []).some(s =>
+                            s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                        );
+                        if (hasData || hasSeriesData) {
+                            return {
+                                ...row,
+                                seriesRows: (row.seriesRows || []).filter(s =>
+                                    s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                                )
+                            };
+                        }
+                        return null;
+                    }).filter(row => row !== null)
+                })).filter(list => list.annexes.length > 0);
+            } else {
+                // Old structure: flat array of annexes
+                return evidenceArray.filter(row =>
+                    row && (row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId)
+                );
+            }
         };
 
         const completeInterviewInfo = {
             ...interviewInfo,
-            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
-            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            evidence: filterEmptyEvidence(interviewInfo.evidence),
             uploadedDocument: uploadedFile ? {
                 fileName: uploadedFile.name,
                 fileSize: uploadedFile.size,
@@ -2934,15 +2979,41 @@ export default function CaseRecordFormsDisplay() {
         // Save changes first
         const filterEmptyEvidence = (evidenceArray) => {
             if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
-            return evidenceArray.filter(row => 
-                row && (row.type || row.author || row.purpose || row.issues)
-            );
+
+            // Check if it's the new structure (array of lists) or old structure (flat array of annexes)
+            if (evidenceArray.length > 0 && evidenceArray[0]._id && evidenceArray[0].name && evidenceArray[0].annexes) {
+                // New structure: array of lists
+                return evidenceArray.map(list => ({
+                    _id: list._id,
+                    name: list.name,
+                    annexes: list.annexes.map(row => {
+                        if (!row) return null;
+                        const hasData = row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId;
+                        const hasSeriesData = (row.seriesRows || []).some(s =>
+                            s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                        );
+                        if (hasData || hasSeriesData) {
+                            return {
+                                ...row,
+                                seriesRows: (row.seriesRows || []).filter(s =>
+                                    s && (s.annexSeries || s.exhibitSeries || s.document || s.witness || s.original || s.notes || s.documentUrl || s.driveFileId)
+                                )
+                            };
+                        }
+                        return null;
+                    }).filter(row => row !== null)
+                })).filter(list => list.annexes.length > 0);
+            } else {
+                // Old structure: flat array of annexes
+                return evidenceArray.filter(row =>
+                    row && (row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId)
+                );
+            }
         };
 
         const completeInterviewInfo = {
             ...interviewInfo,
-            clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
-            adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+            evidence: filterEmptyEvidence(interviewInfo.evidence),
             uploadedDocument: uploadedFile ? {
                 fileName: uploadedFile.name,
                 fileSize: uploadedFile.size,
@@ -3044,7 +3115,8 @@ export default function CaseRecordFormsDisplay() {
                         <Text fw={700} size="sm" c="white">Client Information Sheet</Text>
                     </Group>
                 </Box>
-                <ScrollArea h="calc(100vh - 160px)" p="md" offsetScrollbars>
+                {!clientInfoPanelCollapsed && (
+                    <ScrollArea h="calc(100vh - 160px)" p="md" offsetScrollbars>
                     <Stack gap="lg">
                         {/* Personal Details */}
                         <Box>
@@ -3075,6 +3147,9 @@ export default function CaseRecordFormsDisplay() {
                                     <Grid gutter="xs">
                                         <InfoField label="Name" value={d.relatorName} span={12} />
                                         <InfoField label="Relationship" value={d.relationshipToClient} />
+                                        <InfoField label="Email Address" value={d.relatorEmail} span={12} />
+                                        <InfoField label="Phone Number" value={d.relatorPhone} />
+                                        <InfoField label="Address" value={d.relatorAddress} span={12} />
                                     </Grid>
                                 </Box>
                                 <Divider />
@@ -3099,6 +3174,7 @@ export default function CaseRecordFormsDisplay() {
                                 <Grid gutter="xs">
                                     <InfoField label="Source of Income" value={d.spouseSourceOfIncome} span={12} />
                                     <InfoField label="Monthly Income" value={d.spouseMonthlyIncome} />
+                                    <InfoField label="Nature of Work" value={d.spouseNatureOfWork} span={12} />
                                     <InfoField label="Employer Address" value={d.spouseEmployerAddress} span={12} />
                                     <InfoField label="Combined Income" value={d.totalCombinedIncome} />
                                 </Grid>
@@ -3121,6 +3197,79 @@ export default function CaseRecordFormsDisplay() {
                                 <InfoField label="Presiding Officer" value={d.presidingOfficer} span={12} />
                             </Grid>
                         </Box>
+
+                        {/* Court & Venue Details */}
+                        {d.courtVenueDetails && d.courtVenueDetails.length > 0 && (
+                            <>
+                                <Divider />
+                                <Box>
+                                    <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Court & Venue Details</Text>
+                                    {d.courtVenueDetails.map((courtVenue, index) => (
+                                        <Box key={index} p="xs" style={{ background: '#F5F5F5', borderRadius: 6, marginBottom: '8px' }}>
+                                            <Text size="xs" fw={600} c={CHARCOAL} mb={4}>Court & Venue {index + 1}</Text>
+                                            <Grid gutter="xs">
+                                                <InfoField label="Tribunal" value={courtVenue.tribunal} span={12} />
+                                                <InfoField label="Venue" value={courtVenue.venue} span={12} />
+                                                <InfoField label="Branch" value={courtVenue.branch} />
+                                                <InfoField label="Judge" value={courtVenue.judge} />
+                                                <InfoField label="Docket Number" value={courtVenue.docketNumber} span={12} />
+                                                <InfoField label="Email" value={courtVenue.email} span={12} />
+                                                <InfoField label="Contact Number" value={courtVenue.contactNumber} span={12} />
+                                            </Grid>
+                                        </Box>
+                                    ))}
+                                </Box>
+                            </>
+                        )}
+
+                        {/* Parties and Counsel Details */}
+                        {d.partiesAndCounselDetails && d.partiesAndCounselDetails.length > 0 && (
+                            <>
+                                <Divider />
+                                <Box>
+                                    <Text size="xs" fw={700} c={PRIMARY_BROWN} tt="uppercase" lts={0.5} mb="xs">Parties and Counsel Details</Text>
+                                    {d.partiesAndCounselDetails.map((group, groupIndex) => (
+                                        <Box key={groupIndex} p="xs" style={{ background: '#F5F5F5', borderRadius: 6, marginBottom: '8px' }}>
+                                            <Text size="xs" fw={600} c={CHARCOAL} mb={4}>{group.groupName || `Group ${groupIndex + 1}`}</Text>
+                                            {group.parties && group.parties.length > 0 && (
+                                                <Box mb="xs">
+                                                    <Text size="xs" fw={600} c={PRIMARY_BROWN} mb={2}>Parties</Text>
+                                                    {group.parties.map((party, partyIndex) => (
+                                                        <Box key={partyIndex} p="xs" style={{ background: 'white', borderRadius: 4, marginBottom: '4px' }}>
+                                                            <Text size="xs" fw={500} c={CHARCOAL} mb={2}>Party {partyIndex + 1}</Text>
+                                                            <Grid gutter="xs">
+                                                                <InfoField label="Name" value={party.partyName} span={12} />
+                                                                <InfoField label="Participation" value={party.participation} span={12} />
+                                                                <InfoField label="Address" value={party.mailingAddress} span={12} />
+                                                                <InfoField label="Email" value={party.emailAddress} span={12} />
+                                                                <InfoField label="Contact" value={party.contactNumber} span={12} />
+                                                            </Grid>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                            )}
+                                            {group.counsels && group.counsels.length > 0 && (
+                                                <Box>
+                                                    <Text size="xs" fw={600} c={PRIMARY_BROWN} mb={2}>Counsels</Text>
+                                                    {group.counsels.map((counsel, counselIndex) => (
+                                                        <Box key={counselIndex} p="xs" style={{ background: 'white', borderRadius: 4, marginBottom: '4px' }}>
+                                                            <Text size="xs" fw={500} c={CHARCOAL} mb={2}>Counsel {counselIndex + 1}</Text>
+                                                            <Grid gutter="xs">
+                                                                <InfoField label="Name" value={counsel.counselName} span={12} />
+                                                                <InfoField label="Participation" value={counsel.participation} span={12} />
+                                                                <InfoField label="Address" value={counsel.mailingAddress} span={12} />
+                                                                <InfoField label="Email" value={counsel.emailAddress} span={12} />
+                                                                <InfoField label="Contact" value={counsel.contactNumber} span={12} />
+                                                            </Grid>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    ))}
+                                </Box>
+                            </>
+                        )}
 
                         {(d.adverseParty || d.adversePartyAddress) && (
                             <>
@@ -3148,7 +3297,8 @@ export default function CaseRecordFormsDisplay() {
                             </>
                         )}
                     </Stack>
-                </ScrollArea>
+                    </ScrollArea>
+                )}
             </Paper>
         );
     };
@@ -3183,47 +3333,53 @@ export default function CaseRecordFormsDisplay() {
                                 Recommendation
                             </Title>
                         </Group>
-                        <Button
-                            variant="white"
-                            leftSection={<IconArrowLeft size={16} />}
-                            onClick={() => navigate('/admin/clientformstatus')}
-                            size='sm'
-                            styles={{
-                                root: {
-                                    color: PRIMARY_BROWN,
-                                    fontWeight: 600,
-                                    flexShrink: 0,
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        <Group gap="xs">
+                            <Button
+                                variant="white"
+                                leftSection={<IconArrowLeft size={16} />}
+                                onClick={() => navigate('/admin/clientformstatus')}
+                                size='sm'
+                                styles={{
+                                    root: {
+                                        color: PRIMARY_BROWN,
+                                        fontWeight: 600,
+                                        flexShrink: 0,
+                                        '&:hover': {
+                                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                        },
                                     },
-                                },
-                            }}
-                        >
-                            <Text visibleFrom="xs">Back to Appointments</Text>
-                            <Text hiddenFrom="xs">Back</Text>
-                        </Button>
+                                }}
+                            >
+                                <Text visibleFrom="xs">Back to Appointments</Text>
+                                <Text hiddenFrom="xs">Back</Text>
+                            </Button>
+                        </Group>
                     </Group>
                 </Paper>
 
                 {/* Form Content Wrapper */}
                 <Paper shadow="xs" p={{ base: 'sm', sm: 'xl' }} radius="lg" bg="white">
                     <Stack gap={{ base: 'md', sm: 'xl' }}>
-                        {/* Review Stage Indicator - Only show when viewing existing review */}
-                        {isViewingExistingReview && (
+                        {/* Review Stage Indicator - Show when viewing existing review or when draft is saved */}
+                        {(isViewingExistingReview || currentReviewStage === 'draft') && (
                             <Paper 
                                 p="md" 
                                 radius="md" 
                                 style={{ 
-                                    backgroundColor: currentReviewStage === 'supervising_lawyer' 
-                                        ? '#FFF4E6' 
-                                        : currentReviewStage === 'director' 
-                                        ? '#F3E5F5' 
+                                    backgroundColor: currentReviewStage === 'draft'
+                                        ? '#F5F5F5'
+                                        : currentReviewStage === 'supervising_lawyer'
+                                        ? '#FFF4E6'
+                                        : currentReviewStage === 'director'
+                                        ? '#F3E5F5'
                                         : '#E8F5E9',
                                     border: `2px solid ${
-                                        currentReviewStage === 'supervising_lawyer' 
-                                            ? '#FF8C42' 
-                                            : currentReviewStage === 'director' 
-                                            ? '#9C27B0' 
+                                        currentReviewStage === 'draft'
+                                            ? '#9E9E9E'
+                                            : currentReviewStage === 'supervising_lawyer'
+                                            ? '#FF8C42'
+                                            : currentReviewStage === 'director'
+                                            ? '#9C27B0'
                                             : '#4CAF50'
                                     }`
                                 }}
@@ -3234,28 +3390,34 @@ export default function CaseRecordFormsDisplay() {
                                             Current Review Stage
                                         </Text>
                                         <Text size="xs" c={MUTED_OLIVE} mt={4}>
-                                            {currentReviewStage === 'supervising_lawyer' 
+                                            {currentReviewStage === 'draft'
+                                                ? 'This submission is saved as a draft and has not been submitted for review yet'
+                                                : currentReviewStage === 'supervising_lawyer'
                                                 ? 'This submission is pending review by the supervising lawyer'
-                                                : currentReviewStage === 'director' 
+                                                : currentReviewStage === 'director'
                                                 ? 'This submission has been approved by the supervising lawyer and is pending director review'
                                                 : 'This submission has been completed'}
                                         </Text>
                                     </Box>
-                                    <Badge 
-                                        size="lg" 
+                                    <Badge
+                                        size="lg"
                                         variant="filled"
-                                        style={{ 
-                                            backgroundColor: currentReviewStage === 'supervising_lawyer' 
-                                                ? '#FF8C42' 
-                                                : currentReviewStage === 'director' 
-                                                ? '#9C27B0' 
+                                        style={{
+                                            backgroundColor: currentReviewStage === 'draft'
+                                                ? '#9E9E9E'
+                                                : currentReviewStage === 'supervising_lawyer'
+                                                ? '#FF8C42'
+                                                : currentReviewStage === 'director'
+                                                ? '#9C27B0'
                                                 : '#4CAF50',
                                             color: 'white'
                                         }}
                                     >
-                                        {currentReviewStage === 'supervising_lawyer' 
+                                        {currentReviewStage === 'draft'
+                                            ? 'Draft'
+                                            : currentReviewStage === 'supervising_lawyer'
                                             ? 'Supervising Lawyer Review'
-                                            : currentReviewStage === 'director' 
+                                            : currentReviewStage === 'director'
                                             ? 'Director Review'
                                             : 'Completed'}
                                     </Badge>
@@ -3274,8 +3436,8 @@ export default function CaseRecordFormsDisplay() {
                             </Alert>
                         )}
                         
-                        <ClientInterviewSection 
-                            value={interviewInfo} 
+                        <ClientInterviewSection
+                            value={interviewInfo}
                             onChange={setInterviewInfo}
                             uploadedFile={uploadedFile}
                             onFileChange={handleFileChange}
@@ -3283,15 +3445,13 @@ export default function CaseRecordFormsDisplay() {
                             onViewDocument={handleViewDocument}
                             onDownloadDocument={handleDownloadDocument}
                             onRemoveVersion={handleRemoveVersion}
-                            onUploadEvidenceAttachment={handleUploadEvidenceAttachment}
-                            onRemoveEvidenceAttachment={handleRemoveEvidenceAttachment}
-                            onViewEvidenceAttachment={handleViewEvidenceAttachment}
-                            onDownloadEvidenceAttachment={handleDownloadEvidenceAttachment}
-                            uploadingEvidenceKey={uploadingEvidenceKey}
                             fileInputKey={fileInputKey}
                             userRole={userData?.role}
                             isViewingExistingReview={isViewingExistingReview}
                             currentReviewStage={currentReviewStage}
+                            onPartialSave={handlePartialSave}
+                            saving={saving}
+                            evidenceListRef={evidenceListRef}
                         />
 
                         <SupervisingLawyerActionSection 
@@ -3310,10 +3470,38 @@ export default function CaseRecordFormsDisplay() {
                                         {isViewingExistingReview ? (
                                             // Viewing existing review - show different buttons based on role and stage
                                             isIntern ? (
-                                                // Intern: Save Changes and Resubmit (if returned)
-                                                currentReviewStage === 'returned_to_intern' ? (
+                                                // Intern: Handle draft, returned, and other stages
+                                                currentReviewStage === 'draft' ? (
+                                                    // Draft stage: Allow editing with Save Draft and Submit for Review
                                                     <Group gap="sm" wrap="wrap">
-                                                        <Button 
+                                                        <Button
+                                                            leftSection={<IconDeviceFloppy size={18} />}
+                                                            onClick={handlePartialSave}
+                                                            size='sm'
+                                                            variant="outline"
+                                                            style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                            disabled={saving}
+                                                        >
+                                                            {saving ? 'Saving...' : 'Save Draft'}
+                                                        </Button>
+                                                        <Button
+                                                            leftSection={<IconCircleCheck size={18} />}
+                                                            onClick={() => {
+                                                                window.__internFinalizeClicked = false;
+                                                                handleSubmit();
+                                                            }}
+                                                            size='sm'
+                                                            variant="filled"
+                                                            style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                            disabled={saving}
+                                                        >
+                                                            {saving ? 'Saving...' : 'Submit for Review'}
+                                                        </Button>
+                                                    </Group>
+                                                ) : currentReviewStage === 'returned_to_intern' ? (
+                                                    // Returned stage: Save Changes and Resubmit
+                                                    <Group gap="sm" wrap="wrap">
+                                                        <Button
                                                             leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleSaveChanges}
                                                             size='sm'
@@ -3323,7 +3511,7 @@ export default function CaseRecordFormsDisplay() {
                                                         >
                                                             {saving ? 'Saving...' : 'Save Changes'}
                                                         </Button>
-                                                        <Button 
+                                                        <Button
                                                             leftSection={<IconCircleCheck size={18} />}
                                                             onClick={handleResubmitForReview}
                                                             size='sm'
@@ -3458,20 +3646,32 @@ export default function CaseRecordFormsDisplay() {
                                                 </Group>
                                             )
                                         ) : isIntern ? (
-                                            // Intern creating new review: Only Submit for Review button
-                                            <Button 
-                                                leftSection={<IconCircleCheck size={18} />}
-                                                onClick={() => {
-                                                    window.__internFinalizeClicked = false;
-                                                    handleSubmit();
-                                                }}
-                                                size='sm'
-                                                variant="filled"
-                                                style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
-                                                disabled={saving}
-                                            >
-                                                {saving ? 'Saving...' : 'Submit for Review'}
-                                            </Button>
+                                            // Intern creating new review: Partial Save and Submit for Review buttons
+                                            <Group gap="sm" wrap="wrap">
+                                                <Button
+                                                    leftSection={<IconDeviceFloppy size={18} />}
+                                                    onClick={handlePartialSave}
+                                                    size='sm'
+                                                    variant="outline"
+                                                    style={{ borderColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                    disabled={saving}
+                                                >
+                                                    {saving ? 'Saving...' : 'Save Draft'}
+                                                </Button>
+                                                <Button
+                                                    leftSection={<IconCircleCheck size={18} />}
+                                                    onClick={() => {
+                                                        window.__internFinalizeClicked = false;
+                                                        handleSubmit();
+                                                    }}
+                                                    size='sm'
+                                                    variant="filled"
+                                                    style={{ backgroundColor: PRIMARY_GOLD, color: PRIMARY_BROWN }}
+                                                    disabled={saving}
+                                                >
+                                                    {saving ? 'Saving...' : 'Submit for Review'}
+                                                </Button>
+                                            </Group>
                                         ) : (
                                             // Attorney creating new: Finalize Record button only
                                             <Button 
@@ -3496,11 +3696,33 @@ export default function CaseRecordFormsDisplay() {
             {showClientInfoPanel ? (
                 <Box bg={THEMED_LIGHT_BG} mih="100vh" py={{ base: 'sm', sm: 'xl' }} px={{ base: 'xs', sm: 'md' }}>
                     <Grid gutter={{ base: 'md', sm: 'xl' }}>
-                        <Grid.Col span={{ base: 12, lg: 8 }}>
-                            {mainContent}
+                        <Grid.Col span={{ base: 12, lg: clientInfoPanelCollapsed ? 12 : 8 }}>
+                            <Box style={{ position: 'relative' }}>
+                                {mainContent}
+                                {/* Sticky collapsible button on the right side */}
+                                <ActionIcon
+                                    onClick={() => setClientInfoPanelCollapsed(!clientInfoPanelCollapsed)}
+                                    variant="filled"
+                                    color={PRIMARY_BROWN}
+                                    size="lg"
+                                    radius="xl"
+                                    title={clientInfoPanelCollapsed ? "Show Client Info" : "Hide Client Info"}
+                                    style={{
+                                        position: 'fixed',
+                                        right: clientInfoPanelCollapsed ? '20px' : 'calc(33% - 80px)',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        zIndex: 1000,
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                        transition: 'right 0.3s ease'
+                                    }}
+                                >
+                                    {clientInfoPanelCollapsed ? <IconChevronLeft size={20} /> : <IconChevronRight size={20} />}
+                                </ActionIcon>
+                            </Box>
                         </Grid.Col>
-                        <Grid.Col span={{ base: 12, lg: 4 }}>
-                            <ClientInfoSidePanel />
+                        <Grid.Col span={{ base: 12, lg: clientInfoPanelCollapsed ? 12 : 4 }}>
+                            {!clientInfoPanelCollapsed && <ClientInfoSidePanel />}
                         </Grid.Col>
                     </Grid>
                 </Box>

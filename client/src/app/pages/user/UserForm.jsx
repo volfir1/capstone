@@ -19,6 +19,7 @@ const PERSISTENT_FIELDS = [
   'presentAddressTelephone', 'permanentAddressTelephone',
   'sex', 'civilStatus', 'citizenship',
   'presentAddress', 'permanentAddress', 'throughRelator', 'relatorName', 'relationshipToClient',
+  'relatorEmail', 'relatorPhone', 'relatorAddress',
   'currentSourceOfIncome', 'monthlyIncome', 'natureOfWork',
   'employerName', 'employerAddress', 'employerTelephone',
   'spouse', 'spouseSourceOfIncome', 'spouseMonthlyIncome', 'spouseNatureOfWork', 'spouseEmployerAddress',
@@ -218,6 +219,9 @@ export default function UserForm() {
         throughRelator: profileData.throughRelator || 'no',
         relatorName: profileData.relatorName || '',
         relationshipToClient: profileData.relationshipToClient || '',
+        relatorEmail: profileData.relatorEmail || '',
+        relatorPhone: profileData.relatorPhone || '',
+        relatorAddress: profileData.relatorAddress || '',
         ...profileData,
         // Clear case-specific fields
         partyRepresented: '', venue: '', caseNumber: '', presentStage: '',

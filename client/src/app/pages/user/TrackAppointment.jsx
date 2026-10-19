@@ -1750,57 +1750,11 @@ export default function AppointmentTracker() {
                   <Text size="sm" c={CHARCOAL}>{reviewData.content?.interviewInfo?.fastFacts || '-'}</Text>
                 </Box>
                 <Divider my="sm" color="#F0F0F0" />
-                {/* Evidence tables */}
-                {reviewData.content?.interviewInfo?.clientEvidence && reviewData.content.interviewInfo.clientEvidence.length > 0 && (
-                  <Box mb="md">
-                    <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={6}>Evidence on Hand — Client(s)</Text>
-                    <Table withTableBorder withColumnBorders styles={{ th: { fontSize: '12px', color: MUTED_OLIVE, fontWeight: 600 }, td: { fontSize: '13px' } }}>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>Type/Description</Table.Th>
-                          <Table.Th>Author/Source</Table.Th>
-                          <Table.Th>Purpose</Table.Th>
-                          <Table.Th>Issues</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {reviewData.content.interviewInfo.clientEvidence.map((ev, idx) => (
-                          <Table.Tr key={idx}>
-                            <Table.Td>{ev.type || '-'}</Table.Td>
-                            <Table.Td>{ev.author || '-'}</Table.Td>
-                            <Table.Td>{ev.purpose || '-'}</Table.Td>
-                            <Table.Td>{ev.issues || '-'}</Table.Td>
-                          </Table.Tr>
-                        ))}
-                      </Table.Tbody>
-                    </Table>
-                  </Box>
-                )}
-                {reviewData.content?.interviewInfo?.adversePartyEvidence && reviewData.content.interviewInfo.adversePartyEvidence.length > 0 && (
-                  <Box mb="md">
-                    <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={6}>Evidence on Hand — Adverse Party(ies)</Text>
-                    <Table withTableBorder withColumnBorders styles={{ th: { fontSize: '12px', color: MUTED_OLIVE, fontWeight: 600 }, td: { fontSize: '13px' } }}>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>Type/Description</Table.Th>
-                          <Table.Th>Author/Source</Table.Th>
-                          <Table.Th>Purpose</Table.Th>
-                          <Table.Th>Issues</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {reviewData.content.interviewInfo.adversePartyEvidence.map((ev, idx) => (
-                          <Table.Tr key={idx}>
-                            <Table.Td>{ev.type || '-'}</Table.Td>
-                            <Table.Td>{ev.author || '-'}</Table.Td>
-                            <Table.Td>{ev.purpose || '-'}</Table.Td>
-                            <Table.Td>{ev.issues || '-'}</Table.Td>
-                          </Table.Tr>
-                        ))}
-                      </Table.Tbody>
-                    </Table>
-                  </Box>
-                )}
+                {/* Evidence */}
+                <Box mb="md">
+                  <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={6}>Evidence</Text>
+                  <Text size="sm" c="dimmed">Evidence management is available on the web version.</Text>
+                </Box>
                 <Box mb="md">
                   <Text size="xs" fw={600} c={ACCENT_TAN} tt="uppercase" lts={0.3} mb={4}>Intern's Initial Advice</Text>
                   <Text size="sm" c={CHARCOAL}>{reviewData.content?.interviewInfo?.internAdvice || '-'}</Text>

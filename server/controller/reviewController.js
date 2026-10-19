@@ -48,6 +48,31 @@ const emitReviewStateForProfile = (profileId, review, dateField = 'updatedAt') =
   });
 };
 
+const isCourtRepresentation = (content) => content?.interviewInfo?.caseType === 'court-representation';
+
+const actorForHistory = (profile) => profile ? {
+  id: profile._id?.toString(),
+  name: `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || profile.email || 'Unknown user',
+  role: profile.role || '',
+} : { id: '', name: 'Unknown user', role: '' };
+
+const transitionLabel = (fromStage, toStage) => ({
+  'draft:supervising_lawyer': 'Submitted to supervising lawyer',
+  'returned_to_intern:supervising_lawyer': 'Resubmitted to supervising lawyer',
+  'supervising_lawyer:returned_to_intern': 'Returned to intern/secretary for changes',
+  'supervising_lawyer:director': 'Submitted to director',
+  'director:supervising_lawyer': 'Returned to supervising lawyer',
+}[`${fromStage}:${toStage}`] || 'Review stage updated');
+
+const historyEntry = ({ fromStage, toStage, content, actor }) => ({
+  action: transitionLabel(fromStage, toStage),
+  fromStage,
+  toStage,
+  actor: actorForHistory(actor),
+  snapshot: JSON.parse(JSON.stringify(content || {})),
+  occurredAt: new Date(),
+});
+
 export const createReview = async (req, res) => {
   try {
     const payload = req.body;
@@ -58,6 +83,14 @@ export const createReview = async (req, res) => {
     const toCreate = { ...payload };
     if (caseTitle) toCreate.caseTitle = caseTitle;
     if (clientName) toCreate.clientName = clientName;
+    if (isCourtRepresentation(toCreate.content) && !Array.isArray(toCreate.workflowHistory)) {
+      toCreate.workflowHistory = [historyEntry({
+        fromStage: 'draft',
+        toStage: toCreate.reviewStage || 'supervising_lawyer',
+        content: toCreate.content,
+        actor: req.activeProfile,
+      })];
+    }
 
     // If the case already has an assignee, copy it into the review so reviewers see assignment
     try {
@@ -186,13 +219,21 @@ export const updateReview = async (req, res) => {
     const caseTitle = payload?.content?.caseInfo?.title || payload.caseTitle || null;
     const clientName = payload?.content?.interviewInfo?.clientName || payload.clientName || null;
 
-    const toUpdate = { ...payload };
-    if (caseTitle) toUpdate.caseTitle = caseTitle;
-    if (clientName) toUpdate.clientName = clientName;
-
     // Fetch the old review to detect stage transitions
     const oldReview = await Review.findById(id).lean();
     const oldStage = oldReview?.reviewStage;
+
+    const toUpdate = { ...payload };
+    if (caseTitle) toUpdate.caseTitle = caseTitle;
+    if (clientName) toUpdate.clientName = clientName;
+    const nextContent = toUpdate.content || oldReview?.content;
+    const nextStage = toUpdate.reviewStage || oldReview?.reviewStage;
+    if (oldReview && isCourtRepresentation(nextContent) && nextStage && nextStage !== oldStage) {
+      toUpdate.workflowHistory = [
+        ...(oldReview.workflowHistory || []),
+        historyEntry({ fromStage: oldStage, toStage: nextStage, content: nextContent, actor: req.activeProfile }),
+      ];
+    }
 
     const updated = await Review.findByIdAndUpdate(id, toUpdate, { new: true });
     if (!updated) {

@@ -14,13 +14,16 @@ import {
 } from '@utils/constants';
 import { validationRules } from '@utils/validation';
 
-export default function PersonalDetailsForm({ register, errors, setValue, watch }) {
+export default function PersonalDetailsForm({ register, errors, setValue, watch, editMode = false }) {
   const [calculatedAge, setCalculatedAge] = React.useState('');
   const [sameAsPresent, setSameAsPresent] = React.useState(false);
   const throughRelator = watch?.('throughRelator') || 'no';
   const isThroughRelator = throughRelator === 'yes';
   const relatorNameValue = watch?.('relatorName');
   const relationshipValue = watch?.('relationshipToClient');
+  const relatorEmailValue = watch?.('relatorEmail');
+  const relatorPhoneValue = watch?.('relatorPhone');
+  const relatorAddressValue = watch?.('relatorAddress');
 
   // Auto-format phone number with fixed +63
   const formatPhoneNumber = (value) => {
@@ -113,16 +116,19 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
 
   // Auto-enable relator toggle when prefilled relator details exist
   React.useEffect(() => {
-    if (throughRelator === 'no' && (relatorNameValue || relationshipValue)) {
+    if (throughRelator === 'no' && (relatorNameValue || relationshipValue || relatorEmailValue || relatorPhoneValue || relatorAddressValue)) {
       setValue('throughRelator', 'yes', { shouldValidate: false });
     }
-  }, [throughRelator, relatorNameValue, relationshipValue, setValue]);
+  }, [throughRelator, relatorNameValue, relationshipValue, relatorEmailValue, relatorPhoneValue, relatorAddressValue, setValue]);
 
   // Clear relator fields when user selects "No"
   React.useEffect(() => {
     if (throughRelator === 'no') {
       setValue('relatorName', '', { shouldValidate: false });
       setValue('relationshipToClient', '', { shouldValidate: false });
+      setValue('relatorEmail', '', { shouldValidate: false });
+      setValue('relatorPhone', '', { shouldValidate: false });
+      setValue('relatorAddress', '', { shouldValidate: false });
     }
   }, [throughRelator, setValue]);
 
@@ -132,6 +138,16 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
     if (rawContact && rawContact !== '+63 ' && !rawContact.startsWith('+63 ')) {
       const formatted = formatPhoneNumber(rawContact);
       setValue('contactNumber', formatted);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Format relator phone number with +63 when data is fetched/loaded
+  React.useEffect(() => {
+    const rawRelatorPhone = watch?.('relatorPhone');
+    if (rawRelatorPhone && rawRelatorPhone !== '+63 ' && !rawRelatorPhone.startsWith('+63 ')) {
+      const formatted = formatPhoneNumber(rawRelatorPhone);
+      setValue('relatorPhone', formatted);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -156,6 +172,7 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
             <TextInput
               placeholder="Juan Dela Cruz"
               size="sm"
+              disabled={!editMode}
               {...register('name', validationRules.name)}
               value={watch('name') || ''}
               error={errors.name?.message}
@@ -182,6 +199,7 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
                 valueFormat="MMMM DD, YYYY"
                 leftSection={<IconCalendar size={14} color={MUTED_OLIVE} />}
                 maxDate={new Date()}
+                disabled={!editMode}
                 {...register('birthday', validationRules.birthday)}
                 value={birthday instanceof Date ? birthday : birthday ? new Date(birthday) : null}
                 onChange={(date) => setValue('birthday', date)}
@@ -227,6 +245,7 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
                 placeholder="Select"
                 size="sm"
                 data={GENDER_OPTIONS}
+                disabled={!editMode}
                 {...register('sex', validationRules.sex)}
                 value={watch('sex') || null}
                 onChange={(value) => setValue('sex', value)}
@@ -509,6 +528,68 @@ export default function PersonalDetailsForm({ register, errors, setValue, watch 
                   input: {
                     backgroundColor: isThroughRelator ? 'white' : '#F0F0F0',
                     borderColor: errors.relationshipToClient ? '#E74C3C' : '#E0E0E0',
+                    cursor: isThroughRelator ? 'text' : 'not-allowed',
+                  },
+                }}
+              />
+            </Grid.Col>
+          </Grid>
+          <Grid gutter="sm">
+            <Grid.Col span={12}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Relator Email Address</Text>
+              </Group>
+              <TextInput
+                placeholder="relator@example.com"
+                size="sm"
+                disabled={!isThroughRelator}
+                {...register('relatorEmail')}
+                styles={{
+                  input: {
+                    backgroundColor: isThroughRelator ? 'white' : '#F0F0F0',
+                    cursor: isThroughRelator ? 'text' : 'not-allowed',
+                  },
+                }}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Relator Phone Number</Text>
+              </Group>
+              <TextInput
+                placeholder="+63 XXX XXX XXXX"
+                type="tel"
+                size="sm"
+                disabled={!isThroughRelator}
+                {...register('relatorPhone')}
+                value={watch('relatorPhone') || '+63 '}
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value);
+                  setValue('relatorPhone', formatted);
+                }}
+                onFocus={(e) => {
+                  if (!e.target.value || e.target.value === '') setValue('relatorPhone', '+63 ');
+                }}
+                styles={{
+                  input: {
+                    backgroundColor: isThroughRelator ? 'white' : '#F0F0F0',
+                    cursor: isThroughRelator ? 'text' : 'not-allowed',
+                  },
+                }}
+              />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Group gap={4} mb={6}>
+                <Text size="sm" fw={600} c={CHARCOAL}>Relator Address</Text>
+              </Group>
+              <TextInput
+                placeholder="Street, City, Province"
+                size="sm"
+                disabled={!isThroughRelator}
+                {...register('relatorAddress')}
+                styles={{
+                  input: {
+                    backgroundColor: isThroughRelator ? 'white' : '#F0F0F0',
                     cursor: isThroughRelator ? 'text' : 'not-allowed',
                   },
                 }}

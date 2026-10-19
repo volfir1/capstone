@@ -8,17 +8,32 @@ import { safeErrorMessage } from '../utils/errorResponse.js';
 // Create a new event
 export const createEvent = async (req, res) => {
   try {
-    const { title, description, eventDate, eventType, location, clientName, assignedTo, status, priority } = req.body;
+    const { title, description, eventDate, appointmentTime, eventType, location, clientName, assignedTo, status, priority } = req.body;
     const createdBy = req.user?.uid || req.user?.email || 'system';
 
     if (!title || !eventDate) {
       return res.status(400).json({ error: 'Title and event date are required' });
     }
 
+    // Combine date and time if appointmentTime is provided
+    let finalEventDate = new Date(eventDate);
+    if (appointmentTime) {
+      const [timeStr, ampm] = appointmentTime.split(' ');
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      let adjustedHours = hours;
+      if (ampm && ampm.toUpperCase() === 'PM' && hours !== 12) {
+        adjustedHours = hours + 12;
+      } else if (ampm && ampm.toUpperCase() === 'AM' && hours === 12) {
+        adjustedHours = 0;
+      }
+      finalEventDate.setHours(adjustedHours, minutes, 0, 0);
+    }
+
     const newEvent = new Event({
       title,
       description,
-      eventDate,
+      eventDate: finalEventDate,
+      appointmentTime,
       eventType,
       location,
       clientName,
@@ -105,9 +120,32 @@ export const getEventById = async (req, res) => {
 export const updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const { appointmentTime, eventDate, ...updateData } = req.body;
 
     const oldEvent = await Event.findById(id);
+    
+    // Preserve appointmentTime if provided
+    if (appointmentTime !== undefined) {
+      updateData.appointmentTime = appointmentTime;
+    }
+    
+    // Combine date and time if both are provided
+    if (eventDate && appointmentTime) {
+      const [timeStr, ampm] = appointmentTime.split(' ');
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      let adjustedHours = hours;
+      if (ampm && ampm.toUpperCase() === 'PM' && hours !== 12) {
+        adjustedHours = hours + 12;
+      } else if (ampm && ampm.toUpperCase() === 'AM' && hours === 12) {
+        adjustedHours = 0;
+      }
+      const finalEventDate = new Date(eventDate);
+      finalEventDate.setHours(adjustedHours, minutes, 0, 0);
+      updateData.eventDate = finalEventDate;
+    } else if (eventDate) {
+      updateData.eventDate = new Date(eventDate);
+    }
+    
     const updatedEvent = await Event.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,

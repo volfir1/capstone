@@ -47,7 +47,7 @@ const formatRole = (role) =>
 
 const ROLE_OPTIONS = [
   { value: "secretary", label: "Secretary" },
-  { value: "intern", label: "Legal Intern" },
+  { value: "intern", label: "Legal Interns" },
   { value: "supervising_lawyer", label: "Supervising Lawyer" },
   { value: "director", label: "Director" },
 ];
@@ -55,14 +55,19 @@ const ROLE_OPTIONS = [
 const normalizeProfileValue = (value) => String(value || "").trim().toLowerCase();
 
 const validateProfileDraft = (draft, profiles) => {
-  const firstName = String(draft.firstName || "").trim();
-  const lastName = String(draft.lastName || "").trim();
+  const isIntern = draft.role === "intern";
+  const firstName = isIntern 
+    ? String(draft.givenName || draft.firstName || "").trim()
+    : String(draft.firstName || "").trim();
+  const lastName = isIntern
+    ? String(draft.familyName || draft.lastName || "").trim()
+    : String(draft.lastName || "").trim();
   const role = String(draft.role || "").trim();
   const startDate = String(draft.startDate || "").trim();
   const endDate = String(draft.endDate || "").trim();
 
   if (!firstName || !lastName || !role) {
-    return "Please enter a first name, last name, and role.";
+    return "Please enter a given name, family name, and role.";
   }
 
   if (startDate && endDate) {
@@ -76,11 +81,17 @@ const validateProfileDraft = (draft, profiles) => {
     }
   }
 
-  const duplicate = profiles.some((profile) =>
-    normalizeProfileValue(profile.firstName) === normalizeProfileValue(firstName) &&
-    normalizeProfileValue(profile.lastName) === normalizeProfileValue(lastName) &&
-    normalizeProfileValue(profile.role) === normalizeProfileValue(role)
-  );
+  const duplicate = profiles.some((profile) => {
+    const profileFirstName = isIntern 
+      ? (profile.givenName || profile.firstName || "")
+      : (profile.firstName || "");
+    const profileLastName = isIntern
+      ? (profile.familyName || profile.lastName || "")
+      : (profile.lastName || "");
+    return normalizeProfileValue(profileFirstName) === normalizeProfileValue(firstName) &&
+           normalizeProfileValue(profileLastName) === normalizeProfileValue(lastName) &&
+           normalizeProfileValue(profile.role) === normalizeProfileValue(role);
+  });
 
   if (duplicate) {
     return "A profile with the same name and role already exists for this shared account.";
@@ -108,12 +119,20 @@ export default function ProfileSelection() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [profileForm, setProfileForm] = useState({
+    givenName: "",
+    familyName: "",
+    maternalName: "",
     firstName: "",
     lastName: "",
     role: "",
     startDate: "",
     endDate: "",
   });
+
+  // Intern selection modal state
+  const [internModalOpen, setInternModalOpen] = useState(false);
+  const [selectedInternId, setSelectedInternId] = useState("");
+  const [internSubmitting, setInternSubmitting] = useState(false);
 
   useEffect(() => {
     const state = location.state;
@@ -128,10 +147,39 @@ export default function ProfileSelection() {
     [profiles]
   );
 
+  // Group profiles by role and reorder: Director -> Supervising Lawyer -> Secretary -> Legal Interns
+  const groupedProfiles = useMemo(() => {
+    const directorProfiles = selectableProfiles.filter((p) => p.role === "director");
+    const supervisingLawyerProfiles = selectableProfiles.filter((p) => p.role === "supervising_lawyer");
+    const secretaryProfiles = selectableProfiles.filter((p) => p.role === "secretary");
+    const internProfiles = selectableProfiles.filter((p) => p.role === "intern");
+
+    // For non-intern profiles, show them individually
+    const nonInternProfiles = [
+      ...directorProfiles,
+      ...supervisingLawyerProfiles,
+      ...secretaryProfiles,
+    ];
+
+    // For interns, show only one combined card if there are any intern profiles
+    const hasInterns = internProfiles.length > 0;
+    const internCard = hasInterns ? [{
+      id: "legal-interns-combined",
+      isCombinedInternCard: true,
+      internProfiles: internProfiles,
+      firstName: "Legal",
+      lastName: "Interns",
+      role: "intern",
+      email: "Click to select your name",
+    }] : [];
+
+    return [...nonInternProfiles, ...internCard];
+  }, [selectableProfiles]);
+
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => {
     setCreateModalOpen(false);
-    setProfileForm({ firstName: "", lastName: "", role: "", startDate: "", endDate: "" });
+    setProfileForm({ givenName: "", familyName: "", maternalName: "", firstName: "", lastName: "", role: "", startDate: "", endDate: "" });
     setCreateLoading(false);
   };
 
@@ -184,6 +232,13 @@ export default function ProfileSelection() {
   }
 
   const handleSelectProfile = async (profileId) => {
+    // If combined intern card, show intern selection modal
+    if (profileId === "legal-interns-combined") {
+      setInternModalOpen(true);
+      return;
+    }
+
+    // For other profiles, proceed normally
     try {
       setIsSubmitting(true);
       setSubmittingProfileId(profileId);
@@ -199,6 +254,29 @@ export default function ProfileSelection() {
       setIsSubmitting(false);
       setSubmittingProfileId("");
     }
+  };
+
+  const handleInternSubmit = async (internId) => {
+    setInternSubmitting(true);
+    try {
+      await selectProfile(internId);
+      setInternModalOpen(false);
+      setSelectedInternId("");
+      navigate("/auth/profile-pin", { replace: true });
+    } catch (error) {
+      notifications.show({
+        title: "Profile selection failed",
+        message: error?.response?.data?.message || "We couldn't open that staff profile.",
+        color: "red",
+      });
+    } finally {
+      setInternSubmitting(false);
+    }
+  };
+
+  const handleCloseInternModal = () => {
+    setInternModalOpen(false);
+    setSelectedInternId("");
   };
 
   return (
@@ -338,7 +416,7 @@ export default function ProfileSelection() {
         </Group>
 
         <Grid gutter={{ base: "sm", md: "md" }}>
-          {selectableProfiles.map((profile) => (
+          {groupedProfiles.map((profile) => (
             <Grid.Col key={profile.id} span={{ base: 12, sm: 6, lg: 4, xl: 3 }}>
               <Card
                 className="profile-menu-card"
@@ -348,11 +426,11 @@ export default function ProfileSelection() {
                 style={{
                   height: 228,
                   background:
-                    activeProfileId === profile.id
+                    !profile.isCombinedInternCard && activeProfileId === profile.id
                       ? "linear-gradient(165deg, rgba(139,69,19,0.07) 0%, rgba(196,171,125,0.14) 100%)"
                       : "white",
                   border:
-                    activeProfileId === profile.id
+                    !profile.isCombinedInternCard && activeProfileId === profile.id
                       ? `1px solid ${PRIMARY_GOLD}`
                       : "1px solid rgba(139, 69, 19, 0.1)",
                 }}
@@ -378,7 +456,11 @@ export default function ProfileSelection() {
 
                         <Box style={{ minWidth: 0 }}>
                           <Text fw={700} size="sm" c={CHARCOAL} lh={1.3} truncate>
-                            {profile.firstName} {profile.lastName}
+                            {profile.isCombinedInternCard ? "Legal Interns" : (
+                              profile.role === "intern" 
+                                ? `${profile.givenName || profile.firstName} ${profile.familyName || profile.lastName}`
+                                : `${profile.firstName} ${profile.lastName}`
+                            )}
                           </Text>
                           <Text size="xs" c={MUTED_OLIVE} mt={2} truncate>
                             {formatRole(profile.role)}
@@ -386,7 +468,7 @@ export default function ProfileSelection() {
                         </Box>
                       </Group>
 
-                      {activeProfileId === profile.id && (
+                      {!profile.isCombinedInternCard && activeProfileId === profile.id && (
                         <Badge
                           radius="xl"
                           size="xs"
@@ -405,9 +487,16 @@ export default function ProfileSelection() {
                       <Text size="xs" c={MUTED_OLIVE}>
                         <Text span fw={700} c={CHARCOAL}>Role:</Text> {formatRole(profile.role)}
                       </Text>
-                      <Text size="xs" c={MUTED_OLIVE} truncate>
-                        <Text span fw={700} c={CHARCOAL}>Account:</Text> {profile.email}
-                      </Text>
+                      {!profile.isCombinedInternCard && (
+                        <Text size="xs" c={MUTED_OLIVE} truncate>
+                          <Text span fw={700} c={CHARCOAL}>Account:</Text> {profile.email}
+                        </Text>
+                      )}
+                      {profile.isCombinedInternCard && (
+                        <Text size="xs" c={MUTED_OLIVE}>
+                          <Text span fw={700} c={CHARCOAL}>Click to select your name</Text>
+                        </Text>
+                      )}
                     </Stack>
                   </Stack>
 
@@ -420,18 +509,18 @@ export default function ProfileSelection() {
                     disabled={isSubmitting && submittingProfileId !== profile.id}
                     onClick={() => handleSelectProfile(profile.id)}
                     style={{
-                      backgroundColor: activeProfileId === profile.id ? PRIMARY_GOLD : PRIMARY_BROWN,
-                      color: activeProfileId === profile.id ? CHARCOAL : "white",
+                      backgroundColor: !profile.isCombinedInternCard && activeProfileId === profile.id ? PRIMARY_GOLD : PRIMARY_BROWN,
+                      color: !profile.isCombinedInternCard && activeProfileId === profile.id ? CHARCOAL : "white",
                     }}
                   >
-                    {activeProfileId === profile.id ? "Continue" : "Select Profile"}
+                    {profile.isCombinedInternCard ? "Select Intern" : (activeProfileId === profile.id ? "Continue" : "Select Profile")}
                   </Button>
                 </Stack>
               </Card>
             </Grid.Col>
           ))}
 
-          {selectableProfiles.length === 0 && (
+          {groupedProfiles.length === 0 && (
             <Grid.Col span={12}>
               <Card
                 radius="lg"
@@ -463,21 +552,40 @@ export default function ProfileSelection() {
         <Modal opened={createModalOpen} onClose={handleCloseCreateModal} title="Create another staff profile" centered>
           <Stack spacing="md">
             <TextInput
-              label="First Name"
-              placeholder="Enter first name"
-              value={profileForm.firstName}
+              label={profileForm.role === "intern" ? "Given Name" : "First Name"}
+              placeholder={profileForm.role === "intern" ? "Enter given name" : "Enter first name"}
+              value={profileForm.role === "intern" ? profileForm.givenName : profileForm.firstName}
               onChange={(event) => {
                 const nextValue = event.currentTarget.value;
-                setProfileForm((prev) => ({ ...prev, firstName: nextValue }));
+                if (profileForm.role === "intern") {
+                  setProfileForm((prev) => ({ ...prev, givenName: nextValue, firstName: nextValue }));
+                } else {
+                  setProfileForm((prev) => ({ ...prev, firstName: nextValue }));
+                }
               }}
             />
+            {profileForm.role === "intern" && (
+              <TextInput
+                label="Maternal Name"
+                placeholder="Enter maternal name"
+                value={profileForm.maternalName}
+                onChange={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setProfileForm((prev) => ({ ...prev, maternalName: nextValue }));
+                }}
+              />
+            )}
             <TextInput
-              label="Last Name"
-              placeholder="Enter last name"
-              value={profileForm.lastName}
+              label={profileForm.role === "intern" ? "Family Name" : "Last Name"}
+              placeholder={profileForm.role === "intern" ? "Enter family name" : "Enter last name"}
+              value={profileForm.role === "intern" ? profileForm.familyName : profileForm.lastName}
               onChange={(event) => {
                 const nextValue = event.currentTarget.value;
-                setProfileForm((prev) => ({ ...prev, lastName: nextValue }));
+                if (profileForm.role === "intern") {
+                  setProfileForm((prev) => ({ ...prev, familyName: nextValue, lastName: nextValue }));
+                } else {
+                  setProfileForm((prev) => ({ ...prev, lastName: nextValue }));
+                }
               }}
             />
             <Select
@@ -513,6 +621,56 @@ export default function ProfileSelection() {
               </Button>
               <Button onClick={handleCreateProfile} loading={createLoading}>
                 Create Profile
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+
+        {/* Intern Selection Modal */}
+        <Modal
+          opened={internModalOpen}
+          onClose={handleCloseInternModal}
+          title="Select Legal Intern"
+          size="sm"
+          centered
+        >
+          <Stack gap="sm">
+            <Text size="sm" fw={700} c={CHARCOAL}>Select your name:</Text>
+            <Stack gap="xs">
+              {selectableProfiles
+                .filter((p) => p.role === "intern")
+                .map((intern) => (
+                  <Card
+                    key={intern.id}
+                    p="sm"
+                    radius="md"
+                    style={{
+                      border: selectedInternId === intern.id
+                        ? `2px solid ${PRIMARY_BROWN}`
+                        : "1px solid rgba(139, 69, 19, 0.2)",
+                      cursor: "pointer",
+                      background: selectedInternId === intern.id
+                        ? `${PRIMARY_GOLD}15`
+                        : "white",
+                    }}
+                    onClick={() => handleInternSubmit(intern.id)}
+                  >
+                    <Group gap="xs" align="center">
+                      <IconUserCircle size={20} color={PRIMARY_BROWN} />
+                      <Text fw={600} size="sm" c={CHARCOAL}>
+                        {intern.givenName || intern.firstName} {intern.familyName || intern.lastName}
+                      </Text>
+                    </Group>
+                  </Card>
+                ))}
+            </Stack>
+            <Group justify="flex-end" mt="md">
+              <Button
+                variant="outline"
+                onClick={handleCloseInternModal}
+                disabled={internSubmitting}
+              >
+                Cancel
               </Button>
             </Group>
           </Stack>

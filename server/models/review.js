@@ -9,8 +9,17 @@ const ReviewSchema = new mongoose.Schema({
   reviewerRole: { type: String },
   step: { type: Number },
   content: { type: mongoose.Schema.Types.Mixed },
-  // Review stage for two-layer approval: 'supervising_lawyer' -> 'director' -> 'completed' OR 'returned_to_intern'
-  reviewStage: { type: String, enum: ['supervising_lawyer', 'director', 'completed', 'returned_to_intern'], default: 'supervising_lawyer', index: true },
+  // Immutable snapshots for court-representation review movements.
+  workflowHistory: [{
+    action: { type: String },
+    fromStage: { type: String },
+    toStage: { type: String },
+    actor: { id: String, name: String, role: String },
+    snapshot: { type: mongoose.Schema.Types.Mixed },
+    occurredAt: { type: Date, default: Date.now },
+  }],
+  // Review stage for two-layer approval: 'draft' -> 'supervising_lawyer' -> 'director' -> 'completed' OR 'returned_to_intern'
+  reviewStage: { type: String, enum: ['draft', 'supervising_lawyer', 'director', 'completed', 'returned_to_intern'], default: 'supervising_lawyer', index: true },
 }, { timestamps: true })
 
 export default mongoose.model('Review', ReviewSchema)

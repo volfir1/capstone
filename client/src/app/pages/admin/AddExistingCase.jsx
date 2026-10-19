@@ -40,8 +40,7 @@ export default function AddExistingCase() {
     clientName: '',
     interviewingInterns: '',
     fastFacts: '',
-    clientEvidence: [],
-    adversePartyEvidence: [],
+    evidence: [],
     legalResearch: '',
     preliminaryAssessment: '',
     recommendation: '',
@@ -265,7 +264,7 @@ export default function AddExistingCase() {
               </Stack>
             </Paper>
 
-            {/* Section 2: Client Interview and Evidence Record */}
+            {/* Section 2: Client Interview and Legal Opinion */}
             <ClientInterviewSection
               value={interviewData}
               onChange={setInterviewData}

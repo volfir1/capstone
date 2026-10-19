@@ -41,17 +41,6 @@ const PRIMARY_GOLD = '#C4AB7D';
 const CHARCOAL = '#2C2C2C';
 const MUTED_OLIVE = '#6B6B5A';
 const THEMED_LIGHT_BG = '#FAF8F3';
-const EMPTY_EVIDENCE_ROW = { type: '', author: '', purpose: '', issues: '', attachment: null };
-const EVIDENCE_ATTACHMENT_EXTENSIONS = new Set([
-  '.pdf', '.doc', '.docx',
-  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tif', '.tiff',
-  '.mp4', '.mov', '.avi', '.mkv', '.webm', '.mpeg', '.mpg',
-]);
-const EVIDENCE_ATTACHMENT_MIME_TYPES = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
 
 const buildUserDisplayName = (user = {}) => {
   if (user?.firstName && user?.lastName) {
@@ -157,16 +146,7 @@ export default function RecommendationForAction() {
     clientName: '',
     interviewingInterns: '',
     fastFacts: '',
-    clientEvidence: [
-      { ...EMPTY_EVIDENCE_ROW },
-      { ...EMPTY_EVIDENCE_ROW },
-      { ...EMPTY_EVIDENCE_ROW },
-    ],
-    adversePartyEvidence: [
-      { ...EMPTY_EVIDENCE_ROW },
-      { ...EMPTY_EVIDENCE_ROW },
-      { ...EMPTY_EVIDENCE_ROW },
-    ],
+    evidence: [],
     internAdvice: '',
     caseType: '',
     legalOpinion: '',
@@ -227,12 +207,9 @@ export default function RecommendationForAction() {
         setInterviewInfo(prev => ({
           ...prev,
           ...passedReview.content.interviewInfo,
-          clientEvidence: passedReview.content.interviewInfo.clientEvidence?.length > 0
-            ? passedReview.content.interviewInfo.clientEvidence
-            : prev.clientEvidence,
-          adversePartyEvidence: passedReview.content.interviewInfo.adversePartyEvidence?.length > 0
-            ? passedReview.content.interviewInfo.adversePartyEvidence
-            : prev.adversePartyEvidence,
+          evidence: passedReview.content.interviewInfo.evidence?.length > 0
+            ? passedReview.content.interviewInfo.evidence
+            : prev.evidence,
         }));
         // Restore uploaded document and version history from passedReview
         if (passedReview.content.interviewInfo.uploadedDocument) {
@@ -412,12 +389,9 @@ export default function RecommendationForAction() {
             setInterviewInfo(prev => ({
               ...prev,
               ...review.content.interviewInfo,
-              clientEvidence: review.content.interviewInfo.clientEvidence?.length > 0
-                ? review.content.interviewInfo.clientEvidence
-                : prev.clientEvidence,
-              adversePartyEvidence: review.content.interviewInfo.adversePartyEvidence?.length > 0
-                ? review.content.interviewInfo.adversePartyEvidence
-                : prev.adversePartyEvidence,
+              evidence: review.content.interviewInfo.evidence?.length > 0
+                ? review.content.interviewInfo.evidence
+                : prev.evidence,
             }));
             // Restore uploaded document if present
             if (review.content.interviewInfo.uploadedDocument) {
@@ -445,14 +419,13 @@ export default function RecommendationForAction() {
   const filterEmptyEvidence = (evidenceArray) => {
     if (!evidenceArray || !Array.isArray(evidenceArray)) return [];
     return evidenceArray.filter(
-      row => row && (row.type || row.author || row.purpose || row.issues || row.attachment?.fileUrl || row.attachment?.cloudinaryUrl),
+      row => row && (row.annex || row.exhibit || row.document || row.witness || row.original || row.notes || row.documentUrl || row.driveFileId),
     );
   };
 
   const buildCompleteInterviewInfo = () => ({
     ...interviewInfo,
-    clientEvidence: filterEmptyEvidence(interviewInfo.clientEvidence),
-    adversePartyEvidence: filterEmptyEvidence(interviewInfo.adversePartyEvidence),
+    evidence: filterEmptyEvidence(interviewInfo.evidence),
     documentVersions: documentVersions,
     createdByRole: interviewInfo.createdByRole || normalizedRole || null,
     createdByName: interviewInfo.createdByName || (userData?.firstName && userData?.lastName
@@ -783,154 +756,7 @@ export default function RecommendationForAction() {
     }
   };
 
-  // ─── Evidence helpers ───
-  const updateClientEvidence = useCallback((index, field, value) => {
-    setInterviewInfo(prev => {
-      const updated = [...(prev.clientEvidence || [])];
-      if (!updated[index]) updated[index] = { ...EMPTY_EVIDENCE_ROW };
-      updated[index] = { ...updated[index], [field]: value };
-      return { ...prev, clientEvidence: updated };
-    });
-  }, []);
-
-  const updateAdverseEvidence = useCallback((index, field, value) => {
-    setInterviewInfo(prev => {
-      const updated = [...(prev.adversePartyEvidence || [])];
-      if (!updated[index]) updated[index] = { ...EMPTY_EVIDENCE_ROW };
-      updated[index] = { ...updated[index], [field]: value };
-      return { ...prev, adversePartyEvidence: updated };
-    });
-  }, []);
-
-  const addClientEvidenceRow = useCallback(() => {
-    setInterviewInfo(prev => ({
-      ...prev,
-      clientEvidence: [...(prev.clientEvidence || []), { ...EMPTY_EVIDENCE_ROW }],
-    }));
-  }, []);
-
-  const addAdverseEvidenceRow = useCallback(() => {
-    setInterviewInfo(prev => ({
-      ...prev,
-      adversePartyEvidence: [...(prev.adversePartyEvidence || []), { ...EMPTY_EVIDENCE_ROW }],
-    }));
-  }, []);
-
-  const setEvidenceAttachment = useCallback((evidenceType, rowIndex, attachment) => {
-    setInterviewInfo((prev) => {
-      const rows = Array.isArray(prev[evidenceType]) ? [...prev[evidenceType]] : [];
-      while (rows.length <= rowIndex) rows.push({ ...EMPTY_EVIDENCE_ROW });
-
-      const existingRow = rows[rowIndex] || { ...EMPTY_EVIDENCE_ROW };
-      rows[rowIndex] = { ...existingRow, attachment };
-      return { ...prev, [evidenceType]: rows };
-    });
-  }, []);
-
-  const handleUploadEvidenceAttachment = async (evidenceType, rowIndex) => {
-    if (!DocumentPicker) {
-      Alert.alert(
-        'Rebuild Required',
-        'Document picker requires a native rebuild. Run: npx expo run:android',
-      );
-      return;
-    }
-
-    try {
-      const picked = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-      });
-
-      if (picked.canceled || !picked.assets?.length) {
-        return;
-      }
-
-      const file = picked.assets[0];
-      if (!isSupportedEvidenceAttachment(file.name, file.mimeType)) {
-        showToast('warning', 'Unsupported file type', 'Please upload image, video, PDF, or Word files only.');
-        return;
-      }
-
-      setUploadingEvidenceKey({ type: evidenceType, index: rowIndex });
-
-      const existingAttachment = interviewInfo?.[evidenceType]?.[rowIndex]?.attachment;
-      if (existingAttachment?.isServerFile && existingAttachment?.filename) {
-        try {
-          await apiClient.delete(`/upload/document/${encodeURIComponent(existingAttachment.filename)}`, {
-            params: {
-              cloudinaryPublicId: existingAttachment.cloudinaryPublicId,
-              cloudinaryResourceType: existingAttachment.cloudinaryResourceType,
-            },
-          });
-        } catch (deleteErr) {
-          console.warn('Could not delete previous evidence attachment before replacement:', deleteErr);
-        }
-      }
-
-      const serverFile = await uploadAssetToServer(file);
-      const uploadedBy = userData?.firstName && userData?.lastName
-        ? `${userData.firstName} ${userData.lastName}`
-        : userData?.username || 'Unknown';
-
-      const attachment = {
-        fileName: serverFile.displayName || serverFile.originalName || file.name,
-        fileSize: serverFile.size || file.size || 0,
-        fileType: serverFile.mimetype || file.mimeType || 'application/octet-stream',
-        fileUrl: serverFile.url || serverFile.path || null,
-        filename: serverFile.filename,
-        cloudinaryUrl: serverFile.cloudinaryUrl || null,
-        cloudinaryPublicId: serverFile.cloudinaryPublicId || null,
-        cloudinaryResourceType: serverFile.cloudinaryResourceType || null,
-        isServerFile: true,
-        uploadedBy,
-        uploadedByRole: normalizedRole || 'Unknown',
-        uploadedAt: new Date().toISOString(),
-      };
-
-      setEvidenceAttachment(evidenceType, rowIndex, attachment);
-      showToast('success', 'Attachment uploaded', 'Evidence file uploaded successfully.');
-    } catch (error) {
-      console.error('Error uploading evidence attachment:', error);
-      showToast('error', 'Upload failed', 'Failed to upload evidence attachment.');
-    } finally {
-      setUploadingEvidenceKey(null);
-    }
-  };
-
-  const handleRemoveEvidenceAttachment = async (evidenceType, rowIndex) => {
-    const row = interviewInfo?.[evidenceType]?.[rowIndex];
-    const attachment = row?.attachment;
-    if (!attachment) return;
-
-    if (attachment.isServerFile && attachment.filename) {
-      try {
-        await apiClient.delete(`/upload/document/${encodeURIComponent(attachment.filename)}`, {
-          params: {
-            cloudinaryPublicId: attachment.cloudinaryPublicId,
-            cloudinaryResourceType: attachment.cloudinaryResourceType,
-          },
-        });
-      } catch (error) {
-        console.error('Error deleting evidence attachment from server:', error);
-      }
-    }
-
-    setEvidenceAttachment(evidenceType, rowIndex, null);
-  };
-
-  const handleViewEvidenceAttachment = (attachment) => {
-    if (!attachment) return;
-
-    handleViewDocument({
-      fileName: attachment.fileName,
-      fileType: attachment.fileType,
-      fileUrl: attachment.fileUrl,
-      filename: attachment.filename,
-      cloudinaryUrl: attachment.cloudinaryUrl,
-      isServerFile: true,
-    });
-  };
+  // ─── Evidence helpers (deprecated - use web version for evidence management) ───
 
   // ─── Resolve full document URL from relative server path ───
   const resolveDocUrl = (relativeUrl) => {
@@ -1177,13 +1003,13 @@ export default function RecommendationForAction() {
   };
 
   // ──────────────────────────────────────────────────
-  // Step 0: Client Interview and Evidence Record
+  // Step 0: Client Interview and Legal Opinion
   // ──────────────────────────────────────────────────
   const renderInterviewStep = () => {
     const readOnly = interviewReadOnly;
     return (
       <View style={styles.formSection}>
-        <Text style={styles.mainTitle}>Client Interview and Evidence Record</Text>
+        <Text style={styles.mainTitle}>Client Interview and Legal Opinion</Text>
 
         {readOnly && (
           <View style={styles.alertBox}>
@@ -1254,239 +1080,11 @@ export default function RecommendationForAction() {
 
         <View style={styles.divider} />
 
-        {/* Client Evidence */}
-        <Text style={styles.sectionTitle}>Evidence on Hand / Available for the Client(s)</Text>
-        {(interviewInfo.clientEvidence || []).map((evidence, index) => {
-          const isEvidenceUploading =
-            uploadingEvidenceKey?.type === 'clientEvidence' && uploadingEvidenceKey?.index === index;
-          const attachment = evidence?.attachment;
-
-          return (
-            <View key={`client-${index}`} style={styles.evidenceCard}>
-              <Text style={styles.evidenceCardTitle}>Evidence #{index + 1}</Text>
-
-              <Text style={styles.inputLabel}>Type / Description</Text>
-              <TextInput
-                style={[styles.input, readOnly && styles.disabledInput]}
-                value={evidence.type || ''}
-                onChangeText={(text) => updateClientEvidence(index, 'type', text)}
-                placeholder="Type/Desc"
-                placeholderTextColor="#999"
-                editable={!readOnly}
-              />
-
-              <Text style={styles.inputLabel}>Author / Custodian</Text>
-              <TextInput
-                style={[styles.input, readOnly && styles.disabledInput]}
-                value={evidence.author || ''}
-                onChangeText={(text) => updateClientEvidence(index, 'author', text)}
-                placeholder="Author/Custodian"
-                placeholderTextColor="#999"
-                editable={!readOnly}
-              />
-
-              <Text style={styles.inputLabel}>Purpose</Text>
-              <TextInput
-                style={[styles.input, readOnly && styles.disabledInput]}
-                value={evidence.purpose || ''}
-                onChangeText={(text) => updateClientEvidence(index, 'purpose', text)}
-                placeholder="Purpose"
-                placeholderTextColor="#999"
-                editable={!readOnly}
-              />
-
-              <Text style={styles.inputLabel}>Admissibility Issues</Text>
-              <TextInput
-                style={[styles.input, readOnly && styles.disabledInput]}
-                value={evidence.issues || ''}
-                onChangeText={(text) => updateClientEvidence(index, 'issues', text)}
-                placeholder="Admissibility Issues"
-                placeholderTextColor="#999"
-                editable={!readOnly}
-              />
-
-              <Text style={styles.inputLabel}>Attachment (image, video, PDF, Word)</Text>
-              {!readOnly && (
-                <TouchableOpacity
-                  style={[styles.evidenceUploadButton, isEvidenceUploading && styles.buttonDisabled]}
-                  onPress={() => handleUploadEvidenceAttachment('clientEvidence', index)}
-                  disabled={isEvidenceUploading}
-                >
-                  {isEvidenceUploading ? (
-                    <ActivityIndicator size="small" color={PRIMARY_BROWN} />
-                  ) : (
-                    <>
-                      <Ionicons name="cloud-upload-outline" size={18} color={PRIMARY_BROWN} />
-                      <Text style={styles.evidenceUploadButtonText}>
-                        {attachment ? 'Replace Attachment' : 'Upload Attachment'}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-
-              {attachment && (
-                <View style={styles.evidenceAttachmentCard}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-                    <Ionicons
-                      name={attachment.fileType?.startsWith('video/')
-                        ? 'videocam-outline'
-                        : attachment.fileType?.startsWith('image/')
-                          ? 'image-outline'
-                          : 'document-text-outline'}
-                      size={22}
-                      color={PRIMARY_BROWN}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.evidenceAttachmentName} numberOfLines={1}>
-                        {attachment.fileName || 'Evidence Attachment'}
-                      </Text>
-                      <Text style={styles.evidenceAttachmentMeta}>
-                        {((attachment.fileSize || 0) / 1024).toFixed(2)} KB
-                        {attachment.uploadedAt ? ` • ${new Date(attachment.uploadedAt).toLocaleDateString()}` : ''}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <TouchableOpacity
-                      onPress={() => handleViewEvidenceAttachment(attachment)}
-                      style={styles.docActionBtn}
-                    >
-                      <Ionicons name="eye-outline" size={18} color="#2563EB" />
-                    </TouchableOpacity>
-                    {!readOnly && (
-                      <TouchableOpacity
-                        onPress={() => handleRemoveEvidenceAttachment('clientEvidence', index)}
-                        style={styles.docActionBtn}
-                      >
-                        <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              )}
-            </View>
-          );
-        })}
-        {!readOnly && (
-          <TouchableOpacity style={styles.addRowButton} onPress={addClientEvidenceRow}>
-            <Ionicons name="add-circle-outline" size={18} color={PRIMARY_BROWN} />
-            <Text style={styles.addRowText}>Add another row</Text>
-          </TouchableOpacity>
-        )}
-
-        <View style={styles.divider} />
-
-        {/* Adverse Party Evidence */}
-        <Text style={styles.sectionTitle}>Evidence on Hand / Available for the Adverse Party(ies)</Text>
-        {(interviewInfo.adversePartyEvidence || []).map((evidence, index) => {
-          const isEvidenceUploading =
-            uploadingEvidenceKey?.type === 'adversePartyEvidence' && uploadingEvidenceKey?.index === index;
-          const attachment = evidence?.attachment;
-
-          return (
-            <View key={`adverse-${index}`} style={styles.evidenceCard}>
-              <Text style={styles.evidenceCardTitle}>Evidence #{index + 1}</Text>
-
-              <Text style={styles.inputLabel}>Type / Description</Text>
-              <TextInput
-                style={[styles.input, readOnly && styles.disabledInput]}
-                value={evidence.type || ''}
-                onChangeText={(text) => updateAdverseEvidence(index, 'type', text)}
-                placeholder="Type/Desc"
-                placeholderTextColor="#999"
-                editable={!readOnly}
-              />
-
-              <Text style={styles.inputLabel}>Author / Custodian</Text>
-              <TextInput
-                style={[styles.input, readOnly && styles.disabledInput]}
-                value={evidence.author || ''}
-                onChangeText={(text) => updateAdverseEvidence(index, 'author', text)}
-                placeholder="Author/Custodian"
-                placeholderTextColor="#999"
-                editable={!readOnly}
-              />
-
-              <Text style={styles.inputLabel}>Admissibility Issues</Text>
-              <TextInput
-                style={[styles.input, readOnly && styles.disabledInput]}
-                value={evidence.issues || ''}
-                onChangeText={(text) => updateAdverseEvidence(index, 'issues', text)}
-                placeholder="Admissibility Issues"
-                placeholderTextColor="#999"
-                editable={!readOnly}
-              />
-
-              <Text style={styles.inputLabel}>Attachment (image, video, PDF, Word)</Text>
-              {!readOnly && (
-                <TouchableOpacity
-                  style={[styles.evidenceUploadButton, isEvidenceUploading && styles.buttonDisabled]}
-                  onPress={() => handleUploadEvidenceAttachment('adversePartyEvidence', index)}
-                  disabled={isEvidenceUploading}
-                >
-                  {isEvidenceUploading ? (
-                    <ActivityIndicator size="small" color={PRIMARY_BROWN} />
-                  ) : (
-                    <>
-                      <Ionicons name="cloud-upload-outline" size={18} color={PRIMARY_BROWN} />
-                      <Text style={styles.evidenceUploadButtonText}>
-                        {attachment ? 'Replace Attachment' : 'Upload Attachment'}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-
-              {attachment && (
-                <View style={styles.evidenceAttachmentCard}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-                    <Ionicons
-                      name={attachment.fileType?.startsWith('video/')
-                        ? 'videocam-outline'
-                        : attachment.fileType?.startsWith('image/')
-                          ? 'image-outline'
-                          : 'document-text-outline'}
-                      size={22}
-                      color={PRIMARY_BROWN}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.evidenceAttachmentName} numberOfLines={1}>
-                        {attachment.fileName || 'Evidence Attachment'}
-                      </Text>
-                      <Text style={styles.evidenceAttachmentMeta}>
-                        {((attachment.fileSize || 0) / 1024).toFixed(2)} KB
-                        {attachment.uploadedAt ? ` • ${new Date(attachment.uploadedAt).toLocaleDateString()}` : ''}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <TouchableOpacity
-                      onPress={() => handleViewEvidenceAttachment(attachment)}
-                      style={styles.docActionBtn}
-                    >
-                      <Ionicons name="eye-outline" size={18} color="#2563EB" />
-                    </TouchableOpacity>
-                    {!readOnly && (
-                      <TouchableOpacity
-                        onPress={() => handleRemoveEvidenceAttachment('adversePartyEvidence', index)}
-                        style={styles.docActionBtn}
-                      >
-                        <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              )}
-            </View>
-          );
-        })}
-        {!readOnly && (
-          <TouchableOpacity style={styles.addRowButton} onPress={addAdverseEvidenceRow}>
-            <Ionicons name="add-circle-outline" size={18} color={PRIMARY_BROWN} />
-            <Text style={styles.addRowText}>Add another row</Text>
-          </TouchableOpacity>
-        )}
+        {/* Evidence - Please use web version for full evidence management */}
+        <Text style={styles.sectionTitle}>Evidence</Text>
+        <Text style={{ color: '#666', fontSize: 12, marginBottom: 10 }}>
+          Evidence management is available on the web version.
+        </Text>
 
         <View style={styles.divider} />
 

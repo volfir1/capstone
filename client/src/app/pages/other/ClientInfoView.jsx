@@ -6,7 +6,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-  IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText, IconEdit,
+  IconChevronRight, IconChevronLeft, IconCircleCheck, IconFileText,
   IconArrowLeft, IconArrowRight, IconDeviceFloppy, IconX,
 } from '@tabler/icons-react';
 import { PRIMARY_BROWN, MUTED_OLIVE, BG, CHARCOAL } from '@utils/constants';
@@ -23,7 +23,6 @@ export default function ClientInfoView() {
   const { userData } = useAuth();
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [originalData, setOriginalData] = useState(null);
   const totalSteps = 4;
@@ -51,7 +50,7 @@ export default function ClientInfoView() {
           return parsed.toISOString().split('T')[0];
         };
 
-        const hasRelator = d?.relatorName || d?.relationshipToClient;
+        const hasRelator = d?.relatorName || d?.relationshipToClient || d?.relatorEmail || d?.relatorPhone || d?.relatorAddress;
 
         const formValues = {
           name: d?.fullName || d?.name || '',
@@ -71,6 +70,9 @@ export default function ClientInfoView() {
           throughRelator: d?.throughRelator || (hasRelator ? 'yes' : 'no'),
           relatorName: d?.relatorName || '',
           relationshipToClient: d?.relationshipToClient || '',
+          relatorEmail: d?.relatorEmail || '',
+          relatorPhone: d?.relatorPhone || '',
+          relatorAddress: d?.relatorAddress || '',
           currentSourceOfIncome: d?.currentSourceOfIncome || '',
           monthlyIncome: d?.monthlyIncome !== undefined && d?.monthlyIncome !== null ? String(d.monthlyIncome) : '',
           natureOfWork: d?.natureOfWork || '',
@@ -79,6 +81,7 @@ export default function ClientInfoView() {
           employerTelephone: d?.employerTelephone || '',
           spouseSourceOfIncome: d?.spouseSourceOfIncome || '',
           spouseMonthlyIncome: d?.spouseMonthlyIncome !== undefined && d?.spouseMonthlyIncome !== null ? String(d.spouseMonthlyIncome) : '',
+          spouseNatureOfWork: d?.spouseNatureOfWork || '',
           spouseEmployerAddress: d?.spouseEmployerAddress || '',
           totalCombinedIncome: d?.totalCombinedIncome !== undefined && d?.totalCombinedIncome !== null ? String(d.totalCombinedIncome) : '',
           partyRepresented: d?.partyRepresented || '',
@@ -96,6 +99,8 @@ export default function ClientInfoView() {
           adversePartyCounsel: d?.adversePartyCounsel || '',
           adversePartyCounselAddress: d?.adversePartyCounselAddress || '',
           adversePartyCounselPhone: d?.adversePartyCounselPhone || '',
+          partiesAndCounselDetails: d?.partiesAndCounselDetails || [],
+          courtVenueDetails: d?.courtVenueDetails || [{ tribunal: '', venue: '', branch: '', judge: '', docketNumber: '', email: '', contactNumber: '' }],
           caseDescription: d?.caseDescription || '',
           appointedDate: d?.appointedDate || '',
           appointmentTime: d?.appointmentTime || '',
@@ -146,6 +151,9 @@ export default function ClientInfoView() {
       throughRelator: values.throughRelator || undefined,
       relatorName: values.relatorName || undefined,
       relationshipToClient: values.relationshipToClient || undefined,
+      relatorEmail: values.relatorEmail || undefined,
+      relatorPhone: values.relatorPhone || undefined,
+      relatorAddress: values.relatorAddress || undefined,
       currentSourceOfIncome: values.currentSourceOfIncome || undefined,
       monthlyIncome: values.monthlyIncome || undefined,
       natureOfWork: values.natureOfWork || undefined,
@@ -154,6 +162,7 @@ export default function ClientInfoView() {
       employerTelephone: values.employerTelephone || undefined,
       spouseSourceOfIncome: values.spouseSourceOfIncome || undefined,
       spouseMonthlyIncome: values.spouseMonthlyIncome || undefined,
+      spouseNatureOfWork: values.spouseNatureOfWork || undefined,
       spouseEmployerAddress: values.spouseEmployerAddress || undefined,
       totalCombinedIncome: values.totalCombinedIncome || undefined,
       partyRepresented: values.partyRepresented || undefined,
@@ -171,6 +180,8 @@ export default function ClientInfoView() {
       adversePartyCounsel: values.adversePartyCounsel || undefined,
       adversePartyCounselAddress: values.adversePartyCounselAddress || undefined,
       adversePartyCounselPhone: values.adversePartyCounselPhone || undefined,
+      partiesAndCounselDetails: values.partiesAndCounselDetails || undefined,
+      courtVenueDetails: values.courtVenueDetails || undefined,
       caseDescription: values.caseDescription || undefined,
       appointedDate: values.appointedDate || undefined,
       appointmentTime: values.appointmentTime || undefined,
@@ -180,7 +191,6 @@ export default function ClientInfoView() {
     try {
       await apiClient.put(`/clientsinfo/${id}`, payload);
       notifications.show({ title: 'Updated', message: 'Client information saved successfully.', color: 'green' });
-      setEditMode(false);
       // Refresh original data
       const response = await apiClient.get(`/clientsinfo/${id}`);
       setOriginalData(response.data);
@@ -192,78 +202,16 @@ export default function ClientInfoView() {
     }
   };
 
-  const handleCancelEdit = () => {
-    // Revert to original data
-    if (originalData) {
-      const d = originalData;
-      const toInputDate = (value) => {
-        if (!value) return '';
-        const parsed = new Date(value);
-        if (Number.isNaN(parsed.getTime())) return '';
-        return parsed.toISOString().split('T')[0];
-      };
-      const hasRelator = d?.relatorName || d?.relationshipToClient;
-      reset({
-        name: d?.fullName || d?.name || '',
-        age: d?.age !== undefined && d?.age !== null ? String(d.age) : '',
-        birthday: toInputDate(d?.birthday),
-        sex: d?.sex || '',
-        civilStatus: d?.civilStatus || '',
-        citizenship: d?.citizenship || '',
-        contactNumber: d?.contactNumber || '',
-        cellphoneNumber: d?.cellphoneNumber || '',
-        telephoneNumber: d?.telephoneNumber || '',
-        presentAddressTelephone: d?.presentAddressTelephone || '',
-        permanentAddressTelephone: d?.permanentAddressTelephone || '',
-        presentAddress: d?.presentAddress || '',
-        permanentAddress: d?.permanentAddress || '',
-        spouse: d?.spouseName || d?.spouse || '',
-        throughRelator: d?.throughRelator || (hasRelator ? 'yes' : 'no'),
-        relatorName: d?.relatorName || '',
-        relationshipToClient: d?.relationshipToClient || '',
-        currentSourceOfIncome: d?.currentSourceOfIncome || '',
-        monthlyIncome: d?.monthlyIncome !== undefined && d?.monthlyIncome !== null ? String(d.monthlyIncome) : '',
-        natureOfWork: d?.natureOfWork || '',
-        employerName: d?.employerName || '',
-        employerAddress: d?.employerAddress || '',
-        employerTelephone: d?.employerTelephone || '',
-        spouseSourceOfIncome: d?.spouseSourceOfIncome || '',
-        spouseMonthlyIncome: d?.spouseMonthlyIncome !== undefined && d?.spouseMonthlyIncome !== null ? String(d.spouseMonthlyIncome) : '',
-        spouseEmployerAddress: d?.spouseEmployerAddress || '',
-        totalCombinedIncome: d?.totalCombinedIncome !== undefined && d?.totalCombinedIncome !== null ? String(d.totalCombinedIncome) : '',
-        partyRepresented: d?.partyRepresented || '',
-        venue: d?.venue || '',
-        caseNumber: d?.caseNumber || '',
-        presentStage: d?.presentStage || '',
-        caseNature: d?.caseNature || d?.natureOfCase || '',
-        courtDivision: d?.courtDivision || '',
-        courtAddress: d?.courtAddress || '',
-        courtPhoneNumber: d?.courtPhoneNumber || '',
-        presidingOfficer: d?.presidingOfficer || '',
-        adverseParty: d?.adverseParty || '',
-        adversePartyAddress: d?.adversePartyAddress || '',
-        adversePartyPhone: d?.adversePartyPhone || '',
-        adversePartyCounsel: d?.adversePartyCounsel || '',
-        adversePartyCounselAddress: d?.adversePartyCounselAddress || '',
-        adversePartyCounselPhone: d?.adversePartyCounselPhone || '',
-        caseDescription: d?.caseDescription || '',
-        appointedDate: d?.appointedDate || '',
-        appointmentTime: d?.appointmentTime || '',
-      });
-    }
-    setEditMode(false);
-  };
-
   const renderStep = () => {
     switch (active) {
       case 0:
-        return <PersonalDetailsForm register={register} errors={errors} setValue={setValue} watch={watch} />;
+        return <PersonalDetailsForm register={register} errors={errors} setValue={setValue} watch={watch} editMode={true} />;
       case 1:
-        return <FinancialDetailsForm register={register} errors={errors} setValue={setValue} watch={watch} />;
+        return <FinancialDetailsForm register={register} errors={errors} setValue={setValue} watch={watch} editMode={true} />;
       case 2:
-        return <CaseDetailsForm register={register} errors={errors} watch={watch} setValue={setValue} />;
+        return <CaseDetailsForm register={register} errors={errors} watch={watch} setValue={setValue} initialPartiesAndCounselDetails={getValues('partiesAndCounselDetails')} initialCourtVenueDetails={getValues('courtVenueDetails')} editMode={true} />;
       case 3:
-        return <ReviewForm formData={{}} getValues={getValues} setValue={setValue} />;
+        return <ReviewForm formData={{}} getValues={getValues} setValue={setValue} editMode={true} />;
       default:
         return null;
     }
@@ -315,20 +263,9 @@ export default function ClientInfoView() {
           </Group>
 
           <Group gap="xs">
-            {!editMode ? (
-              <Button variant="light" color={PRIMARY_BROWN} radius="md" fw={600} leftSection={<IconEdit size={16} />} onClick={() => setEditMode(true)}>
-                Edit
-              </Button>
-            ) : (
-              <>
-                <Button variant="subtle" color="gray" fw={600} onClick={handleCancelEdit}>
-                  Cancel
-                </Button>
-                <Button color={PRIMARY_BROWN} radius="md" fw={600} leftSection={<IconDeviceFloppy size={16} />} onClick={handleSave} loading={saving}>
-                  Save
-                </Button>
-              </>
-            )}
+            <Button color={PRIMARY_BROWN} radius="md" fw={600} leftSection={<IconDeviceFloppy size={16} />} onClick={handleSave} loading={saving}>
+              Save
+            </Button>
           </Group>
         </Group>
 
@@ -415,6 +352,9 @@ export default function ClientInfoView() {
                         throughRelator: values.throughRelator || undefined,
                         relatorName: values.relatorName || undefined,
                         relationshipToClient: values.relationshipToClient || undefined,
+                        relatorEmail: values.relatorEmail || undefined,
+                        relatorPhone: values.relatorPhone || undefined,
+                        relatorAddress: values.relatorAddress || undefined,
                         currentSourceOfIncome: values.currentSourceOfIncome || undefined,
                         monthlyIncome: values.monthlyIncome || undefined,
                         natureOfWork: values.natureOfWork || undefined,
@@ -423,6 +363,7 @@ export default function ClientInfoView() {
                         employerTelephone: values.employerTelephone || undefined,
                         spouseSourceOfIncome: values.spouseSourceOfIncome || undefined,
                         spouseMonthlyIncome: values.spouseMonthlyIncome || undefined,
+                        spouseNatureOfWork: values.spouseNatureOfWork || undefined,
                         spouseEmployerAddress: values.spouseEmployerAddress || undefined,
                         totalCombinedIncome: values.totalCombinedIncome || undefined,
                         partyRepresented: values.partyRepresented || undefined,
@@ -440,6 +381,8 @@ export default function ClientInfoView() {
                         adversePartyCounsel: values.adversePartyCounsel || undefined,
                         adversePartyCounselAddress: values.adversePartyCounselAddress || undefined,
                         adversePartyCounselPhone: values.adversePartyCounselPhone || undefined,
+                        partiesAndCounselDetails: values.partiesAndCounselDetails || undefined,
+                        courtVenueDetails: values.courtVenueDetails || undefined,
                         caseDescription: values.caseDescription || undefined,
                         appointedDate: values.appointedDate || undefined,
                         appointmentTime: values.appointmentTime || undefined,

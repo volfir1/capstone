@@ -13,7 +13,6 @@ import {
   assertUniqueStaffProfile,
   createStaffProfileForAccount,
   listProfilesForAccount,
-  normalizeOptionalDate,
   serializeProfile,
   updateLastSelectedProfile,
 } from "../utils/accountContext.js";
@@ -130,7 +129,7 @@ const requireProfileManager = (req, res) => {
 };
 
 const MANAGED_PROFILE_FIELDS =
-  "accountId email firstName lastName username role isVerified createdAt startDate endDate archivedAt archivedByProfileId restoredAt restoredByProfileId profileImage signatureUrl disabled";
+  "accountId email firstName lastName givenName familyName maternalName username role isVerified createdAt startDate endDate archivedAt archivedByProfileId restoredAt restoredByProfileId profileImage signatureUrl disabled metroManilaAddress provincialAddress dateOfBirth placeOfBirth nationality sex civilStatus telephoneNo religiousAffiliations fathersName mothersName wifesName husbandsName gradeSchool highSchool college course honorsReceived affiliation schoolLastAttended employer";
 const PIN_PROFILE_FIELDS =
   `${MANAGED_PROFILE_FIELDS} pinEnabled pinResetRequired pinFailedAttempts pinLockedUntil pinLastChangedAt`;
 
@@ -144,6 +143,19 @@ const findProfileInAccount = async (accountId, profileId, select = MANAGED_PROFI
 
 const normalizeProfileText = (value) => String(value || "").trim();
 const hasBodyField = (body, field) => Object.prototype.hasOwnProperty.call(body || {}, field);
+
+const normalizeOptionalDate = (value, fieldName = 'date') => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${fieldName} must be a valid date`);
+  }
+
+  return date;
+};
 const describeCurrentProfilePinState = (accountId, profile, req) =>
   describeProfilePinState({
     accountId,
@@ -456,10 +468,28 @@ export const updateProfile = async (req, res) => {
     const profile = requireActiveProfile(req, res);
     if (!profile) return;
 
-    const allowedFields = ["firstName", "lastName"];
+    const isIntern = profile.role === 'intern';
+    const allowedFields = isIntern 
+      ? ["givenName", "familyName", "maternalName", "metroManilaAddress", "provincialAddress", "dateOfBirth", "placeOfBirth", "nationality", "sex", "civilStatus", "telephoneNo", "religiousAffiliations", "fathersName", "mothersName", "wifesName", "husbandsName", "gradeSchool", "highSchool", "college", "course", "honorsReceived", "affiliation", "schoolLastAttended", "employer"]
+      : ["firstName", "lastName"];
+    
     for (const field of allowedFields) {
       if (req.body?.[field] !== undefined) {
-        profile[field] = String(req.body[field] || "").trim();
+        if (field === 'dateOfBirth') {
+          profile[field] = normalizeOptionalDate(req.body[field], 'Date of Birth');
+        } else {
+          profile[field] = String(req.body[field] || "").trim();
+        }
+      }
+    }
+
+    // For backward compatibility, also update firstName/lastName when givenName/familyName are set
+    if (isIntern) {
+      if (req.body?.givenName !== undefined) {
+        profile.firstName = String(req.body.givenName || "").trim();
+      }
+      if (req.body?.familyName !== undefined) {
+        profile.lastName = String(req.body.familyName || "").trim();
       }
     }
 
@@ -521,14 +551,19 @@ export const updateManagedProfile = async (req, res) => {
       return res.status(404).json({ success: false, message: "Profile not found" });
     }
 
-    const firstName = normalizeProfileText(req.body?.firstName ?? managedProfile.firstName);
-    const lastName = normalizeProfileText(req.body?.lastName ?? managedProfile.lastName);
+    const isIntern = managedProfile.role === 'intern';
+    const firstName = isIntern 
+      ? normalizeProfileText(req.body?.givenName ?? req.body?.firstName ?? managedProfile.givenName ?? managedProfile.firstName)
+      : normalizeProfileText(req.body?.firstName ?? managedProfile.firstName);
+    const lastName = isIntern
+      ? normalizeProfileText(req.body?.familyName ?? req.body?.lastName ?? managedProfile.familyName ?? managedProfile.lastName)
+      : normalizeProfileText(req.body?.lastName ?? managedProfile.lastName);
     const role = normalizeProfileText(req.body?.role ?? managedProfile.role).toLowerCase();
 
     if (!firstName || !lastName || !role) {
       return res.status(400).json({
         success: false,
-        message: "firstName, lastName, and role are required",
+        message: isIntern ? "givenName, familyName, and role are required" : "firstName, lastName, and role are required",
       });
     }
 
@@ -548,6 +583,37 @@ export const updateManagedProfile = async (req, res) => {
     managedProfile.firstName = firstName;
     managedProfile.lastName = lastName;
     managedProfile.role = role;
+
+    // Handle intern-specific fields
+    if (isIntern) {
+      managedProfile.givenName = normalizeProfileText(req.body?.givenName ?? managedProfile.givenName);
+      managedProfile.familyName = normalizeProfileText(req.body?.familyName ?? managedProfile.familyName);
+      managedProfile.maternalName = normalizeProfileText(req.body?.maternalName ?? managedProfile.maternalName);
+      managedProfile.metroManilaAddress = normalizeProfileText(req.body?.metroManilaAddress ?? managedProfile.metroManilaAddress);
+      managedProfile.provincialAddress = normalizeProfileText(req.body?.provincialAddress ?? managedProfile.provincialAddress);
+      if (req.body?.dateOfBirth !== undefined) {
+        managedProfile.dateOfBirth = normalizeOptionalDate(req.body.dateOfBirth, 'Date of Birth');
+      }
+      managedProfile.placeOfBirth = normalizeProfileText(req.body?.placeOfBirth ?? managedProfile.placeOfBirth);
+      managedProfile.nationality = normalizeProfileText(req.body?.nationality ?? managedProfile.nationality);
+      managedProfile.sex = normalizeProfileText(req.body?.sex ?? managedProfile.sex);
+      managedProfile.civilStatus = normalizeProfileText(req.body?.civilStatus ?? managedProfile.civilStatus);
+      managedProfile.telephoneNo = normalizeProfileText(req.body?.telephoneNo ?? managedProfile.telephoneNo);
+      managedProfile.religiousAffiliations = normalizeProfileText(req.body?.religiousAffiliations ?? managedProfile.religiousAffiliations);
+      managedProfile.fathersName = normalizeProfileText(req.body?.fathersName ?? managedProfile.fathersName);
+      managedProfile.mothersName = normalizeProfileText(req.body?.mothersName ?? managedProfile.mothersName);
+      managedProfile.wifesName = normalizeProfileText(req.body?.wifesName ?? managedProfile.wifesName);
+      managedProfile.husbandsName = normalizeProfileText(req.body?.husbandsName ?? managedProfile.husbandsName);
+      managedProfile.gradeSchool = normalizeProfileText(req.body?.gradeSchool ?? managedProfile.gradeSchool);
+      managedProfile.highSchool = normalizeProfileText(req.body?.highSchool ?? managedProfile.highSchool);
+      managedProfile.college = normalizeProfileText(req.body?.college ?? managedProfile.college);
+      managedProfile.course = normalizeProfileText(req.body?.course ?? managedProfile.course);
+      managedProfile.honorsReceived = normalizeProfileText(req.body?.honorsReceived ?? managedProfile.honorsReceived);
+      managedProfile.affiliation = normalizeProfileText(req.body?.affiliation ?? managedProfile.affiliation);
+      managedProfile.schoolLastAttended = normalizeProfileText(req.body?.schoolLastAttended ?? managedProfile.schoolLastAttended);
+      managedProfile.employer = normalizeProfileText(req.body?.employer ?? managedProfile.employer);
+    }
+
     applyTenureDateUpdates(managedProfile, req.body || {});
     await managedProfile.save();
 
